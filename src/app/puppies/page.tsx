@@ -38,7 +38,7 @@ const getPhotoUrl = (p: any) => pick(p, ["photo_url", "image_url", "img", "main_
 const getStatus = (p: any) => {
   const direct = pick(p, ["status", "availability"], "");
   if (direct) return direct;
-  const isAvail = pick(p, ["is_available", "available"], "";
+  const isAvail = pick(p, ["is_available", "available"], "");
   if (typeof isAvail === "boolean") return isAvail ? "Available" : "Reserved";
   return "";
 };
