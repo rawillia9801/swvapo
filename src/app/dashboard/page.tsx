@@ -1,9 +1,4 @@
 'use client'
-import { useState } from 'react'
-import Scanner from '@/components/Scanner'
-import AddProductForm from '@/components/AddProductForm'
-import QuickSaleModal from '@/components/QuickSaleModal'
-
 export default function Dashboard() {
   const [selectedProduct, setSelectedProduct] = useState<any>(null)
   const [showScanner, setShowScanner] = useState(false)
