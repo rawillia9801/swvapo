@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  /* This creates your custom Boutique palette for Tailwind v4 */
+  /* Existing Boutique Palette */
   --color-blush-50: #fff9f9;
   --color-blush-100: #ffeef0;
   --color-blush-200: #ffdce1;
@@ -10,11 +10,92 @@
   --color-blush-600: #e66a81;
   --color-blush-700: #cc526a;
   --color-blush-800: #b34057;
-
   --color-cream-50: #fffdfa;
-
   --color-charcoal-600: #4a4a4a;
   --color-charcoal-700: #333333;
   --color-charcoal-800: #262626;
   --color-charcoal-900: #1a1a1a;
+
+  /* SWVA Brand Colors from HTML */
+  --color-brand-50: #F9F7F5;
+  --color-brand-100: #F0EBE5;
+  --color-brand-200: #E2D6C5;
+  --color-brand-300: #CFB69B;
+  --color-brand-400: #B69673;
+  --color-brand-500: #9C7B58;
+  --color-brand-600: #7F6244;
+  --color-brand-700: #634C35;
+  --color-brand-800: #463626;
+  --color-brand-900: #2A2018;
+
+  /* Typography */
+  --font-sans: "Plus Jakarta Sans", sans-serif;
+  --font-serif: "Cormorant Garamond", serif;
+
+  /* Custom Shadows */
+  --shadow-luxury: 0 20px 40px -15px rgba(42, 32, 24, 0.12);
+  --shadow-paper: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-lift: 0 18px 40px -24px rgba(42, 32, 24, 0.22);
+
+  /* Backgrounds */
+  --background-image-texture-paper: url('https://www.transparenttextures.com/patterns/cream-paper.png');
+}
+
+/* Custom UI Polishes (Legacy CSS from your HTML) */
+@layer base {
+  body {
+    background-color: var(--color-brand-50);
+    color: var(--color-brand-900);
+  }
+}
+
+@layer utilities {
+  .scroller::-webkit-scrollbar { width: 4px; }
+  .scroller::-webkit-scrollbar-track { background: transparent; }
+  .scroller::-webkit-scrollbar-thumb { background-color: #E2D6C5; border-radius: 20px; }
+
+  .card-luxury {
+    background: rgba(255, 255, 255, 0.86);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    border-radius: 18px;
+    box-shadow: var(--shadow-luxury);
+    transition: all .25s ease;
+  }
+
+  .card-luxury:hover {
+    box-shadow: var(--shadow-lift);
+    border-color: rgba(255, 255, 255, 0.92);
+    transform: translateY(-1px);
+  }
+
+  .nav-item {
+    @apply flex items-center gap-3 px-4 py-3 rounded-xl text-[0.92rem] font-bold text-brand-700 transition-all border-l-3 border-transparent;
+  }
+
+  .nav-item:hover {
+    @apply bg-white/60 text-brand-900;
+  }
+
+  .nav-item.active {
+    @apply bg-white text-brand-900 border-l-brand-500 shadow-[0_8px_20px_-18px_rgba(42,32,24,0.35)] font-extrabold;
+  }
+
+  .shine {
+    background: 
+      radial-gradient(circle at 30% 10%, rgba(212,175,55,0.14), transparent 40%),
+      radial-gradient(circle at 80% 30%, rgba(141,163,153,0.10), transparent 45%),
+      radial-gradient(circle at 40% 90%, rgba(229,185,185,0.10), transparent 45%),
+      rgba(255,255,255,0.50);
+  }
+
+  .status-pill {
+    @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[0.7rem] font-extrabold uppercase tracking-widest border;
+  }
+  
+  .status-success { @apply bg-[#E6F4EA] text-[#1E4620] border-[#CEEAD6]; }
+  .status-pending { @apply bg-[#FFF8E1] text-[#785C00] border-[#FFE082]; }
+  .status-neutral { @apply bg-[#F3F4F6] text-[#374151] border-[#E5E7EB]; }
+  .status-danger  { @apply bg-[#FDECEC] text-[#7A1B1B] border-[#F7CACA]; }
 }
