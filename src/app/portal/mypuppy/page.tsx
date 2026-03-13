@@ -33,13 +33,6 @@ type PuppyRow = {
   name: string | null;
   coat: string | null;
   buyer: string | null;
-  tail_dock_cost: number | null;
-  dewclaw_cost: number | null;
-  vaccination_cost: number | null;
-  microchip_cost: number | null;
-  registration_cost: number | null;
-  other_vet_cost: number | null;
-  total_medical_cost: number | null;
   puppy_name: string | null;
   pattern: string | null;
   deposit: number | null;
@@ -242,12 +235,10 @@ export default function PortalMyPuppyPage() {
     puppy?.call_name || puppy?.puppy_name || puppy?.name || "Your Puppy";
 
   const puppyImage =
-    buildPuppyPhotoUrl(
-      puppy?.image_url || puppy?.photo_url || ""
-    ) ||
+    buildPuppyPhotoUrl(puppy?.image_url || puppy?.photo_url || "") ||
     "https://images.unsplash.com/photo-1591769225440-811ad7d6eca6?auto=format&fit=crop&w=1200&q=80";
 
-  const visibleEvents = useMemo(() => {
+  const pudates = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -255,17 +246,6 @@ export default function PortalMyPuppyPage() {
       const eventDate = new Date(event.event_date);
       eventDate.setHours(0, 0, 0, 0);
       return eventDate.getTime() <= today.getTime();
-    });
-  }, [events]);
-
-  const upcomingEvents = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    return events.filter((event) => {
-      const eventDate = new Date(event.event_date);
-      eventDate.setHours(0, 0, 0, 0);
-      return eventDate.getTime() > today.getTime();
     });
   }, [events]);
 
@@ -283,7 +263,88 @@ export default function PortalMyPuppyPage() {
       { label: "Week 8", value: puppy.w_8 },
     ];
 
-    return quickWeights.filter((w) => w.value !== null && w.value !== undefined && Number(w.value) > 0);
+    return quickWeights.filter(
+      (w) => w.value !== null && w.value !== undefined && Number(w.value) > 0
+    );
+  }, [puppy]);
+
+  const latestWeight = useMemo(() => {
+    if (weights.length) {
+      const first = weights[0];
+      return {
+        oz: first.weight_oz,
+        g: first.weight_g,
+        ageWeeks: first.age_weeks,
+      };
+    }
+
+    if (puppy?.current_weight) {
+      return {
+        oz: puppy.current_weight,
+        g: null,
+        ageWeeks: null,
+      };
+    }
+
+    const fallback = weeklyWeights
+      .slice()
+      .reverse()
+      .find((w) => Number(w.value) > 0);
+
+    if (!fallback) return null;
+
+    const ageWeeks = Number(fallback.label.replace("Week ", ""));
+    return {
+      oz: Number(fallback.value),
+      g: null,
+      ageWeeks,
+    };
+  }, [weights, puppy, weeklyWeights]);
+
+  const projectedAdultWeight = useMemo(() => {
+    if (!latestWeight?.oz) return "—";
+
+    const currentOz = Number(latestWeight.oz);
+    const ageWeeks = latestWeight.ageWeeks;
+
+    if (!currentOz || !ageWeeks) return "—";
+
+    let projectedOz = 0;
+
+    if (ageWeeks >= 12) {
+      projectedOz = currentOz * 2;
+    } else if (ageWeeks >= 8) {
+      projectedOz = currentOz * 2.5;
+    } else if (ageWeeks >= 6) {
+      projectedOz = currentOz * 3;
+    } else {
+      projectedOz = currentOz * 3.5;
+    }
+
+    const pounds = projectedOz / 16;
+    return `${pounds.toFixed(1)} lbs est.`;
+  }, [latestWeight]);
+
+  const ageDisplay = useMemo(() => {
+    if (!puppy?.dob) return "—";
+
+    const dob = new Date(puppy.dob);
+    const today = new Date();
+    const diffMs = today.getTime() - dob.getTime();
+    const diffDays = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+    const weeks = Math.floor(diffDays / 7);
+
+    if (weeks < 1) return `${diffDays} day${diffDays === 1 ? "" : "s"}`;
+    return `${weeks} week${weeks === 1 ? "" : "s"}`;
+  }, [puppy]);
+
+  const buyerExperience = useMemo(() => {
+    if (!puppy) return "Companion";
+
+    if ((puppy.registry || "").toLowerCase().includes("akc")) return "AKC puppy";
+    if ((puppy.registry || "").toLowerCase().includes("ckc")) return "CKC puppy";
+    if ((puppy.registry || "").toLowerCase().includes("aca")) return "ACA puppy";
+    return "Family puppy";
   }, [puppy]);
 
   if (loading) {
@@ -435,7 +496,7 @@ export default function PortalMyPuppyPage() {
 
                 <p className="mt-2 text-brand-500 font-semibold">
                   {puppy
-                    ? "Photos, milestones, weight tracking, and profile details for your puppy."
+                    ? "A complete view of your puppy’s profile, milestones, progress, and updates."
                     : "Your puppy profile will appear here once a puppy has been matched to your portal."}
                 </p>
               </div>
@@ -490,13 +551,13 @@ export default function PortalMyPuppyPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                   <div className="lg:col-span-8 space-y-8">
                     <div className="card-luxury overflow-hidden group">
-                      <div className="relative h-[430px] w-full bg-brand-900">
+                      <div className="relative h-[470px] w-full bg-brand-900">
                         <img
                           src={puppyImage}
                           className="w-full h-full object-cover opacity-95 group-hover:scale-[1.03] transition duration-700 ease-in-out"
                           alt={puppyName}
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
 
                         <div className="absolute top-6 left-6 flex flex-wrap items-center gap-2">
                           {puppy.sex ? (
@@ -511,9 +572,9 @@ export default function PortalMyPuppyPage() {
                             </span>
                           ) : null}
 
-                          {puppy.dob ? (
+                          {puppy.coat_type || puppy.coat ? (
                             <span className="px-3 py-1 bg-white/20 backdrop-blur-md text-white border border-white/30 rounded-full text-[10px] font-black uppercase tracking-[0.22em]">
-                              Born {fmtDate(puppy.dob)}
+                              {puppy.coat_type || puppy.coat}
                             </span>
                           ) : null}
                         </div>
@@ -523,7 +584,8 @@ export default function PortalMyPuppyPage() {
                             {puppyName}
                           </h3>
                           <p className="text-white/85 text-sm font-semibold max-w-xl">
-                            Follow milestones, check upcoming care events, and review your puppy’s profile information.
+                            {puppy.description ||
+                              "Your puppy’s profile, milestones, progress, and breeder updates all in one place."}
                           </p>
                         </div>
                       </div>
@@ -533,27 +595,25 @@ export default function PortalMyPuppyPage() {
                       <InfoTile label="Price" value={puppy.price ? fmtMoney(puppy.price) : "—"} />
                       <InfoTile label="Deposit" value={puppy.deposit ? fmtMoney(puppy.deposit) : "—"} />
                       <InfoTile label="Balance" value={puppy.balance ? fmtMoney(puppy.balance) : "—"} />
-                      <InfoTile
-                        label="Medical Cost"
-                        value={puppy.total_medical_cost ? fmtMoney(puppy.total_medical_cost) : "—"}
-                      />
+                      <InfoTile label="Age" value={ageDisplay} />
                     </div>
 
                     <div className="card-luxury p-7">
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <h3 className="font-serif text-2xl font-bold text-brand-900">
-                            Puppy Profile
+                            At a Glance
                           </h3>
                           <p className="text-brand-500 font-semibold text-sm mt-1">
-                            Core details and breeder notes.
+                            A polished overview of your puppy’s details and progress.
                           </p>
                         </div>
                       </div>
 
-                      <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         <SummaryCard label="Call Name" value={puppy.call_name || puppy.puppy_name || puppy.name || "—"} />
                         <SummaryCard label="Litter Name" value={puppy.litter_name || "—"} />
+                        <SummaryCard label="Type" value={buyerExperience} />
                         <SummaryCard label="Sex" value={puppy.sex || "—"} />
                         <SummaryCard label="Color" value={puppy.color || "—"} />
                         <SummaryCard label="Pattern" value={puppy.pattern || "—"} />
@@ -562,20 +622,21 @@ export default function PortalMyPuppyPage() {
                         <SummaryCard label="Registry" value={puppy.registry || "—"} />
                         <SummaryCard label="Sire" value={puppy.sire || "—"} />
                         <SummaryCard label="Dam" value={puppy.dam || "—"} />
+                        <SummaryCard label="Status" value={puppy.status || "—"} />
                         <SummaryCard label="Birth Weight" value={formatWeight(puppy.birth_weight, puppy.weight_unit)} />
                         <SummaryCard label="Current Weight" value={formatWeight(puppy.current_weight, puppy.weight_unit)} />
+                        <SummaryCard label="Projected Adult Weight" value={projectedAdultWeight} />
                         <SummaryCard label="Weight Date" value={puppy.weight_date ? fmtDate(puppy.weight_date) : "—"} />
                         <SummaryCard label="Microchip" value={puppy.microchip || "—"} />
                         <SummaryCard label="Registration No." value={puppy.registration_no || "—"} />
-                        <SummaryCard label="Status" value={puppy.status || "—"} />
                       </div>
 
                       {(puppy.description || puppy.notes) ? (
-                        <div className="mt-6 space-y-4">
+                        <div className="mt-6 grid grid-cols-1 gap-4">
                           {puppy.description ? (
                             <div className="rounded-2xl border border-brand-200 bg-white/60 p-4">
                               <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-                                Description
+                                About Your Puppy
                               </div>
                               <div className="mt-2 text-sm font-semibold text-brand-800 whitespace-pre-wrap">
                                 {puppy.description}
@@ -586,7 +647,7 @@ export default function PortalMyPuppyPage() {
                           {puppy.notes ? (
                             <div className="rounded-2xl border border-brand-200 bg-white/60 p-4">
                               <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-                                Notes
+                                Breeder Notes
                               </div>
                               <div className="mt-2 text-sm font-semibold text-brand-800 whitespace-pre-wrap">
                                 {puppy.notes}
@@ -604,9 +665,32 @@ export default function PortalMyPuppyPage() {
                             Weight Tracking
                           </h3>
                           <p className="text-brand-500 font-semibold text-sm mt-1">
-                            Weekly milestones and recorded weigh-ins.
+                            Weekly growth and recorded weigh-ins, plus projected adult size.
                           </p>
                         </div>
+                      </div>
+
+                      <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <HighlightCard
+                          label="Current Weight"
+                          value={formatWeight(
+                            latestWeight?.oz || puppy.current_weight,
+                            puppy.weight_unit || "oz"
+                          )}
+                        />
+                        <HighlightCard
+                          label="Age at Last Weight"
+                          value={
+                            latestWeight?.ageWeeks !== null &&
+                            latestWeight?.ageWeeks !== undefined
+                              ? `${latestWeight.ageWeeks} weeks`
+                              : "—"
+                          }
+                        />
+                        <HighlightCard
+                          label="Projected Adult Weight"
+                          value={projectedAdultWeight}
+                        />
                       </div>
 
                       {weeklyWeights.length ? (
@@ -615,7 +699,7 @@ export default function PortalMyPuppyPage() {
                             <InfoTile
                               key={item.label}
                               label={item.label}
-                              value={formatWeight(Number(item.value), puppy.weight_unit)}
+                              value={formatWeight(Number(item.value), puppy.weight_unit || "oz")}
                             />
                           ))}
                         </div>
@@ -674,16 +758,16 @@ export default function PortalMyPuppyPage() {
                     <div className="card-luxury p-7">
                       <div className="flex items-center justify-between gap-3 mb-4">
                         <h3 className="font-serif text-2xl font-bold text-brand-900">
-                          Visible Updates
+                          Pupdates
                         </h3>
                         <span className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-400">
-                          Posted Now
+                          Live Now
                         </span>
                       </div>
 
                       <div className="space-y-3">
-                        {visibleEvents.length ? (
-                          visibleEvents.map((event) => (
+                        {pudates.length ? (
+                          pudates.map((event) => (
                             <div
                               key={event.id}
                               className="p-4 rounded-2xl bg-white/70 border border-brand-200"
@@ -716,52 +800,35 @@ export default function PortalMyPuppyPage() {
                           ))
                         ) : (
                           <div className="text-center py-10 text-brand-400 text-sm italic">
-                            No updates are available to display yet.
+                            No pupdates have been posted yet.
                           </div>
                         )}
                       </div>
                     </div>
 
                     <div className="card-luxury p-7">
-                      <div className="flex items-center justify-between gap-3 mb-4">
-                        <h3 className="font-serif text-2xl font-bold text-brand-900">
-                          Upcoming Milestones
-                        </h3>
-                        <span className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-400">
-                          Hidden Until Due
-                        </span>
-                      </div>
+                      <h3 className="font-serif text-2xl font-bold text-brand-900 mb-4">
+                        Personality & Highlights
+                      </h3>
 
-                      <div className="space-y-3">
-                        {upcomingEvents.length ? (
-                          upcomingEvents.map((event) => (
-                            <div
-                              key={event.id}
-                              className="p-4 rounded-2xl bg-brand-50/70 border border-brand-200"
-                            >
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-                                  {event.event_type || "Milestone"}
-                                </div>
-                                <div className="text-[10px] text-brand-300 font-semibold">
-                                  {fmtDate(event.event_date)}
-                                </div>
-                              </div>
-
-                              <div className="mt-2 text-sm font-black text-brand-900">
-                                {event.label || "Upcoming Update"}
-                              </div>
-
-                              <div className="mt-1 text-[12px] text-brand-600 font-semibold leading-relaxed">
-                                This milestone is scheduled and will appear on the dashboard once its date arrives.
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="text-center py-10 text-brand-400 text-sm italic">
-                            No upcoming milestones are currently scheduled.
-                          </div>
-                        )}
+                      <div className="space-y-4">
+                        <MiniInfo label="Family Type" value={buyerExperience} />
+                        <MiniInfo
+                          label="Coat"
+                          value={puppy.coat_type || puppy.coat || "—"}
+                        />
+                        <MiniInfo
+                          label="Color / Pattern"
+                          value={[puppy.color, puppy.pattern].filter(Boolean).join(" • ") || "—"}
+                        />
+                        <MiniInfo
+                          label="Registration"
+                          value={puppy.registry || "—"}
+                        />
+                        <MiniInfo
+                          label="Go-Home Progress"
+                          value={puppy.status || "In Progress"}
+                        />
                       </div>
                     </div>
 
@@ -787,7 +854,7 @@ export default function PortalMyPuppyPage() {
                         >
                           <div className="text-sm font-black text-brand-900">Documents</div>
                           <div className="mt-1 text-[12px] text-brand-500 font-semibold">
-                            View contracts and portal documents.
+                            View contracts and saved portal documents.
                           </div>
                         </Link>
 
@@ -797,7 +864,7 @@ export default function PortalMyPuppyPage() {
                         >
                           <div className="text-sm font-black text-brand-900">Financials</div>
                           <div className="mt-1 text-[12px] text-brand-500 font-semibold">
-                            Review payment activity and balance.
+                            Review payment activity and remaining balance.
                           </div>
                         </Link>
 
@@ -807,10 +874,23 @@ export default function PortalMyPuppyPage() {
                         >
                           <div className="text-sm font-black text-brand-900">Resources</div>
                           <div className="mt-1 text-[12px] text-brand-500 font-semibold">
-                            Care guidance and puppy prep information.
+                            Puppy prep, feeding guidance, and care help.
                           </div>
                         </Link>
                       </div>
+                    </div>
+
+                    <div className="rounded-3xl bg-brand-800 text-white p-7 shadow-luxury">
+                      <h4 className="font-serif text-2xl font-bold">Need an Update?</h4>
+                      <p className="mt-2 text-brand-200 text-sm font-semibold">
+                        Use Messages anytime if you would like a fresh note, photo, or progress update.
+                      </p>
+                      <Link
+                        href="/portal/messages"
+                        className="inline-block mt-5 px-5 py-3 bg-white/10 border border-white/20 rounded-xl text-xs font-black uppercase tracking-[0.18em] hover:bg-white/20 transition"
+                      >
+                        Message Support
+                      </Link>
                     </div>
                   </div>
                 </div>
@@ -834,6 +914,17 @@ function InfoTile({ label, value }: { label: string; value: string }) {
   );
 }
 
+function HighlightCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-brand-200 bg-white/70 p-5">
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
+        {label}
+      </div>
+      <div className="mt-2 text-xl font-black text-brand-900">{value}</div>
+    </div>
+  );
+}
+
 function SummaryCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-brand-200 bg-white/65 p-4">
@@ -841,6 +932,17 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
         {label}
       </div>
       <div className="mt-1 text-sm font-black text-brand-900 break-words">{value}</div>
+    </div>
+  );
+}
+
+function MiniInfo({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-brand-200 bg-white/65 p-4">
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
+        {label}
+      </div>
+      <div className="mt-1 text-sm font-semibold text-brand-800">{value}</div>
     </div>
   );
 }
