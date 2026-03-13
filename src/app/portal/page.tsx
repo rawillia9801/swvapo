@@ -32,37 +32,32 @@ function statusPill(statusRaw: any, type?: "application" | "puppy") {
     )
   ) {
     cls = "bg-amber-50 text-amber-700 border border-amber-200";
-  } else if (
-    ["denied", "rejected", "cancel"].some((x) => s.includes(x))
-  ) {
+  } else if (["denied", "rejected", "cancel"].some((x) => s.includes(x))) {
     cls = "bg-rose-50 text-rose-700 border border-rose-200";
   }
 
   if (!raw && type === "application") label = "Pending";
   if (!raw && type === "puppy") label = "Pending Match";
 
-  return {
-    cls,
-    label,
-  };
+  return { cls, label };
 }
 
 function nextSteps(hasApp: boolean, hasPuppy: boolean) {
   if (hasPuppy) {
     return [
       {
-        icon: "📄",
-        title: "Review Contracts",
-        desc: "Open your documents and confirm you’re set.",
-        href: "/portal/documents",
-        cta: "Open Contracts",
-      },
-      {
         icon: "🐾",
         title: "View My Puppy",
         desc: "See your puppy’s profile, milestones, and progress.",
         href: "/portal/mypuppy",
         cta: "Open My Puppy",
+      },
+      {
+        icon: "📄",
+        title: "Review Contracts",
+        desc: "Open your documents and confirm you’re set.",
+        href: "/portal/documents",
+        cta: "Open Contracts",
       },
       {
         icon: "💳",
@@ -72,11 +67,11 @@ function nextSteps(hasApp: boolean, hasPuppy: boolean) {
         cta: "Open Financials",
       },
       {
-        icon: "✨",
-        title: "Instant Updates",
-        desc: "Open ChiChi AI for updates, questions, and portal help.",
-        href: "/portal/updates",
-        cta: "Open ChiChi AI",
+        icon: "📚",
+        title: "Care Resources",
+        desc: "Hypoglycemia, routine, and Chihuahua care guidance.",
+        href: "/portal/resources",
+        cta: "Open Resources",
       },
     ];
   }
@@ -92,7 +87,7 @@ function nextSteps(hasApp: boolean, hasPuppy: boolean) {
       },
       {
         icon: "📄",
-        title: "Pre-Read Contracts",
+        title: "Review Contracts",
         desc: "Get familiar before the match is finalized.",
         href: "/portal/documents",
         cta: "View Contracts",
@@ -105,11 +100,11 @@ function nextSteps(hasApp: boolean, hasPuppy: boolean) {
         cta: "Open Resources",
       },
       {
-        icon: "✨",
-        title: "Instant Updates",
-        desc: "Use ChiChi AI for quick guidance and updates.",
-        href: "/portal/updates",
-        cta: "Open ChiChi AI",
+        icon: "💬",
+        title: "Check Messages",
+        desc: "We’ll send updates and questions there first.",
+        href: "/portal/messages",
+        cta: "Open Messages",
       },
     ];
   }
@@ -137,11 +132,11 @@ function nextSteps(hasApp: boolean, hasPuppy: boolean) {
       cta: "Open Resources",
     },
     {
-      icon: "✨",
-      title: "Instant Updates",
-      desc: "Open ChiChi AI for portal help and guidance.",
-      href: "/portal/updates",
-      cta: "Open ChiChi AI",
+      icon: "💬",
+      title: "Ask a Question",
+      desc: "Use Messages if you’re unsure about anything.",
+      href: "/portal/messages",
+      cta: "Open Messages",
     },
   ];
 }
@@ -177,23 +172,20 @@ export default function PortalPage() {
 
     initAuth();
 
-    const { data: authListener } = sb.auth.onAuthStateChange(
-      async (_event, session) => {
-        const currentUser = session?.user ?? null;
+    const { data: authListener } = sb.auth.onAuthStateChange(async (_event, session) => {
+      const currentUser = session?.user ?? null;
+      if (!mounted) return;
 
-        if (!mounted) return;
+      setUser(currentUser);
 
-        setUser(currentUser);
-
-        if (currentUser) {
-          await loadData(currentUser);
-        } else {
-          setData(null);
-        }
-
-        setLoading(false);
+      if (currentUser) {
+        await loadData(currentUser);
+      } else {
+        setData(null);
       }
-    );
+
+      setLoading(false);
+    });
 
     const onStorage = async (e: StorageEvent) => {
       if (!String(e.key || "").includes("supabase")) return;
@@ -206,6 +198,7 @@ export default function PortalPage() {
       if (!mounted) return;
 
       setUser(currentUser);
+
       if (currentUser) {
         await loadData(currentUser);
       } else {
@@ -236,7 +229,7 @@ export default function PortalPage() {
     const buyerRes = await sb
       .from(T.buyers)
       .select("*")
-      .or(`user_id.eq.${uid},email.ilike.%${email}%`)
+      .or(`user_id.eq.${uid},email.ilike.%${email}%,buyer_email.ilike.%${email}%`)
       .limit(1)
       .maybeSingle();
 
@@ -252,7 +245,6 @@ export default function PortalPage() {
 
     app = appRes.data ?? null;
 
-    // Fix: always check assigned_puppy_id first
     if (app?.assigned_puppy_id) {
       const assignedPuppyRes = await sb
         .from(T.puppies)
@@ -343,11 +335,13 @@ export default function PortalPage() {
           const today = new Date();
           today.setHours(0, 0, 0, 0);
 
-          updates = (updatesRes.data || []).filter((u: any) => {
-            const d = new Date(u.event_date || u.created_at);
-            d.setHours(0, 0, 0, 0);
-            return d.getTime() <= today.getTime();
-          }).slice(0, 6);
+          updates = (updatesRes.data || [])
+            .filter((u: any) => {
+              const d = new Date(u.event_date || u.created_at);
+              d.setHours(0, 0, 0, 0);
+              return d.getTime() <= today.getTime();
+            })
+            .slice(0, 6);
         }
       } catch {
         updates = [];
@@ -407,7 +401,7 @@ export default function PortalPage() {
     : "Welcome Aboard";
 
   const heroDesc = hasPuppy
-    ? "You’re matched. Review documents, check your puppy profile, and keep an eye on updates in the portal."
+    ? "You’re matched. Review documents, view your puppy profile, and keep an eye on portal updates."
     : hasApp
     ? "Your application is in review. We’ll message you with next steps and any questions."
     : "Start with the application. Once approved and matched, your puppy profile and documents will appear automatically.";
@@ -428,7 +422,6 @@ export default function PortalPage() {
 
   const actionHref = hasPuppy ? "/portal/mypuppy" : "/portal/application";
   const actionLabel = hasPuppy ? "Open My Puppy" : hasApp ? "View Application" : "Start Now";
-
   const steps = nextSteps(hasApp, hasPuppy);
 
   return (
@@ -440,7 +433,7 @@ export default function PortalPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <span className="font-serif font-bold text-xl">SWVA</span>
+          <span className="font-serif font-bold text-xl">Southwest Virginia Chihuahua</span>
         </div>
 
         <div className="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center border border-brand-200 font-bold text-brand-600">
@@ -480,9 +473,6 @@ export default function PortalPage() {
           <Link href="/portal/mypuppy" className="nav-item">
             My Puppy
           </Link>
-          <Link href="/portal/updates" className="nav-item">
-            Instant Updates
-          </Link>
           <Link href="/portal/messages" className="nav-item">
             Messages
           </Link>
@@ -509,9 +499,9 @@ export default function PortalPage() {
 
       <aside className="hidden md:flex flex-col w-72 bg-white/80 border-r border-brand-200/60 z-20 h-full backdrop-blur-sm">
         <div className="p-8">
-          <h1 className="font-serif font-bold text-xl leading-none">SWVA</h1>
+          <h1 className="font-serif font-bold text-xl leading-none">Southwest Virginia Chihuahua</h1>
           <p className="text-[10px] uppercase tracking-widest text-brand-500 font-black mt-1">
-            Chihuahua
+            Puppy Portal
           </p>
         </div>
 
@@ -532,12 +522,9 @@ export default function PortalPage() {
             </Link>
           </div>
 
-          <Link
-            href="/portal/updates"
-            className="px-4 py-2 mt-8 block text-[10px] font-black uppercase tracking-widest text-brand-400 hover:text-brand-700 transition"
-          >
-            Instant Updates
-          </Link>
+          <div className="px-4 py-2 mt-8 text-[10px] font-black uppercase tracking-widest text-brand-400">
+            Account
+          </div>
 
           <div className="mt-3 flex flex-col gap-3">
             <Link href="/portal/messages" className="nav-item">
@@ -654,10 +641,10 @@ export default function PortalPage() {
                     </Link>
 
                     <Link
-                      href="/portal/updates"
+                      href="/portal/messages"
                       className="inline-flex items-center gap-2 px-7 py-3.5 bg-white/80 border border-brand-200 text-brand-800 font-black text-sm rounded-xl hover:bg-white transition shadow-paper uppercase tracking-[0.12em]"
                     >
-                      Open ChiChi AI <span aria-hidden="true">↗</span>
+                      Message Support <span aria-hidden="true">↗</span>
                     </Link>
                   </div>
 
@@ -851,10 +838,10 @@ export default function PortalPage() {
                         Application →
                       </Link>
                       <Link
-                        href="/portal/updates"
+                        href="/portal/messages"
                         className="px-6 py-3 rounded-xl bg-white border border-brand-200 text-brand-800 font-black text-xs uppercase tracking-[0.18em] hover:bg-brand-50 transition shadow-paper"
                       >
-                        ChiChi AI →
+                        Messages →
                       </Link>
                     </div>
                   </div>
@@ -1024,7 +1011,7 @@ export default function PortalPage() {
                       Pupdates
                     </h4>
                     <Link
-                      href="/portal/updates"
+                      href="/portal/mypuppy"
                       className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500 hover:text-brand-800"
                     >
                       Open
@@ -1116,15 +1103,15 @@ export default function PortalPage() {
                 </div>
 
                 <div className="rounded-3xl bg-brand-800 text-white p-7 shadow-luxury">
-                  <h4 className="font-serif text-2xl font-bold">ChiChi AI</h4>
-                  <p className="mt-2 text-brand-200 text-sm font-semibold">
-                    Open your AI assistant for instant updates, questions, guidance, and puppy portal help.
+                  <h4 className="font-serif font-bold text-2xl mb-1">Need Help?</h4>
+                  <p className="text-brand-200 text-sm font-semibold mb-5">
+                    Questions about application, messages, contracts, or puppy care?
                   </p>
                   <Link
-                    href="/portal/updates"
-                    className="inline-block mt-5 px-5 py-3 bg-white/10 border border-white/20 rounded-xl text-xs font-black uppercase tracking-[0.18em] hover:bg-white/20 transition"
+                    href="/portal/messages"
+                    className="inline-block px-5 py-3 bg-white/10 border border-white/20 rounded-xl text-xs font-black uppercase tracking-[0.18em] hover:bg-white/20 transition"
                   >
-                    Open ChiChi AI
+                    Contact Support
                   </Link>
                 </div>
               </div>
@@ -1137,12 +1124,7 @@ export default function PortalPage() {
         href="/portal/messages"
         className="fixed bottom-6 right-6 w-14 h-14 bg-brand-800 text-white rounded-full shadow-luxury flex items-center justify-center hover:scale-105 transition z-50"
       >
-        <svg
-          className="w-6 h-6"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
