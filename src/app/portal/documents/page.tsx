@@ -1,4 +1,4 @@
-    "use client";
+"use client";
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -83,6 +83,8 @@ export default function PortalDocumentsPage() {
   const [user, setUser] = useState<any>(null);
   const [documents, setDocuments] = useState<PortalDocumentRow[]>([]);
   const [applicationStatus, setApplicationStatus] = useState<string>("");
+  const [hasApplicationRow, setHasApplicationRow] = useState(false);
+  const [applicationRowId, setApplicationRowId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [statusText, setStatusText] = useState("");
@@ -123,6 +125,8 @@ export default function PortalDocumentsPage() {
         } else {
           setDocuments([]);
           setApplicationStatus("");
+          setHasApplicationRow(false);
+          setApplicationRowId(null);
         }
 
         setLoading(false);
@@ -150,15 +154,19 @@ export default function PortalDocumentsPage() {
         .order("created_at", { ascending: false }),
       sb
         .from("puppy_applications")
-        .select("status")
+        .select("id,status")
         .or(`user_id.eq.${uid},applicant_email.ilike.%${email}%,email.ilike.%${email}%`)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle(),
     ]);
 
+    const appData = appRes.data as { id?: number; status?: string } | null;
+
     setDocuments((docsRes.data as PortalDocumentRow[]) || []);
-    setApplicationStatus(String(appRes.data?.status || ""));
+    setApplicationStatus(String(appData?.status || ""));
+    setHasApplicationRow(!!appData?.id);
+    setApplicationRowId(appData?.id ?? null);
     setStatusText("");
   }
 
@@ -172,6 +180,8 @@ export default function PortalDocumentsPage() {
     setUser(null);
     setDocuments([]);
     setApplicationStatus("");
+    setHasApplicationRow(false);
+    setApplicationRowId(null);
   }
 
   const normalizedDocs = useMemo(() => {
@@ -186,9 +196,28 @@ export default function PortalDocumentsPage() {
     const appStatus = applicationStatus.toLowerCase();
 
     return REQUIRED_DOCS.map((req) => {
-      const found = normalizedDocs.find((doc) =>
+      let found = normalizedDocs.find((doc) =>
         req.matchTitles.some((name) => doc.titleLower.includes(name))
       );
+
+      // treat application as complete even if the portal_documents copy
+      // hasn't been created yet, as long as the application row exists
+      if (!found && req.key === "application" && hasApplicationRow) {
+        found = {
+          id: `application-row-${applicationRowId ?? "current"}`,
+          created_at: "",
+          user_id: user?.id || "",
+          user_email: user?.email || "",
+          category: "contracts",
+          title: "Puppy Application",
+          description: "Your application has been submitted and saved.",
+          status: applicationStatus || "submitted",
+          source_table: "puppy_applications",
+          source_id: applicationRowId ?? null,
+          titleLower: "puppy application",
+          descriptionLower: "your application has been submitted and saved.",
+        } as any;
+      }
 
       let shouldBeAvailable = false;
 
@@ -212,7 +241,7 @@ export default function PortalDocumentsPage() {
         shouldBeAvailable,
       };
     });
-  }, [normalizedDocs, applicationStatus]);
+  }, [normalizedDocs, applicationStatus, hasApplicationRow, applicationRowId, user]);
 
   const completedCount = requiredDocsWithStatus.filter((d) => d.found).length;
   const availableCount = requiredDocsWithStatus.filter((d) => d.shouldBeAvailable).length;
@@ -350,22 +379,12 @@ export default function PortalDocumentsPage() {
           <div className="space-y-8 pb-14">
             <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
               <div>
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/70 border border-brand-200 shadow-paper">
-                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-                    Contracts
-                  </span>
-                  <span className="w-1 h-1 rounded-full bg-brand-300" />
-                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-                    SWVA Chihuahua
-                  </span>
-                </div>
-
-                <h2 className="mt-5 font-serif text-4xl md:text-5xl font-bold text-brand-900 leading-[0.95]">
+                <h2 className="font-serif text-4xl md:text-5xl font-bold text-brand-900 leading-[0.95]">
                   Documents & Contracts
                 </h2>
 
                 <p className="mt-2 text-brand-500 font-semibold">
-                  This is where your completed documents, agreements, and required contract records are saved.
+                  Completed agreements and saved contract records.
                 </p>
               </div>
 
@@ -392,7 +411,7 @@ export default function PortalDocumentsPage() {
                         Required Contracts & Documents
                       </h3>
                       <p className="text-brand-500 font-semibold text-sm mt-1">
-                        These are the main records tied to your portal and puppy purchase process.
+                        Required records for your portal and puppy purchase process.
                       </p>
                     </div>
                   </div>
@@ -416,7 +435,7 @@ export default function PortalDocumentsPage() {
 
                                 {isComplete ? (
                                   <span className="inline-flex px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-black uppercase tracking-[0.18em]">
-                                    Saved
+                                    Complete
                                   </span>
                                 ) : isAvailable ? (
                                   <span className="inline-flex px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200 text-[10px] font-black uppercase tracking-[0.18em]">
@@ -447,7 +466,14 @@ export default function PortalDocumentsPage() {
                             </div>
 
                             <div className="flex flex-wrap gap-2">
-                              {doc.found?.file_url ? (
+                              {doc.key === "application" && hasApplicationRow ? (
+                                <Link
+                                  href="/portal/application"
+                                  className="px-4 py-2 rounded-xl bg-brand-800 text-white font-black text-xs uppercase tracking-[0.18em] hover:bg-brand-700 transition"
+                                >
+                                  Open
+                                </Link>
+                              ) : doc.found?.file_url ? (
                                 <a
                                   href={doc.found.file_url}
                                   target="_blank"
@@ -480,60 +506,101 @@ export default function PortalDocumentsPage() {
                         Saved Contract Records
                       </h3>
                       <p className="text-brand-500 font-semibold text-sm mt-1">
-                        Everything that has already been saved into your portal.
+                        Open completed items directly from here.
                       </p>
                     </div>
                   </div>
 
                   <div className="mt-6 space-y-4">
-                    {documents.length ? (
-                      documents.map((doc) => (
-                        <div
-                          key={doc.id}
-                          className="rounded-2xl border border-brand-200 bg-white/70 p-5"
-                        >
-                          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <h4 className="text-base font-black text-brand-900">
-                                  {doc.title}
-                                </h4>
-                                <span className="inline-flex px-2.5 py-1 rounded-full bg-brand-100 text-brand-700 border border-brand-200 text-[10px] font-black uppercase tracking-[0.18em]">
-                                  {doc.status || "active"}
-                                </span>
-                              </div>
+                    {documents.length || hasApplicationRow ? (
+                      <>
+                        {hasApplicationRow && !documents.some((d) =>
+                          String(d.title || "").toLowerCase().includes("application")
+                        ) ? (
+                          <div className="rounded-2xl border border-brand-200 bg-white/70 p-5">
+                            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h4 className="text-base font-black text-brand-900">
+                                    Puppy Application
+                                  </h4>
+                                  <span className="inline-flex px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-black uppercase tracking-[0.18em]">
+                                    {applicationStatus || "submitted"}
+                                  </span>
+                                </div>
 
-                              {doc.description ? (
                                 <p className="mt-2 text-sm font-semibold text-brand-600 leading-relaxed">
-                                  {doc.description}
+                                  Your submitted application is saved in the portal.
                                 </p>
-                              ) : null}
-
-                              <div className="mt-3 flex flex-wrap gap-3 text-[11px] font-black uppercase tracking-[0.18em] text-brand-400">
-                                <span>Saved {fmtDate(doc.created_at)}</span>
-                                {doc.source_table ? <span>Source: {doc.source_table}</span> : null}
                               </div>
-                            </div>
 
-                            <div className="flex flex-wrap gap-2">
-                              {doc.file_url ? (
-                                <a
-                                  href={doc.file_url}
-                                  target="_blank"
-                                  rel="noreferrer"
+                              <div className="flex flex-wrap gap-2">
+                                <Link
+                                  href="/portal/application"
                                   className="px-4 py-2 rounded-xl bg-brand-800 text-white font-black text-xs uppercase tracking-[0.18em] hover:bg-brand-700 transition"
                                 >
                                   Open
-                                </a>
-                              ) : (
-                                <span className="px-4 py-2 rounded-xl bg-brand-100 text-brand-700 font-black text-xs uppercase tracking-[0.18em] border border-brand-200">
-                                  Portal Copy
-                                </span>
-                              )}
+                                </Link>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))
+                        ) : null}
+
+                        {documents.map((doc) => (
+                          <div
+                            key={doc.id}
+                            className="rounded-2xl border border-brand-200 bg-white/70 p-5"
+                          >
+                            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h4 className="text-base font-black text-brand-900">
+                                    {doc.title}
+                                  </h4>
+                                  <span className="inline-flex px-2.5 py-1 rounded-full bg-brand-100 text-brand-700 border border-brand-200 text-[10px] font-black uppercase tracking-[0.18em]">
+                                    {doc.status || "active"}
+                                  </span>
+                                </div>
+
+                                {doc.description ? (
+                                  <p className="mt-2 text-sm font-semibold text-brand-600 leading-relaxed">
+                                    {doc.description}
+                                  </p>
+                                ) : null}
+
+                                <div className="mt-3 flex flex-wrap gap-3 text-[11px] font-black uppercase tracking-[0.18em] text-brand-400">
+                                  <span>Saved {fmtDate(doc.created_at)}</span>
+                                  {doc.source_table ? <span>Source: {doc.source_table}</span> : null}
+                                </div>
+                              </div>
+
+                              <div className="flex flex-wrap gap-2">
+                                {doc.file_url ? (
+                                  <a
+                                    href={doc.file_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="px-4 py-2 rounded-xl bg-brand-800 text-white font-black text-xs uppercase tracking-[0.18em] hover:bg-brand-700 transition"
+                                  >
+                                    Open
+                                  </a>
+                                ) : doc.source_table === "puppy_applications" ? (
+                                  <Link
+                                    href="/portal/application"
+                                    className="px-4 py-2 rounded-xl bg-brand-800 text-white font-black text-xs uppercase tracking-[0.18em] hover:bg-brand-700 transition"
+                                  >
+                                    Open
+                                  </Link>
+                                ) : (
+                                  <span className="px-4 py-2 rounded-xl bg-brand-100 text-brand-700 font-black text-xs uppercase tracking-[0.18em] border border-brand-200">
+                                    Portal Copy
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </>
                     ) : (
                       <div className="text-center py-16">
                         <div className="w-16 h-16 bg-brand-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl border border-brand-200">
@@ -543,7 +610,7 @@ export default function PortalDocumentsPage() {
                           No Documents Saved Yet
                         </h4>
                         <p className="text-brand-500 mt-3 max-w-md mx-auto text-sm font-semibold leading-relaxed">
-                          Once you complete application and contract steps, your saved records will appear here automatically.
+                          Completed applications and contract records will appear here automatically.
                         </p>
                       </div>
                     )}
@@ -559,30 +626,16 @@ export default function PortalDocumentsPage() {
 
                   <div className="space-y-4">
                     <MiniInfo label="Application Status" value={applicationStatus || "Not started"} />
-                    <MiniInfo label="Saved Records" value={String(documents.length)} />
+                    <MiniInfo label="Saved Records" value={String(documents.length || (hasApplicationRow ? 1 : 0))} />
                     <MiniInfo label="Completed Required Items" value={`${completedCount}`} />
                     <MiniInfo label="Portal Area" value="Contracts" />
-                  </div>
-                </div>
-
-                <div className="card-luxury p-7">
-                  <h3 className="font-serif text-2xl font-bold text-brand-900 mb-4">
-                    What Gets Saved Here
-                  </h3>
-
-                  <div className="space-y-3 text-sm font-semibold text-brand-600 leading-relaxed">
-                    <p>Your puppy application copy.</p>
-                    <p>Deposit agreement and reservation paperwork.</p>
-                    <p>Sales agreement and health guarantee.</p>
-                    <p>Bill of sale and final ownership records.</p>
-                    <p>Care packet, records, and other required portal documents.</p>
                   </div>
                 </div>
 
                 <div className="rounded-3xl bg-brand-800 text-white p-7 shadow-luxury">
                   <h4 className="font-serif text-2xl font-bold">Need Help?</h4>
                   <p className="mt-2 text-brand-200 text-sm font-semibold">
-                    If you are waiting on a contract or need a document re-sent, message support through the portal.
+                    Need something re-sent or not seeing a contract you expected? Message support through the portal.
                   </p>
                   <Link
                     href="/portal/messages"
