@@ -1,6 +1,9 @@
+"use client";
+
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Header from '@/components/Header'; // <-- 1. Imported the NEW Header instead of Navbar
+import Header from "@/components/Header";
+import { usePathname } from "next/navigation";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -20,16 +23,20 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
+
+  const pathname = usePathname();
+  const isPortal = pathname?.startsWith("/portal");
+
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-stone-50 text-stone-900`}>
-        
-        {/* 2. Used the NEW Header here */}
-        <Header /> 
-        
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-stone-50 text-stone-900`}
+      >
+        {!isPortal && <Header />}
+
         {children}
       </body>
     </html>
