@@ -246,7 +246,6 @@ export default function PortalApplicationPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -324,7 +323,6 @@ export default function PortalApplicationPage() {
     setApplicationRow(row);
 
     const app = row.application || {};
-
     const parsedCity = parseCityState(row.city_state || "");
 
     setForm({
@@ -362,15 +360,15 @@ export default function PortalApplicationPage() {
       ackAgeCapacity: !!(row.ack_age ?? app.ackAgeCapacity),
       ackAccuracy: !!(row.ack_accuracy ?? app.ackAccuracy),
       ackHomeEnvironment: !!(row.ack_home_env ?? app.ackHomeEnvironment),
-      ackCareCommitment: !!(app.ackCareCommitment),
-      ackHealthGuarantee: !!(app.ackHealthGuarantee),
-      ackNonrefundableDeposit: !!(app.ackNonrefundableDeposit),
-      ackPurchasePriceTax: !!(app.ackPurchasePriceTax),
-      ackContractualObligation: !!(app.ackContractualObligation),
-      ackReturnRehoming: !!(app.ackReturnRehoming),
-      ackReleaseLiability: !!(app.ackReleaseLiability),
+      ackCareCommitment: !!app.ackCareCommitment,
+      ackHealthGuarantee: !!app.ackHealthGuarantee,
+      ackNonrefundableDeposit: !!app.ackNonrefundableDeposit,
+      ackPurchasePriceTax: !!app.ackPurchasePriceTax,
+      ackContractualObligation: !!app.ackContractualObligation,
+      ackReturnRehoming: !!app.ackReturnRehoming,
+      ackReleaseLiability: !!app.ackReleaseLiability,
       ackAgreementTerms: !!(row.ack_terms ?? app.ackAgreementTerms),
-      ackCommunications: !!(app.ackCommunications),
+      ackCommunications: !!app.ackCommunications,
 
       signedAt: app.signedAt || "",
       signature: app.signature || "",
@@ -388,9 +386,7 @@ export default function PortalApplicationPage() {
   function parseCityState(value: string) {
     if (!value) return { city: "", state: "" };
     const parts = value.split(",").map((p) => p.trim());
-    if (parts.length >= 2) {
-      return { city: parts[0], state: parts[1] };
-    }
+    if (parts.length >= 2) return { city: parts[0], state: parts[1] };
     return { city: value, state: "" };
   }
 
@@ -447,7 +443,8 @@ export default function PortalApplicationPage() {
       email: form.email.trim(),
       phone: form.phone.trim() || null,
       street_address: form.streetAddress.trim() || null,
-      city_state: `${form.city.trim()}${form.city && form.state ? ", " : ""}${form.state.trim()}` || null,
+      city_state:
+        `${form.city.trim()}${form.city && form.state ? ", " : ""}${form.state.trim()}` || null,
       preferred_contact: form.preferredContactMethod || null,
       best_time: null,
       zip: form.zip.trim() || null,
@@ -513,11 +510,7 @@ export default function PortalApplicationPage() {
     let error: any = null;
 
     if (applicationRow?.id) {
-      const res = await sb
-        .from("puppy_applications")
-        .update(payload)
-        .eq("id", applicationRow.id);
-
+      const res = await sb.from("puppy_applications").update(payload).eq("id", applicationRow.id);
       error = res.error;
     } else {
       const res = await sb.from("puppy_applications").insert(payload);
@@ -535,20 +528,13 @@ export default function PortalApplicationPage() {
     setSaving(false);
   }
 
-  async function handleSignOut() {
-    await sb.auth.signOut();
-    setUser(null);
-    setApplicationRow(null);
-    setForm(defaultForm());
-  }
-
   const statusLabel = useMemo(() => {
     return applicationRow?.status || "not started";
   }, [applicationRow]);
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-brand-50 italic">
+      <div className="h-full min-h-screen flex items-center justify-center bg-brand-50 italic">
         Loading Application...
       </div>
     );
@@ -559,122 +545,8 @@ export default function PortalApplicationPage() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden text-brand-900 bg-brand-50">
-      <header className="md:hidden fixed top-0 left-0 right-0 z-30 bg-white/80 backdrop-blur-md h-16 flex items-center justify-between px-6 border-b border-brand-200/50">
-        <div className="flex items-center gap-4">
-          <button onClick={() => setIsDrawerOpen(true)} className="text-brand-700">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-          <span className="font-serif font-bold text-xl">SWVA</span>
-        </div>
-
-        <div className="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center border border-brand-200 font-bold text-brand-600">
-          {user.email?.[0]?.toUpperCase() || "U"}
-        </div>
-      </header>
-
-      {isDrawerOpen && (
-        <div
-          className="fixed inset-0 bg-brand-900/40 backdrop-blur-sm z-40 md:hidden"
-          onClick={() => setIsDrawerOpen(false)}
-        />
-      )}
-
-      <aside
-        className={`fixed top-0 left-0 bottom-0 w-[82%] max-w-[320px] bg-[#FDFBF9] z-50 shadow-2xl flex flex-col transition-transform duration-300 md:hidden ${
-          isDrawerOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        <div className="p-6 border-b border-brand-100 flex justify-between items-center">
-          <div>
-            <div className="font-serif font-bold text-xl">Menu</div>
-            <div className="text-[11px] text-brand-400 font-semibold mt-1 truncate max-w-[220px]">
-              {user.email}
-            </div>
-          </div>
-          <button onClick={() => setIsDrawerOpen(false)}>×</button>
-        </div>
-
-        <nav className="p-5 pt-7 flex flex-col gap-3 flex-1 overflow-y-auto">
-          <Link href="/portal" className="nav-item">Dashboard</Link>
-          <Link href="/portal/application" className="nav-item active">Application</Link>
-          <Link href="/portal/mypuppy" className="nav-item">My Puppy</Link>
-          <Link href="/portal/messages" className="nav-item">Messages</Link>
-          <Link href="/portal/documents" className="nav-item">Documents</Link>
-          <Link href="/portal/payments" className="nav-item">Financials</Link>
-          <Link href="/portal/resources" className="nav-item">Resources</Link>
-        </nav>
-
-        <div className="p-6 border-t border-brand-100 bg-brand-50">
-          <button
-            onClick={handleSignOut}
-            className="w-full py-3 rounded-lg border border-brand-200 text-brand-700 font-black text-sm hover:bg-white transition"
-          >
-            Sign Out
-          </button>
-        </div>
-      </aside>
-
-      <aside className="hidden md:flex flex-col w-72 bg-white/80 border-r border-brand-200/60 z-20 h-full backdrop-blur-sm">
-        <div className="p-8">
-          <h1 className="font-serif font-bold text-xl leading-none">SWVA</h1>
-          <p className="text-[10px] uppercase tracking-widest text-brand-500 font-black mt-1">
-            Chihuahua
-          </p>
-        </div>
-
-        <nav className="flex-1 px-4 pt-6 pb-6 overflow-y-auto">
-          <div className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-brand-400">
-            Portal
-          </div>
-
-          <div className="mt-3 flex flex-col gap-3">
-            <Link href="/portal" className="nav-item">Dashboard</Link>
-            <Link href="/portal/application" className="nav-item active">Application</Link>
-            <Link href="/portal/mypuppy" className="nav-item">My Puppy</Link>
-          </div>
-
-          <div className="px-4 py-2 mt-8 text-[10px] font-black uppercase tracking-widest text-brand-400">
-            Communication
-          </div>
-
-          <div className="mt-3 flex flex-col gap-3">
-            <Link href="/portal/messages" className="nav-item">Messages</Link>
-            <Link href="/portal/documents" className="nav-item">Contracts</Link>
-            <Link href="/portal/payments" className="nav-item">Financials</Link>
-            <Link href="/portal/resources" className="nav-item">Resources</Link>
-          </div>
-        </nav>
-
-        <div className="p-4 border-t border-brand-100 bg-brand-50/50">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-brand-200 flex items-center justify-center text-brand-700 font-black text-xs">
-              {user.email?.[0]?.toUpperCase() || "U"}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-black truncate">{user.email}</p>
-              <div className="flex items-center gap-3 mt-1">
-                <button
-                  onClick={() => loadApplication(user)}
-                  className="text-[10px] font-black uppercase text-brand-500 hover:text-brand-800"
-                >
-                  Refresh
-                </button>
-                <button
-                  onClick={handleSignOut}
-                  className="text-[10px] font-black uppercase text-brand-500 hover:text-brand-800"
-                >
-                  Sign Out
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      <main className="flex-1 h-full relative flex flex-col overflow-hidden bg-texturePaper pt-16 md:pt-0">
+    <div className="h-full w-full text-brand-900 bg-brand-50">
+      <main className="h-full relative flex flex-col overflow-hidden bg-texturePaper">
         <div className="flex-1 p-6 md:p-10 lg:p-12 overflow-y-auto scroller max-w-[1600px] mx-auto w-full">
           <div className="space-y-8 pb-14">
             <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
@@ -694,7 +566,8 @@ export default function PortalApplicationPage() {
                 </h2>
 
                 <p className="mt-2 text-brand-500 font-semibold">
-                  Complete or update your puppy application. A copy stays in the portal for your records.
+                  Complete or update your puppy application. A copy stays in the portal for your
+                  records.
                 </p>
               </div>
 
@@ -1018,7 +891,11 @@ export default function PortalApplicationPage() {
                       disabled={saving}
                       className="px-7 py-3.5 bg-brand-800 text-white font-black text-sm rounded-xl hover:bg-brand-700 transition shadow-lift uppercase tracking-[0.12em] disabled:opacity-60"
                     >
-                      {saving ? "Saving..." : applicationRow ? "Update Application" : "Submit Application"}
+                      {saving
+                        ? "Saving..."
+                        : applicationRow
+                          ? "Update Application"
+                          : "Submit Application"}
                     </button>
                   </div>
                 </form>
@@ -1031,7 +908,8 @@ export default function PortalApplicationPage() {
                       Application Summary
                     </h3>
                     <p className="mt-2 text-brand-500 font-semibold text-sm">
-                      This page stores your application in the portal so you can review and update it.
+                      This page stores your application in the portal so you can review and update
+                      it.
                     </p>
                   </div>
 
@@ -1044,11 +922,19 @@ export default function PortalApplicationPage() {
                     <SummaryCard label="Status" value={statusLabel} />
                     <SummaryCard
                       label="Assigned Puppy"
-                      value={applicationRow?.assigned_puppy_id ? String(applicationRow.assigned_puppy_id) : "Pending"}
+                      value={
+                        applicationRow?.assigned_puppy_id
+                          ? String(applicationRow.assigned_puppy_id)
+                          : "Pending"
+                      }
                     />
                     <SummaryCard
                       label="Created"
-                      value={applicationRow?.created_at ? fmtDate(applicationRow.created_at) : "Not yet submitted"}
+                      value={
+                        applicationRow?.created_at
+                          ? fmtDate(applicationRow.created_at)
+                          : "Not yet submitted"
+                      }
                     />
                   </div>
 
@@ -1063,18 +949,19 @@ export default function PortalApplicationPage() {
                     </div>
                   ) : null}
 
-                  <div className="rounded-2xl bg-brand-800 text-white p-5">
-                    <h4 className="font-serif text-2xl font-bold">Need Help?</h4>
-                    <p className="mt-2 text-brand-200 text-sm font-semibold">
-                      Questions about your application or next steps?
+                  <Link
+                    href="/portal/chichi"
+                    className="block rounded-3xl bg-brand-800 text-white p-7 shadow-luxury hover:scale-[1.01] transition"
+                  >
+                    <h4 className="font-serif text-2xl font-bold mb-1">ChiChi AI</h4>
+                    <p className="mt-2 text-brand-200 text-sm font-semibold mb-5">
+                      Chat with ChiChi for help with your application, policies, transportation,
+                      and portal questions.
                     </p>
-                    <Link
-                      href="/portal/messages"
-                      className="inline-block mt-4 px-5 py-3 bg-white/10 border border-white/20 rounded-xl text-xs font-black uppercase tracking-[0.18em] hover:bg-white/20 transition"
-                    >
-                      Message Support
-                    </Link>
-                  </div>
+                    <div className="rounded-2xl border border-white/20 bg-white/10 p-4 text-sm text-brand-100">
+                      Open ChiChi AI →
+                    </div>
+                  </Link>
                 </div>
               </div>
             </div>
@@ -1222,9 +1109,7 @@ function ApplicationLogin() {
   return (
     <div className="h-screen flex items-center justify-center bg-brand-50 p-6">
       <div className="card-luxury shine p-10 w-full max-w-md border border-white">
-        <h2 className="font-serif text-4xl font-bold text-center mb-8">
-          Welcome Home
-        </h2>
+        <h2 className="font-serif text-4xl font-bold text-center mb-8">Welcome Home</h2>
 
         <form onSubmit={login} className="space-y-5">
           <div>
