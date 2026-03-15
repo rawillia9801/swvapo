@@ -9,10 +9,9 @@ export default function Header() {
         
         {/* Logo & Brand Name */}
         <Link href="/" className="flex items-center gap-3 group">
-          {/* Logo image - let it flow naturally without a strict square box */}
           <div className="h-10 flex items-center justify-center">
             <img 
-              src="https://www.swvachihuahua.com/logo.png" // Put your exact logo URL here
+              src="https://www.swvachihuahua.com/logo.png"
               alt="SWVA Chihuahua Logo" 
               className="h-full w-auto object-contain"
               onError={(e) => {
@@ -21,6 +20,7 @@ export default function Header() {
               }}
             />
           </div>
+
           <div className="flex flex-col justify-center">
             <span className="font-black text-lg md:text-xl tracking-tighter text-slate-900 uppercase leading-none">
               Southwest Virginia Chihuahua
@@ -38,6 +38,11 @@ export default function Header() {
           <Link href="/puppies" className="text-[11px] font-bold text-slate-500 hover:text-slate-900 uppercase tracking-widest transition-colors">Puppies</Link>
           <Link href="/application" className="text-[11px] font-bold text-slate-500 hover:text-slate-900 uppercase tracking-widest transition-colors">Application</Link>
           <Link href="/policies" className="text-[11px] font-bold text-slate-500 hover:text-slate-900 uppercase tracking-widest transition-colors">Policies</Link>
+
+          {/* Puppy Portal */}
+          <Link href="/portal" className="text-[11px] font-bold text-slate-500 hover:text-slate-900 uppercase tracking-widest transition-colors">
+            Puppy Portal
+          </Link>
         </nav>
 
         {/* CTA Button */}
@@ -53,6 +58,7 @@ export default function Header() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
+
       </div>
     </header>
   );
