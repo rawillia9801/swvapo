@@ -65,14 +65,14 @@ function nextSteps(hasApp: boolean, hasPuppy: boolean): NextStep[] {
       {
         icon: "🐾",
         title: "My Puppy",
-        desc: "See your puppy profile, milestones, photos, and updates.",
+        desc: "See your puppy profile, milestones, photos, and breeder updates.",
         href: "/portal/mypuppy",
         cta: "Open My Puppy",
       },
       {
         icon: "📄",
         title: "Documents",
-        desc: "Review contracts, portal files, and anything needing attention.",
+        desc: "Review contracts, portal files, and anything that needs your attention.",
         href: "/portal/documents",
         cta: "Open Documents",
       },
@@ -86,7 +86,7 @@ function nextSteps(hasApp: boolean, hasPuppy: boolean): NextStep[] {
       {
         icon: "📚",
         title: "Resources",
-        desc: "Open care guides, prep materials, and important puppy info.",
+        desc: "Open care guides, prep materials, and important puppy information.",
         href: "/portal/resources",
         cta: "Open Resources",
       },
@@ -112,7 +112,7 @@ function nextSteps(hasApp: boolean, hasPuppy: boolean): NextStep[] {
       {
         icon: "📄",
         title: "Documents",
-        desc: "Read through agreements and be ready when a match is finalized.",
+        desc: "Read through agreements and stay ready as your process moves forward.",
         href: "/portal/documents",
         cta: "View Documents",
       },
@@ -144,7 +144,7 @@ function nextSteps(hasApp: boolean, hasPuppy: boolean): NextStep[] {
     {
       icon: "📚",
       title: "Learn the Basics",
-      desc: "Open care resources and puppy prep information.",
+      desc: "Open care resources and puppy preparation information.",
       href: "/portal/resources",
       cta: "Open Resources",
     },
@@ -417,12 +417,7 @@ export default function PortalPage() {
     ) ||
     "https://images.unsplash.com/photo-1591769225440-811ad7d6eca6?auto=format&fit=crop&w=1200&q=80";
 
-  const primaryHref = hasPuppy
-    ? "/portal/mypuppy"
-    : hasApp
-      ? "/portal/application"
-      : "/portal/application";
-
+  const primaryHref = hasPuppy ? "/portal/mypuppy" : "/portal/application";
   const primaryLabel = hasPuppy
     ? "Open My Puppy"
     : hasApp
@@ -831,10 +826,10 @@ export default function PortalPage() {
 
                     <div className="p-4 rounded-2xl bg-white/70 border border-brand-200">
                       <div className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-                        Note
+                        Transparency
                       </div>
                       <div className="mt-1 text-sm font-semibold text-brand-800 leading-relaxed">
-                        Use the Financials page for the most accurate balance, receipts, and payment history.
+                        For the most accurate balances, payment history, and receipts, use the Financials page.
                       </div>
                     </div>
                   </div>
@@ -933,44 +928,87 @@ function QuickLink({
   );
 }
 
+function PortalValueCard({
+  title,
+  desc,
+}: {
+  title: string;
+  desc: string;
+}) {
+  return (
+    <div className="rounded-[24px] border border-[#e2cfba] bg-white/75 p-5 shadow-[0_10px_30px_rgba(88,63,37,0.06)]">
+      <div className="text-lg font-black text-[#3f2b20]">{title}</div>
+      <div className="mt-2 text-sm font-semibold leading-7 text-[#8a6a49]">
+        {desc}
+      </div>
+    </div>
+  );
+}
+
+function FeatureLine({
+  title,
+  desc,
+}: {
+  title: string;
+  desc: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-[#e2cfba] bg-white/70 p-4">
+      <div className="text-sm font-black text-[#3f2b20]">{title}</div>
+      <div className="mt-1 text-sm font-semibold leading-7 text-[#8a6a49]">
+        {desc}
+      </div>
+    </div>
+  );
+}
+
+function MiniTile({ label }: { label: string }) {
+  return (
+    <div className="rounded-xl border border-white/15 bg-white/10 px-3 py-3 text-center text-sm font-black text-white">
+      {label}
+    </div>
+  );
+}
+
 function LoginComponent() {
   const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
   const [email, setEmail] = useState("");
-  const [pass, setPass] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [status, setStatus] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [message, setMessage] = useState("");
   const [working, setWorking] = useState(false);
 
-  const login = async (e: React.FormEvent) => {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setWorking(true);
-    setStatus("");
+    setMessage("");
 
     const { error } = await sb.auth.signInWithPassword({
       email,
-      password: pass,
+      password,
     });
 
     setWorking(false);
+
     if (error) {
-      setStatus(error.message);
+      setMessage(error.message);
       return;
     }
 
-    setStatus("Signed in.");
-  };
+    setMessage("Signed in.");
+  }
 
-  const signUp = async (e: React.FormEvent) => {
+  async function handleSignUp(e: React.FormEvent) {
     e.preventDefault();
     setWorking(true);
-    setStatus("");
+    setMessage("");
 
     const { error } = await sb.auth.signUp({
       email,
-      password: pass,
+      password,
       options: {
         data: {
-          full_name: fullName,
+          full_name: name,
         },
       },
     });
@@ -978,17 +1016,17 @@ function LoginComponent() {
     setWorking(false);
 
     if (error) {
-      setStatus(error.message);
+      setMessage(error.message);
       return;
     }
 
-    setStatus("Account created. Check your email to confirm your sign up.");
-  };
+    setMessage("Account created. Please check your email to confirm your account.");
+  }
 
-  const forgotPassword = async (e: React.FormEvent) => {
+  async function handleForgotPassword(e: React.FormEvent) {
     e.preventDefault();
     setWorking(true);
-    setStatus("");
+    setMessage("");
 
     const { error } = await sb.auth.resetPasswordForEmail(email, {
       redirectTo:
@@ -1000,253 +1038,333 @@ function LoginComponent() {
     setWorking(false);
 
     if (error) {
-      setStatus(error.message);
+      setMessage(error.message);
       return;
     }
 
-    setStatus("Password reset email sent. Please check your inbox.");
-  };
+    setMessage("Password reset email sent. Please check your inbox.");
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-brand-50 p-6">
-      <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-[1.05fr_.95fr] rounded-[32px] overflow-hidden shadow-luxury border border-white/70 bg-white">
-        <div className="relative bg-gradient-to-br from-[#f7efe6] via-[#fffaf7] to-[#f4ece2] p-10 lg:p-14">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/80 border border-brand-200 shadow-paper">
-            <span className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-              Puppy Portal
-            </span>
-            <span className="w-1 h-1 rounded-full bg-brand-300" />
-            <span className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-              Southwest Virginia Chihuahua
-            </span>
-          </div>
+    <div className="min-h-screen bg-[#f7f3ee] px-4 py-8 md:px-8 lg:px-10">
+      <div className="mx-auto max-w-[1500px]">
+        <div className="grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-8 items-stretch">
+          <section className="relative overflow-hidden rounded-[36px] border border-[#e7d9c8] bg-gradient-to-br from-[#fff8f1] via-[#f8efe4] to-[#efe2d2] shadow-[0_30px_80px_rgba(88,63,37,0.14)]">
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute top-0 right-0 h-72 w-72 rounded-full bg-white/35 blur-3xl" />
+              <div className="absolute bottom-0 left-0 h-80 w-80 rounded-full bg-[#f5d9b8]/30 blur-3xl" />
+            </div>
 
-          <h2 className="mt-8 font-serif text-4xl lg:text-5xl font-bold text-brand-900 leading-[0.96]">
-            Welcome Home
-          </h2>
+            <div className="relative z-10 px-7 py-8 md:px-10 md:py-10 lg:px-14 lg:py-14">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="inline-flex items-center gap-2 rounded-full border border-[#dcc6ad] bg-white/70 px-4 py-2 shadow-sm">
+                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-[#a47946]">
+                    Private Client Access
+                  </span>
+                </div>
 
-          <p className="mt-4 text-brand-600 font-semibold leading-relaxed max-w-xl">
-            Access your application, documents, messages, puppy updates, and care
-            resources in one beautifully organized place.
-          </p>
+                <div className="inline-flex items-center gap-2 rounded-full border border-[#dcc6ad] bg-white/70 px-4 py-2 shadow-sm">
+                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-[#a47946]">
+                    Southwest Virginia Chihuahua
+                  </span>
+                </div>
+              </div>
 
-          <div className="mt-10 space-y-4">
-            <FeatureRow
-              title="Application Tracking"
-              desc="Keep your status and next steps visible at all times."
-            />
-            <FeatureRow
-              title="My Puppy"
-              desc="Once matched, your puppy profile and updates will appear automatically."
-            />
-            <FeatureRow
-              title="Messages & Documents"
-              desc="Open contracts, portal files, and breeder communication in one place."
-            />
-          </div>
+              <div className="mt-10 max-w-3xl">
+                <h1 className="font-serif text-5xl md:text-6xl xl:text-7xl leading-[0.95] text-[#3e2a1f] font-bold">
+                  Welcome to your puppy’s private portal.
+                </h1>
+
+                <p className="mt-6 max-w-2xl text-[17px] leading-8 text-[#7a5a3a] font-semibold">
+                  A beautifully organized place for your application, puppy updates,
+                  contracts, payments, messages, and care resources — all in one
+                  secure space designed for our families.
+                </p>
+              </div>
+
+              <div className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-4xl">
+                <PortalValueCard
+                  title="Application & Approval"
+                  desc="Track your status, review progress, and stay ready for next steps."
+                />
+                <PortalValueCard
+                  title="My Puppy"
+                  desc="Once matched, your puppy profile, milestones, and updates appear automatically."
+                />
+                <PortalValueCard
+                  title="Messages & Documents"
+                  desc="Open breeder messages, contracts, and important files anytime."
+                />
+              </div>
+
+              <div className="mt-10 grid grid-cols-1 lg:grid-cols-[1fr_0.9fr] gap-5 items-stretch">
+                <div className="rounded-[28px] border border-[#e2cfba] bg-white/78 p-6 shadow-[0_16px_40px_rgba(88,63,37,0.08)]">
+                  <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#b08251]">
+                    Built around transparency
+                  </div>
+
+                  <div className="mt-4 space-y-4">
+                    <FeatureLine
+                      title="Everything in one place"
+                      desc="No searching through texts, emails, screenshots, or paper files."
+                    />
+                    <FeatureLine
+                      title="Clear communication"
+                      desc="Updates, notes, and breeder communication stay easy to follow."
+                    />
+                    <FeatureLine
+                      title="Straightforward access"
+                      desc="Application, documents, payment details, and resources stay visible in one organized space."
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-[28px] border border-[#e2cfba] bg-[#5d4330] p-6 text-white shadow-[0_18px_50px_rgba(88,63,37,0.18)]">
+                  <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f4d7b3]">
+                    Inside your portal
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-2 gap-3">
+                    <MiniTile label="Application" />
+                    <MiniTile label="My Puppy" />
+                    <MiniTile label="Messages" />
+                    <MiniTile label="Documents" />
+                    <MiniTile label="Payments" />
+                    <MiniTile label="Resources" />
+                  </div>
+
+                  <div className="mt-6 rounded-2xl border border-white/15 bg-white/10 p-4">
+                    <p className="text-sm leading-7 text-[#fff3e7] font-semibold">
+                      Designed to make your experience feel more personal, more organized,
+                      and less stressful from application through go-home day.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-[36px] border border-[#ead9c7] bg-white shadow-[0_30px_80px_rgba(88,63,37,0.10)] overflow-hidden">
+            <div className="px-7 py-8 md:px-10 md:py-10">
+              <div className="mb-8">
+                <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#b08251]">
+                  Puppy Portal Access
+                </div>
+                <h2 className="mt-3 font-serif text-4xl text-[#3e2a1f] font-bold leading-none">
+                  {mode === "login"
+                    ? "Sign in"
+                    : mode === "signup"
+                      ? "Create your account"
+                      : "Reset your password"}
+                </h2>
+                <p className="mt-3 text-sm leading-7 text-[#8a6a49] font-semibold">
+                  {mode === "login"
+                    ? "Enter your details to access your private portal."
+                    : mode === "signup"
+                      ? "Create your portal login to access updates, documents, and your puppy journey."
+                      : "We’ll email you a secure link so you can set a new password."}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 rounded-[20px] border border-[#ead9c7] bg-[#fbf7f1] p-1.5 mb-8">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("login");
+                    setMessage("");
+                  }}
+                  className={`rounded-[16px] px-3 py-3 text-[11px] font-black uppercase tracking-[0.18em] transition ${
+                    mode === "login"
+                      ? "bg-[#6b4d33] text-white shadow-md"
+                      : "text-[#a47946] hover:text-[#6b4d33]"
+                  }`}
+                >
+                  Sign In
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("signup");
+                    setMessage("");
+                  }}
+                  className={`rounded-[16px] px-3 py-3 text-[11px] font-black uppercase tracking-[0.18em] transition ${
+                    mode === "signup"
+                      ? "bg-[#6b4d33] text-white shadow-md"
+                      : "text-[#a47946] hover:text-[#6b4d33]"
+                  }`}
+                >
+                  Sign Up
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("forgot");
+                    setMessage("");
+                  }}
+                  className={`rounded-[16px] px-3 py-3 text-[11px] font-black uppercase tracking-[0.18em] transition ${
+                    mode === "forgot"
+                      ? "bg-[#6b4d33] text-white shadow-md"
+                      : "text-[#a47946] hover:text-[#6b4d33]"
+                  }`}
+                >
+                  Reset
+                </button>
+              </div>
+
+              {mode === "login" && (
+                <form onSubmit={handleLogin} className="space-y-5">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-[0.18em] text-[#a47946] mb-2">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-[0.18em] text-[#a47946] mb-2">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+                      required
+                    />
+                  </div>
+
+                  {message ? (
+                    <div className="rounded-2xl border border-[#ead9c7] bg-[#fbf7f1] px-4 py-3 text-sm font-semibold text-[#7a5a3a]">
+                      {message}
+                    </div>
+                  ) : null}
+
+                  <button
+                    disabled={working}
+                    className="w-full rounded-[18px] bg-[#6b4d33] px-5 py-4 text-xs font-black uppercase tracking-[0.18em] text-white shadow-[0_14px_30px_rgba(88,63,37,0.18)] hover:bg-[#5b412c] transition disabled:opacity-60"
+                  >
+                    {working ? "Signing In..." : "Sign In"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("forgot");
+                      setMessage("");
+                    }}
+                    className="w-full text-center text-[11px] font-black uppercase tracking-[0.18em] text-[#a47946] hover:text-[#6b4d33]"
+                  >
+                    Forgot Password?
+                  </button>
+                </form>
+              )}
+
+              {mode === "signup" && (
+                <form onSubmit={handleSignUp} className="space-y-5">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-[0.18em] text-[#a47946] mb-2">
+                      Full Name
+                    </label>
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-[0.18em] text-[#a47946] mb-2">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-[0.18em] text-[#a47946] mb-2">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+                      required
+                    />
+                  </div>
+
+                  {message ? (
+                    <div className="rounded-2xl border border-[#ead9c7] bg-[#fbf7f1] px-4 py-3 text-sm font-semibold text-[#7a5a3a]">
+                      {message}
+                    </div>
+                  ) : null}
+
+                  <button
+                    disabled={working}
+                    className="w-full rounded-[18px] bg-[#6b4d33] px-5 py-4 text-xs font-black uppercase tracking-[0.18em] text-white shadow-[0_14px_30px_rgba(88,63,37,0.18)] hover:bg-[#5b412c] transition disabled:opacity-60"
+                  >
+                    {working ? "Creating Account..." : "Create Account"}
+                  </button>
+                </form>
+              )}
+
+              {mode === "forgot" && (
+                <form onSubmit={handleForgotPassword} className="space-y-5">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-[0.18em] text-[#a47946] mb-2">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+                      required
+                    />
+                  </div>
+
+                  {message ? (
+                    <div className="rounded-2xl border border-[#ead9c7] bg-[#fbf7f1] px-4 py-3 text-sm font-semibold text-[#7a5a3a]">
+                      {message}
+                    </div>
+                  ) : null}
+
+                  <button
+                    disabled={working}
+                    className="w-full rounded-[18px] bg-[#6b4d33] px-5 py-4 text-xs font-black uppercase tracking-[0.18em] text-white shadow-[0_14px_30px_rgba(88,63,37,0.18)] hover:bg-[#5b412c] transition disabled:opacity-60"
+                  >
+                    {working ? "Sending..." : "Send Reset Email"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("login");
+                      setMessage("");
+                    }}
+                    className="w-full text-center text-[11px] font-black uppercase tracking-[0.18em] text-[#a47946] hover:text-[#6b4d33]"
+                  >
+                    Back To Sign In
+                  </button>
+                </form>
+              )}
+            </div>
+          </section>
         </div>
-
-        <div className="p-8 md:p-10 lg:p-12 bg-white">
-          <div className="flex gap-2 p-1 rounded-2xl bg-brand-50 border border-brand-100 mb-8">
-            <button
-              type="button"
-              onClick={() => {
-                setMode("login");
-                setStatus("");
-              }}
-              className={`flex-1 px-4 py-3 rounded-xl text-xs font-black uppercase tracking-[0.18em] transition ${
-                mode === "login"
-                  ? "bg-brand-800 text-white shadow-lift"
-                  : "text-brand-500 hover:text-brand-800"
-              }`}
-            >
-              Sign In
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMode("signup");
-                setStatus("");
-              }}
-              className={`flex-1 px-4 py-3 rounded-xl text-xs font-black uppercase tracking-[0.18em] transition ${
-                mode === "signup"
-                  ? "bg-brand-800 text-white shadow-lift"
-                  : "text-brand-500 hover:text-brand-800"
-              }`}
-            >
-              Sign Up
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMode("forgot");
-                setStatus("");
-              }}
-              className={`flex-1 px-4 py-3 rounded-xl text-xs font-black uppercase tracking-[0.18em] transition ${
-                mode === "forgot"
-                  ? "bg-brand-800 text-white shadow-lift"
-                  : "text-brand-500 hover:text-brand-800"
-              }`}
-            >
-              Reset
-            </button>
-          </div>
-
-          {mode === "login" && (
-            <form onSubmit={login} className="space-y-5">
-              <div>
-                <label className="text-[10px] font-black uppercase text-brand-500 mb-2 block tracking-[0.18em]">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full p-3.5 rounded-xl border border-brand-200 bg-white"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-black uppercase text-brand-500 mb-2 block tracking-[0.18em]">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  value={pass}
-                  onChange={(e) => setPass(e.target.value)}
-                  className="w-full p-3.5 rounded-xl border border-brand-200 bg-white"
-                  required
-                />
-              </div>
-
-              {status ? (
-                <div className="text-sm font-semibold text-brand-600">{status}</div>
-              ) : null}
-
-              <button
-                disabled={working}
-                className="w-full bg-brand-800 text-white p-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lift disabled:opacity-60"
-              >
-                {working ? "Signing In..." : "Sign In"}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setMode("forgot");
-                  setStatus("");
-                }}
-                className="w-full text-center text-[11px] font-black uppercase tracking-[0.18em] text-brand-500 hover:text-brand-800"
-              >
-                Forgot Password?
-              </button>
-            </form>
-          )}
-
-          {mode === "signup" && (
-            <form onSubmit={signUp} className="space-y-5">
-              <div>
-                <label className="text-[10px] font-black uppercase text-brand-500 mb-2 block tracking-[0.18em]">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="w-full p-3.5 rounded-xl border border-brand-200 bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-black uppercase text-brand-500 mb-2 block tracking-[0.18em]">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full p-3.5 rounded-xl border border-brand-200 bg-white"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-black uppercase text-brand-500 mb-2 block tracking-[0.18em]">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  value={pass}
-                  onChange={(e) => setPass(e.target.value)}
-                  className="w-full p-3.5 rounded-xl border border-brand-200 bg-white"
-                  required
-                />
-              </div>
-
-              {status ? (
-                <div className="text-sm font-semibold text-brand-600">{status}</div>
-              ) : null}
-
-              <button
-                disabled={working}
-                className="w-full bg-brand-800 text-white p-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lift disabled:opacity-60"
-              >
-                {working ? "Creating Account..." : "Create Account"}
-              </button>
-            </form>
-          )}
-
-          {mode === "forgot" && (
-            <form onSubmit={forgotPassword} className="space-y-5">
-              <div>
-                <label className="text-[10px] font-black uppercase text-brand-500 mb-2 block tracking-[0.18em]">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full p-3.5 rounded-xl border border-brand-200 bg-white"
-                  required
-                />
-              </div>
-
-              {status ? (
-                <div className="text-sm font-semibold text-brand-600">{status}</div>
-              ) : null}
-
-              <button
-                disabled={working}
-                className="w-full bg-brand-800 text-white p-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lift disabled:opacity-60"
-              >
-                {working ? "Sending..." : "Send Reset Email"}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setMode("login");
-                  setStatus("");
-                }}
-                className="w-full text-center text-[11px] font-black uppercase tracking-[0.18em] text-brand-500 hover:text-brand-800"
-              >
-                Back To Sign In
-              </button>
-            </form>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function FeatureRow({ title, desc }: { title: string; desc: string }) {
-  return (
-    <div className="rounded-2xl bg-white/70 border border-brand-200 p-4">
-      <div className="text-sm font-black text-brand-900">{title}</div>
-      <div className="mt-1 text-sm font-semibold text-brand-600 leading-relaxed">
-        {desc}
       </div>
     </div>
   );
