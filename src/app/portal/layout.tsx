@@ -1,8 +1,21 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import {
+  Home,
+  Dog,
+  CalendarDays,
+  FileText,
+  CreditCard,
+  CarFront,
+  MessageCircle,
+  Sparkles,
+  Menu,
+  X,
+  LogOut,
+} from "lucide-react";
 import { sb } from "@/lib/utils";
 
 type PortalUser = {
@@ -11,6 +24,13 @@ type PortalUser = {
     full_name?: string | null;
     name?: string | null;
   };
+};
+
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ReactNode;
+  match?: (pathname: string) => boolean;
 };
 
 export default function PortalLayout({
@@ -55,17 +75,52 @@ export default function PortalLayout({
     setIsDrawerOpen(false);
   }, [pathname]);
 
-  const nav = [
-    { href: "/portal", label: "Dashboard" },
-    { href: "/portal/application", label: "Application" },
-    { href: "/portal/mypuppy", label: "My Puppy" },
-    { href: "/portal/messages", label: "Messages" },
-    { href: "/portal/documents", label: "Contracts" },
-    { href: "/portal/payments", label: "Financials" },
-    { href: "/portal/transportation", label: "Transportation" },
-    { href: "/portal/resources", label: "Resources" },
-    { href: "/portal/chichi", label: "Chat with Chi Chi" },
-  ];
+  const nav: NavItem[] = useMemo(
+    () => [
+      {
+        href: "/portal",
+        label: "Overview",
+        icon: <Home className="h-[18px] w-[18px]" />,
+        match: (p) => p === "/portal",
+      },
+      {
+        href: "/portal/mypuppy",
+        label: "My Puppy",
+        icon: <Dog className="h-[18px] w-[18px]" />,
+      },
+      {
+        href: "/portal/updates",
+        label: "Updates",
+        icon: <CalendarDays className="h-[18px] w-[18px]" />,
+      },
+      {
+        href: "/portal/documents",
+        label: "Contracts & Docs",
+        icon: <FileText className="h-[18px] w-[18px]" />,
+      },
+      {
+        href: "/portal/payments",
+        label: "Payments",
+        icon: <CreditCard className="h-[18px] w-[18px]" />,
+      },
+      {
+        href: "/portal/transportation",
+        label: "Pickup / Meet / Delivery",
+        icon: <CarFront className="h-[18px] w-[18px]" />,
+      },
+      {
+        href: "/portal/messages",
+        label: "Messages",
+        icon: <MessageCircle className="h-[18px] w-[18px]" />,
+      },
+      {
+        href: "/available-puppies",
+        label: "Available Puppies",
+        icon: <Sparkles className="h-[18px] w-[18px]" />,
+      },
+    ],
+    []
+  );
 
   const displayName =
     user?.user_metadata?.full_name ||
@@ -83,158 +138,170 @@ export default function PortalLayout({
     router.refresh();
   }
 
-  function getNavClass(href: string) {
-    const active = pathname === href;
-    return active ? "nav-item active" : "nav-item";
+  function isActive(item: NavItem) {
+    if (item.match) return item.match(pathname);
+    return pathname === item.href || pathname.startsWith(`${item.href}/`);
+  }
+
+  function navClass(item: NavItem) {
+    const active = isActive(item);
+
+    return [
+      "group flex items-center gap-3 rounded-[18px] px-4 py-3 transition-all duration-200",
+      active
+        ? "bg-[#0f1938] text-white shadow-[0_12px_30px_rgba(15,25,56,0.24)]"
+        : "text-slate-800 hover:bg-white hover:shadow-sm",
+    ].join(" ");
+  }
+
+  function iconWrapClass(item: NavItem) {
+    const active = isActive(item);
+    return [
+      "flex h-9 w-9 items-center justify-center rounded-full transition",
+      active ? "bg-white/10 text-white" : "bg-transparent text-slate-500 group-hover:text-slate-800",
+    ].join(" ");
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-brand-50 text-brand-900">
-      <header className="md:hidden fixed top-0 left-0 right-0 z-30 bg-white/80 backdrop-blur-md h-16 flex items-center justify-between px-6 border-b border-brand-200/50">
-        <div className="flex items-center gap-4">
+    <div className="min-h-screen bg-[#f5f6f8] text-slate-900">
+      <header className="md:hidden sticky top-0 z-40 border-b border-slate-200/80 bg-white/85 backdrop-blur-xl">
+        <div className="flex h-16 items-center justify-between px-4">
           <button
             onClick={() => setIsDrawerOpen(true)}
-            className="text-brand-700"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm"
             aria-label="Open portal menu"
           >
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M4 6h16M4 12h16M4 18h16"
-              />
-            </svg>
+            <Menu className="h-5 w-5" />
           </button>
 
-          <div>
-            <div className="font-serif font-bold text-xl leading-none">
-              Southwest Virginia Chihuahua
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#0f1938] text-white shadow-sm">
+              <Dog className="h-5 w-5" />
             </div>
-            <div className="text-[10px] uppercase tracking-widest text-brand-500 font-black mt-1">
-              Puppy Portal
+            <div className="leading-tight">
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                Southwest Virginia Chihuahua
+              </div>
+              <div className="font-serif text-[24px] leading-none text-slate-900">
+                Puppy Portal
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center border border-brand-200 font-bold text-brand-600">
-          {userInitial}
+          <div className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-sm font-bold text-slate-700">
+            {userInitial}
+          </div>
         </div>
       </header>
 
       {isDrawerOpen && (
         <div
-          className="fixed inset-0 bg-brand-900/40 backdrop-blur-sm z-40 md:hidden"
+          className="fixed inset-0 z-40 bg-slate-900/35 backdrop-blur-sm md:hidden"
           onClick={() => setIsDrawerOpen(false)}
         />
       )}
 
       <aside
-        className={`fixed top-0 left-0 bottom-0 w-[82%] max-w-[320px] bg-[#FDFBF9] z-50 shadow-2xl flex flex-col transition-transform duration-300 md:hidden ${
+        className={`fixed inset-y-0 left-0 z-50 w-[86%] max-w-[320px] transform bg-transparent p-4 transition-transform duration-300 md:hidden ${
           isDrawerOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="p-6 border-b border-brand-100 flex justify-between items-center">
-          <div>
-            <div className="font-serif font-bold text-xl leading-none">
-              Southwest Virginia Chihuahua
+        <div className="flex h-full flex-col rounded-[28px] border border-slate-300/70 bg-[#efefef] px-4 py-5 shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
+          <div className="flex items-start justify-between gap-3 px-2">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#0f1938] text-white">
+                <Dog className="h-5 w-5" />
+              </div>
+
+              <div className="leading-tight">
+                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                  Southwest Virginia Chihuahua
+                </div>
+                <div className="font-serif text-[18px] leading-none text-slate-900">
+                  Puppy Portal
+                </div>
+              </div>
             </div>
-            <div className="text-[10px] uppercase tracking-widest text-brand-500 font-black mt-1">
-              Puppy Portal
-            </div>
+
+            <button
+              onClick={() => setIsDrawerOpen(false)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-slate-600"
+              aria-label="Close portal menu"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
 
-          <button
-            onClick={() => setIsDrawerOpen(false)}
-            className="text-2xl leading-none text-brand-700"
-            aria-label="Close portal menu"
-          >
-            ×
-          </button>
-        </div>
-
-        <nav className="p-5 pt-7 flex flex-col gap-3 flex-1 overflow-y-auto">
-          {nav.map((item) => (
-            <Link key={item.href} href={item.href} className={getNavClass(item.href)}>
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-
-        <div className="p-6 border-t border-brand-100 bg-brand-50">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-full bg-brand-200 flex items-center justify-center text-brand-700 font-black text-xs">
-              {userInitial}
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-black truncate">{displayName}</p>
-              <p className="text-[10px] text-brand-400 font-semibold truncate">
-                {user?.email || ""}
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={handleSignOut}
-            className="w-full py-3 rounded-lg border border-brand-200 text-brand-700 font-black text-sm hover:bg-white transition"
-          >
-            Sign Out
-          </button>
-        </div>
-      </aside>
-
-      <aside className="hidden md:flex w-72 flex-col bg-white/80 border-r border-brand-200/60 backdrop-blur-sm">
-        <div className="p-8">
-          <h1 className="font-serif font-bold text-xl leading-none">
-            Southwest Virginia Chihuahua
-          </h1>
-          <p className="text-[10px] uppercase tracking-widest text-brand-500 font-black mt-1">
-            Puppy Portal
-          </p>
-        </div>
-
-        <nav className="flex-1 px-4 pt-6 pb-6 overflow-y-auto">
-          <div className="mt-3 flex flex-col gap-3">
+          <nav className="mt-6 flex-1 space-y-2">
             {nav.map((item) => (
-              <Link key={item.href} href={item.href} className={getNavClass(item.href)}>
-                {item.label}
+              <Link key={item.href} href={item.href} className={navClass(item)}>
+                <span className={iconWrapClass(item)}>{item.icon}</span>
+                <span className="text-[15px] font-semibold leading-tight">{item.label}</span>
               </Link>
             ))}
-          </div>
-        </nav>
+          </nav>
 
-        <div className="p-4 border-t border-brand-100 bg-brand-50/50">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-brand-200 flex items-center justify-center text-brand-700 font-black text-xs">
-              {userInitial}
-            </div>
+          <div className="mt-5 border-t border-slate-300 pt-5">
+            <button
+              onClick={handleSignOut}
+              className="w-full rounded-[16px] border border-slate-300 bg-white px-4 py-3 text-[15px] font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
+            >
+              Sign out
+            </button>
 
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-black truncate">{displayName}</p>
-              <p className="text-[10px] text-brand-400 font-semibold truncate mt-1">
-                {user?.email || ""}
-              </p>
-
-              <button
-                onClick={handleSignOut}
-                className="mt-2 text-[10px] font-black uppercase text-brand-500 hover:text-brand-800"
-              >
-                Sign Out
-              </button>
+            <div className="mt-3 px-1 text-xs text-slate-500">
+              Signed in as{" "}
+              <span className="font-semibold text-slate-700">{user?.email || "—"}</span>
             </div>
           </div>
         </div>
       </aside>
 
-      <main className="flex-1 min-w-0 h-full overflow-hidden pt-16 md:pt-0">
-        {children}
-      </main>
+      <div className="mx-auto flex max-w-[1600px] gap-6 px-4 py-4 md:px-6 md:py-6 xl:px-8">
+        <aside className="hidden md:block md:w-[300px] md:flex-shrink-0">
+          <div className="sticky top-6 flex flex-col rounded-[28px] border border-slate-300/70 bg-[#efefef] px-4 py-5 shadow-[0_20px_60px_rgba(15,23,42,0.12)]">
+            <div className="flex items-center gap-3 px-2">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#0f1938] text-white">
+                <Dog className="h-5 w-5" />
+              </div>
+
+              <div className="leading-tight">
+                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                  Southwest Virginia Chihuahua
+                </div>
+                <div className="font-serif text-[18px] leading-none text-slate-900">
+                  Puppy Portal
+                </div>
+              </div>
+            </div>
+
+            <nav className="mt-6 flex-1 space-y-2">
+              {nav.map((item) => (
+                <Link key={item.href} href={item.href} className={navClass(item)}>
+                  <span className={iconWrapClass(item)}>{item.icon}</span>
+                  <span className="text-[15px] font-semibold leading-tight">{item.label}</span>
+                </Link>
+              ))}
+            </nav>
+
+            <div className="mt-5 border-t border-slate-300 pt-5">
+              <button
+                onClick={handleSignOut}
+                className="w-full rounded-[16px] border border-slate-300 bg-white px-4 py-3 text-[15px] font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
+              >
+                Sign out
+              </button>
+
+              <div className="mt-3 px-1 text-xs text-slate-500">
+                Signed in as{" "}
+                <span className="font-semibold text-slate-700">{user?.email || "—"}</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <main className="min-w-0 flex-1">{children}</main>
+      </div>
     </div>
   );
 }
