@@ -131,6 +131,7 @@ export default function PortalMyPuppyPage() {
           setPuppy(null);
           setWeights([]);
           setEvents([]);
+          setStatusText("");
         }
 
         setLoading(false);
@@ -143,78 +144,161 @@ export default function PortalMyPuppyPage() {
     };
   }, []);
 
+  async function tryBuyerByUserId(uid: string | undefined): Promise<BuyerRow | null> {
+    if (!uid) return null;
+
+    const { data, error } = await sb
+      .from("buyers")
+      .select("*")
+      .eq("user_id", uid)
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.warn("buyers by user_id failed:", error.message);
+      return null;
+    }
+
+    return (data as BuyerRow | null) ?? null;
+  }
+
+  async function tryBuyerByEmail(email: string): Promise<BuyerRow | null> {
+    if (!email) return null;
+
+    const attempts = [
+      () =>
+        sb
+          .from("buyers")
+          .select("*")
+          .ilike("email", email)
+          .limit(1)
+          .maybeSingle(),
+      () =>
+        sb
+          .from("buyers")
+          .select("*")
+          .ilike("buyer_email", email)
+          .limit(1)
+          .maybeSingle(),
+    ];
+
+    for (const run of attempts) {
+      const { data, error } = await run();
+      if (!error && data) return data as BuyerRow;
+      if (error) console.warn("buyers by email failed:", error.message);
+    }
+
+    return null;
+  }
+
+  async function tryPuppyByBuyerId(buyerId: number | null | undefined): Promise<PuppyRow | null> {
+    if (!buyerId) return null;
+
+    const { data, error } = await sb
+      .from("puppies")
+      .select("*")
+      .eq("buyer_id", buyerId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.warn("puppies by buyer_id failed:", error.message);
+      return null;
+    }
+
+    return (data as PuppyRow | null) ?? null;
+  }
+
+  async function tryPuppyByOwnerEmail(email: string): Promise<PuppyRow | null> {
+    if (!email) return null;
+
+    const { data, error } = await sb
+      .from("puppies")
+      .select("*")
+      .ilike("owner_email", email)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.warn("puppies by owner_email failed:", error.message);
+      return null;
+    }
+
+    return (data as PuppyRow | null) ?? null;
+  }
+
   async function loadPuppyProfile(currUser: any) {
-    const email = String(currUser?.email || "").toLowerCase();
-    const uid = currUser?.id;
+    const email = String(currUser?.email || "").trim().toLowerCase();
+    const uid = currUser?.id as string | undefined;
 
     setStatusText("Loading puppy profile...");
-
-    let matchedBuyer: BuyerRow | null = null;
-    let matchedPuppy: PuppyRow | null = null;
+    setPuppy(null);
+    setWeights([]);
+    setEvents([]);
 
     try {
-      const buyerRes = await sb
-        .from("buyers")
-        .select("*")
-        .or(`user_id.eq.${uid},email.ilike.%${email}%,buyer_email.ilike.%${email}%`)
-        .limit(1)
-        .maybeSingle();
+      let matchedBuyer: BuyerRow | null = null;
+      let matchedPuppy: PuppyRow | null = null;
 
-      matchedBuyer = (buyerRes.data as BuyerRow | null) ?? null;
-    } catch {
-      matchedBuyer = null;
-    }
+      matchedBuyer = await tryBuyerByUserId(uid);
 
-    if (matchedBuyer?.id) {
-      const puppyByBuyer = await sb
-        .from("puppies")
-        .select("*")
-        .eq("buyer_id", matchedBuyer.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      if (!matchedBuyer && email) {
+        matchedBuyer = await tryBuyerByEmail(email);
+      }
 
-      matchedPuppy = (puppyByBuyer.data as PuppyRow | null) ?? null;
-    }
+      if (matchedBuyer?.id) {
+        matchedPuppy = await tryPuppyByBuyerId(matchedBuyer.id);
+      }
 
-    if (!matchedPuppy) {
-      const puppyByEmail = await sb
-        .from("puppies")
-        .select("*")
-        .or(`owner_email.ilike.%${email}%`)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      if (!matchedPuppy && email) {
+        matchedPuppy = await tryPuppyByOwnerEmail(email);
+      }
 
-      matchedPuppy = (puppyByEmail.data as PuppyRow | null) ?? null;
-    }
+      setPuppy(matchedPuppy);
 
-    setPuppy(matchedPuppy);
+      if (!matchedPuppy?.id) {
+        setStatusText("");
+        return;
+      }
 
-    if (!matchedPuppy?.id) {
+      const [weightsRes, eventsRes] = await Promise.all([
+        sb
+          .from("puppy_weights")
+          .select("*")
+          .eq("puppy_id", matchedPuppy.id)
+          .order("weigh_date", { ascending: false })
+          .limit(20),
+        sb
+          .from("puppy_events")
+          .select("*")
+          .eq("puppy_id", matchedPuppy.id)
+          .order("event_date", { ascending: true }),
+      ]);
+
+      if (weightsRes.error) {
+        console.warn("puppy_weights fetch failed:", weightsRes.error.message);
+        setWeights([]);
+      } else {
+        setWeights((weightsRes.data as PuppyWeightRow[]) || []);
+      }
+
+      if (eventsRes.error) {
+        console.warn("puppy_events fetch failed:", eventsRes.error.message);
+        setEvents([]);
+      } else {
+        setEvents((eventsRes.data as PuppyEventRow[]) || []);
+      }
+
+      setStatusText("");
+    } catch (error) {
+      console.error("loadPuppyProfile failed:", error);
+      setPuppy(null);
       setWeights([]);
       setEvents([]);
       setStatusText("");
-      return;
     }
-
-    const [weightsRes, eventsRes] = await Promise.all([
-      sb
-        .from("puppy_weights")
-        .select("*")
-        .eq("puppy_id", matchedPuppy.id)
-        .order("weigh_date", { ascending: false })
-        .limit(20),
-      sb
-        .from("puppy_events")
-        .select("*")
-        .eq("puppy_id", matchedPuppy.id)
-        .order("event_date", { ascending: true }),
-    ]);
-
-    setWeights((weightsRes.data as PuppyWeightRow[]) || []);
-    setEvents((eventsRes.data as PuppyEventRow[]) || []);
-    setStatusText("");
   }
 
   async function handleRefresh() {
@@ -228,6 +312,7 @@ export default function PortalMyPuppyPage() {
     setPuppy(null);
     setWeights([]);
     setEvents([]);
+    setStatusText("");
   }
 
   const puppyName =
@@ -241,7 +326,7 @@ export default function PortalMyPuppyPage() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    return events.filter((event) => {
+    return (events || []).filter((event) => {
       const eventDate = new Date(event.event_date);
       eventDate.setHours(0, 0, 0, 0);
       return eventDate.getTime() <= today.getTime();
