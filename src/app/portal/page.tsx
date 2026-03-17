@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { sb, T, fmtMoney, fmtDate, buildPuppyPhotoUrl } from "@/lib/utils";
 
@@ -236,52 +236,46 @@ export default function PortalPage() {
 
   async function findBuyer(uid: string | undefined, email: string): Promise<BuyerRow | null> {
     if (uid) {
-      const byUserId = await sb
-        .from("buyers")
-        .select("*")
-        .eq("user_id", uid)
-        .limit(1)
-        .maybeSingle();
+      try {
+        const byUserId = await sb
+          .from("buyers")
+          .select("*")
+          .eq("user_id", uid)
+          .limit(1)
+          .maybeSingle();
 
-      if (!byUserId.error && byUserId.data) {
-        return byUserId.data as BuyerRow;
-      }
-
-      if (byUserId.error) {
-        console.warn("buyers by user_id failed:", byUserId.error.message);
-      }
+        if (!byUserId.error && byUserId.data) {
+          return byUserId.data as BuyerRow;
+        }
+      } catch {}
     }
 
     if (email) {
-      const byEmail = await sb
-        .from("buyers")
-        .select("*")
-        .ilike("email", email)
-        .limit(1)
-        .maybeSingle();
+      try {
+        const byEmail = await sb
+          .from("buyers")
+          .select("*")
+          .ilike("email", email)
+          .limit(1)
+          .maybeSingle();
 
-      if (!byEmail.error && byEmail.data) {
-        return byEmail.data as BuyerRow;
-      }
+        if (!byEmail.error && byEmail.data) {
+          return byEmail.data as BuyerRow;
+        }
+      } catch {}
 
-      if (byEmail.error) {
-        console.warn("buyers by email failed:", byEmail.error.message);
-      }
+      try {
+        const byBuyerEmail = await sb
+          .from("buyers")
+          .select("*")
+          .ilike("buyer_email", email)
+          .limit(1)
+          .maybeSingle();
 
-      const byBuyerEmail = await sb
-        .from("buyers")
-        .select("*")
-        .ilike("buyer_email", email)
-        .limit(1)
-        .maybeSingle();
-
-      if (!byBuyerEmail.error && byBuyerEmail.data) {
-        return byBuyerEmail.data as BuyerRow;
-      }
-
-      if (byBuyerEmail.error) {
-        console.warn("buyers by buyer_email failed:", byBuyerEmail.error.message);
-      }
+        if (!byBuyerEmail.error && byBuyerEmail.data) {
+          return byBuyerEmail.data as BuyerRow;
+        }
+      } catch {}
     }
 
     return null;
@@ -291,46 +285,43 @@ export default function PortalPage() {
     const tableName = T.applications;
 
     if (uid) {
-      const byUserId = await sb
-        .from(tableName)
-        .select("*")
-        .eq("user_id", uid)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      try {
+        const byUserId = await sb
+          .from(tableName)
+          .select("*")
+          .eq("user_id", uid)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-      if (!byUserId.error && byUserId.data) return byUserId.data;
-      if (byUserId.error) {
-        console.warn(`${tableName} by user_id failed:`, byUserId.error.message);
-      }
+        if (!byUserId.error && byUserId.data) return byUserId.data;
+      } catch {}
     }
 
     if (email) {
-      const byEmail = await sb
-        .from(tableName)
-        .select("*")
-        .ilike("email", email)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      try {
+        const byEmail = await sb
+          .from(tableName)
+          .select("*")
+          .ilike("email", email)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-      if (!byEmail.error && byEmail.data) return byEmail.data;
-      if (byEmail.error) {
-        console.warn(`${tableName} by email failed:`, byEmail.error.message);
-      }
+        if (!byEmail.error && byEmail.data) return byEmail.data;
+      } catch {}
 
-      const byApplicantEmail = await sb
-        .from(tableName)
-        .select("*")
-        .ilike("applicant_email", email)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      try {
+        const byApplicantEmail = await sb
+          .from(tableName)
+          .select("*")
+          .ilike("applicant_email", email)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-      if (!byApplicantEmail.error && byApplicantEmail.data) return byApplicantEmail.data;
-      if (byApplicantEmail.error) {
-        console.warn(`${tableName} by applicant_email failed:`, byApplicantEmail.error.message);
-      }
+        if (!byApplicantEmail.error && byApplicantEmail.data) return byApplicantEmail.data;
+      } catch {}
     }
 
     return null;
@@ -338,33 +329,31 @@ export default function PortalPage() {
 
   async function findPuppy(buyerId: number | undefined, email: string) {
     if (buyerId) {
-      const byBuyer = await sb
-        .from("puppies")
-        .select("*")
-        .eq("buyer_id", buyerId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      try {
+        const byBuyer = await sb
+          .from("puppies")
+          .select("*")
+          .eq("buyer_id", buyerId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-      if (!byBuyer.error && byBuyer.data) return byBuyer.data;
-      if (byBuyer.error) {
-        console.warn("puppies by buyer_id failed:", byBuyer.error.message);
-      }
+        if (!byBuyer.error && byBuyer.data) return byBuyer.data;
+      } catch {}
     }
 
     if (email) {
-      const byOwnerEmail = await sb
-        .from("puppies")
-        .select("*")
-        .ilike("owner_email", email)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      try {
+        const byOwnerEmail = await sb
+          .from("puppies")
+          .select("*")
+          .ilike("owner_email", email)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-      if (!byOwnerEmail.error && byOwnerEmail.data) return byOwnerEmail.data;
-      if (byOwnerEmail.error) {
-        console.warn("puppies by owner_email failed:", byOwnerEmail.error.message);
-      }
+        if (!byOwnerEmail.error && byOwnerEmail.data) return byOwnerEmail.data;
+      } catch {}
     }
 
     return null;
@@ -372,40 +361,37 @@ export default function PortalPage() {
 
   async function findMessages(uid: string | undefined, email: string) {
     const tableName = T.messages;
-    let messages: any[] = [];
 
     if (uid) {
-      const byUserId = await sb
-        .from(tableName)
-        .select("*")
-        .eq("user_id", uid)
-        .order("created_at", { ascending: false })
-        .limit(5);
+      try {
+        const byUserId = await sb
+          .from(tableName)
+          .select("*")
+          .eq("user_id", uid)
+          .order("created_at", { ascending: false })
+          .limit(5);
 
-      if (!byUserId.error && byUserId.data?.length) {
-        return byUserId.data;
-      }
-
-      if (byUserId.error) {
-        console.warn(`${tableName} by user_id failed:`, byUserId.error.message);
-      }
+        if (!byUserId.error && byUserId.data?.length) {
+          return byUserId.data;
+        }
+      } catch {}
     }
 
     if (email) {
-      const byEmail = await sb
-        .from(tableName)
-        .select("*")
-        .ilike("email", email)
-        .order("created_at", { ascending: false })
-        .limit(5);
+      try {
+        const byEmail = await sb
+          .from(tableName)
+          .select("*")
+          .ilike("email", email)
+          .order("created_at", { ascending: false })
+          .limit(5);
 
-      if (!byEmail.error && byEmail.data?.length) {
-        messages = byEmail.data;
-      } else if (byEmail.error) {
-        console.warn(`${tableName} by email failed:`, byEmail.error.message);
-      }
+        if (!byEmail.error && byEmail.data?.length) {
+          return byEmail.data;
+        }
+      } catch {}
 
-      if (!messages.length) {
+      try {
         const byUserEmail = await sb
           .from(tableName)
           .select("*")
@@ -414,14 +400,12 @@ export default function PortalPage() {
           .limit(5);
 
         if (!byUserEmail.error && byUserEmail.data?.length) {
-          messages = byUserEmail.data;
-        } else if (byUserEmail.error) {
-          console.warn(`${tableName} by user_email failed:`, byUserEmail.error.message);
+          return byUserEmail.data;
         }
-      }
+      } catch {}
     }
 
-    return messages || [];
+    return [];
   }
 
   async function findDocumentCount(
@@ -440,16 +424,11 @@ export default function PortalPage() {
             .eq("buyer_id", buyer.id);
 
           if (!byBuyerId.error) return byBuyerId.count || 0;
+        }
+      } catch {}
 
-          const byUserId = uid
-            ? await sb
-                .from(tableName)
-                .select("*", { count: "exact", head: true })
-                .eq("user_id", uid)
-            : null;
-
-          if (byUserId && !byUserId.error) return byUserId.count || 0;
-        } else if (uid) {
+      try {
+        if (uid) {
           const byUserId = await sb
             .from(tableName)
             .select("*", { count: "exact", head: true })
@@ -457,7 +436,9 @@ export default function PortalPage() {
 
           if (!byUserId.error) return byUserId.count || 0;
         }
+      } catch {}
 
+      try {
         if (email) {
           const byEmail = await sb
             .from(tableName)
@@ -465,7 +446,11 @@ export default function PortalPage() {
             .ilike("email", email);
 
           if (!byEmail.error) return byEmail.count || 0;
+        }
+      } catch {}
 
+      try {
+        if (email) {
           const byBuyerEmail = await sb
             .from(tableName)
             .select("*", { count: "exact", head: true })
@@ -473,9 +458,7 @@ export default function PortalPage() {
 
           if (!byBuyerEmail.error) return byBuyerEmail.count || 0;
         }
-      } catch (error) {
-        console.warn(`document count lookup failed for ${tableName}:`, error);
-      }
+      } catch {}
     }
 
     return 0;
@@ -491,10 +474,7 @@ export default function PortalPage() {
         .eq("puppy_id", puppyId)
         .order("event_date", { ascending: true });
 
-      if (updatesRes.error) {
-        console.warn("puppy_events failed:", updatesRes.error.message);
-        return [];
-      }
+      if (updatesRes.error) return [];
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -504,8 +484,7 @@ export default function PortalPage() {
         eventDate.setHours(0, 0, 0, 0);
         return eventDate.getTime() <= today.getTime();
       });
-    } catch (error) {
-      console.warn("findUpdates failed:", error);
+    } catch {
       return [];
     }
   }
@@ -539,21 +518,10 @@ export default function PortalPage() {
         updates: updates || [],
         docCount: docCount || 0,
       });
-    } catch (error) {
-      console.error("Portal loadData failed:", error);
+    } catch {
       setData(fallback);
     }
   }
-
-  if (loading) {
-    return (
-      <div className="h-full min-h-screen flex items-center justify-center bg-brand-50 italic">
-        Loading Portal...
-      </div>
-    );
-  }
-
-  if (!user) return <LoginComponent />;
 
   const hasPuppy = !!data?.puppy;
   const hasApp = !!data?.app;
@@ -609,48 +577,55 @@ export default function PortalPage() {
 
   const steps = nextSteps(hasApp, hasPuppy);
 
-  const overviewCards = useMemo(
-    () => [
-      {
-        label: "Application",
-        value: data?.app?.status || data?.app?.application_status || "Not started",
-        sub: data?.app?.created_at
-          ? `Submitted ${fmtDate(data.app.created_at)}`
-          : "Complete when ready",
-        href: "/portal/application",
-        icon: "📝",
-      },
-      {
-        label: "Documents",
-        value: data?.docCount ? `${data.docCount} file(s)` : "—",
-        sub: "Contracts and saved files",
-        href: "/portal/documents",
-        icon: "📄",
-      },
-      {
-        label: "Messages",
-        value: `${data?.msgs?.length || 0}`,
-        sub: "Recent message activity",
-        href: "/portal/messages",
-        icon: "💬",
-      },
-      {
-        label: "Financials",
-        value:
-          data?.puppy?.price || data?.puppy?.total_price || data?.puppy?.adoption_fee
-            ? fmtMoney(
-                data?.puppy?.price ||
-                  data?.puppy?.total_price ||
-                  data?.puppy?.adoption_fee
-              )
-            : "—",
-        sub: "View full payment details",
-        href: "/portal/payments",
-        icon: "💳",
-      },
-    ],
-    [data]
-  );
+  const overviewCards = [
+    {
+      label: "Application",
+      value: data?.app?.status || data?.app?.application_status || "Not started",
+      sub: data?.app?.created_at
+        ? `Submitted ${fmtDate(data.app.created_at)}`
+        : "Complete when ready",
+      href: "/portal/application",
+      icon: "📝",
+    },
+    {
+      label: "Documents",
+      value: data?.docCount ? `${data.docCount} file(s)` : "—",
+      sub: "Contracts and saved files",
+      href: "/portal/documents",
+      icon: "📄",
+    },
+    {
+      label: "Messages",
+      value: `${data?.msgs?.length || 0}`,
+      sub: "Recent message activity",
+      href: "/portal/messages",
+      icon: "💬",
+    },
+    {
+      label: "Financials",
+      value:
+        data?.puppy?.price || data?.puppy?.total_price || data?.puppy?.adoption_fee
+          ? fmtMoney(
+              data?.puppy?.price ||
+                data?.puppy?.total_price ||
+                data?.puppy?.adoption_fee
+            )
+          : "—",
+      sub: "View full payment details",
+      href: "/portal/payments",
+      icon: "💳",
+    },
+  ];
+
+  if (loading) {
+    return (
+      <div className="h-full min-h-screen flex items-center justify-center bg-brand-50 italic">
+        Loading Portal...
+      </div>
+    );
+  }
+
+  if (!user) return <LoginComponent />;
 
   return (
     <div className="h-full w-full text-brand-900 bg-brand-50">
