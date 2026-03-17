@@ -102,7 +102,7 @@ export default function PortalMessagesPage() {
     const uid = currUser?.id as string | undefined;
 
     try {
-      let data: PortalMessage[] = [];
+      let loadedMessages: PortalMessage[] = [];
 
       if (uid) {
         const byUserId = await sb
@@ -112,27 +112,27 @@ export default function PortalMessagesPage() {
           .order("created_at", { ascending: false });
 
         if (!byUserId.error && byUserId.data?.length) {
-          data = byUserId.data as PortalMessage[];
+          loadedMessages = byUserId.data as PortalMessage[];
         } else if (byUserId.error) {
           console.warn("portal_messages by user_id failed:", byUserId.error.message);
         }
       }
 
-      if (!data.length && email) {
-        const byEmail = await sb
+      if (!loadedMessages.length && email) {
+        const byUserEmail = await sb
           .from("portal_messages")
           .select("*")
           .ilike("user_email", email)
           .order("created_at", { ascending: false });
 
-        if (!byEmail.error && byEmail.data?.length) {
-          data = byEmail.data as PortalMessage[];
-        } else if (byEmail.error) {
-          console.warn("portal_messages by user_email failed:", byEmail.error.message);
+        if (!byUserEmail.error && byUserEmail.data?.length) {
+          loadedMessages = byUserEmail.data as PortalMessage[];
+        } else if (byUserEmail.error) {
+          console.warn("portal_messages by user_email failed:", byUserEmail.error.message);
         }
       }
 
-      setMessages(data || []);
+      setMessages(loadedMessages || []);
     } catch (error) {
       console.error("loadMessages failed:", error);
       setMessages([]);

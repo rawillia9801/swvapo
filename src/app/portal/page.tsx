@@ -5,9 +5,9 @@ import Link from "next/link";
 import { sb, T, fmtMoney, fmtDate, buildPuppyPhotoUrl } from "@/lib/utils";
 
 type PortalData = {
-  buyer: any;
-  app: any;
-  puppy: any;
+  buyer: BuyerRow | null;
+  app: any | null;
+  puppy: any | null;
   msgs: any[];
   updates: any[];
   docCount: number;
@@ -179,6 +179,8 @@ export default function PortalPage() {
 
         if (currentUser) {
           await loadData(currentUser);
+        } else {
+          setData(null);
         }
       } finally {
         if (mounted) setLoading(false);
@@ -232,134 +234,315 @@ export default function PortalPage() {
     };
   }, []);
 
-  async function loadData(currUser: any) {
-    const email = String(currUser?.email || "").toLowerCase();
-    const uid = currUser?.id;
-
-    let buyer: BuyerRow | null = null;
-    let app: any = null;
-    let puppy: any = null;
-    let msgs: any[] = [];
-    let updates: any[] = [];
-    let docCount = 0;
-
-    try {
-      const buyerRes = await sb
+  async function findBuyer(uid: string | undefined, email: string): Promise<BuyerRow | null> {
+    if (uid) {
+      const byUserId = await sb
         .from("buyers")
         .select("*")
-        .or(`user_id.eq.${uid},email.ilike.%${email}%,buyer_email.ilike.%${email}%`)
+        .eq("user_id", uid)
         .limit(1)
         .maybeSingle();
 
-      buyer = (buyerRes.data as BuyerRow | null) ?? null;
-    } catch {
-      buyer = null;
+      if (!byUserId.error && byUserId.data) {
+        return byUserId.data as BuyerRow;
+      }
+
+      if (byUserId.error) {
+        console.warn("buyers by user_id failed:", byUserId.error.message);
+      }
     }
 
-    try {
-      const appRes = await sb
-        .from(T.applications)
+    if (email) {
+      const byEmail = await sb
+        .from("buyers")
         .select("*")
-        .or(`user_id.eq.${uid},email.ilike.%${email}%,applicant_email.ilike.%${email}%`)
+        .ilike("email", email)
+        .limit(1)
+        .maybeSingle();
+
+      if (!byEmail.error && byEmail.data) {
+        return byEmail.data as BuyerRow;
+      }
+
+      if (byEmail.error) {
+        console.warn("buyers by email failed:", byEmail.error.message);
+      }
+
+      const byBuyerEmail = await sb
+        .from("buyers")
+        .select("*")
+        .ilike("buyer_email", email)
+        .limit(1)
+        .maybeSingle();
+
+      if (!byBuyerEmail.error && byBuyerEmail.data) {
+        return byBuyerEmail.data as BuyerRow;
+      }
+
+      if (byBuyerEmail.error) {
+        console.warn("buyers by buyer_email failed:", byBuyerEmail.error.message);
+      }
+    }
+
+    return null;
+  }
+
+  async function findApplication(uid: string | undefined, email: string) {
+    const tableName = T.applications;
+
+    if (uid) {
+      const byUserId = await sb
+        .from(tableName)
+        .select("*")
+        .eq("user_id", uid)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      app = appRes.data ?? null;
-    } catch {
-      app = null;
+      if (!byUserId.error && byUserId.data) return byUserId.data;
+      if (byUserId.error) {
+        console.warn(`${tableName} by user_id failed:`, byUserId.error.message);
+      }
     }
 
-    if (buyer?.id) {
-      const puppyByBuyer = await sb
+    if (email) {
+      const byEmail = await sb
+        .from(tableName)
+        .select("*")
+        .ilike("email", email)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!byEmail.error && byEmail.data) return byEmail.data;
+      if (byEmail.error) {
+        console.warn(`${tableName} by email failed:`, byEmail.error.message);
+      }
+
+      const byApplicantEmail = await sb
+        .from(tableName)
+        .select("*")
+        .ilike("applicant_email", email)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!byApplicantEmail.error && byApplicantEmail.data) return byApplicantEmail.data;
+      if (byApplicantEmail.error) {
+        console.warn(`${tableName} by applicant_email failed:`, byApplicantEmail.error.message);
+      }
+    }
+
+    return null;
+  }
+
+  async function findPuppy(buyerId: number | undefined, email: string) {
+    if (buyerId) {
+      const byBuyer = await sb
         .from("puppies")
         .select("*")
-        .eq("buyer_id", buyer.id)
+        .eq("buyer_id", buyerId)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      puppy = puppyByBuyer.data ?? null;
+      if (!byBuyer.error && byBuyer.data) return byBuyer.data;
+      if (byBuyer.error) {
+        console.warn("puppies by buyer_id failed:", byBuyer.error.message);
+      }
     }
 
-    if (!puppy) {
-      const puppyByEmail = await sb
+    if (email) {
+      const byOwnerEmail = await sb
         .from("puppies")
         .select("*")
-        .or(`owner_email.ilike.%${email}%`)
+        .ilike("owner_email", email)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      puppy = puppyByEmail.data ?? null;
+      if (!byOwnerEmail.error && byOwnerEmail.data) return byOwnerEmail.data;
+      if (byOwnerEmail.error) {
+        console.warn("puppies by owner_email failed:", byOwnerEmail.error.message);
+      }
     }
 
-    try {
-      const msgRes = await sb
-        .from(T.messages)
+    return null;
+  }
+
+  async function findMessages(uid: string | undefined, email: string) {
+    const tableName = T.messages;
+    let messages: any[] = [];
+
+    if (uid) {
+      const byUserId = await sb
+        .from(tableName)
         .select("*")
-        .or(`user_id.eq.${uid},email.ilike.%${email}%,user_email.ilike.%${email}%`)
+        .eq("user_id", uid)
         .order("created_at", { ascending: false })
         .limit(5);
 
-      msgs = msgRes.data || [];
-    } catch {
-      msgs = [];
+      if (!byUserId.error && byUserId.data?.length) {
+        return byUserId.data;
+      }
+
+      if (byUserId.error) {
+        console.warn(`${tableName} by user_id failed:`, byUserId.error.message);
+      }
     }
 
+    if (email) {
+      const byEmail = await sb
+        .from(tableName)
+        .select("*")
+        .ilike("email", email)
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      if (!byEmail.error && byEmail.data?.length) {
+        messages = byEmail.data;
+      } else if (byEmail.error) {
+        console.warn(`${tableName} by email failed:`, byEmail.error.message);
+      }
+
+      if (!messages.length) {
+        const byUserEmail = await sb
+          .from(tableName)
+          .select("*")
+          .ilike("user_email", email)
+          .order("created_at", { ascending: false })
+          .limit(5);
+
+        if (!byUserEmail.error && byUserEmail.data?.length) {
+          messages = byUserEmail.data;
+        } else if (byUserEmail.error) {
+          console.warn(`${tableName} by user_email failed:`, byUserEmail.error.message);
+        }
+      }
+    }
+
+    return messages || [];
+  }
+
+  async function findDocumentCount(
+    buyer: BuyerRow | null,
+    uid: string | undefined,
+    email: string
+  ) {
     const docTables = ["documents", "portal_documents", "buyer_documents"];
 
     for (const tableName of docTables) {
       try {
-        let q = sb.from(tableName).select("*", { count: "exact", head: true });
-
         if (buyer?.id) {
-          q = q.or(`buyer_id.eq.${buyer.id},user_id.eq.${uid}`);
-        } else {
-          q = q.or(`user_id.eq.${uid},email.ilike.%${email}%,buyer_email.ilike.%${email}%`);
+          const byBuyerId = await sb
+            .from(tableName)
+            .select("*", { count: "exact", head: true })
+            .eq("buyer_id", buyer.id);
+
+          if (!byBuyerId.error) return byBuyerId.count || 0;
+
+          const byUserId = uid
+            ? await sb
+                .from(tableName)
+                .select("*", { count: "exact", head: true })
+                .eq("user_id", uid)
+            : null;
+
+          if (byUserId && !byUserId.error) return byUserId.count || 0;
+        } else if (uid) {
+          const byUserId = await sb
+            .from(tableName)
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", uid);
+
+          if (!byUserId.error) return byUserId.count || 0;
         }
 
-        const res = await q;
-        if (!res.error) {
-          docCount = res.count || 0;
-          break;
+        if (email) {
+          const byEmail = await sb
+            .from(tableName)
+            .select("*", { count: "exact", head: true })
+            .ilike("email", email);
+
+          if (!byEmail.error) return byEmail.count || 0;
+
+          const byBuyerEmail = await sb
+            .from(tableName)
+            .select("*", { count: "exact", head: true })
+            .ilike("buyer_email", email);
+
+          if (!byBuyerEmail.error) return byBuyerEmail.count || 0;
         }
-      } catch {
-        // ignore missing tables
+      } catch (error) {
+        console.warn(`document count lookup failed for ${tableName}:`, error);
       }
     }
 
-    if (puppy?.id) {
-      try {
-        const updatesRes = await sb
-          .from("puppy_events")
-          .select("*")
-          .eq("puppy_id", puppy.id)
-          .order("event_date", { ascending: true });
+    return 0;
+  }
 
-        if (!updatesRes.error) {
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
+  async function findUpdates(puppyId: number | undefined) {
+    if (!puppyId) return [];
 
-          updates = (updatesRes.data || []).filter((u: any) => {
-            const eventDate = new Date(u.event_date || u.created_at);
-            eventDate.setHours(0, 0, 0, 0);
-            return eventDate.getTime() <= today.getTime();
-          });
-        }
-      } catch {
-        updates = [];
+    try {
+      const updatesRes = await sb
+        .from("puppy_events")
+        .select("*")
+        .eq("puppy_id", puppyId)
+        .order("event_date", { ascending: true });
+
+      if (updatesRes.error) {
+        console.warn("puppy_events failed:", updatesRes.error.message);
+        return [];
       }
-    }
 
-    setData({
-      buyer,
-      app,
-      puppy,
-      msgs,
-      updates,
-      docCount,
-    });
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      return (updatesRes.data || []).filter((u: any) => {
+        const eventDate = new Date(u.event_date || u.created_at);
+        eventDate.setHours(0, 0, 0, 0);
+        return eventDate.getTime() <= today.getTime();
+      });
+    } catch (error) {
+      console.warn("findUpdates failed:", error);
+      return [];
+    }
+  }
+
+  async function loadData(currUser: any) {
+    const email = String(currUser?.email || "").trim().toLowerCase();
+    const uid = currUser?.id as string | undefined;
+
+    const fallback: PortalData = {
+      buyer: null,
+      app: null,
+      puppy: null,
+      msgs: [],
+      updates: [],
+      docCount: 0,
+    };
+
+    try {
+      const buyer = await findBuyer(uid, email);
+      const app = await findApplication(uid, email);
+      const puppy = await findPuppy(buyer?.id, email);
+      const msgs = await findMessages(uid, email);
+      const docCount = await findDocumentCount(buyer, uid, email);
+      const updates = await findUpdates(puppy?.id);
+
+      setData({
+        buyer,
+        app,
+        puppy,
+        msgs: msgs || [],
+        updates: updates || [],
+        docCount: docCount || 0,
+      });
+    } catch (error) {
+      console.error("Portal loadData failed:", error);
+      setData(fallback);
+    }
   }
 
   if (loading) {
@@ -431,7 +614,9 @@ export default function PortalPage() {
       {
         label: "Application",
         value: data?.app?.status || data?.app?.application_status || "Not started",
-        sub: data?.app?.created_at ? `Submitted ${fmtDate(data.app.created_at)}` : "Complete when ready",
+        sub: data?.app?.created_at
+          ? `Submitted ${fmtDate(data.app.created_at)}`
+          : "Complete when ready",
         href: "/portal/application",
         icon: "📝",
       },
