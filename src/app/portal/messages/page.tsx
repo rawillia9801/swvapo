@@ -42,6 +42,8 @@ export default function PortalMessagesPage() {
 
         if (currentUser) {
           await loadMessages(currentUser);
+        } else {
+          setMessages([]);
         }
       } finally {
         if (mounted) setLoading(false);
@@ -96,17 +98,44 @@ export default function PortalMessagesPage() {
   }, []);
 
   async function loadMessages(currUser: any) {
-    const email = String(currUser?.email || "").toLowerCase();
-    const uid = currUser?.id;
+    const email = String(currUser?.email || "").trim().toLowerCase();
+    const uid = currUser?.id as string | undefined;
 
-    const { data, error } = await sb
-      .from("portal_messages")
-      .select("*")
-      .or(`user_id.eq.${uid},user_email.ilike.%${email}%`)
-      .order("created_at", { ascending: false });
+    try {
+      let data: PortalMessage[] = [];
 
-    if (!error) {
-      setMessages((data || []) as PortalMessage[]);
+      if (uid) {
+        const byUserId = await sb
+          .from("portal_messages")
+          .select("*")
+          .eq("user_id", uid)
+          .order("created_at", { ascending: false });
+
+        if (!byUserId.error && byUserId.data?.length) {
+          data = byUserId.data as PortalMessage[];
+        } else if (byUserId.error) {
+          console.warn("portal_messages by user_id failed:", byUserId.error.message);
+        }
+      }
+
+      if (!data.length && email) {
+        const byEmail = await sb
+          .from("portal_messages")
+          .select("*")
+          .ilike("user_email", email)
+          .order("created_at", { ascending: false });
+
+        if (!byEmail.error && byEmail.data?.length) {
+          data = byEmail.data as PortalMessage[];
+        } else if (byEmail.error) {
+          console.warn("portal_messages by user_email failed:", byEmail.error.message);
+        }
+      }
+
+      setMessages(data || []);
+    } catch (error) {
+      console.error("loadMessages failed:", error);
+      setMessages([]);
     }
   }
 
@@ -114,6 +143,7 @@ export default function PortalMessagesPage() {
     e.preventDefault();
 
     if (!user) return;
+
     if (!message.trim()) {
       setStatusText("Please enter a message.");
       return;
