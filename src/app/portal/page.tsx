@@ -544,7 +544,7 @@ export default function PortalPage() {
       }`
     : hasApp
       ? "Your Application Is In"
-      : "Welcome To Your Puppy Portal";
+      : "Welcome To My Puppy Portal";
 
   const heroDesc = hasPuppy
     ? "This is your overview hub for messages, documents, financials, resources, and your puppy’s current progress."
@@ -611,7 +611,7 @@ export default function PortalPage() {
                 data?.puppy?.adoption_fee
             )
           : "—",
-      sub: "View full payment details",
+      sub: "View payment details",
       href: "/portal/payments",
       icon: "💳",
     },
@@ -619,8 +619,8 @@ export default function PortalPage() {
 
   if (loading) {
     return (
-      <div className="h-full min-h-screen flex items-center justify-center bg-brand-50 italic">
-        Loading Portal...
+      <div className="flex min-h-[70vh] items-center justify-center rounded-[28px] border border-[#dcc9b7] bg-white text-sm font-semibold text-[#7f6144] shadow-sm">
+        Loading My Puppy Portal...
       </div>
     );
   }
@@ -628,440 +628,381 @@ export default function PortalPage() {
   if (!user) return <LoginComponent />;
 
   return (
-    <div className="h-full w-full text-brand-900 bg-brand-50">
-      <main className="h-full relative flex flex-col overflow-hidden bg-texturePaper">
-        <div className="flex-1 p-6 md:p-10 lg:p-12 overflow-y-auto scroller max-w-[1600px] mx-auto w-full">
-          <div className="space-y-8 pb-14">
-            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
-              <div>
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/75 border border-brand-200 shadow-paper">
-                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-                    Puppy Portal
-                  </span>
-                  <span className="w-1 h-1 rounded-full bg-brand-300" />
-                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-                    Southwest Virginia Chihuahua
-                  </span>
+    <div className="space-y-6">
+      <section className="rounded-[30px] border border-[#d7c7b6] bg-white shadow-[0_14px_40px_rgba(61,39,22,0.08)] overflow-hidden">
+        <div className="grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr]">
+          <div className="bg-[linear-gradient(135deg,#8f6945_0%,#6f5037_100%)] px-6 py-7 text-white md:px-8 md:py-8">
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/85">
+              <span>My Puppy Portal</span>
+              <span className="h-1 w-1 rounded-full bg-white/50" />
+              <span>Southwest Virginia Chihuahua</span>
+            </div>
+
+            <h1 className="mt-5 font-serif text-3xl font-bold leading-[0.95] md:text-5xl">
+              Hello, {greetingName}
+            </h1>
+
+            <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-white/82 md:text-[15px]">
+              Your dashboard keeps everything important organized in one place —
+              application status, messages, documents, financials, resources, and next steps.
+            </p>
+
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <span
+                className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${appStatus.cls}`}
+              >
+                <span className="h-2 w-2 rounded-full bg-current opacity-70" />
+                Application: {appStatus.label}
+              </span>
+
+              <span
+                className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${puppyStatus.cls}`}
+              >
+                <span className="h-2 w-2 rounded-full bg-current opacity-70" />
+                Puppy: {puppyStatus.label}
+              </span>
+            </div>
+
+            <div className="mt-7 flex flex-wrap gap-3">
+              <Link
+                href={primaryHref}
+                className="inline-flex items-center gap-2 rounded-2xl bg-[#d6ab73] px-5 py-3 text-sm font-black uppercase tracking-[0.12em] text-[#24180f] transition hover:bg-[#dfba87]"
+              >
+                {primaryLabel}
+                <span aria-hidden="true">→</span>
+              </Link>
+
+              <Link
+                href="/portal/messages"
+                className="inline-flex items-center gap-2 rounded-2xl border border-white/18 bg-white/10 px-5 py-3 text-sm font-black uppercase tracking-[0.12em] text-white transition hover:bg-white/14"
+              >
+                Open Messages
+                <span aria-hidden="true">↗</span>
+              </Link>
+            </div>
+          </div>
+
+          <div className="relative min-h-[280px] bg-[#efe6dc]">
+            {hasPuppy ? (
+              <>
+                <img
+                  src={puppyImage}
+                  alt="Puppy"
+                  className="h-full w-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 p-6">
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    <span className="rounded-full border border-white/25 bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white backdrop-blur-sm">
+                      {data?.puppy?.sex || data?.puppy?.gender || "Puppy"}
+                    </span>
+
+                    {(data?.puppy?.dob || data?.puppy?.birth_date) && (
+                      <span className="rounded-full border border-white/25 bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white backdrop-blur-sm">
+                        Born {fmtDate(data?.puppy?.dob || data?.puppy?.birth_date)}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="font-serif text-3xl font-bold text-white">
+                    {data?.puppy?.call_name ||
+                      data?.puppy?.puppy_name ||
+                      data?.puppy?.name ||
+                      "Your Puppy"}
+                  </div>
+
+                  <div className="mt-2 max-w-xl text-sm font-semibold text-white/84">
+                    Full profile, milestones, photos, and breeder updates are available in the My Puppy section.
+                  </div>
                 </div>
+              </>
+            ) : (
+              <div className="flex h-full items-center justify-center p-8 text-center">
+                <div>
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#dcc8b2] bg-white text-2xl shadow-sm">
+                    🐾
+                  </div>
+                  <div className="font-serif text-2xl font-bold text-[#4a3325]">
+                    No Puppy Assigned Yet
+                  </div>
+                  <div className="mt-2 max-w-sm text-sm font-semibold leading-7 text-[#8b6b4d]">
+                    Once a match is confirmed, this area will highlight your puppy while the full details live in My Puppy.
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
 
-                <h2 className="mt-5 font-serif text-4xl md:text-5xl font-bold text-brand-900 leading-[0.96]">
-                  Hello, {greetingName}
+      <section className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+        {overviewCards.map((card) => (
+          <Link
+            key={card.label}
+            href={card.href}
+            className="rounded-[24px] border border-[#dccab7] bg-white p-5 shadow-[0_12px_28px_rgba(74,51,33,0.06)] transition hover:-translate-y-1 hover:shadow-[0_16px_32px_rgba(74,51,33,0.10)]"
+          >
+            <div className="text-2xl">{card.icon}</div>
+            <div className="mt-3 text-[10px] font-black uppercase tracking-[0.18em] text-[#9d7a55]">
+              {card.label}
+            </div>
+            <div className="mt-1 break-words text-sm font-black text-[#342116]">
+              {card.value}
+            </div>
+            <div className="mt-1 text-[11px] font-semibold text-[#8d6f52]">
+              {card.sub}
+            </div>
+          </Link>
+        ))}
+      </section>
+
+      <section className="rounded-[30px] border border-[#dccab7] bg-white p-6 shadow-[0_12px_28px_rgba(74,51,33,0.06)] md:p-7">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 className="font-serif text-2xl font-bold text-[#3b271b]">Next Steps</h2>
+            <p className="mt-1 text-sm font-semibold text-[#8b6b4d]">
+              Your dashboard overview of what to do next.
+            </p>
+          </div>
+
+          <Link
+            href={primaryHref}
+            className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9a7854] hover:text-[#4f3726]"
+          >
+            Open Main Area →
+          </Link>
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {steps.map((step) => (
+            <Link
+              key={step.title}
+              href={step.href}
+              className="rounded-[24px] border border-[#e4d5c4] bg-[#fcf8f3] p-5 transition hover:bg-white"
+            >
+              <div className="text-2xl">{step.icon}</div>
+              <div className="mt-3 text-sm font-black text-[#372419]">{step.title}</div>
+              <div className="mt-1 text-[12px] font-semibold leading-6 text-[#8b6d50]">
+                {step.desc}
+              </div>
+              <div className="mt-4 inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-[#7f5f42]">
+                {step.cta}
+                <span aria-hidden="true">→</span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+        <div className="space-y-6 xl:col-span-7">
+          <div className="rounded-[30px] border border-[#dccab7] bg-white p-6 shadow-[0_12px_28px_rgba(74,51,33,0.06)] md:p-7">
+            <div className="mb-5 flex items-end justify-between gap-4">
+              <div>
+                <h2 className="font-serif text-2xl font-bold text-[#3b271b]">
+                  Recent Messages
                 </h2>
-
-                <p className="mt-2 text-brand-500 font-semibold max-w-3xl">
-                  Your dashboard is your overview of everything important — status,
-                  messages, documents, financials, resources, and next steps.
+                <p className="mt-1 text-sm font-semibold text-[#8b6b4d]">
+                  Your latest conversation activity at a glance.
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <span
-                  className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.18em] ${appStatus.cls}`}
-                >
-                  <span className="w-2 h-2 rounded-full bg-current opacity-70" />
-                  Application: {appStatus.label}
-                </span>
-
-                <span
-                  className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.18em] ${puppyStatus.cls}`}
-                >
-                  <span className="w-2 h-2 rounded-full bg-current opacity-70" />
-                  Puppy: {puppyStatus.label}
-                </span>
-              </div>
+              <Link
+                href="/portal/messages"
+                className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9a7854] hover:text-[#4f3726]"
+              >
+                View All
+              </Link>
             </div>
 
-            <section className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-              <div className="xl:col-span-8 card-luxury overflow-hidden">
-                <div className="grid grid-cols-1 lg:grid-cols-[1.25fr_.85fr] min-h-[360px]">
-                  <div className="p-7 md:p-9 flex flex-col justify-between">
-                    <div>
-                      <span className="inline-block px-3 py-1 bg-brand-100 text-brand-700 text-[10px] font-black uppercase tracking-[0.22em] rounded-full mb-4 border border-brand-200">
-                        Overview
+            <div className="space-y-3">
+              {data?.msgs?.length ? (
+                data.msgs.map((m: any) => (
+                  <div
+                    key={m.id}
+                    className="rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4 transition hover:bg-white"
+                  >
+                    <div className="mb-2 flex justify-between gap-4">
+                      <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
+                        {m.sender_name || m.sender || m.from_name || "Support"}
                       </span>
-
-                      <h3 className="font-serif text-3xl md:text-4xl font-bold text-brand-900 leading-[1.04]">
-                        {heroTitle}
-                      </h3>
-
-                      <p className="mt-3 text-brand-600 font-semibold max-w-2xl leading-relaxed">
-                        {heroDesc}
-                      </p>
+                      <span className="shrink-0 text-[10px] font-semibold text-[#bea184]">
+                        {fmtDate(m.created_at || m.sent_at)}
+                      </span>
                     </div>
 
-                    <div className="mt-8 flex flex-wrap items-center gap-3">
-                      <Link
-                        href={primaryHref}
-                        className="inline-flex items-center gap-2 px-7 py-3.5 bg-brand-800 text-white font-black text-sm rounded-xl hover:bg-brand-700 transition shadow-lift uppercase tracking-[0.12em]"
-                      >
-                        {primaryLabel} <span aria-hidden="true">→</span>
-                      </Link>
-
-                      <Link
-                        href="/portal/messages"
-                        className="inline-flex items-center gap-2 px-7 py-3.5 bg-white border border-brand-200 text-brand-800 font-black text-sm rounded-xl hover:bg-brand-50 transition shadow-paper uppercase tracking-[0.12em]"
-                      >
-                        Open Messages <span aria-hidden="true">↗</span>
-                      </Link>
-                    </div>
+                    <p className="line-clamp-2 text-sm font-semibold text-[#4e3727]">
+                      {m.message || m.content || m.body || m.text || "—"}
+                    </p>
                   </div>
-
-                  <div className="relative min-h-[260px] lg:min-h-full bg-brand-100">
-                    {hasPuppy ? (
-                      <>
-                        <img
-                          src={puppyImage}
-                          alt="Puppy"
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
-                        <div className="absolute bottom-0 left-0 right-0 p-6">
-                          <div className="flex flex-wrap gap-2 mb-3">
-                            <span className="px-3 py-1 bg-white/20 backdrop-blur-md text-white border border-white/30 rounded-full text-[10px] font-black uppercase tracking-[0.22em]">
-                              {data?.puppy?.sex || data?.puppy?.gender || "Puppy"}
-                            </span>
-
-                            {(data?.puppy?.dob || data?.puppy?.birth_date) && (
-                              <span className="px-3 py-1 bg-white/20 backdrop-blur-md text-white border border-white/30 rounded-full text-[10px] font-black uppercase tracking-[0.22em]">
-                                Born {fmtDate(data?.puppy?.dob || data?.puppy?.birth_date)}
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="font-serif text-3xl font-bold text-white leading-none">
-                            {data?.puppy?.call_name ||
-                              data?.puppy?.puppy_name ||
-                              data?.puppy?.name ||
-                              "Your Puppy"}
-                          </div>
-                          <div className="mt-2 text-white/85 text-sm font-semibold">
-                            Full profile, milestones, and deeper puppy details are in the My Puppy tab.
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="h-full flex items-center justify-center p-8 text-center">
-                        <div>
-                          <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl border border-brand-200">
-                            🐾
-                          </div>
-                          <div className="font-serif text-2xl font-bold text-brand-800">
-                            No Puppy Assigned Yet
-                          </div>
-                          <div className="mt-2 text-sm font-semibold text-brand-500 max-w-sm">
-                            Once a match is confirmed, this area will highlight your puppy while the
-                            full details live in the My Puppy page.
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                ))
+              ) : (
+                <div className="rounded-[22px] border border-dashed border-[#e3d4c2] bg-[#fcf8f3] py-10 text-center text-sm italic text-[#9e8164]">
+                  No recent messages
                 </div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-[30px] border border-[#dccab7] bg-white p-6 shadow-[0_12px_28px_rgba(74,51,33,0.06)] md:p-7">
+            <div className="mb-5 flex items-end justify-between gap-4">
+              <div>
+                <h2 className="font-serif text-2xl font-bold text-[#3b271b]">
+                  Pupdates
+                </h2>
+                <p className="mt-1 text-sm font-semibold text-[#8b6b4d]">
+                  A quick look at recent puppy-related updates.
+                </p>
               </div>
 
-              <div className="xl:col-span-4 card-luxury p-7 bg-gradient-to-br from-[#FFF9F2] via-[#FFFDFC] to-white border-brand-200">
-                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-400">
-                  Portal Snapshot
-                </div>
+              <Link
+                href="/portal/mypuppy"
+                className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9a7854] hover:text-[#4f3726]"
+              >
+                Open My Puppy
+              </Link>
+            </div>
 
-                <div className="mt-4 space-y-4">
-                  <SnapshotRow label="Account" value={user.email || "—"} />
-                  <SnapshotRow label="Application" value={appStatus.label} />
-                  <SnapshotRow label="Puppy Status" value={puppyStatus.label} />
-                  <SnapshotRow
-                    label="Documents"
-                    value={data?.docCount ? `${data.docCount} file(s)` : "—"}
-                  />
-                </div>
-
-                <div className="mt-6 pt-5 border-t border-brand-100">
-                  <p className="font-serif text-xl italic text-brand-800 leading-relaxed">
-                    “A polished place to keep every part of your puppy journey organized.”
-                  </p>
-
-                  <Link
-                    href="/portal/resources"
-                    className="inline-flex items-center gap-2 mt-5 text-[11px] font-black uppercase tracking-[0.18em] text-brand-600 hover:text-brand-800"
+            <div className="space-y-3">
+              {data?.updates?.length ? (
+                data.updates.slice(0, 5).map((u: any) => (
+                  <div
+                    key={u.id}
+                    className="rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4 transition hover:bg-white"
                   >
-                    Open Resources <span aria-hidden="true">→</span>
-                  </Link>
-                </div>
-              </div>
-            </section>
-
-            <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {overviewCards.map((card) => (
-                <Link
-                  key={card.label}
-                  href={card.href}
-                  className="card-luxury p-5 hover:-translate-y-1 transition"
-                >
-                  <div className="text-2xl">{card.icon}</div>
-                  <div className="mt-3 text-[10px] font-black text-brand-500 uppercase tracking-[0.18em]">
-                    {card.label}
-                  </div>
-                  <div className="mt-1 text-sm font-black text-brand-900 break-words">
-                    {card.value}
-                  </div>
-                  <div className="mt-1 text-[11px] text-brand-400 font-semibold">
-                    {card.sub}
-                  </div>
-                </Link>
-              ))}
-            </section>
-
-            <section className="card-luxury p-7 md:p-8">
-              <div className="flex items-end justify-between gap-4">
-                <div>
-                  <h4 className="font-serif font-bold text-2xl text-brand-800">Next Steps</h4>
-                  <p className="text-brand-500 font-semibold text-sm mt-1">
-                    Your dashboard overview of what to do next.
-                  </p>
-                </div>
-
-                <Link
-                  href={primaryHref}
-                  className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500 hover:text-brand-800"
-                >
-                  Open Main Area →
-                </Link>
-              </div>
-
-              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                {steps.map((step) => (
-                  <Link
-                    key={step.title}
-                    href={step.href}
-                    className="p-5 rounded-2xl bg-white/75 border border-brand-200 shadow-paper hover:bg-white transition block"
-                  >
-                    <div className="text-2xl">{step.icon}</div>
-                    <div className="mt-3 text-sm font-black text-brand-900">{step.title}</div>
-                    <div className="mt-1 text-[12px] text-brand-500 font-semibold leading-relaxed">
-                      {step.desc}
-                    </div>
-                    <div className="mt-4 inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-brand-600">
-                      {step.cta} <span aria-hidden="true">→</span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </section>
-
-            <section className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-              <div className="lg:col-span-7 space-y-6">
-                <div className="card-luxury p-7">
-                  <div className="flex items-center justify-between gap-3 mb-4">
-                    <div>
-                      <h4 className="font-serif font-bold text-2xl text-brand-800">
-                        Recent Messages
-                      </h4>
-                      <p className="text-brand-500 font-semibold text-sm mt-1">
-                        Your latest conversation activity at a glance.
-                      </p>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
+                        {u.event_type || u.type || u.category || "Update"}
+                      </div>
+                      <div className="text-[10px] font-semibold text-[#bea184]">
+                        {fmtDate(u.event_date || u.created_at || u.date)}
+                      </div>
                     </div>
 
-                    <Link
-                      href="/portal/messages"
-                      className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500 hover:text-brand-800"
-                    >
-                      View All
-                    </Link>
-                  </div>
+                    <div className="mt-1 text-sm font-black text-[#342116]">
+                      {u.title || u.label || u.name || "Update"}
+                    </div>
 
-                  <div className="space-y-3">
-                    {data?.msgs?.length ? (
-                      data.msgs.map((m: any) => (
-                        <div
-                          key={m.id}
-                          className="p-4 rounded-2xl bg-white/75 border border-brand-200 hover:bg-white transition"
-                        >
-                          <div className="flex justify-between gap-4 mb-2">
-                            <span className="text-[10px] font-black text-brand-500 uppercase tracking-[0.18em]">
-                              {m.sender_name || m.sender || m.from_name || "Support"}
-                            </span>
-                            <span className="text-[10px] text-brand-300 font-semibold shrink-0">
-                              {fmtDate(m.created_at || m.sent_at)}
-                            </span>
-                          </div>
-
-                          <p className="text-sm font-semibold text-brand-800 line-clamp-2">
-                            {m.message || m.content || m.body || m.text || "—"}
-                          </p>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-10 text-brand-400 text-sm italic">
-                        No recent messages
+                    {(u.summary || u.details || u.description || u.notes || u.value) && (
+                      <div className="mt-1 line-clamp-2 text-[12px] font-semibold text-[#8d6f52]">
+                        {u.summary || u.details || u.description || u.notes || u.value}
                       </div>
                     )}
                   </div>
+                ))
+              ) : (
+                <div className="rounded-[22px] border border-dashed border-[#e3d4c2] bg-[#fcf8f3] py-10 text-center text-sm italic text-[#9e8164]">
+                  {hasPuppy
+                    ? "No pupdates posted yet."
+                    : "Pupdates will appear after a puppy is matched."}
                 </div>
-
-                <div className="card-luxury p-7">
-                  <div className="flex items-center justify-between gap-3 mb-4">
-                    <div>
-                      <h4 className="font-serif font-bold text-2xl text-brand-800">
-                        Pupdates
-                      </h4>
-                      <p className="text-brand-500 font-semibold text-sm mt-1">
-                        A quick look at recent puppy-related updates.
-                      </p>
-                    </div>
-
-                    <Link
-                      href="/portal/mypuppy"
-                      className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500 hover:text-brand-800"
-                    >
-                      Open My Puppy
-                    </Link>
-                  </div>
-
-                  <div className="space-y-3">
-                    {data?.updates?.length ? (
-                      data.updates.slice(0, 5).map((u: any) => (
-                        <div
-                          key={u.id}
-                          className="p-4 rounded-2xl bg-white/75 border border-brand-200 hover:bg-white transition"
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-                              {u.event_type || u.type || u.category || "Update"}
-                            </div>
-                            <div className="text-[10px] font-semibold text-brand-300">
-                              {fmtDate(u.event_date || u.created_at || u.date)}
-                            </div>
-                          </div>
-
-                          <div className="mt-1 text-sm font-black text-brand-900">
-                            {u.label || u.title || u.name || "Update"}
-                          </div>
-
-                          {(u.details || u.description || u.notes || u.value) && (
-                            <div className="mt-1 text-[12px] text-brand-600 font-semibold line-clamp-2">
-                              {u.details || u.description || u.notes || u.value}
-                            </div>
-                          )}
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-10 text-brand-400 text-sm italic">
-                        {hasPuppy
-                          ? "No pupdates posted yet."
-                          : "Pupdates will appear after a puppy is matched."}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="lg:col-span-5 space-y-6">
-                <div className="card-luxury p-7">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-serif font-bold text-2xl text-brand-800">
-                      Financial Overview
-                    </h4>
-                    <Link
-                      href="/portal/payments"
-                      className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500 hover:text-brand-800"
-                    >
-                      Open
-                    </Link>
-                  </div>
-
-                  <div className="mt-5 space-y-4">
-                    <FinancialRow
-                      label="Adoption Fee"
-                      value={
-                        data?.puppy?.price ||
-                        data?.puppy?.total_price ||
-                        data?.puppy?.adoption_fee
-                          ? fmtMoney(
-                              data?.puppy?.price ||
-                                data?.puppy?.total_price ||
-                                data?.puppy?.adoption_fee
-                            )
-                          : "—"
-                      }
-                    />
-
-                    <div className="p-4 rounded-2xl bg-white/70 border border-brand-200">
-                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-                        Transparency
-                      </div>
-                      <div className="mt-1 text-sm font-semibold text-brand-800 leading-relaxed">
-                        For the most accurate balances, payment history, and receipts, use the Financials page.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="card-luxury p-7">
-                  <h4 className="font-serif font-bold text-2xl text-brand-800 mb-4">
-                    Quick Access
-                  </h4>
-
-                  <div className="space-y-3">
-                    <QuickLink
-                      href="/portal/application"
-                      title="Application"
-                      desc="Review or update your submitted information."
-                    />
-                    <QuickLink
-                      href="/portal/documents"
-                      title="Documents"
-                      desc="Open contracts, files, and saved paperwork."
-                    />
-                    <QuickLink
-                      href="/portal/payments"
-                      title="Financials"
-                      desc="View payment records and financial details."
-                    />
-                    <QuickLink
-                      href="/portal/resources"
-                      title="Resources"
-                      desc="Care guidance, prep tips, and important reading."
-                    />
-                  </div>
-                </div>
-
-                <div className="rounded-3xl bg-gradient-to-br from-brand-800 via-brand-800 to-brand-700 text-white p-7 shadow-luxury">
-                  <h4 className="font-serif font-bold text-2xl mb-1">ChiChi AI</h4>
-                  <p className="text-brand-200 text-sm font-semibold mb-5">
-                    AI chatbot embed area.
-                  </p>
-                  <div className="rounded-2xl border border-white/20 bg-white/10 p-4 text-sm text-brand-100">
-                    Claude chatbot will be linked or embedded here.
-                  </div>
-                </div>
-              </div>
-            </section>
+              )}
+            </div>
           </div>
         </div>
-      </main>
-    </div>
-  );
-}
 
-function SnapshotRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-start justify-between gap-4 rounded-2xl bg-white/75 border border-brand-200 px-4 py-3">
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-        {label}
-      </div>
-      <div className="text-sm font-black text-brand-900 text-right break-words">
-        {value}
-      </div>
+        <div className="space-y-6 xl:col-span-5">
+          <div className="rounded-[30px] border border-[#dccab7] bg-white p-6 shadow-[0_12px_28px_rgba(74,51,33,0.06)] md:p-7">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <h2 className="font-serif text-2xl font-bold text-[#3b271b]">
+                  Financial Overview
+                </h2>
+                <p className="mt-1 text-sm font-semibold text-[#8b6b4d]">
+                  A quick look before opening the full payments page.
+                </p>
+              </div>
+
+              <Link
+                href="/portal/payments"
+                className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9a7854] hover:text-[#4f3726]"
+              >
+                Open
+              </Link>
+            </div>
+
+            <div className="mt-6 space-y-4">
+              <FinancialRow
+                label="Adoption Fee"
+                value={
+                  data?.puppy?.price ||
+                  data?.puppy?.total_price ||
+                  data?.puppy?.adoption_fee
+                    ? fmtMoney(
+                        data?.puppy?.price ||
+                          data?.puppy?.total_price ||
+                          data?.puppy?.adoption_fee
+                      )
+                    : "—"
+                }
+              />
+
+              <div className="rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4">
+                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-[#9c7b58]">
+                  Transparency
+                </div>
+                <div className="mt-1 text-sm font-semibold leading-7 text-[#5b4331]">
+                  For the most accurate balances, payment history, and receipts, use the Payments page.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[30px] border border-[#dccab7] bg-white p-6 shadow-[0_12px_28px_rgba(74,51,33,0.06)] md:p-7">
+            <h2 className="font-serif text-2xl font-bold text-[#3b271b]">
+              Quick Access
+            </h2>
+
+            <div className="mt-5 space-y-3">
+              <QuickLink
+                href="/portal/application"
+                title="Application"
+                desc="Review or update your submitted information."
+              />
+              <QuickLink
+                href="/portal/documents"
+                title="Documents"
+                desc="Open contracts, files, and saved paperwork."
+              />
+              <QuickLink
+                href="/portal/payments"
+                title="Payments"
+                desc="View payment records and financial details."
+              />
+              <QuickLink
+                href="/portal/resources"
+                title="Resources"
+                desc="Care guidance, prep tips, and important reading."
+              />
+            </div>
+          </div>
+
+          <div className="rounded-[30px] bg-[linear-gradient(135deg,#8f6945_0%,#6f5037_100%)] p-6 text-white shadow-[0_20px_44px_rgba(74,51,33,0.18)] md:p-7">
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/75">
+              Assistant
+            </div>
+            <h2 className="mt-2 font-serif text-2xl font-bold">ChiChi Assistant</h2>
+            <p className="mt-2 text-sm font-semibold leading-7 text-white/82">
+              Need help finding something in your portal? Use the ChiChi chat button in the bottom right for account-aware answers.
+            </p>
+
+            <div className="mt-5 rounded-[22px] border border-white/15 bg-white/10 p-4 text-sm font-semibold leading-7 text-white/82">
+              Ask about payments, documents, breeder messages, puppy updates, milestones, and more.
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
 
 function FinancialRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between items-center gap-4">
-      <span className="text-[11px] font-black text-brand-500 uppercase tracking-[0.18em]">
+    <div className="flex items-center justify-between gap-4">
+      <span className="text-[11px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
         {label}
       </span>
-      <span className="text-sm font-black text-brand-900 text-right">{value}</span>
+      <span className="text-sm font-black text-[#342116]">{value}</span>
     </div>
   );
 }
@@ -1078,10 +1019,10 @@ function QuickLink({
   return (
     <Link
       href={href}
-      className="block p-4 rounded-2xl bg-white/75 border border-brand-200 hover:bg-white transition"
+      className="block rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4 transition hover:bg-white"
     >
-      <div className="text-sm font-black text-brand-900">{title}</div>
-      <div className="mt-1 text-[12px] text-brand-500 font-semibold leading-relaxed">
+      <div className="text-sm font-black text-[#342116]">{title}</div>
+      <div className="mt-1 text-[12px] font-semibold leading-6 text-[#8d6f52]">
         {desc}
       </div>
     </Link>
@@ -1206,155 +1147,210 @@ function LoginComponent() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f7f3ee] px-4 py-8 md:px-8 lg:px-10">
-      <div className="mx-auto max-w-[1500px]">
-        <div className="grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-8 items-stretch">
-          <section className="relative overflow-hidden rounded-[36px] border border-[#e7d9c8] bg-gradient-to-br from-[#fff8f1] via-[#f8efe4] to-[#efe2d2] shadow-[0_30px_80px_rgba(88,63,37,0.14)]">
-            <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute top-0 right-0 h-72 w-72 rounded-full bg-white/35 blur-3xl" />
-              <div className="absolute bottom-0 left-0 h-80 w-80 rounded-full bg-[#f5d9b8]/30 blur-3xl" />
-            </div>
+    <div className="min-h-[80vh] px-0 py-1">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+        <section className="relative overflow-hidden rounded-[36px] border border-[#e2d4c5] bg-[linear-gradient(135deg,#fff8f1_0%,#f8efe4_55%,#efe2d2_100%)] shadow-[0_26px_70px_rgba(88,63,37,0.10)]">
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute right-0 top-0 h-72 w-72 rounded-full bg-white/35 blur-3xl" />
+            <div className="absolute bottom-0 left-0 h-80 w-80 rounded-full bg-[#f5d9b8]/30 blur-3xl" />
+          </div>
 
-            <div className="relative z-10 px-7 py-8 md:px-10 md:py-10 lg:px-14 lg:py-14">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="inline-flex items-center gap-2 rounded-full border border-[#dcc6ad] bg-white/70 px-4 py-2 shadow-sm">
-                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-[#a47946]">
-                    Private Client Access
-                  </span>
-                </div>
-
-                <div className="inline-flex items-center gap-2 rounded-full border border-[#dcc6ad] bg-white/70 px-4 py-2 shadow-sm">
-                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-[#a47946]">
-                    Southwest Virginia Chihuahua
-                  </span>
-                </div>
+          <div className="relative z-10 px-7 py-8 md:px-10 md:py-10 lg:px-14 lg:py-14">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[#dcc6ad] bg-white/70 px-4 py-2 shadow-sm">
+                <span className="text-[10px] font-black uppercase tracking-[0.22em] text-[#a47946]">
+                  Private Client Access
+                </span>
               </div>
 
-              <div className="mt-10 max-w-3xl">
-                <h1 className="font-serif text-5xl md:text-6xl xl:text-7xl leading-[0.95] text-[#3e2a1f] font-bold">
-                  Welcome to your puppy’s private portal.
-                </h1>
-
-                <p className="mt-6 max-w-2xl text-[17px] leading-8 text-[#7a5a3a] font-semibold">
-                  A beautifully organized place for your application, puppy updates,
-                  contracts, payments, messages, and care resources — all in one
-                  secure space designed for our families.
-                </p>
-              </div>
-
-              <div className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-4xl">
-                <PortalValueCard
-                  title="Application & Approval"
-                  desc="Track your status, review progress, and stay ready for next steps."
-                />
-                <PortalValueCard
-                  title="My Puppy"
-                  desc="Once matched, your puppy profile, milestones, and updates appear automatically."
-                />
-                <PortalValueCard
-                  title="Messages & Documents"
-                  desc="Open breeder messages, contracts, and important files anytime."
-                />
-              </div>
-
-              <div className="mt-10 grid grid-cols-1 lg:grid-cols-[1fr_0.9fr] gap-5 items-stretch">
-                <div className="rounded-[28px] border border-[#e2cfba] bg-white/78 p-6 shadow-[0_16px_40px_rgba(88,63,37,0.08)]">
-                  <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#b08251]">
-                    Built around transparency
-                  </div>
-
-                  <div className="mt-4 space-y-4">
-                    <FeatureLine
-                      title="Everything in one place"
-                      desc="No searching through texts, emails, screenshots, or paper files."
-                    />
-                    <FeatureLine
-                      title="Clear communication"
-                      desc="Updates, notes, and breeder communication stay easy to follow."
-                    />
-                    <FeatureLine
-                      title="Straightforward access"
-                      desc="Application, documents, payment details, and resources stay visible in one organized space."
-                    />
-                  </div>
-                </div>
-
-                <div className="rounded-[28px] border border-[#e2cfba] bg-[#5d4330] p-6 text-white shadow-[0_18px_50px_rgba(88,63,37,0.18)]">
-                  <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f4d7b3]">
-                    Inside your portal
-                  </div>
-
-                  <div className="mt-5 grid grid-cols-2 gap-3">
-                    <MiniTile label="Application" />
-                    <MiniTile label="My Puppy" />
-                    <MiniTile label="Messages" />
-                    <MiniTile label="Documents" />
-                    <MiniTile label="Payments" />
-                    <MiniTile label="Resources" />
-                  </div>
-
-                  <div className="mt-6 rounded-2xl border border-white/15 bg-white/10 p-4">
-                    <p className="text-sm leading-7 text-[#fff3e7] font-semibold">
-                      Designed to make your experience feel more personal, more organized,
-                      and less stressful from application through go-home day.
-                    </p>
-                  </div>
-                </div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-[#dcc6ad] bg-white/70 px-4 py-2 shadow-sm">
+                <span className="text-[10px] font-black uppercase tracking-[0.22em] text-[#a47946]">
+                  Southwest Virginia Chihuahua
+                </span>
               </div>
             </div>
-          </section>
 
-          <section className="rounded-[36px] border border-[#ead9c7] bg-white shadow-[0_30px_80px_rgba(88,63,37,0.10)] overflow-hidden">
-            <div className="px-7 py-8 md:px-10 md:py-10">
-              <div className="mb-8">
+            <div className="mt-10 max-w-3xl">
+              <h1 className="font-serif text-5xl font-bold leading-[0.95] text-[#3e2a1f] md:text-6xl xl:text-7xl">
+                Welcome to your puppy’s private portal.
+              </h1>
+
+              <p className="mt-6 max-w-2xl text-[17px] font-semibold leading-8 text-[#7a5a3a]">
+                A beautifully organized place for your application, puppy updates,
+                contracts, payments, messages, and care resources — all in one secure space designed for our families.
+              </p>
+            </div>
+
+            <div className="mt-10 grid max-w-4xl grid-cols-1 gap-4 sm:grid-cols-3">
+              <PortalValueCard
+                title="Application & Approval"
+                desc="Track your status, review progress, and stay ready for next steps."
+              />
+              <PortalValueCard
+                title="My Puppy"
+                desc="Once matched, your puppy profile, milestones, and updates appear automatically."
+              />
+              <PortalValueCard
+                title="Messages & Documents"
+                desc="Open breeder messages, contracts, and important files anytime."
+              />
+            </div>
+
+            <div className="mt-10 grid grid-cols-1 gap-5 lg:grid-cols-[1fr_0.9fr]">
+              <div className="rounded-[28px] border border-[#e2cfba] bg-white/78 p-6 shadow-[0_16px_40px_rgba(88,63,37,0.08)]">
                 <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#b08251]">
-                  Puppy Portal Access
+                  Built around transparency
                 </div>
-                <h2 className="mt-3 font-serif text-4xl text-[#3e2a1f] font-bold leading-none">
-                  {mode === "login"
-                    ? "Sign in"
-                    : mode === "signup"
-                      ? "Create your account"
-                      : "Reset your password"}
-                </h2>
-                <p className="mt-3 text-sm leading-7 text-[#8a6a49] font-semibold">
-                  {mode === "login"
-                    ? "Enter your details to access your private portal."
-                    : mode === "signup"
-                      ? "Create your portal login to access updates, documents, and your puppy journey."
-                      : "We’ll email you a secure link so you can set a new password."}
-                </p>
+
+                <div className="mt-4 space-y-4">
+                  <FeatureLine
+                    title="Everything in one place"
+                    desc="No searching through texts, emails, screenshots, or paper files."
+                  />
+                  <FeatureLine
+                    title="Clear communication"
+                    desc="Updates, notes, and breeder communication stay easy to follow."
+                  />
+                  <FeatureLine
+                    title="Straightforward access"
+                    desc="Application, documents, payment details, and resources stay visible in one organized space."
+                  />
+                </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2 rounded-[20px] border border-[#ead9c7] bg-[#fbf7f1] p-1.5 mb-8">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode("login");
-                    setMessage("");
-                  }}
-                  className={`rounded-[16px] px-3 py-3 text-[11px] font-black uppercase tracking-[0.18em] transition ${
-                    mode === "login"
-                      ? "bg-[#6b4d33] text-white shadow-md"
-                      : "text-[#a47946] hover:text-[#6b4d33]"
-                  }`}
-                >
-                  Sign In
-                </button>
+              <div className="rounded-[28px] border border-[#e2cfba] bg-[#5d4330] p-6 text-white shadow-[0_18px_50px_rgba(88,63,37,0.18)]">
+                <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f4d7b3]">
+                  Inside your portal
+                </div>
+
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <MiniTile label="Application" />
+                  <MiniTile label="My Puppy" />
+                  <MiniTile label="Messages" />
+                  <MiniTile label="Documents" />
+                  <MiniTile label="Payments" />
+                  <MiniTile label="Resources" />
+                </div>
+
+                <div className="mt-6 rounded-2xl border border-white/15 bg-white/10 p-4">
+                  <p className="text-sm font-semibold leading-7 text-[#fff3e7]">
+                    Designed to make your experience feel more personal, more organized,
+                    and less stressful from application through go-home day.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="overflow-hidden rounded-[36px] border border-[#ead9c7] bg-white shadow-[0_30px_80px_rgba(88,63,37,0.10)]">
+          <div className="px-7 py-8 md:px-10 md:py-10">
+            <div className="mb-8">
+              <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#b08251]">
+                My Puppy Portal Access
+              </div>
+              <h2 className="mt-3 font-serif text-4xl font-bold leading-none text-[#3e2a1f]">
+                {mode === "login"
+                  ? "Sign in"
+                  : mode === "signup"
+                    ? "Create your account"
+                    : "Reset your password"}
+              </h2>
+              <p className="mt-3 text-sm font-semibold leading-7 text-[#8a6a49]">
+                {mode === "login"
+                  ? "Enter your details to access your private portal."
+                  : mode === "signup"
+                    ? "Create your portal login to access updates, documents, and your puppy journey."
+                    : "We’ll email you a secure link so you can set a new password."}
+              </p>
+            </div>
+
+            <div className="mb-8 grid grid-cols-3 gap-2 rounded-[20px] border border-[#ead9c7] bg-[#fbf7f1] p-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("login");
+                  setMessage("");
+                }}
+                className={`rounded-[16px] px-3 py-3 text-[11px] font-black uppercase tracking-[0.18em] transition ${
+                  mode === "login"
+                    ? "bg-[#6b4d33] text-white shadow-md"
+                    : "text-[#a47946] hover:text-[#6b4d33]"
+                }`}
+              >
+                Sign In
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("signup");
+                  setMessage("");
+                }}
+                className={`rounded-[16px] px-3 py-3 text-[11px] font-black uppercase tracking-[0.18em] transition ${
+                  mode === "signup"
+                    ? "bg-[#6b4d33] text-white shadow-md"
+                    : "text-[#a47946] hover:text-[#6b4d33]"
+                }`}
+              >
+                Sign Up
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("forgot");
+                  setMessage("");
+                }}
+                className={`rounded-[16px] px-3 py-3 text-[11px] font-black uppercase tracking-[0.18em] transition ${
+                  mode === "forgot"
+                    ? "bg-[#6b4d33] text-white shadow-md"
+                    : "text-[#a47946] hover:text-[#6b4d33]"
+                }`}
+              >
+                Reset
+              </button>
+            </div>
+
+            {mode === "login" && (
+              <form onSubmit={handleLogin} className="space-y-5">
+                <div>
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-[#a47946]">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-[#a47946]">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+                    required
+                  />
+                </div>
+
+                {message ? (
+                  <div className="rounded-2xl border border-[#ead9c7] bg-[#fbf7f1] px-4 py-3 text-sm font-semibold text-[#7a5a3a]">
+                    {message}
+                  </div>
+                ) : null}
 
                 <button
-                  type="button"
-                  onClick={() => {
-                    setMode("signup");
-                    setMessage("");
-                  }}
-                  className={`rounded-[16px] px-3 py-3 text-[11px] font-black uppercase tracking-[0.18em] transition ${
-                    mode === "signup"
-                      ? "bg-[#6b4d33] text-white shadow-md"
-                      : "text-[#a47946] hover:text-[#6b4d33]"
-                  }`}
+                  disabled={working}
+                  className="w-full rounded-[18px] bg-[#6b4d33] px-5 py-4 text-xs font-black uppercase tracking-[0.18em] text-white shadow-[0_14px_30px_rgba(88,63,37,0.18)] transition hover:bg-[#5b412c] disabled:opacity-60"
                 >
-                  Sign Up
+                  {working ? "Signing In..." : "Sign In"}
                 </button>
 
                 <button
@@ -1363,168 +1359,110 @@ function LoginComponent() {
                     setMode("forgot");
                     setMessage("");
                   }}
-                  className={`rounded-[16px] px-3 py-3 text-[11px] font-black uppercase tracking-[0.18em] transition ${
-                    mode === "forgot"
-                      ? "bg-[#6b4d33] text-white shadow-md"
-                      : "text-[#a47946] hover:text-[#6b4d33]"
-                  }`}
+                  className="w-full text-center text-[11px] font-black uppercase tracking-[0.18em] text-[#a47946] hover:text-[#6b4d33]"
                 >
-                  Reset
+                  Forgot Password?
                 </button>
-              </div>
+              </form>
+            )}
 
-              {mode === "login" && (
-                <form onSubmit={handleLogin} className="space-y-5">
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-[0.18em] text-[#a47946] mb-2">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
-                      required
-                    />
+            {mode === "signup" && (
+              <form onSubmit={handleSignUp} className="space-y-5">
+                <div>
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-[#a47946]">
+                    Full Name
+                  </label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-[#a47946]">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-[#a47946]">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+                    required
+                  />
+                </div>
+
+                {message ? (
+                  <div className="rounded-2xl border border-[#ead9c7] bg-[#fbf7f1] px-4 py-3 text-sm font-semibold text-[#7a5a3a]">
+                    {message}
                   </div>
+                ) : null}
 
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-[0.18em] text-[#a47946] mb-2">
-                      Password
-                    </label>
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
-                      required
-                    />
+                <button
+                  disabled={working}
+                  className="w-full rounded-[18px] bg-[#6b4d33] px-5 py-4 text-xs font-black uppercase tracking-[0.18em] text-white shadow-[0_14px_30px_rgba(88,63,37,0.18)] transition hover:bg-[#5b412c] disabled:opacity-60"
+                >
+                  {working ? "Creating Account..." : "Create Account"}
+                </button>
+              </form>
+            )}
+
+            {mode === "forgot" && (
+              <form onSubmit={handleForgotPassword} className="space-y-5">
+                <div>
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-[#a47946]">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+                    required
+                  />
+                </div>
+
+                {message ? (
+                  <div className="rounded-2xl border border-[#ead9c7] bg-[#fbf7f1] px-4 py-3 text-sm font-semibold text-[#7a5a3a]">
+                    {message}
                   </div>
+                ) : null}
 
-                  {message ? (
-                    <div className="rounded-2xl border border-[#ead9c7] bg-[#fbf7f1] px-4 py-3 text-sm font-semibold text-[#7a5a3a]">
-                      {message}
-                    </div>
-                  ) : null}
+                <button
+                  disabled={working}
+                  className="w-full rounded-[18px] bg-[#6b4d33] px-5 py-4 text-xs font-black uppercase tracking-[0.18em] text-white shadow-[0_14px_30px_rgba(88,63,37,0.18)] transition hover:bg-[#5b412c] disabled:opacity-60"
+                >
+                  {working ? "Sending..." : "Send Reset Email"}
+                </button>
 
-                  <button
-                    disabled={working}
-                    className="w-full rounded-[18px] bg-[#6b4d33] px-5 py-4 text-xs font-black uppercase tracking-[0.18em] text-white shadow-[0_14px_30px_rgba(88,63,37,0.18)] hover:bg-[#5b412c] transition disabled:opacity-60"
-                  >
-                    {working ? "Signing In..." : "Sign In"}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMode("forgot");
-                      setMessage("");
-                    }}
-                    className="w-full text-center text-[11px] font-black uppercase tracking-[0.18em] text-[#a47946] hover:text-[#6b4d33]"
-                  >
-                    Forgot Password?
-                  </button>
-                </form>
-              )}
-
-              {mode === "signup" && (
-                <form onSubmit={handleSignUp} className="space-y-5">
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-[0.18em] text-[#a47946] mb-2">
-                      Full Name
-                    </label>
-                    <input
-                      type="text"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-[0.18em] text-[#a47946] mb-2">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-[0.18em] text-[#a47946] mb-2">
-                      Password
-                    </label>
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
-                      required
-                    />
-                  </div>
-
-                  {message ? (
-                    <div className="rounded-2xl border border-[#ead9c7] bg-[#fbf7f1] px-4 py-3 text-sm font-semibold text-[#7a5a3a]">
-                      {message}
-                    </div>
-                  ) : null}
-
-                  <button
-                    disabled={working}
-                    className="w-full rounded-[18px] bg-[#6b4d33] px-5 py-4 text-xs font-black uppercase tracking-[0.18em] text-white shadow-[0_14px_30px_rgba(88,63,37,0.18)] hover:bg-[#5b412c] transition disabled:opacity-60"
-                  >
-                    {working ? "Creating Account..." : "Create Account"}
-                  </button>
-                </form>
-              )}
-
-              {mode === "forgot" && (
-                <form onSubmit={handleForgotPassword} className="space-y-5">
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-[0.18em] text-[#a47946] mb-2">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
-                      required
-                    />
-                  </div>
-
-                  {message ? (
-                    <div className="rounded-2xl border border-[#ead9c7] bg-[#fbf7f1] px-4 py-3 text-sm font-semibold text-[#7a5a3a]">
-                      {message}
-                    </div>
-                  ) : null}
-
-                  <button
-                    disabled={working}
-                    className="w-full rounded-[18px] bg-[#6b4d33] px-5 py-4 text-xs font-black uppercase tracking-[0.18em] text-white shadow-[0_14px_30px_rgba(88,63,37,0.18)] hover:bg-[#5b412c] transition disabled:opacity-60"
-                  >
-                    {working ? "Sending..." : "Send Reset Email"}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMode("login");
-                      setMessage("");
-                    }}
-                    className="w-full text-center text-[11px] font-black uppercase tracking-[0.18em] text-[#a47946] hover:text-[#6b4d33]"
-                  >
-                    Back To Sign In
-                  </button>
-                </form>
-              )}
-            </div>
-          </section>
-        </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("login");
+                    setMessage("");
+                  }}
+                  className="w-full text-center text-[11px] font-black uppercase tracking-[0.18em] text-[#a47946] hover:text-[#6b4d33]"
+                >
+                  Back To Sign In
+                </button>
+              </form>
+            )}
+          </div>
+        </section>
       </div>
     </div>
   );
