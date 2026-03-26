@@ -538,20 +538,6 @@ export default function PortalPage() {
     "puppy"
   );
 
-  const heroTitle = hasPuppy
-    ? `Welcome back, ${
-        data?.puppy?.call_name || data?.puppy?.puppy_name || data?.puppy?.name || "Puppy Family"
-      }`
-    : hasApp
-      ? "Your Application Is In"
-      : "Welcome To My Puppy Portal";
-
-  const heroDesc = hasPuppy
-    ? "This is your overview hub for messages, documents, financials, resources, and your puppy’s current progress."
-    : hasApp
-      ? "Your dashboard keeps your application, communication, and next steps organized in one place."
-      : "Start here to access your application, messages, documents, and everything connected to your puppy journey.";
-
   const greetingName =
     data?.buyer?.full_name ||
     data?.buyer?.name ||
@@ -629,7 +615,7 @@ export default function PortalPage() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-[30px] border border-[#d7c7b6] bg-white shadow-[0_14px_40px_rgba(61,39,22,0.08)] overflow-hidden">
+      <section className="overflow-hidden rounded-[30px] border border-[#d7c7b6] bg-white shadow-[0_14px_40px_rgba(61,39,22,0.08)]">
         <div className="grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr]">
           <div className="bg-[linear-gradient(135deg,#8f6945_0%,#6f5037_100%)] px-6 py-7 text-white md:px-8 md:py-8">
             <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/85">
@@ -974,20 +960,6 @@ export default function PortalPage() {
                 title="Resources"
                 desc="Care guidance, prep tips, and important reading."
               />
-            </div>
-          </div>
-
-          <div className="rounded-[30px] bg-[linear-gradient(135deg,#8f6945_0%,#6f5037_100%)] p-6 text-white shadow-[0_20px_44px_rgba(74,51,33,0.18)] md:p-7">
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/75">
-              Assistant
-            </div>
-            <h2 className="mt-2 font-serif text-2xl font-bold">ChiChi Assistant</h2>
-            <p className="mt-2 text-sm font-semibold leading-7 text-white/82">
-              Need help finding something in your portal? Use the ChiChi chat button in the bottom right for account-aware answers.
-            </p>
-
-            <div className="mt-5 rounded-[22px] border border-white/15 bg-white/10 p-4 text-sm font-semibold leading-7 text-white/82">
-              Ask about payments, documents, breeder messages, puppy updates, milestones, and more.
             </div>
           </div>
         </div>
