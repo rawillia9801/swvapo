@@ -93,6 +93,7 @@ export default function PortalMyPuppyPage() {
   const [events, setEvents] = useState<PuppyEventRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusText, setStatusText] = useState("");
+  const [showPastMilestones, setShowPastMilestones] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -167,19 +168,9 @@ export default function PortalMyPuppyPage() {
 
     const attempts = [
       () =>
-        sb
-          .from("buyers")
-          .select("*")
-          .ilike("email", email)
-          .limit(1)
-          .maybeSingle(),
+        sb.from("buyers").select("*").ilike("email", email).limit(1).maybeSingle(),
       () =>
-        sb
-          .from("buyers")
-          .select("*")
-          .ilike("buyer_email", email)
-          .limit(1)
-          .maybeSingle(),
+        sb.from("buyers").select("*").ilike("buyer_email", email).limit(1).maybeSingle(),
     ];
 
     for (const run of attempts) {
@@ -306,15 +297,6 @@ export default function PortalMyPuppyPage() {
     await loadPuppyProfile(user);
   }
 
-  async function handleSignOut() {
-    await sb.auth.signOut();
-    setUser(null);
-    setPuppy(null);
-    setWeights([]);
-    setEvents([]);
-    setStatusText("");
-  }
-
   const puppyName =
     puppy?.call_name || puppy?.puppy_name || puppy?.name || "Your Puppy";
 
@@ -322,7 +304,7 @@ export default function PortalMyPuppyPage() {
     buildPuppyPhotoUrl(puppy?.image_url || puppy?.photo_url || "") ||
     "https://images.unsplash.com/photo-1591769225440-811ad7d6eca6?auto=format&fit=crop&w=1200&q=80";
 
-  const pudates = useMemo(() => {
+  const visibleEvents = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -332,6 +314,20 @@ export default function PortalMyPuppyPage() {
       return eventDate.getTime() <= today.getTime();
     });
   }, [events]);
+
+  const latestMilestone = useMemo(() => {
+    if (!visibleEvents.length) return null;
+    return [...visibleEvents].sort(
+      (a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime()
+    )[0];
+  }, [visibleEvents]);
+
+  const pastMilestones = useMemo(() => {
+    if (!latestMilestone) return visibleEvents;
+    return [...visibleEvents]
+      .filter((e) => e.id !== latestMilestone.id)
+      .sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime());
+  }, [visibleEvents, latestMilestone]);
 
   const weeklyWeights = useMemo(() => {
     if (!puppy) return [];
@@ -409,6 +405,15 @@ export default function PortalMyPuppyPage() {
     return `${pounds.toFixed(1)} lbs est.`;
   }, [latestWeight]);
 
+  const ageNumber = useMemo(() => {
+    if (!puppy?.dob) return null;
+    const dob = new Date(puppy.dob);
+    const today = new Date();
+    const diffMs = today.getTime() - dob.getTime();
+    const diffDays = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+    return Math.floor(diffDays / 7);
+  }, [puppy]);
+
   const ageDisplay = useMemo(() => {
     if (!puppy?.dob) return "—";
 
@@ -431,9 +436,81 @@ export default function PortalMyPuppyPage() {
     return "Family puppy";
   }, [puppy]);
 
+  const careOverview = useMemo(() => {
+    const week = ageNumber ?? 0;
+
+    const byWeek = [
+      {
+        min: 0,
+        max: 1,
+        title: "Your Puppy at Week 0–1",
+        facts: [
+          "Newborn Chihuahua puppies sleep most of the day and depend fully on warmth and nursing.",
+          "Weight checks are especially important in these early days.",
+          "Tiny puppies can change quickly, so gentle close observation matters.",
+        ],
+      },
+      {
+        min: 2,
+        max: 3,
+        title: "Your Puppy at Week 2–3",
+        facts: [
+          "Eyes and ears begin opening, and puppies become a little more aware of the world around them.",
+          "Early strength and coordination begin developing.",
+          "Small daily changes are often easier to notice in photos and weights.",
+        ],
+      },
+      {
+        min: 4,
+        max: 5,
+        title: "Your Puppy at Week 4–5",
+        facts: [
+          "Chihuahua puppies begin exploring more and showing early personality traits.",
+          "They often become more curious, alert, and interactive.",
+          "This stage is a big bridge between newborn care and playful puppy behavior.",
+        ],
+      },
+      {
+        min: 6,
+        max: 7,
+        title: "Your Puppy at Week 6–7",
+        facts: [
+          "Social development becomes more noticeable during this stage.",
+          "Routine handling, gentle exposure, and structure matter a lot.",
+          "Weight and overall condition still remain very important for toy breeds.",
+        ],
+      },
+      {
+        min: 8,
+        max: 10,
+        title: "Your Puppy at Week 8–10",
+        facts: [
+          "This is often the stage when families become especially focused on transition and go-home prep.",
+          "Consistency with feeding and routine helps small breeds adjust well.",
+          "Chihuahuas may be tiny, but they are often observant, sensitive, and full of personality.",
+        ],
+      },
+      {
+        min: 11,
+        max: 999,
+        title: `Your Puppy at Week ${week || "—"}`,
+        facts: [
+          "As Chihuahua puppies grow, confidence, routine, and bonding become just as important as size.",
+          "Small-breed puppies often benefit from predictable structure and careful observation.",
+          "Progress is best understood as a full picture: weight, milestones, health, and temperament together.",
+        ],
+      },
+    ];
+
+    const matched =
+      byWeek.find((item) => week >= item.min && week <= item.max) || byWeek[byWeek.length - 1];
+
+    return matched;
+  }, [ageNumber]);
+
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-brand-50 italic">
+      <div className="flex min-h-[70vh] items-center justify-center rounded-[28px] border border-[#dcc9b7] bg-white text-sm font-semibold text-[#7f6144] shadow-sm">
         Loading My Puppy...
       </div>
     );
@@ -444,499 +521,579 @@ export default function PortalMyPuppyPage() {
   }
 
   return (
-    <div className="min-h-screen text-brand-900 bg-brand-50">
-      <main className="relative flex flex-col bg-texturePaper">
-        <div className="w-full max-w-[1600px] mx-auto p-6 md:p-10 lg:p-12">
-          <div className="space-y-8 pb-14">
-            <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-5">
-              <div>
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/70 border border-brand-200 shadow-paper">
-                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-                    My Puppy
-                  </span>
-                  <span className="w-1 h-1 rounded-full bg-brand-300" />
-                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-                    SWVA Chihuahua
-                  </span>
-                </div>
+    <div className="space-y-6">
+      <section className="overflow-hidden rounded-[30px] border border-[#d7c7b6] bg-white shadow-[0_14px_40px_rgba(61,39,22,0.08)]">
+        <div className="grid grid-cols-1 xl:grid-cols-[1.05fr_0.95fr]">
+          <div className="bg-[linear-gradient(135deg,#8f6945_0%,#6f5037_100%)] px-6 py-7 text-white md:px-8 md:py-8">
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/85">
+              <span>My Puppy</span>
+              <span className="h-1 w-1 rounded-full bg-white/50" />
+              <span>My Puppy Portal</span>
+            </div>
 
-                <h2 className="mt-5 font-serif text-4xl md:text-5xl font-bold text-brand-900 leading-[0.95]">
-                  {puppy ? puppyName : "My Puppy"}
-                </h2>
+            <h1 className="mt-5 font-serif text-3xl font-bold leading-[0.95] md:text-5xl">
+              {puppy ? puppyName : "My Puppy"}
+            </h1>
 
-                <p className="mt-2 text-brand-500 font-semibold">
-                  {puppy
-                    ? "A complete view of your puppy’s profile, milestones, progress, and updates."
-                    : "Your puppy profile will appear here once a puppy has been matched to your portal."}
-                </p>
-              </div>
+            <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-white/82 md:text-[15px]">
+              {puppy
+                ? "A complete view of your puppy’s profile, milestones, progress, and breeder updates."
+                : "Your puppy profile will appear here once a puppy has been matched to your portal."}
+            </p>
 
-              <div className="flex flex-wrap items-center gap-3">
-                {puppy?.status ? (
-                  <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.18em] bg-white border border-brand-200 text-brand-700">
-                    Status: {puppy.status}
-                  </span>
-                ) : null}
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              {puppy?.status ? (
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/18 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white">
+                  Status: {puppy.status}
+                </span>
+              ) : null}
 
-                {puppy?.registry ? (
-                  <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.18em] bg-white border border-brand-200 text-brand-700">
-                    Registry: {puppy.registry}
-                  </span>
-                ) : null}
+              {puppy?.registry ? (
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/18 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white">
+                  Registry: {puppy.registry}
+                </span>
+              ) : null}
 
-                <button
-                  onClick={handleRefresh}
-                  className="px-4 py-2 rounded-xl bg-white border border-brand-200 text-brand-700 font-black text-[11px] uppercase tracking-[0.18em] hover:bg-brand-50 transition"
-                >
-                  Refresh
-                </button>
+              {ageDisplay !== "—" ? (
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/18 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white">
+                  Age: {ageDisplay}
+                </span>
+              ) : null}
+            </div>
 
-                <button
-                  onClick={handleSignOut}
-                  className="px-4 py-2 rounded-xl bg-white border border-brand-200 text-brand-700 font-black text-[11px] uppercase tracking-[0.18em] hover:bg-brand-50 transition"
-                >
-                  Sign Out
-                </button>
-              </div>
+            <div className="mt-7 flex flex-wrap gap-3">
+              <button
+                onClick={handleRefresh}
+                className="inline-flex items-center gap-2 rounded-2xl bg-[#d6ab73] px-5 py-3 text-sm font-black uppercase tracking-[0.12em] text-[#24180f] transition hover:bg-[#dfba87]"
+              >
+                Refresh Profile
+              </button>
+
+              <Link
+                href="/portal/messages"
+                className="inline-flex items-center gap-2 rounded-2xl border border-white/18 bg-white/10 px-5 py-3 text-sm font-black uppercase tracking-[0.12em] text-white transition hover:bg-white/14"
+              >
+                Message Support
+              </Link>
             </div>
 
             {statusText ? (
-              <div className="text-sm font-semibold text-brand-500">{statusText}</div>
+              <div className="mt-4 text-sm font-semibold text-white/80">{statusText}</div>
             ) : null}
+          </div>
 
-            {!puppy ? (
-              <div className="card-luxury p-12 text-center border-dashed border-2 border-brand-200">
-                <div className="w-16 h-16 bg-brand-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl border border-brand-200">
-                  🐾
-                </div>
-                <h3 className="font-serif text-3xl font-bold text-brand-800">
-                  No Puppy Assigned Yet
-                </h3>
-                <p className="text-brand-500 mt-3 max-w-md mx-auto text-sm font-semibold leading-relaxed">
-                  Once your application is approved and a puppy is assigned to your portal, the full profile will appear here automatically.
-                </p>
-                <div className="mt-6 flex items-center justify-center gap-3">
-                  <Link
-                    href="/portal/application"
-                    className="px-6 py-3 rounded-xl bg-brand-800 text-white font-black text-xs uppercase tracking-[0.18em] hover:bg-brand-700 transition shadow-lift"
-                  >
-                    View Application →
-                  </Link>
-                  <Link
-                    href="/portal/messages"
-                    className="px-6 py-3 rounded-xl bg-white border border-brand-200 text-brand-800 font-black text-xs uppercase tracking-[0.18em] hover:bg-brand-50 transition shadow-paper"
-                  >
-                    Message Support →
-                  </Link>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                <div className="lg:col-span-8 space-y-8">
-                  <div className="card-luxury overflow-hidden group">
-                    <div className="relative h-[470px] w-full bg-brand-900">
-                      <img
-                        src={puppyImage}
-                        className="w-full h-full object-cover opacity-95 group-hover:scale-[1.03] transition duration-700 ease-in-out"
-                        alt={puppyName}
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
+          <div className="relative min-h-[320px] bg-[#efe6dc]">
+            {puppy ? (
+              <>
+                <img
+                  src={puppyImage}
+                  alt={puppyName}
+                  className="h-full w-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
 
-                      <div className="absolute top-6 left-6 flex flex-wrap items-center gap-2">
-                        {puppy.sex ? (
-                          <span className="px-3 py-1 bg-white/20 backdrop-blur-md text-white border border-white/30 rounded-full text-[10px] font-black uppercase tracking-[0.22em]">
-                            {puppy.sex}
-                          </span>
-                        ) : null}
-
-                        {puppy.color ? (
-                          <span className="px-3 py-1 bg-white/20 backdrop-blur-md text-white border border-white/30 rounded-full text-[10px] font-black uppercase tracking-[0.22em]">
-                            {puppy.color}
-                          </span>
-                        ) : null}
-
-                        {puppy.coat_type || puppy.coat ? (
-                          <span className="px-3 py-1 bg-white/20 backdrop-blur-md text-white border border-white/30 rounded-full text-[10px] font-black uppercase tracking-[0.22em]">
-                            {puppy.coat_type || puppy.coat}
-                          </span>
-                        ) : null}
-                      </div>
-
-                      <div className="absolute bottom-0 left-0 p-8">
-                        <h3 className="font-serif text-5xl font-bold text-white mb-2 leading-none">
-                          {puppyName}
-                        </h3>
-                        <p className="text-white/85 text-sm font-semibold max-w-xl">
-                          {puppy.description ||
-                            "Your puppy’s profile, milestones, progress, and breeder updates all in one place."}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <InfoTile label="Price" value={puppy.price ? fmtMoney(puppy.price) : "—"} />
-                    <InfoTile label="Deposit" value={puppy.deposit ? fmtMoney(puppy.deposit) : "—"} />
-                    <InfoTile label="Balance" value={puppy.balance ? fmtMoney(puppy.balance) : "—"} />
-                    <InfoTile label="Age" value={ageDisplay} />
-                  </div>
-
-                  <div className="card-luxury p-7">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <h3 className="font-serif text-2xl font-bold text-brand-900">
-                          At a Glance
-                        </h3>
-                        <p className="text-brand-500 font-semibold text-sm mt-1">
-                          A polished overview of your puppy’s details and progress.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      <SummaryCard label="Call Name" value={puppy.call_name || puppy.puppy_name || puppy.name || "—"} />
-                      <SummaryCard label="Litter Name" value={puppy.litter_name || "—"} />
-                      <SummaryCard label="Type" value={buyerExperience} />
-                      <SummaryCard label="Sex" value={puppy.sex || "—"} />
-                      <SummaryCard label="Color" value={puppy.color || "—"} />
-                      <SummaryCard label="Pattern" value={puppy.pattern || "—"} />
-                      <SummaryCard label="Coat Type" value={puppy.coat_type || puppy.coat || "—"} />
-                      <SummaryCard label="DOB" value={puppy.dob ? fmtDate(puppy.dob) : "—"} />
-                      <SummaryCard label="Registry" value={puppy.registry || "—"} />
-                      <SummaryCard label="Sire" value={puppy.sire || "—"} />
-                      <SummaryCard label="Dam" value={puppy.dam || "—"} />
-                      <SummaryCard label="Status" value={puppy.status || "—"} />
-                      <SummaryCard label="Birth Weight" value={formatWeight(puppy.birth_weight, puppy.weight_unit)} />
-                      <SummaryCard label="Current Weight" value={formatWeight(puppy.current_weight, puppy.weight_unit)} />
-                      <SummaryCard label="Projected Adult Weight" value={projectedAdultWeight} />
-                      <SummaryCard label="Weight Date" value={puppy.weight_date ? fmtDate(puppy.weight_date) : "—"} />
-                      <SummaryCard label="Microchip" value={puppy.microchip || "—"} />
-                      <SummaryCard label="Registration No." value={puppy.registration_no || "—"} />
-                    </div>
-
-                    {(puppy.description || puppy.notes) ? (
-                      <div className="mt-6 grid grid-cols-1 gap-4">
-                        {puppy.description ? (
-                          <div className="rounded-2xl border border-brand-200 bg-white/60 p-4">
-                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-                              About Your Puppy
-                            </div>
-                            <div className="mt-2 text-sm font-semibold text-brand-800 whitespace-pre-wrap">
-                              {puppy.description}
-                            </div>
-                          </div>
-                        ) : null}
-
-                        {puppy.notes ? (
-                          <div className="rounded-2xl border border-brand-200 bg-white/60 p-4">
-                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-                              Breeder Notes
-                            </div>
-                            <div className="mt-2 text-sm font-semibold text-brand-800 whitespace-pre-wrap">
-                              {puppy.notes}
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div className="card-luxury p-7">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <h3 className="font-serif text-2xl font-bold text-brand-900">
-                          Weight Tracking
-                        </h3>
-                        <p className="text-brand-500 font-semibold text-sm mt-1">
-                          Weekly growth and recorded weigh-ins, plus projected adult size.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <HighlightCard
-                        label="Current Weight"
-                        value={formatWeight(
-                          latestWeight?.oz || puppy.current_weight,
-                          puppy.weight_unit || "oz"
-                        )}
-                      />
-                      <HighlightCard
-                        label="Age at Last Weight"
-                        value={
-                          latestWeight?.ageWeeks !== null &&
-                          latestWeight?.ageWeeks !== undefined
-                            ? `${latestWeight.ageWeeks} weeks`
-                            : "—"
-                        }
-                      />
-                      <HighlightCard
-                        label="Projected Adult Weight"
-                        value={projectedAdultWeight}
-                      />
-                    </div>
-
-                    {weeklyWeights.length ? (
-                      <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {weeklyWeights.map((item) => (
-                          <InfoTile
-                            key={item.label}
-                            label={item.label}
-                            value={formatWeight(Number(item.value), puppy.weight_unit || "oz")}
-                          />
-                        ))}
-                      </div>
-                    ) : null}
-
-                    <div className="mt-6 space-y-3">
-                      {weights.length ? (
-                        weights.map((w) => (
-                          <div
-                            key={w.id}
-                            className="p-4 rounded-2xl bg-white/70 border border-brand-200"
-                          >
-                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                              <div>
-                                <div className="text-sm font-black text-brand-900">
-                                  {w.weigh_date ? fmtDate(w.weigh_date) : "Recorded Weight"}
-                                </div>
-                                <div className="text-[12px] text-brand-500 font-semibold mt-1">
-                                  {w.age_weeks !== null && w.age_weeks !== undefined
-                                    ? `Age: ${w.age_weeks} week${w.age_weeks === 1 ? "" : "s"}`
-                                    : "Age not provided"}
-                                </div>
-                              </div>
-
-                              <div className="flex flex-wrap gap-2">
-                                {w.weight_oz ? (
-                                  <span className="px-3 py-1 rounded-full bg-brand-100 border border-brand-200 text-[11px] font-black uppercase tracking-[0.18em] text-brand-700">
-                                    {w.weight_oz} oz
-                                  </span>
-                                ) : null}
-                                {w.weight_g ? (
-                                  <span className="px-3 py-1 rounded-full bg-brand-100 border border-brand-200 text-[11px] font-black uppercase tracking-[0.18em] text-brand-700">
-                                    {w.weight_g} g
-                                  </span>
-                                ) : null}
-                              </div>
-                            </div>
-
-                            {w.notes ? (
-                              <div className="mt-3 text-sm font-semibold text-brand-700 whitespace-pre-wrap">
-                                {w.notes}
-                              </div>
-                            ) : null}
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-center py-10 text-brand-400 text-sm italic">
-                          No detailed weight entries have been posted yet.
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="lg:col-span-4 space-y-6">
-                  <div className="card-luxury p-7">
-                    <div className="flex items-center justify-between gap-3 mb-4">
-                      <h3 className="font-serif text-2xl font-bold text-brand-900">
-                        Pupdates
-                      </h3>
-                      <span className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-400">
-                        Live Now
+                <div className="absolute left-0 top-0 p-6">
+                  <div className="flex flex-wrap gap-2">
+                    {puppy.sex ? (
+                      <span className="rounded-full border border-white/25 bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white backdrop-blur-sm">
+                        {puppy.sex}
                       </span>
-                    </div>
-
-                    <div className="space-y-3">
-                      {pudates.length ? (
-                        pudates.map((event) => (
-                          <div
-                            key={event.id}
-                            className="p-4 rounded-2xl bg-white/70 border border-brand-200"
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-                                {event.event_type || "Update"}
-                              </div>
-                              <div className="text-[10px] text-brand-300 font-semibold">
-                                {fmtDate(event.event_date)}
-                              </div>
-                            </div>
-
-                            <div className="mt-2 text-sm font-black text-brand-900">
-                              {event.label || "Update"}
-                            </div>
-
-                            {event.details ? (
-                              <div className="mt-1 text-[12px] text-brand-600 font-semibold leading-relaxed">
-                                {event.details}
-                              </div>
-                            ) : null}
-
-                            {event.value !== null && event.value !== undefined ? (
-                              <div className="mt-3 text-[11px] font-black uppercase tracking-[0.18em] text-brand-700">
-                                {event.value} {event.unit || ""}
-                              </div>
-                            ) : null}
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-center py-10 text-brand-400 text-sm italic">
-                          No pupdates have been posted yet.
-                        </div>
-                      )}
-                    </div>
+                    ) : null}
+                    {puppy.color ? (
+                      <span className="rounded-full border border-white/25 bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white backdrop-blur-sm">
+                        {puppy.color}
+                      </span>
+                    ) : null}
+                    {puppy.coat_type || puppy.coat ? (
+                      <span className="rounded-full border border-white/25 bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white backdrop-blur-sm">
+                        {puppy.coat_type || puppy.coat}
+                      </span>
+                    ) : null}
                   </div>
+                </div>
 
-                  <div className="card-luxury p-7">
-                    <h3 className="font-serif text-2xl font-bold text-brand-900 mb-4">
-                      Personality & Highlights
-                    </h3>
-
-                    <div className="space-y-4">
-                      <MiniInfo label="Family Type" value={buyerExperience} />
-                      <MiniInfo
-                        label="Coat"
-                        value={puppy.coat_type || puppy.coat || "—"}
-                      />
-                      <MiniInfo
-                        label="Color / Pattern"
-                        value={[puppy.color, puppy.pattern].filter(Boolean).join(" • ") || "—"}
-                      />
-                      <MiniInfo
-                        label="Registration"
-                        value={puppy.registry || "—"}
-                      />
-                      <MiniInfo
-                        label="Go-Home Progress"
-                        value={puppy.status || "In Progress"}
-                      />
-                    </div>
+                <div className="absolute inset-x-0 bottom-0 p-6">
+                  <div className="font-serif text-3xl font-bold text-white">
+                    {puppyName}
                   </div>
-
-                  <div className="card-luxury p-7">
-                    <h3 className="font-serif text-2xl font-bold text-brand-900 mb-4">
-                      Quick Links
-                    </h3>
-
-                    <div className="space-y-3">
-                      <Link
-                        href="/portal/messages"
-                        className="block p-4 rounded-2xl bg-white/70 border border-brand-200 hover:bg-white transition"
-                      >
-                        <div className="text-sm font-black text-brand-900">Messages</div>
-                        <div className="mt-1 text-[12px] text-brand-500 font-semibold">
-                          Ask questions or request updates.
-                        </div>
-                      </Link>
-
-                      <Link
-                        href="/portal/documents"
-                        className="block p-4 rounded-2xl bg-white/70 border border-brand-200 hover:bg-white transition"
-                      >
-                        <div className="text-sm font-black text-brand-900">Documents</div>
-                        <div className="mt-1 text-[12px] text-brand-500 font-semibold">
-                          View contracts and saved portal documents.
-                        </div>
-                      </Link>
-
-                      <Link
-                        href="/portal/payments"
-                        className="block p-4 rounded-2xl bg-white/70 border border-brand-200 hover:bg-white transition"
-                      >
-                        <div className="text-sm font-black text-brand-900">Financials</div>
-                        <div className="mt-1 text-[12px] text-brand-500 font-semibold">
-                          Review payment activity and remaining balance.
-                        </div>
-                      </Link>
-
-                      <Link
-                        href="/portal/resources"
-                        className="block p-4 rounded-2xl bg-white/70 border border-brand-200 hover:bg-white transition"
-                      >
-                        <div className="text-sm font-black text-brand-900">Resources</div>
-                        <div className="mt-1 text-[12px] text-brand-500 font-semibold">
-                          Puppy prep, feeding guidance, and care help.
-                        </div>
-                      </Link>
-                    </div>
+                  <div className="mt-2 max-w-xl text-sm font-semibold text-white/84">
+                    {puppy.description ||
+                      "Your puppy’s profile, milestones, progress, and breeder updates all in one place."}
                   </div>
-
-                  <ChiChiAiCard />
+                </div>
+              </>
+            ) : (
+              <div className="flex h-full items-center justify-center p-8 text-center">
+                <div>
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#dcc8b2] bg-white text-2xl shadow-sm">
+                    🐾
+                  </div>
+                  <div className="font-serif text-2xl font-bold text-[#4a3325]">
+                    No Puppy Assigned Yet
+                  </div>
+                  <div className="mt-2 max-w-sm text-sm font-semibold leading-7 text-[#8b6b4d]">
+                    Once your application is approved and a puppy is assigned to your portal, the full profile will appear here automatically.
+                  </div>
                 </div>
               </div>
             )}
           </div>
         </div>
-      </main>
+      </section>
+
+      {!puppy ? (
+        <section className="rounded-[30px] border border-[#dccab7] bg-white p-10 text-center shadow-[0_12px_28px_rgba(74,51,33,0.06)]">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#dcc8b2] bg-[#fcf8f3] text-2xl shadow-sm">
+            🐾
+          </div>
+          <h2 className="font-serif text-3xl font-bold text-[#3b271b]">
+            No Puppy Assigned Yet
+          </h2>
+          <p className="mx-auto mt-3 max-w-xl text-sm font-semibold leading-7 text-[#8b6b4d]">
+            Once your application is approved and a puppy is matched to your portal,
+            this page will become your full puppy dashboard with milestones, growth,
+            and breeder updates.
+          </p>
+
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/portal/application"
+              className="inline-flex items-center gap-2 rounded-2xl bg-[#8f6945] px-5 py-3 text-sm font-black uppercase tracking-[0.12em] text-white transition hover:bg-[#7d5b3c]"
+            >
+              View Application
+            </Link>
+            <Link
+              href="/portal/messages"
+              className="inline-flex items-center gap-2 rounded-2xl border border-[#dccab7] bg-[#fcf8f3] px-5 py-3 text-sm font-black uppercase tracking-[0.12em] text-[#6f5037] transition hover:bg-white"
+            >
+              Message Support
+            </Link>
+          </div>
+        </section>
+      ) : (
+        <>
+          <section className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+            <InfoTile label="Price" value={puppy.price ? fmtMoney(puppy.price) : "—"} />
+            <InfoTile label="Deposit" value={puppy.deposit ? fmtMoney(puppy.deposit) : "—"} />
+            <InfoTile label="Balance" value={puppy.balance ? fmtMoney(puppy.balance) : "—"} />
+            <InfoTile label="Age" value={ageDisplay} />
+          </section>
+
+          <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+            <div className="space-y-6 xl:col-span-8">
+              <div className="rounded-[30px] border border-[#dccab7] bg-white p-6 shadow-[0_12px_28px_rgba(74,51,33,0.06)] md:p-7">
+                <div className="mb-5">
+                  <h2 className="font-serif text-2xl font-bold text-[#3b271b]">
+                    Puppy Overview
+                  </h2>
+                  <p className="mt-1 text-sm font-semibold text-[#8b6b4d]">
+                    A polished overview of your puppy’s details and progress.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  <SummaryCard label="Call Name" value={puppy.call_name || puppy.puppy_name || puppy.name || "—"} />
+                  <SummaryCard label="Litter Name" value={puppy.litter_name || "—"} />
+                  <SummaryCard label="Type" value={buyerExperience} />
+                  <SummaryCard label="Sex" value={puppy.sex || "—"} />
+                  <SummaryCard label="Color" value={puppy.color || "—"} />
+                  <SummaryCard label="Pattern" value={puppy.pattern || "—"} />
+                  <SummaryCard label="Coat Type" value={puppy.coat_type || puppy.coat || "—"} />
+                  <SummaryCard label="DOB" value={puppy.dob ? fmtDate(puppy.dob) : "—"} />
+                  <SummaryCard label="Registry" value={puppy.registry || "—"} />
+                  <SummaryCard label="Sire" value={puppy.sire || "—"} />
+                  <SummaryCard label="Dam" value={puppy.dam || "—"} />
+                  <SummaryCard label="Status" value={puppy.status || "—"} />
+                  <SummaryCard label="Birth Weight" value={formatWeight(puppy.birth_weight, puppy.weight_unit)} />
+                  <SummaryCard label="Current Weight" value={formatWeight(puppy.current_weight, puppy.weight_unit)} />
+                  <SummaryCard label="Projected Adult Weight" value={projectedAdultWeight} />
+                  <SummaryCard label="Weight Date" value={puppy.weight_date ? fmtDate(puppy.weight_date) : "—"} />
+                  <SummaryCard label="Microchip" value={puppy.microchip || "—"} />
+                  <SummaryCard label="Registration No." value={puppy.registration_no || "—"} />
+                </div>
+
+                {(puppy.description || puppy.notes) && (
+                  <div className="mt-6 grid grid-cols-1 gap-4">
+                    {puppy.description ? (
+                      <div className="rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4">
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
+                          About Your Puppy
+                        </div>
+                        <div className="mt-2 whitespace-pre-wrap text-sm font-semibold text-[#4e3727]">
+                          {puppy.description}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {puppy.notes ? (
+                      <div className="rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4">
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
+                          Breeder Notes
+                        </div>
+                        <div className="mt-2 whitespace-pre-wrap text-sm font-semibold text-[#4e3727]">
+                          {puppy.notes}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-[30px] border border-[#dccab7] bg-white p-6 shadow-[0_12px_28px_rgba(74,51,33,0.06)] md:p-7">
+                <div className="mb-5">
+                  <h2 className="font-serif text-2xl font-bold text-[#3b271b]">
+                    Care Overview
+                  </h2>
+                  <p className="mt-1 text-sm font-semibold text-[#8b6b4d]">
+                    Age-based Chihuahua facts and development notes.
+                  </p>
+                </div>
+
+                <div className="rounded-[24px] bg-[linear-gradient(135deg,#8f6945_0%,#6f5037_100%)] p-6 text-white">
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/75">
+                    Rotating Care Snapshot
+                  </div>
+                  <h3 className="mt-2 font-serif text-3xl font-bold">
+                    {careOverview.title}
+                  </h3>
+
+                  <div className="mt-5 grid grid-cols-1 gap-3">
+                    {careOverview.facts.map((fact, idx) => (
+                      <div
+                        key={idx}
+                        className="rounded-[18px] border border-white/15 bg-white/10 px-4 py-3 text-sm font-semibold leading-7 text-white/88"
+                      >
+                        {fact}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[30px] border border-[#dccab7] bg-white p-6 shadow-[0_12px_28px_rgba(74,51,33,0.06)] md:p-7">
+                <div className="mb-5">
+                  <h2 className="font-serif text-2xl font-bold text-[#3b271b]">
+                    Weight Tracking
+                  </h2>
+                  <p className="mt-1 text-sm font-semibold text-[#8b6b4d]">
+                    Weekly growth and recorded weigh-ins, plus projected adult size.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <HighlightCard
+                    label="Current Weight"
+                    value={formatWeight(
+                      latestWeight?.oz || puppy.current_weight,
+                      puppy.weight_unit || "oz"
+                    )}
+                  />
+                  <HighlightCard
+                    label="Age at Last Weight"
+                    value={
+                      latestWeight?.ageWeeks !== null &&
+                      latestWeight?.ageWeeks !== undefined
+                        ? `${latestWeight.ageWeeks} weeks`
+                        : "—"
+                    }
+                  />
+                  <HighlightCard
+                    label="Projected Adult Weight"
+                    value={projectedAdultWeight}
+                  />
+                </div>
+
+                {weeklyWeights.length ? (
+                  <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4">
+                    {weeklyWeights.map((item) => (
+                      <InfoTile
+                        key={item.label}
+                        label={item.label}
+                        value={formatWeight(Number(item.value), puppy.weight_unit || "oz")}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+
+                <div className="mt-6 space-y-3">
+                  {weights.length ? (
+                    weights.map((w) => (
+                      <div
+                        key={w.id}
+                        className="rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4"
+                      >
+                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                          <div>
+                            <div className="text-sm font-black text-[#342116]">
+                              {w.weigh_date ? fmtDate(w.weigh_date) : "Recorded Weight"}
+                            </div>
+                            <div className="mt-1 text-[12px] font-semibold text-[#8d6f52]">
+                              {w.age_weeks !== null && w.age_weeks !== undefined
+                                ? `Age: ${w.age_weeks} week${w.age_weeks === 1 ? "" : "s"}`
+                                : "Age not provided"}
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap gap-2">
+                            {w.weight_oz ? (
+                              <span className="rounded-full border border-[#e1cfbb] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-[#7f5f42]">
+                                {w.weight_oz} oz
+                              </span>
+                            ) : null}
+                            {w.weight_g ? (
+                              <span className="rounded-full border border-[#e1cfbb] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-[#7f5f42]">
+                                {w.weight_g} g
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        {w.notes ? (
+                          <div className="mt-3 whitespace-pre-wrap text-sm font-semibold text-[#4e3727]">
+                            {w.notes}
+                          </div>
+                        ) : null}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-[22px] border border-dashed border-[#e3d4c2] bg-[#fcf8f3] py-10 text-center text-sm italic text-[#9e8164]">
+                      No detailed weight entries have been posted yet.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-6 xl:col-span-4">
+              <div className="rounded-[30px] border border-[#dccab7] bg-white p-6 shadow-[0_12px_28px_rgba(74,51,33,0.06)] md:p-7">
+                <div className="mb-5 flex items-end justify-between gap-4">
+                  <div>
+                    <h2 className="font-serif text-2xl font-bold text-[#3b271b]">
+                      Health & Milestones
+                    </h2>
+                    <p className="mt-1 text-sm font-semibold text-[#8b6b4d]">
+                      Most recent milestone first, with past milestones available on demand.
+                    </p>
+                  </div>
+                </div>
+
+                {latestMilestone ? (
+                  <div className="space-y-4">
+                    <div className="rounded-[24px] bg-[linear-gradient(135deg,#8f6945_0%,#6f5037_100%)] p-5 text-white">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/75">
+                          Most Current Milestone
+                        </div>
+                        <div className="text-[10px] font-semibold text-white/75">
+                          {fmtDate(latestMilestone.event_date)}
+                        </div>
+                      </div>
+
+                      <div className="mt-2 text-xl font-black">
+                        {latestMilestone.label || "Update"}
+                      </div>
+
+                      {latestMilestone.details ? (
+                        <div className="mt-2 text-sm font-semibold leading-7 text-white/88">
+                          {latestMilestone.details}
+                        </div>
+                      ) : null}
+
+                      {latestMilestone.value !== null && latestMilestone.value !== undefined ? (
+                        <div className="mt-3 text-[11px] font-black uppercase tracking-[0.18em] text-white/82">
+                          {latestMilestone.value} {latestMilestone.unit || ""}
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {pastMilestones.length ? (
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => setShowPastMilestones((v) => !v)}
+                          className="inline-flex items-center gap-2 rounded-2xl border border-[#dccab7] bg-[#fcf8f3] px-4 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-[#7f5f42] transition hover:bg-white"
+                        >
+                          {showPastMilestones ? "Hide Past Milestones" : "View Past Milestones"}
+                        </button>
+
+                        {showPastMilestones ? (
+                          <div className="mt-4 space-y-3">
+                            {pastMilestones.map((event) => (
+                              <div
+                                key={event.id}
+                                className="rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4"
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
+                                    {event.event_type || "Update"}
+                                  </div>
+                                  <div className="text-[10px] font-semibold text-[#bea184]">
+                                    {fmtDate(event.event_date)}
+                                  </div>
+                                </div>
+
+                                <div className="mt-1 text-sm font-black text-[#342116]">
+                                  {event.label || "Milestone"}
+                                </div>
+
+                                {event.details ? (
+                                  <div className="mt-1 text-[12px] font-semibold leading-6 text-[#8d6f52]">
+                                    {event.details}
+                                  </div>
+                                ) : null}
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="rounded-[22px] border border-dashed border-[#e3d4c2] bg-[#fcf8f3] py-10 text-center text-sm italic text-[#9e8164]">
+                    No milestones are visible yet.
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-[30px] border border-[#dccab7] bg-white p-6 shadow-[0_12px_28px_rgba(74,51,33,0.06)] md:p-7">
+                <h2 className="font-serif text-2xl font-bold text-[#3b271b]">
+                  Personality & Highlights
+                </h2>
+
+                <div className="mt-5 space-y-3">
+                  <MiniInfo label="Family Type" value={buyerExperience} />
+                  <MiniInfo
+                    label="Coat"
+                    value={puppy.coat_type || puppy.coat || "—"}
+                  />
+                  <MiniInfo
+                    label="Color / Pattern"
+                    value={[puppy.color, puppy.pattern].filter(Boolean).join(" • ") || "—"}
+                  />
+                  <MiniInfo
+                    label="Registration"
+                    value={puppy.registry || "—"}
+                  />
+                  <MiniInfo
+                    label="Go-Home Progress"
+                    value={puppy.status || "In Progress"}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-[30px] border border-[#dccab7] bg-white p-6 shadow-[0_12px_28px_rgba(74,51,33,0.06)] md:p-7">
+                <h2 className="font-serif text-2xl font-bold text-[#3b271b]">
+                  Quick Links
+                </h2>
+
+                <div className="mt-5 space-y-3">
+                  <QuickLink
+                    href="/portal/messages"
+                    title="Messages"
+                    desc="Ask questions or request updates."
+                  />
+                  <QuickLink
+                    href="/portal/documents"
+                    title="Documents"
+                    desc="View contracts and saved portal documents."
+                  />
+                  <QuickLink
+                    href="/portal/payments"
+                    title="Financials"
+                    desc="Review payment activity and remaining balance."
+                  />
+                  <QuickLink
+                    href="/portal/resources"
+                    title="Resources"
+                    desc="Puppy prep, feeding guidance, and care help."
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-[30px] bg-[linear-gradient(135deg,#8f6945_0%,#6f5037_100%)] p-6 text-white shadow-[0_20px_44px_rgba(74,51,33,0.18)] md:p-7">
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/75">
+                  Assistant
+                </div>
+                <h2 className="mt-2 font-serif text-2xl font-bold">ChiChi Assistant</h2>
+                <p className="mt-2 text-sm font-semibold leading-7 text-white/82">
+                  Need help finding something in your portal? Use the ChiChi chat button in the bottom right for account-aware answers.
+                </p>
+
+                <div className="mt-5 rounded-[22px] border border-white/15 bg-white/10 p-4 text-sm font-semibold leading-7 text-white/82">
+                  Ask about payments, documents, breeder messages, puppy updates, milestones, and more.
+                </div>
+              </div>
+            </div>
+          </section>
+        </>
+      )}
     </div>
   );
 }
 
 function InfoTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="card-luxury p-5 text-center">
-      <div className="text-[11px] font-black text-brand-700 uppercase tracking-[0.18em]">
+    <div className="rounded-[24px] border border-[#dccab7] bg-white p-5 text-center shadow-[0_12px_28px_rgba(74,51,33,0.06)] transition hover:-translate-y-1 hover:shadow-[0_16px_32px_rgba(74,51,33,0.10)]">
+      <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
         {label}
       </div>
-      <div className="mt-2 text-sm font-black text-brand-900 break-words">{value}</div>
+      <div className="mt-2 break-words text-sm font-black text-[#342116]">{value}</div>
     </div>
   );
 }
 
 function HighlightCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-brand-200 bg-white/70 p-5">
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
+    <div className="rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-5">
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
         {label}
       </div>
-      <div className="mt-2 text-xl font-black text-brand-900">{value}</div>
+      <div className="mt-2 text-xl font-black text-[#342116]">{value}</div>
     </div>
   );
 }
 
 function SummaryCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-brand-200 bg-white/65 p-4">
-      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
+    <div className="rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4">
+      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-[#9c7b58]">
         {label}
       </div>
-      <div className="mt-1 text-sm font-black text-brand-900 break-words">{value}</div>
+      <div className="mt-1 break-words text-sm font-black text-[#342116]">{value}</div>
     </div>
   );
 }
 
 function MiniInfo({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-brand-200 bg-white/65 p-4">
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
+    <div className="rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4">
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
         {label}
       </div>
-      <div className="mt-1 text-sm font-semibold text-brand-800">{value}</div>
+      <div className="mt-1 text-sm font-semibold text-[#4e3727]">{value}</div>
     </div>
   );
 }
 
-function ChiChiAiCard() {
+function QuickLink({
+  href,
+  title,
+  desc,
+}: {
+  href: string;
+  title: string;
+  desc: string;
+}) {
   return (
-    <div
-      className="rounded-[28px] p-7 shadow-luxury text-white"
-      style={{
-        background:
-          "linear-gradient(135deg, #5a402b 0%, #4a3525 45%, #3c2a1d 100%)",
-      }}
+    <Link
+      href={href}
+      className="block rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4 transition hover:bg-white"
     >
-      <h4 className="font-serif text-[2rem] leading-none font-bold">ChiChi AI</h4>
-
-      <p className="mt-4 text-[1.05rem] font-semibold text-[#f7e8d4]">
-        AI chatbot embed area.
-      </p>
-
-      <div className="mt-6 rounded-[20px] border border-white/20 bg-white/10 px-5 py-4 text-[1rem] text-[#fff2e3] shadow-inner">
-        Claude chatbot will be linked or embedded here.
+      <div className="text-sm font-black text-[#342116]">{title}</div>
+      <div className="mt-1 text-[12px] font-semibold leading-6 text-[#8d6f52]">
+        {desc}
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -961,44 +1118,75 @@ function MyPuppyLogin() {
   };
 
   return (
-    <div className="h-screen flex items-center justify-center bg-brand-50 p-6">
-      <div className="card-luxury shine p-10 w-full max-w-md border border-white">
-        <h2 className="font-serif text-4xl font-bold text-center mb-8">
-          Welcome Home
-        </h2>
-
-        <form onSubmit={login} className="space-y-5">
-          <div>
-            <label className="text-[10px] font-black uppercase text-brand-500 mb-1 block">
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-3 rounded-xl border border-brand-200"
-              required
-            />
+    <div className="grid min-h-[80vh] grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+      <section className="overflow-hidden rounded-[36px] border border-[#e2d4c5] bg-[linear-gradient(135deg,#fff8f1_0%,#f8efe4_55%,#efe2d2_100%)] shadow-[0_26px_70px_rgba(88,63,37,0.10)]">
+        <div className="px-7 py-8 md:px-10 md:py-10 lg:px-14 lg:py-14">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[#dcc6ad] bg-white/70 px-4 py-2 shadow-sm">
+            <span className="text-[10px] font-black uppercase tracking-[0.22em] text-[#a47946]">
+              My Puppy Portal
+            </span>
           </div>
 
-          <div>
-            <label className="text-[10px] font-black uppercase text-brand-500 mb-1 block">
-              Password
-            </label>
-            <input
-              type="password"
-              value={pass}
-              onChange={(e) => setPass(e.target.value)}
-              className="w-full p-3 rounded-xl border border-brand-200"
-              required
-            />
+          <div className="mt-10 max-w-3xl">
+            <h1 className="font-serif text-5xl font-bold leading-[0.95] text-[#3e2a1f] md:text-6xl">
+              Welcome to your puppy’s private profile.
+            </h1>
+
+            <p className="mt-6 max-w-2xl text-[17px] font-semibold leading-8 text-[#7a5a3a]">
+              Sign in to view your puppy’s profile, milestones, weight progress,
+              breeder notes, and account-connected portal details.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-[36px] border border-[#ead9c7] bg-white shadow-[0_30px_80px_rgba(88,63,37,0.10)]">
+        <div className="px-7 py-8 md:px-10 md:py-10">
+          <div className="mb-8">
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#b08251]">
+              My Puppy Portal Access
+            </div>
+            <h2 className="mt-3 font-serif text-4xl font-bold leading-none text-[#3e2a1f]">
+              Sign in
+            </h2>
+            <p className="mt-3 text-sm font-semibold leading-7 text-[#8a6a49]">
+              Enter your portal login to open your puppy profile.
+            </p>
           </div>
 
-          <button className="w-full bg-brand-800 text-white p-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lift">
-            Sign In
-          </button>
-        </form>
-      </div>
+          <form onSubmit={login} className="space-y-5">
+            <div>
+              <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-[#a47946]">
+                Email
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-[#a47946]">
+                Password
+              </label>
+              <input
+                type="password"
+                value={pass}
+                onChange={(e) => setPass(e.target.value)}
+                className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+                required
+              />
+            </div>
+
+            <button className="w-full rounded-[18px] bg-[#6b4d33] px-5 py-4 text-xs font-black uppercase tracking-[0.18em] text-white shadow-[0_14px_30px_rgba(88,63,37,0.18)] transition hover:bg-[#5b412c]">
+              Sign In
+            </button>
+          </form>
+        </div>
+      </section>
     </div>
   );
 }
