@@ -15,8 +15,6 @@ import {
   Menu,
   X,
   SendHorizonal,
-  Bell,
-  Search,
 } from "lucide-react";
 import { sb } from "@/lib/utils";
 
@@ -398,7 +396,7 @@ export default function PortalLayout({
           <div className="mt-5 border-t border-white/10 pt-5">
             <button
               onClick={handleSignOut}
-              className="w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-[15px] font-semibold text-white transition hover:bg-white/10"
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[15px] font-semibold text-white transition hover:bg-white/10"
             >
               Sign out
             </button>
@@ -438,7 +436,7 @@ export default function PortalLayout({
               ))}
             </nav>
 
-            <div className="mt-5 rounded-[24px] border border-white/10 bg-white/6 p-4">
+            <div className="mt-5 rounded-[24px] border border-white/10 bg-white/5 p-4">
               <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#bea58a]">
                 Portal Access
               </div>
@@ -457,164 +455,136 @@ export default function PortalLayout({
           </div>
         </aside>
 
-        <div className="min-w-0 flex-1">
-          <div className="sticky top-0 z-30 hidden border-b border-[#d8c9b8] bg-[#8f6945] text-white shadow-[0_10px_28px_rgba(76,50,28,0.14)] md:block">
-            <div className="flex h-[78px] items-center justify-between px-6 lg:px-8">
-              <div className="flex items-center gap-4">
-                <div className="hidden items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-white/90 lg:flex">
-                  <Search className="h-3.5 w-3.5" />
-                  Welcome to My Puppy Portal
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-white/90"
-                  aria-label="Notifications"
-                >
-                  <Bell className="h-5 w-5" />
-                </button>
-
-                <div className="flex items-center gap-3 rounded-full border border-white/15 bg-white/10 px-3 py-2">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#d6ab73] text-sm font-black text-[#281b12]">
-                    {userInitial}
-                  </div>
-                  <div className="hidden pr-1 md:block">
-                    <div className="text-sm font-semibold text-white">{displayName}</div>
-                    <div className="text-[11px] text-white/75">{user?.email || "Portal account"}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <main className="min-h-screen bg-[#f5efe7]">
-            <div className="px-4 py-5 md:px-6 md:py-6 lg:px-8">{children}</div>
-          </main>
-        </div>
+        <main className="min-w-0 flex-1 bg-[#f5efe7]">
+          <div className="px-4 py-5 md:px-6 md:py-6 lg:px-8">{children}</div>
+        </main>
       </div>
 
-      <div className="fixed bottom-5 right-5 z-[60] flex flex-col items-end gap-3 sm:bottom-6 sm:right-6">
-        {isChiChiOpen && (
-          <div className="w-[calc(100vw-24px)] max-w-[395px] overflow-hidden rounded-[30px] border border-[#d9c8b6] bg-[#fbf6f0] shadow-[0_24px_70px_rgba(45,28,16,0.30)]">
-            <div className="flex items-center justify-between border-b border-[#e7dacc] bg-[#8f6945] px-4 py-4 text-white">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#d6ab73] text-[#2a1d12] shadow-sm">
-                  <MessageCircle className="h-5 w-5" />
-                </div>
-                <div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/75">
-                    Portal Assistant
+      <div className="pointer-events-none fixed inset-0 z-[9999]">
+        <div className="pointer-events-none absolute bottom-5 right-5 flex flex-col items-end gap-3 sm:bottom-6 sm:right-6">
+          {isChiChiOpen && (
+            <div className="pointer-events-auto w-[calc(100vw-24px)] max-w-[395px] overflow-hidden rounded-[30px] border border-[#d9c8b6] bg-[#fbf6f0] shadow-[0_24px_70px_rgba(45,28,16,0.30)]">
+              <div className="flex items-center justify-between border-b border-[#e7dacc] bg-[#8f6945] px-4 py-4 text-white">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#d6ab73] text-[#2a1d12] shadow-sm">
+                    <MessageCircle className="h-5 w-5" />
                   </div>
-                  <div className="font-serif text-lg leading-none text-white">
-                    ChiChi Assistant
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setIsChiChiOpen(false)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-white hover:bg-white/10"
-                aria-label="Close ChiChi Assistant"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="border-b border-[#eadfce] px-4 py-3">
-              <div className="flex flex-wrap gap-2">
-                {quickPrompts.map((prompt) => (
-                  <button
-                    key={prompt}
-                    type="button"
-                    onClick={() => {
-                      setChatDraft(prompt);
-                      chatInputRef.current?.focus();
-                    }}
-                    className="rounded-full border border-[#dfcfbd] bg-white px-3 py-1.5 text-xs font-semibold text-[#6d5037] transition hover:bg-[#fff9f3]"
-                  >
-                    {prompt}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="h-[320px] overflow-y-auto px-4 py-4">
-              <div className="space-y-3">
-                {messages.map((message) => {
-                  const isUser = message.role === "user";
-
-                  return (
-                    <div key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-                      <div
-                        className={[
-                          "max-w-[86%] rounded-[22px] px-4 py-3 text-sm leading-6 shadow-sm",
-                          isUser
-                            ? "bg-[linear-gradient(135deg,#8f6945_0%,#6e5037_100%)] text-white"
-                            : "border border-[#eadfce] bg-white text-[#5a4330]",
-                        ].join(" ")}
-                      >
-                        <div className="whitespace-pre-wrap">{message.text}</div>
-                        <div className={`mt-1 text-[11px] ${isUser ? "text-white/80" : "text-[#9a7a57]"}`}>
-                          {message.createdAt}
-                        </div>
-                      </div>
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/75">
+                      Portal Assistant
                     </div>
-                  );
-                })}
-
-                {isSending && (
-                  <div className="flex justify-start">
-                    <div className="max-w-[86%] rounded-[22px] border border-[#eadfce] bg-white px-4 py-3 text-sm text-[#6b523d] shadow-sm">
-                      ChiChi is thinking…
+                    <div className="font-serif text-lg leading-none text-white">
+                      ChiChi Assistant
                     </div>
                   </div>
-                )}
-
-                <div ref={chatEndRef} />
-              </div>
-            </div>
-
-            <form onSubmit={sendChiChiMessage} className="border-t border-[#eadfce] bg-white/75 px-4 py-4">
-              <div className="rounded-[24px] border border-[#e3d3c2] bg-[#fffaf4] p-3 shadow-inner">
-                <textarea
-                  ref={chatInputRef}
-                  value={chatDraft}
-                  onChange={(e) => setChatDraft(e.target.value)}
-                  rows={3}
-                  placeholder="Ask ChiChi about your puppy, payments, documents, messages, or pickup details."
-                  className="w-full resize-none bg-transparent text-sm leading-6 text-[#4d3b2b] outline-none placeholder:text-[#af8f70]"
-                />
-              </div>
-
-              <div className="mt-3 flex items-center justify-between gap-3">
-                <div className="text-xs text-[#8f7257]">
-                  Account-aware answers from your portal data
                 </div>
 
                 <button
-                  type="submit"
-                  disabled={isSending || !chatDraft.trim()}
-                  className="inline-flex items-center gap-2 rounded-xl bg-[#8f6945] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(123,91,63,0.24)] transition hover:bg-[#7d5b3c] disabled:cursor-not-allowed disabled:opacity-60"
+                  type="button"
+                  onClick={() => setIsChiChiOpen(false)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-white hover:bg-white/10"
+                  aria-label="Close ChiChi Assistant"
                 >
-                  <SendHorizonal className="h-4 w-4" />
-                  {isSending ? "Sending..." : "Send"}
+                  <X className="h-5 w-5" />
                 </button>
               </div>
-            </form>
-          </div>
-        )}
 
-        <button
-          onClick={() => setIsChiChiOpen((v) => !v)}
-          className="inline-flex items-center gap-3 rounded-full bg-[linear-gradient(135deg,#8f6945_0%,#6f5037_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_18px_44px_rgba(95,70,50,0.34)] transition hover:-translate-y-[1px]"
-          aria-label="Toggle ChiChi Assistant"
-        >
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/12">
-            <MessageCircle className="h-5 w-5" />
-          </span>
-          <span>Click to Chat with ChiChi Assistant</span>
-        </button>
+              <div className="border-b border-[#eadfce] px-4 py-3">
+                <div className="flex flex-wrap gap-2">
+                  {quickPrompts.map((prompt) => (
+                    <button
+                      key={prompt}
+                      type="button"
+                      onClick={() => {
+                        setChatDraft(prompt);
+                        requestAnimationFrame(() => chatInputRef.current?.focus());
+                      }}
+                      className="rounded-full border border-[#dfcfbd] bg-white px-3 py-1.5 text-xs font-semibold text-[#6d5037] transition hover:bg-[#fff9f3]"
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="h-[320px] overflow-y-auto px-4 py-4">
+                <div className="space-y-3">
+                  {messages.map((message) => {
+                    const isUser = message.role === "user";
+
+                    return (
+                      <div key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+                        <div
+                          className={[
+                            "max-w-[86%] rounded-[22px] px-4 py-3 text-sm leading-6 shadow-sm",
+                            isUser
+                              ? "bg-[linear-gradient(135deg,#8f6945_0%,#6e5037_100%)] text-white"
+                              : "border border-[#eadfce] bg-white text-[#5a4330]",
+                          ].join(" ")}
+                        >
+                          <div className="whitespace-pre-wrap">{message.text}</div>
+                          <div className={`mt-1 text-[11px] ${isUser ? "text-white/80" : "text-[#9a7a57]"}`}>
+                            {message.createdAt}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {isSending && (
+                    <div className="flex justify-start">
+                      <div className="max-w-[86%] rounded-[22px] border border-[#eadfce] bg-white px-4 py-3 text-sm text-[#6b523d] shadow-sm">
+                        ChiChi is thinking…
+                      </div>
+                    </div>
+                  )}
+
+                  <div ref={chatEndRef} />
+                </div>
+              </div>
+
+              <form onSubmit={sendChiChiMessage} className="border-t border-[#eadfce] bg-white/75 px-4 py-4">
+                <div className="rounded-[24px] border border-[#e3d3c2] bg-[#fffaf4] p-3 shadow-inner">
+                  <textarea
+                    ref={chatInputRef}
+                    value={chatDraft}
+                    onChange={(e) => setChatDraft(e.target.value)}
+                    rows={3}
+                    placeholder="Ask ChiChi about your puppy, payments, documents, messages, or pickup details."
+                    className="w-full resize-none bg-transparent text-sm leading-6 text-[#4d3b2b] outline-none placeholder:text-[#af8f70]"
+                  />
+                </div>
+
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <div className="text-xs text-[#8f7257]">
+                    Account-aware answers from your portal data
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSending || !chatDraft.trim()}
+                    className="inline-flex items-center gap-2 rounded-xl bg-[#8f6945] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(123,91,63,0.24)] transition hover:bg-[#7d5b3c] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <SendHorizonal className="h-4 w-4" />
+                    {isSending ? "Sending..." : "Send"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setIsChiChiOpen((v) => !v)}
+            className="pointer-events-auto inline-flex items-center gap-3 rounded-full bg-[linear-gradient(135deg,#8f6945_0%,#6f5037_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_18px_44px_rgba(95,70,50,0.34)] transition hover:-translate-y-[1px]"
+            aria-label="Toggle ChiChi Assistant"
+          >
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/12">
+              <MessageCircle className="h-5 w-5" />
+            </span>
+            <span>Click to Chat with ChiChi Assistant</span>
+          </button>
+        </div>
       </div>
     </div>
   );

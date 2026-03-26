@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import ConditionalHeader from "@/components/ConditionalHeader";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Southwest Virginia Chihuahua",
-  description: "Championship Lineage Breeding Program",
+  title: "My Puppy Portal | Southwest Virginia Chihuahua",
+  description: "Private puppy portal for Southwest Virginia Chihuahua families.",
 };
 
 export default function RootLayout({
@@ -26,9 +25,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-stone-50 text-stone-900`}
+        className={`${geistSans.variable} ${geistMono.variable} bg-[#f5efe7] text-[#23170f] antialiased`}
       >
-        <ConditionalHeader />
         {children}
       </body>
     </html>
