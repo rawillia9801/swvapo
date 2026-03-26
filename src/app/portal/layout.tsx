@@ -15,6 +15,12 @@ import {
   Menu,
   X,
   SendHorizonal,
+  PlusCircle,
+  CalendarPlus,
+  DollarSign,
+  FolderOpen,
+  MessagesSquare,
+  PawPrint,
 } from "lucide-react";
 import { sb } from "@/lib/utils";
 
@@ -53,6 +59,15 @@ type ChiChiResponse = {
   };
 };
 
+type ChiChiTab = "ask" | "actions";
+
+type QuickAction = {
+  key: string;
+  label: string;
+  prompt: string;
+  icon: React.ReactNode;
+};
+
 function makeId(prefix = "msg") {
   return `${prefix}-${Math.random().toString(36).slice(2)}-${Date.now()}`;
 }
@@ -77,15 +92,19 @@ export default function PortalLayout({
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const [isChiChiOpen, setIsChiChiOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<ChiChiTab>("ask");
   const [threadId, setThreadId] = useState<string | null>(null);
   const [chatDraft, setChatDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [buyerName, setBuyerName] = useState<string | null>(null);
+  const [puppyName, setPuppyName] = useState<string | null>(null);
+
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: makeId("assistant"),
       role: "assistant",
       text:
-        "Hi, I’m ChiChi Assistant. Ask me about your puppy, payments, documents, messages, updates, or pickup details.",
+        "Hi, I’m ChiChi Assistant. I can answer questions about your portal and help with Core actions like adding puppies, events, and payments.",
       createdAt: formatTime(),
     },
   ]);
@@ -189,6 +208,55 @@ export default function PortalLayout({
 
   const userInitial = (displayName?.[0] || user?.email?.[0] || "U").toUpperCase();
 
+  const askPrompts = [
+    "How much do I still owe?",
+    "Do I have any documents left to sign?",
+    "What is my puppy’s latest update?",
+    "What is my pickup status?",
+  ];
+
+  const coreActions: QuickAction[] = [
+    {
+      key: "add-puppy",
+      label: "Add Puppy",
+      prompt:
+        "Core action: add a new puppy record. I will provide the puppy details next.",
+      icon: <PlusCircle className="h-4 w-4" />,
+    },
+    {
+      key: "add-event",
+      label: "Add Puppy Event",
+      prompt:
+        "Core action: add a puppy event. I will provide the puppy name, date, title, and details next.",
+      icon: <CalendarPlus className="h-4 w-4" />,
+    },
+    {
+      key: "log-payment",
+      label: "Log Payment",
+      prompt:
+        "Core action: log a buyer payment. I will provide the buyer, amount, date, and method next.",
+      icon: <DollarSign className="h-4 w-4" />,
+    },
+    {
+      key: "open-documents",
+      label: "Open Documents",
+      prompt: "Show me the documents for this account.",
+      icon: <FolderOpen className="h-4 w-4" />,
+    },
+    {
+      key: "open-messages",
+      label: "Open Messages",
+      prompt: "Show me recent messages for this account.",
+      icon: <MessagesSquare className="h-4 w-4" />,
+    },
+    {
+      key: "open-puppy",
+      label: "Open My Puppy",
+      prompt: "Show me my puppy summary.",
+      icon: <PawPrint className="h-4 w-4" />,
+    },
+  ];
+
   async function handleSignOut() {
     await sb.auth.signOut();
     setUser(null);
@@ -224,9 +292,9 @@ export default function PortalLayout({
     ].join(" ");
   }
 
-  async function sendChiChiMessage(e?: React.FormEvent) {
+  async function sendChiChiMessage(e?: React.FormEvent, overrideText?: string) {
     e?.preventDefault();
-    const text = chatDraft.trim();
+    const text = (overrideText ?? chatDraft).trim();
     if (!text || isSending) return;
 
     const userMessage: ChatMessage = {
@@ -237,7 +305,7 @@ export default function PortalLayout({
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    setChatDraft("");
+    if (!overrideText) setChatDraft("");
     setIsSending(true);
 
     if (!accessToken) {
@@ -281,6 +349,8 @@ export default function PortalLayout({
         "I ran into an issue while loading your portal information. Please try again.";
 
       if (data?.threadId) setThreadId(data.threadId);
+      if (data?.context?.buyerName) setBuyerName(data.context.buyerName);
+      if (data?.context?.puppyName) setPuppyName(data.context.puppyName);
 
       setMessages((prev) => [
         ...prev,
@@ -304,16 +374,9 @@ export default function PortalLayout({
       ]);
     } finally {
       setIsSending(false);
-      chatInputRef.current?.focus();
+      requestAnimationFrame(() => chatInputRef.current?.focus());
     }
   }
-
-  const quickPrompts = [
-    "How much do I still owe?",
-    "What is my puppy’s latest update?",
-    "Do I have any documents left to sign?",
-    "What is my pickup status?",
-  ];
 
   return (
     <div className="min-h-screen bg-[#f5efe7] text-[#23170f]">
@@ -463,7 +526,7 @@ export default function PortalLayout({
       <div className="pointer-events-none fixed inset-0 z-[9999]">
         <div className="pointer-events-none absolute bottom-5 right-5 flex flex-col items-end gap-3 sm:bottom-6 sm:right-6">
           {isChiChiOpen && (
-            <div className="pointer-events-auto w-[calc(100vw-24px)] max-w-[395px] overflow-hidden rounded-[30px] border border-[#d9c8b6] bg-[#fbf6f0] shadow-[0_24px_70px_rgba(45,28,16,0.30)]">
+            <div className="pointer-events-auto w-[calc(100vw-24px)] max-w-[560px] overflow-hidden rounded-[30px] border border-[#d9c8b6] bg-[#fbf6f0] shadow-[0_24px_70px_rgba(45,28,16,0.30)]">
               <div className="flex items-center justify-between border-b border-[#e7dacc] bg-[#8f6945] px-4 py-4 text-white">
                 <div className="flex items-center gap-3">
                   <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#d6ab73] text-[#2a1d12] shadow-sm">
@@ -489,25 +552,102 @@ export default function PortalLayout({
                 </button>
               </div>
 
-              <div className="border-b border-[#eadfce] px-4 py-3">
-                <div className="flex flex-wrap gap-2">
-                  {quickPrompts.map((prompt) => (
+              <div className="border-b border-[#eadfce] bg-[#fffaf4] px-4 py-4">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-start">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div className="rounded-[20px] border border-[#e2d2c0] bg-white px-4 py-3">
+                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9a7a57]">
+                        Buyer
+                      </div>
+                      <div className="mt-1 text-sm font-semibold text-[#4d3b2b]">
+                        {buyerName || displayName}
+                      </div>
+                    </div>
+
+                    <div className="rounded-[20px] border border-[#e2d2c0] bg-white px-4 py-3">
+                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9a7a57]">
+                        Puppy
+                      </div>
+                      <div className="mt-1 text-sm font-semibold text-[#4d3b2b]">
+                        {puppyName || "Not loaded yet"}
+                      </div>
+                    </div>
+
+                    <div className="rounded-[20px] border border-[#e2d2c0] bg-white px-4 py-3">
+                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9a7a57]">
+                        Mode
+                      </div>
+                      <div className="mt-1 text-sm font-semibold text-[#4d3b2b]">
+                        {activeTab === "ask" ? "Ask ChiChi" : "Core Actions"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="inline-flex rounded-2xl border border-[#ddccb8] bg-white p-1 shadow-sm">
                     <button
-                      key={prompt}
                       type="button"
-                      onClick={() => {
-                        setChatDraft(prompt);
-                        requestAnimationFrame(() => chatInputRef.current?.focus());
-                      }}
-                      className="rounded-full border border-[#dfcfbd] bg-white px-3 py-1.5 text-xs font-semibold text-[#6d5037] transition hover:bg-[#fff9f3]"
+                      onClick={() => setActiveTab("ask")}
+                      className={`rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-[0.16em] transition ${
+                        activeTab === "ask"
+                          ? "bg-[#8f6945] text-white"
+                          : "text-[#7a5b40] hover:bg-[#faf3ea]"
+                      }`}
                     >
-                      {prompt}
+                      Ask
                     </button>
-                  ))}
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("actions")}
+                      className={`rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-[0.16em] transition ${
+                        activeTab === "actions"
+                          ? "bg-[#8f6945] text-white"
+                          : "text-[#7a5b40] hover:bg-[#faf3ea]"
+                      }`}
+                    >
+                      Core Actions
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <div className="h-[320px] overflow-y-auto px-4 py-4">
+              <div className="border-b border-[#eadfce] px-4 py-3">
+                {activeTab === "ask" ? (
+                  <div className="flex flex-wrap gap-2">
+                    {askPrompts.map((prompt) => (
+                      <button
+                        key={prompt}
+                        type="button"
+                        onClick={() => {
+                          setChatDraft(prompt);
+                          requestAnimationFrame(() => chatInputRef.current?.focus());
+                        }}
+                        className="rounded-full border border-[#dfcfbd] bg-white px-3 py-1.5 text-xs font-semibold text-[#6d5037] transition hover:bg-[#fff9f3]"
+                      >
+                        {prompt}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {coreActions.map((action) => (
+                      <button
+                        key={action.key}
+                        type="button"
+                        onClick={() => {
+                          setActiveTab("ask");
+                          void sendChiChiMessage(undefined, action.prompt);
+                        }}
+                        className="flex items-center gap-2 rounded-2xl border border-[#dfcfbd] bg-white px-3 py-3 text-left text-xs font-semibold text-[#6d5037] transition hover:bg-[#fff9f3]"
+                      >
+                        {action.icon}
+                        <span>{action.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="h-[380px] overflow-y-auto px-4 py-4">
                 <div className="space-y-3">
                   {messages.map((message) => {
                     const isUser = message.role === "user";
@@ -516,7 +656,7 @@ export default function PortalLayout({
                       <div key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
                         <div
                           className={[
-                            "max-w-[86%] rounded-[22px] px-4 py-3 text-sm leading-6 shadow-sm",
+                            "max-w-[88%] rounded-[22px] px-4 py-3 text-sm leading-6 shadow-sm",
                             isUser
                               ? "bg-[linear-gradient(135deg,#8f6945_0%,#6e5037_100%)] text-white"
                               : "border border-[#eadfce] bg-white text-[#5a4330]",
@@ -533,7 +673,7 @@ export default function PortalLayout({
 
                   {isSending && (
                     <div className="flex justify-start">
-                      <div className="max-w-[86%] rounded-[22px] border border-[#eadfce] bg-white px-4 py-3 text-sm text-[#6b523d] shadow-sm">
+                      <div className="max-w-[88%] rounded-[22px] border border-[#eadfce] bg-white px-4 py-3 text-sm text-[#6b523d] shadow-sm">
                         ChiChi is thinking…
                       </div>
                     </div>
@@ -543,21 +683,27 @@ export default function PortalLayout({
                 </div>
               </div>
 
-              <form onSubmit={sendChiChiMessage} className="border-t border-[#eadfce] bg-white/75 px-4 py-4">
+              <form onSubmit={(e) => void sendChiChiMessage(e)} className="border-t border-[#eadfce] bg-white/75 px-4 py-4">
                 <div className="rounded-[24px] border border-[#e3d3c2] bg-[#fffaf4] p-3 shadow-inner">
                   <textarea
                     ref={chatInputRef}
                     value={chatDraft}
                     onChange={(e) => setChatDraft(e.target.value)}
-                    rows={3}
-                    placeholder="Ask ChiChi about your puppy, payments, documents, messages, or pickup details."
+                    rows={4}
+                    placeholder={
+                      activeTab === "ask"
+                        ? "Ask ChiChi about your puppy, payments, documents, messages, or pickup details."
+                        : "Describe the Core action you want, like add puppy, add event, or log payment."
+                    }
                     className="w-full resize-none bg-transparent text-sm leading-6 text-[#4d3b2b] outline-none placeholder:text-[#af8f70]"
                   />
                 </div>
 
                 <div className="mt-3 flex items-center justify-between gap-3">
                   <div className="text-xs text-[#8f7257]">
-                    Account-aware answers from your portal data
+                    {activeTab === "ask"
+                      ? "Account-aware answers from your portal data"
+                      : "Core-ready actions for puppies, events, payments, and more"}
                   </div>
 
                   <button

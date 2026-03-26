@@ -169,7 +169,7 @@ type DocumentRecord = {
 };
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
-const ANTHROPIC_MODEL = "claude-3-5-sonnet-latest";
+const ANTHROPIC_MODEL = "claude-sonnet-4-6";
 
 function jsonError(text: string, status = 400) {
   return NextResponse.json({ text }, { status });
