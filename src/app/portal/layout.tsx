@@ -15,10 +15,13 @@ import {
   Menu,
   X,
   SendHorizonal,
+  Bell,
+  Search,
 } from "lucide-react";
 import { sb } from "@/lib/utils";
 
 type PortalUser = {
+  id?: string;
   email?: string | null;
   user_metadata?: {
     full_name?: string | null;
@@ -89,7 +92,7 @@ export default function PortalLayout({
     },
   ]);
 
-  const chatScrollRef = useRef<HTMLDivElement | null>(null);
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
   const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -128,7 +131,7 @@ export default function PortalLayout({
   useEffect(() => {
     if (isChiChiOpen) {
       requestAnimationFrame(() => {
-        chatScrollRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+        chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
       });
     }
   }, [messages, isChiChiOpen, isSending]);
@@ -205,20 +208,21 @@ export default function PortalLayout({
 
   function navClass(item: NavItem) {
     const active = isActive(item);
-
     return [
-      "group flex items-center gap-3 rounded-[18px] px-4 py-3 transition-all duration-200",
+      "group flex items-center gap-3 rounded-2xl px-4 py-3 transition-all duration-200",
       active
-        ? "bg-[#6f5338] text-white shadow-[0_12px_30px_rgba(111,83,56,0.24)]"
-        : "text-[#4d3b2b] hover:bg-white hover:shadow-sm",
+        ? "bg-[#d6ab73] text-[#21170f] shadow-[0_10px_24px_rgba(214,171,115,0.24)]"
+        : "text-[#f3ede6] hover:bg-white/8 hover:text-white",
     ].join(" ");
   }
 
   function iconWrapClass(item: NavItem) {
     const active = isActive(item);
     return [
-      "flex h-9 w-9 items-center justify-center rounded-full transition",
-      active ? "bg-white/10 text-white" : "bg-transparent text-[#8b7257] group-hover:text-[#4d3b2b]",
+      "flex h-9 w-9 items-center justify-center rounded-xl transition",
+      active
+        ? "bg-white/45 text-[#2b1d12]"
+        : "bg-white/5 text-[#d7c6b4] group-hover:bg-white/10 group-hover:text-white",
     ].join(" ");
   }
 
@@ -278,9 +282,7 @@ export default function PortalLayout({
         data?.text?.trim() ||
         "I ran into an issue while loading your portal information. Please try again.";
 
-      if (data?.threadId) {
-        setThreadId(data.threadId);
-      }
+      if (data?.threadId) setThreadId(data.threadId);
 
       setMessages((prev) => [
         ...prev,
@@ -316,32 +318,32 @@ export default function PortalLayout({
   ];
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f7f2ea_0%,#f3ece2_50%,#efe6db_100%)] text-slate-900">
-      <header className="sticky top-0 z-40 border-b border-[#e5d8c7] bg-white/80 backdrop-blur-xl md:hidden">
+    <div className="min-h-screen bg-[#f5efe7] text-[#23170f]">
+      <header className="sticky top-0 z-40 border-b border-[#d7c6b4] bg-[#8f6945] text-white shadow-[0_10px_28px_rgba(76,50,28,0.18)] md:hidden">
         <div className="flex h-16 items-center justify-between px-4">
           <button
             onClick={() => setIsDrawerOpen(true)}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#e2d3c1] bg-white text-[#6f5338] shadow-sm"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-white"
             aria-label="Open portal menu"
           >
             <Menu className="h-5 w-5" />
           </button>
 
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#7b5b3f] text-white shadow-sm">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#d6ab73] text-[#2a1c12] shadow-sm">
               <Dog className="h-5 w-5" />
             </div>
             <div className="leading-tight">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9a7a57]">
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/75">
                 Southwest Virginia Chihuahua
               </div>
-              <div className="font-serif text-[24px] leading-none text-[#4d3b2b]">
+              <div className="font-serif text-[23px] leading-none text-white">
                 My Puppy Portal
               </div>
             </div>
           </div>
 
-          <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[#e2d3c1] bg-[#f7efe5] text-sm font-bold text-[#6f5338]">
+          <div className="flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-white/10 text-sm font-bold text-white">
             {userInitial}
           </div>
         </div>
@@ -349,28 +351,27 @@ export default function PortalLayout({
 
       {isDrawerOpen && (
         <div
-          className="fixed inset-0 z-40 bg-[#2e2218]/35 backdrop-blur-sm md:hidden"
+          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm md:hidden"
           onClick={() => setIsDrawerOpen(false)}
         />
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-[86%] max-w-[320px] transform bg-transparent p-4 transition-transform duration-300 md:hidden ${
+        className={`fixed inset-y-0 left-0 z-50 w-[86%] max-w-[325px] transform bg-transparent p-3 transition-transform duration-300 md:hidden ${
           isDrawerOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex h-full flex-col rounded-[28px] border border-[#e0d1bf] bg-[linear-gradient(180deg,#f3ece2_0%,#efe6db_100%)] px-4 py-5 shadow-[0_20px_60px_rgba(74,51,33,0.16)]">
+        <div className="flex h-full flex-col rounded-[30px] border border-[#2a1f16] bg-[linear-gradient(180deg,#1d1713_0%,#241b15_100%)] px-4 py-5 shadow-[0_24px_70px_rgba(0,0,0,0.34)]">
           <div className="flex items-start justify-between gap-3 px-2">
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#7b5b3f] text-white">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#d6ab73] text-[#2b1d12]">
                 <Dog className="h-5 w-5" />
               </div>
-
               <div className="leading-tight">
-                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[#9a7a57]">
+                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[#bea58a]">
                   Southwest Virginia Chihuahua
                 </div>
-                <div className="font-serif text-[18px] leading-none text-[#4d3b2b]">
+                <div className="font-serif text-[20px] leading-none text-white">
                   My Puppy Portal
                 </div>
               </div>
@@ -378,7 +379,7 @@ export default function PortalLayout({
 
             <button
               onClick={() => setIsDrawerOpen(false)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-[#7b5b3f]"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-white/80"
               aria-label="Close portal menu"
             >
               <X className="h-5 w-5" />
@@ -394,40 +395,41 @@ export default function PortalLayout({
             ))}
           </nav>
 
-          <div className="mt-5 border-t border-[#dfcfbd] pt-5">
+          <div className="mt-5 border-t border-white/10 pt-5">
             <button
               onClick={handleSignOut}
-              className="w-full rounded-[16px] border border-[#e0d1bf] bg-white px-4 py-3 text-[15px] font-semibold text-[#5a4330] shadow-sm transition hover:bg-[#fffaf5]"
+              className="w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-[15px] font-semibold text-white transition hover:bg-white/10"
             >
               Sign out
             </button>
 
-            <div className="mt-3 px-1 text-xs text-[#8f7257]">
-              Signed in as <span className="font-semibold text-[#5a4330]">{user?.email || "—"}</span>
+            <div className="mt-3 px-1 text-xs text-[#c9b8a8]">
+              Signed in as{" "}
+              <span className="font-semibold text-white">{user?.email || "—"}</span>
             </div>
           </div>
         </div>
       </aside>
 
-      <div className="mx-auto flex max-w-[1600px] gap-6 px-4 py-4 md:px-6 md:py-6 xl:px-8">
-        <aside className="hidden md:block md:w-[300px] md:flex-shrink-0">
-          <div className="sticky top-6 flex flex-col rounded-[28px] border border-[#e0d1bf] bg-[linear-gradient(180deg,#f3ece2_0%,#efe6db_100%)] px-4 py-5 shadow-[0_20px_60px_rgba(74,51,33,0.12)]">
-            <div className="flex items-center gap-3 px-2">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#7b5b3f] text-white">
-                <Dog className="h-5 w-5" />
+      <div className="flex min-h-screen">
+        <aside className="hidden w-[292px] shrink-0 md:block">
+          <div className="sticky top-0 flex h-screen flex-col border-r border-[#2d2118] bg-[linear-gradient(180deg,#1c1713_0%,#251c15_100%)] px-5 py-6 text-white">
+            <div className="flex items-center gap-3 px-1">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#d6ab73] text-[#2b1d12] shadow-sm">
+                <Dog className="h-6 w-6" />
               </div>
 
               <div className="leading-tight">
-                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[#9a7a57]">
+                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[#bea58a]">
                   Southwest Virginia Chihuahua
                 </div>
-                <div className="font-serif text-[18px] leading-none text-[#4d3b2b]">
+                <div className="font-serif text-[22px] leading-none text-white">
                   My Puppy Portal
                 </div>
               </div>
             </div>
 
-            <nav className="mt-6 flex-1 space-y-2">
+            <nav className="mt-8 flex-1 space-y-2">
               {nav.map((item) => (
                 <Link key={item.href} href={item.href} className={navClass(item)}>
                   <span className={iconWrapClass(item)}>{item.icon}</span>
@@ -436,37 +438,75 @@ export default function PortalLayout({
               ))}
             </nav>
 
-            <div className="mt-5 border-t border-[#dfcfbd] pt-5">
+            <div className="mt-5 rounded-[24px] border border-white/10 bg-white/6 p-4">
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#bea58a]">
+                Portal Access
+              </div>
+              <div className="mt-2 text-sm font-semibold text-white">{displayName}</div>
+              <div className="mt-1 text-xs leading-5 text-[#cdb9a6]">
+                Your portal keeps your puppy updates, documents, messages, and payment details in one place.
+              </div>
+
               <button
                 onClick={handleSignOut}
-                className="w-full rounded-[16px] border border-[#e0d1bf] bg-white px-4 py-3 text-[15px] font-semibold text-[#5a4330] shadow-sm transition hover:bg-[#fffaf5]"
+                className="mt-4 w-full rounded-2xl bg-[#d6ab73] px-4 py-3 text-sm font-bold text-[#261a12] transition hover:bg-[#ddb985]"
               >
                 Sign out
               </button>
-
-              <div className="mt-3 px-1 text-xs text-[#8f7257]">
-                Signed in as <span className="font-semibold text-[#5a4330]">{user?.email || "—"}</span>
-              </div>
             </div>
           </div>
         </aside>
 
-        <main className="min-w-0 flex-1">{children}</main>
+        <div className="min-w-0 flex-1">
+          <div className="sticky top-0 z-30 hidden border-b border-[#d8c9b8] bg-[#8f6945] text-white shadow-[0_10px_28px_rgba(76,50,28,0.14)] md:block">
+            <div className="flex h-[78px] items-center justify-between px-6 lg:px-8">
+              <div className="flex items-center gap-4">
+                <div className="hidden items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-white/90 lg:flex">
+                  <Search className="h-3.5 w-3.5" />
+                  Welcome to My Puppy Portal
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-white/90"
+                  aria-label="Notifications"
+                >
+                  <Bell className="h-5 w-5" />
+                </button>
+
+                <div className="flex items-center gap-3 rounded-full border border-white/15 bg-white/10 px-3 py-2">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#d6ab73] text-sm font-black text-[#281b12]">
+                    {userInitial}
+                  </div>
+                  <div className="hidden pr-1 md:block">
+                    <div className="text-sm font-semibold text-white">{displayName}</div>
+                    <div className="text-[11px] text-white/75">{user?.email || "Portal account"}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <main className="min-h-screen bg-[#f5efe7]">
+            <div className="px-4 py-5 md:px-6 md:py-6 lg:px-8">{children}</div>
+          </main>
+        </div>
       </div>
 
       <div className="fixed bottom-5 right-5 z-[60] flex flex-col items-end gap-3 sm:bottom-6 sm:right-6">
         {isChiChiOpen && (
-          <div className="w-[calc(100vw-24px)] max-w-[380px] overflow-hidden rounded-[28px] border border-[#e4d5c3] bg-[linear-gradient(180deg,#fffaf4_0%,#fffdfb_100%)] shadow-[0_24px_70px_rgba(74,51,33,0.24)] backdrop-blur">
-            <div className="flex items-center justify-between border-b border-[#eadfce] px-4 py-4">
+          <div className="w-[calc(100vw-24px)] max-w-[395px] overflow-hidden rounded-[30px] border border-[#d9c8b6] bg-[#fbf6f0] shadow-[0_24px_70px_rgba(45,28,16,0.30)]">
+            <div className="flex items-center justify-between border-b border-[#e7dacc] bg-[#8f6945] px-4 py-4 text-white">
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#7b5b3f] text-white shadow-sm">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#d6ab73] text-[#2a1d12] shadow-sm">
                   <MessageCircle className="h-5 w-5" />
                 </div>
                 <div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9a7a57]">
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/75">
                     Portal Assistant
                   </div>
-                  <div className="font-serif text-lg leading-none text-[#4d3b2b]">
+                  <div className="font-serif text-lg leading-none text-white">
                     ChiChi Assistant
                   </div>
                 </div>
@@ -474,7 +514,7 @@ export default function PortalLayout({
 
               <button
                 onClick={() => setIsChiChiOpen(false)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-[#7b5b3f] hover:bg-white/70"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-white hover:bg-white/10"
                 aria-label="Close ChiChi Assistant"
               >
                 <X className="h-5 w-5" />
@@ -491,7 +531,7 @@ export default function PortalLayout({
                       setChatDraft(prompt);
                       chatInputRef.current?.focus();
                     }}
-                    className="rounded-full border border-[#e4d5c3] bg-white px-3 py-1.5 text-xs font-semibold text-[#6e5339] transition hover:bg-[#fff7ee]"
+                    className="rounded-full border border-[#dfcfbd] bg-white px-3 py-1.5 text-xs font-semibold text-[#6d5037] transition hover:bg-[#fff9f3]"
                   >
                     {prompt}
                   </button>
@@ -510,7 +550,7 @@ export default function PortalLayout({
                         className={[
                           "max-w-[86%] rounded-[22px] px-4 py-3 text-sm leading-6 shadow-sm",
                           isUser
-                            ? "bg-[linear-gradient(135deg,#7b5b3f_0%,#5f4632_100%)] text-white"
+                            ? "bg-[linear-gradient(135deg,#8f6945_0%,#6e5037_100%)] text-white"
                             : "border border-[#eadfce] bg-white text-[#5a4330]",
                         ].join(" ")}
                       >
@@ -531,7 +571,7 @@ export default function PortalLayout({
                   </div>
                 )}
 
-                <div ref={chatScrollRef} />
+                <div ref={chatEndRef} />
               </div>
             </div>
 
@@ -555,7 +595,7 @@ export default function PortalLayout({
                 <button
                   type="submit"
                   disabled={isSending || !chatDraft.trim()}
-                  className="inline-flex items-center gap-2 rounded-xl bg-[#7b5b3f] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(123,91,63,0.24)] transition hover:bg-[#6d5037] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#8f6945] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(123,91,63,0.24)] transition hover:bg-[#7d5b3c] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <SendHorizonal className="h-4 w-4" />
                   {isSending ? "Sending..." : "Send"}
@@ -567,7 +607,7 @@ export default function PortalLayout({
 
         <button
           onClick={() => setIsChiChiOpen((v) => !v)}
-          className="inline-flex items-center gap-3 rounded-full bg-[linear-gradient(135deg,#7b5b3f_0%,#5f4632_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_18px_44px_rgba(95,70,50,0.34)] transition hover:-translate-y-[1px]"
+          className="inline-flex items-center gap-3 rounded-full bg-[linear-gradient(135deg,#8f6945_0%,#6f5037_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_18px_44px_rgba(95,70,50,0.34)] transition hover:-translate-y-[1px]"
           aria-label="Toggle ChiChi Assistant"
         >
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/12">
