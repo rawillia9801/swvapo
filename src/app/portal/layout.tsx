@@ -21,6 +21,7 @@ import {
   FolderOpen,
   MessagesSquare,
   PawPrint,
+  ExternalLink,
 } from "lucide-react";
 import { sb } from "@/lib/utils";
 
@@ -89,6 +90,35 @@ function getClientCoreAdmins() {
   return [directOwner, ...extraAdmins].filter(Boolean);
 }
 
+function cleanAssistantText(text: string) {
+  return String(text || "")
+    .replace(/^#{1,6}\s*/gm, "")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/\*(.*?)\*/g, "$1")
+    .replace(/^>\s*/gm, "")
+    .replace(/^[-•]\s+/gm, "• ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function renderChatText(text: string) {
+  const cleaned = cleanAssistantText(text);
+  const paragraphs = cleaned
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  return (
+    <div className="space-y-3">
+      {paragraphs.map((paragraph, idx) => (
+        <p key={idx} className="whitespace-pre-wrap">
+          {paragraph}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 export default function PortalLayout({
   children,
 }: {
@@ -114,7 +144,7 @@ export default function PortalLayout({
       id: makeId("assistant"),
       role: "assistant",
       text:
-        "Hi, I’m ChiChi Assistant. I can help with your puppy profile, payments, documents, messages, updates, and pickup details.",
+        "Hi, I’m your personal ChiChi Assistant. Ask me a question about your account, or anything Chihuahua related!",
       createdAt: formatTime(),
     },
   ]);
@@ -226,13 +256,6 @@ export default function PortalLayout({
       setActiveTab("ask");
     }
   }, [isCoreAdmin, activeTab]);
-
-  const askPrompts = [
-    "How much do I still owe?",
-    "Do I have any documents left to sign?",
-    "What is my puppy’s latest update?",
-    "What is my pickup status?",
-  ];
 
   const coreActions: QuickAction[] = [
     {
@@ -397,6 +420,13 @@ export default function PortalLayout({
     }
   }
 
+  function handleTextareaKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      void sendChiChiMessage();
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[#f5efe7] text-[#23170f]">
       <header className="sticky top-0 z-40 border-b border-[#d7c6b4] bg-[#8f6945] text-white shadow-[0_10px_28px_rgba(76,50,28,0.18)] md:hidden">
@@ -553,7 +583,7 @@ export default function PortalLayout({
                   </div>
                   <div>
                     <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/75">
-                      Portal Assistant
+                      {isCoreAdmin ? "ChiChi + Core" : "Your Personal Assistant"}
                     </div>
                     <div className="font-serif text-lg leading-none text-white">
                       ChiChi Assistant
@@ -597,7 +627,7 @@ export default function PortalLayout({
                         Access
                       </div>
                       <div className="mt-1 text-sm font-semibold text-[#4d3b2b]">
-                        {isCoreAdmin ? "Portal + Core" : "Portal Help"}
+                        {isCoreAdmin ? "Admin Access" : "Portal Help"}
                       </div>
                     </div>
                   </div>
@@ -625,29 +655,22 @@ export default function PortalLayout({
                             : "text-[#7a5b40] hover:bg-[#faf3ea]"
                         }`}
                       >
-                        Core Actions
+                        Core Console
                       </button>
                     ) : null}
                   </div>
                 </div>
               </div>
 
-              <div className="border-b border-[#eadfce] px-4 py-3">
+              <div className="border-b border-[#eadfce] px-4 py-4">
                 {activeTab === "ask" || !isCoreAdmin ? (
-                  <div className="flex flex-wrap gap-2">
-                    {askPrompts.map((prompt) => (
-                      <button
-                        key={prompt}
-                        type="button"
-                        onClick={() => {
-                          setChatDraft(prompt);
-                          requestAnimationFrame(() => chatInputRef.current?.focus());
-                        }}
-                        className="rounded-full border border-[#dfcfbd] bg-white px-3 py-1.5 text-xs font-semibold text-[#6d5037] transition hover:bg-[#fff9f3]"
-                      >
-                        {prompt}
-                      </button>
-                    ))}
+                  <div className="rounded-[22px] border border-[#dfcfbd] bg-white px-4 py-4 text-sm leading-7 text-[#6d5037]">
+                    <div className="font-semibold text-[#4d3b2b]">
+                      Hi, I’m your personal ChiChi Assistant!
+                    </div>
+                    <div className="mt-1">
+                      Ask me a question about your account, or anything Chihuahua related.
+                    </div>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-2">
@@ -675,7 +698,10 @@ export default function PortalLayout({
                     const isUser = message.role === "user";
 
                     return (
-                      <div key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+                      <div
+                        key={message.id}
+                        className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+                      >
                         <div
                           className={[
                             "max-w-[88%] rounded-[22px] px-4 py-3 text-sm leading-6 shadow-sm",
@@ -684,8 +710,12 @@ export default function PortalLayout({
                               : "border border-[#eadfce] bg-white text-[#5a4330]",
                           ].join(" ")}
                         >
-                          <div className="whitespace-pre-wrap">{message.text}</div>
-                          <div className={`mt-1 text-[11px] ${isUser ? "text-white/80" : "text-[#9a7a57]"}`}>
+                          {renderChatText(message.text)}
+                          <div
+                            className={`mt-2 text-[11px] ${
+                              isUser ? "text-white/80" : "text-[#9a7a57]"
+                            }`}
+                          >
                             {message.createdAt}
                           </div>
                         </div>
@@ -696,7 +726,7 @@ export default function PortalLayout({
                   {isSending && (
                     <div className="flex justify-start">
                       <div className="max-w-[88%] rounded-[22px] border border-[#eadfce] bg-white px-4 py-3 text-sm text-[#6b523d] shadow-sm">
-                        ChiChi is thinking…
+                        Thinking...
                       </div>
                     </div>
                   )}
@@ -705,12 +735,16 @@ export default function PortalLayout({
                 </div>
               </div>
 
-              <form onSubmit={(e) => void sendChiChiMessage(e)} className="border-t border-[#eadfce] bg-white/75 px-4 py-4">
+              <form
+                onSubmit={(e) => void sendChiChiMessage(e)}
+                className="border-t border-[#eadfce] bg-white/75 px-4 py-4"
+              >
                 <div className="rounded-[24px] border border-[#e3d3c2] bg-[#fffaf4] p-3 shadow-inner">
                   <textarea
                     ref={chatInputRef}
                     value={chatDraft}
                     onChange={(e) => setChatDraft(e.target.value)}
+                    onKeyDown={handleTextareaKeyDown}
                     rows={4}
                     placeholder={
                       activeTab === "actions" && isCoreAdmin
@@ -722,10 +756,17 @@ export default function PortalLayout({
                 </div>
 
                 <div className="mt-3 flex items-center justify-between gap-3">
-                  <div className="text-xs text-[#8f7257]">
-                    {activeTab === "actions" && isCoreAdmin
-                      ? "Core-ready actions for puppies, events, payments, and more"
-                      : "Account-aware answers from your portal data"}
+                  <div className="text-xs leading-5 text-[#8f7257]">
+                    If this is an emergency, please contact your local veterinarian.{" "}
+                    <a
+                      href="https://www.google.com/maps/search/emergency+veterinarian+near+me"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 font-semibold text-[#7b5b3f] underline underline-offset-2 hover:text-[#5f4632]"
+                    >
+                      Click here for nearby emergency vets
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
                   </div>
 
                   <button
