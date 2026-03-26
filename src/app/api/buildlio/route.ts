@@ -62,6 +62,8 @@ type PuppyRecord = {
   weight_date: string | null;
   microchip: string | null;
   registration_no: string | null;
+  registry?: string | null;
+  owner_email?: string | null;
 };
 
 type PaymentRecord = {
@@ -168,6 +170,62 @@ type DocumentRecord = {
   signed_at: string | null;
 };
 
+type ActionIntent =
+  | {
+      action: "answer_only";
+      confidence?: string;
+      reason?: string;
+    }
+  | {
+      action: "add_puppy";
+      confidence?: string;
+      call_name?: string | null;
+      puppy_name?: string | null;
+      name?: string | null;
+      sex?: string | null;
+      color?: string | null;
+      coat_type?: string | null;
+      pattern?: string | null;
+      dob?: string | null;
+      registry?: string | null;
+      price?: number | null;
+      status?: string | null;
+      buyer_name?: string | null;
+      buyer_email?: string | null;
+      owner_email?: string | null;
+      notes?: string | null;
+      description?: string | null;
+    }
+  | {
+      action: "add_puppy_event";
+      confidence?: string;
+      puppy_name?: string | null;
+      puppy_id?: number | null;
+      event_date?: string | null;
+      event_type?: string | null;
+      label?: string | null;
+      title?: string | null;
+      summary?: string | null;
+      details?: string | null;
+      value?: number | null;
+      unit?: string | null;
+      is_published?: boolean | null;
+    }
+  | {
+      action: "log_payment";
+      confidence?: string;
+      buyer_name?: string | null;
+      buyer_email?: string | null;
+      puppy_name?: string | null;
+      amount?: number | null;
+      payment_date?: string | null;
+      payment_type?: string | null;
+      method?: string | null;
+      note?: string | null;
+      reference_number?: string | null;
+      status?: string | null;
+    };
+
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_MODEL = "claude-sonnet-4-6";
 
@@ -181,6 +239,10 @@ function getEnv(name: string): string {
     throw new Error(`Missing environment variable: ${name}`);
   }
   return value;
+}
+
+function getOptionalEnv(name: string): string | null {
+  return process.env[name] || null;
 }
 
 function getBearerToken(req: Request, body?: RequestBody): string | null {
@@ -243,6 +305,37 @@ function compactObject<T extends Record<string, unknown>>(obj: T): T {
   return Object.fromEntries(
     Object.entries(obj).filter(([, value]) => value !== null && value !== undefined && value !== "")
   ) as T;
+}
+
+function normalizeName(value: string | null | undefined): string {
+  return String(value || "")
+    .trim()
+    .toLowerCase();
+}
+
+function isCoreWriteAllowed(userId: string): boolean {
+  const devOwnerId = getOptionalEnv("DEV_OWNER_ID");
+  const allowedIds = String(getOptionalEnv("CORE_ADMIN_USER_IDS") || "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+
+  if (devOwnerId && userId === devOwnerId) return true;
+  if (allowedIds.includes(userId)) return true;
+  return false;
+}
+
+function extractJsonObject(text: string): any | null {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) return null;
+
+  const candidate = text.slice(start, end + 1);
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    return null;
+  }
 }
 
 async function verifyUser(req: Request, body: RequestBody) {
@@ -320,7 +413,9 @@ async function getPuppyContext(admin: SupabaseClient, buyer: BuyerRecord | null)
       weight_unit,
       weight_date,
       microchip,
-      registration_no
+      registration_no,
+      registry,
+      owner_email
     `)
     .limit(1);
 
@@ -770,6 +865,284 @@ ${JSON.stringify(summary, null, 2)}
 `.trim();
 }
 
+function buildActionExtractionPrompt(userMessage: string) {
+  return `
+You are extracting a command intent for ChiChi / Core.
+
+Return ONLY valid JSON.
+No markdown.
+No explanation.
+
+Allowed actions:
+- "answer_only"
+- "add_puppy"
+- "add_puppy_event"
+- "log_payment"
+
+Use "answer_only" if the message is mostly a question, lookup, explanation, or lacks enough intent to act.
+
+For "add_puppy", try to extract:
+call_name, puppy_name, name, sex, color, coat_type, pattern, dob, registry, price, status, buyer_name, buyer_email, owner_email, notes, description
+
+For "add_puppy_event", try to extract:
+puppy_name, puppy_id, event_date, event_type, label, title, summary, details, value, unit, is_published
+
+For "log_payment", try to extract:
+buyer_name, buyer_email, puppy_name, amount, payment_date, payment_type, method, note, reference_number, status
+
+Use null for missing fields.
+Use ISO date format YYYY-MM-DD when possible.
+Use numbers for numeric fields.
+
+User message:
+${JSON.stringify(userMessage)}
+`.trim();
+}
+
+async function extractActionIntent(userMessage: string): Promise<ActionIntent> {
+  const response = await fetch(ANTHROPIC_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": getEnv("ANTHROPIC_API_KEY"),
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: ANTHROPIC_MODEL,
+      max_tokens: 500,
+      system:
+        "You extract structured JSON intents for a business assistant. Return only JSON. No prose.",
+      messages: [
+        {
+          role: "user",
+          content: buildActionExtractionPrompt(userMessage),
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    return { action: "answer_only", reason: "intent extraction failed" };
+  }
+
+  const data = await response.json();
+  const text = data?.content?.[0]?.text?.trim() || "";
+  const parsed = extractJsonObject(text);
+
+  if (!parsed || typeof parsed !== "object" || !parsed.action) {
+    return { action: "answer_only", reason: "intent extraction returned invalid JSON" };
+  }
+
+  return parsed as ActionIntent;
+}
+
+async function findBuyerByNameOrEmail(
+  admin: SupabaseClient,
+  buyerName?: string | null,
+  buyerEmail?: string | null
+): Promise<BuyerRecord | null> {
+  const email = String(buyerEmail || "").trim().toLowerCase();
+  const name = normalizeName(buyerName);
+
+  if (email) {
+    const emailQueries = [
+      admin.from("buyers").select("*").ilike("email", email).limit(1).maybeSingle<BuyerRecord>(),
+    ];
+
+    for (const q of emailQueries) {
+      const { data, error } = await q;
+      if (!error && data) return data;
+    }
+  }
+
+  if (name) {
+    const { data, error } = await admin.from("buyers").select("*").limit(200);
+    if (!error && data?.length) {
+      const match = data.find((b: any) => {
+        const full = normalizeName(b.full_name);
+        const simple = normalizeName(b.name);
+        return full === name || simple === name;
+      });
+      if (match) return match as BuyerRecord;
+    }
+  }
+
+  return null;
+}
+
+async function findPuppyByNameOrId(
+  admin: SupabaseClient,
+  puppyName?: string | null,
+  puppyId?: number | null
+): Promise<PuppyRecord | null> {
+  if (puppyId) {
+    const { data, error } = await admin
+      .from("puppies")
+      .select("*")
+      .eq("id", puppyId)
+      .maybeSingle<PuppyRecord>();
+    if (!error && data) return data;
+  }
+
+  const target = normalizeName(puppyName);
+  if (!target) return null;
+
+  const { data, error } = await admin.from("puppies").select("*").limit(300);
+  if (error || !data?.length) return null;
+
+  const match = data.find((p: any) => {
+    const a = normalizeName(p.call_name);
+    const b = normalizeName(p.puppy_name);
+    const c = normalizeName(p.name);
+    return a === target || b === target || c === target;
+  });
+
+  return (match as PuppyRecord) || null;
+}
+
+function missingFieldsForAction(intent: ActionIntent): string[] {
+  if (intent.action === "add_puppy") {
+    const hasName = !!(intent.call_name || intent.puppy_name || intent.name);
+    const missing: string[] = [];
+    if (!hasName) missing.push("puppy name");
+    return missing;
+  }
+
+  if (intent.action === "add_puppy_event") {
+    const missing: string[] = [];
+    if (!intent.puppy_id && !intent.puppy_name) missing.push("puppy");
+    if (!intent.event_date) missing.push("event date");
+    if (!intent.label && !intent.title) missing.push("event title");
+    return missing;
+  }
+
+  if (intent.action === "log_payment") {
+    const missing: string[] = [];
+    if (!intent.buyer_name && !intent.buyer_email) missing.push("buyer");
+    if (intent.amount === null || intent.amount === undefined || Number.isNaN(Number(intent.amount))) {
+      missing.push("amount");
+    }
+    if (!intent.payment_date) missing.push("payment date");
+    return missing;
+  }
+
+  return [];
+}
+
+async function executeAddPuppy(
+  admin: SupabaseClient,
+  intent: Extract<ActionIntent, { action: "add_puppy" }>
+) {
+  const buyer = await findBuyerByNameOrEmail(admin, intent.buyer_name, intent.buyer_email);
+
+  const payload = {
+    call_name: intent.call_name || intent.puppy_name || intent.name || null,
+    puppy_name: intent.puppy_name || intent.call_name || intent.name || null,
+    name: intent.name || intent.call_name || intent.puppy_name || null,
+    sex: intent.sex || null,
+    color: intent.color || null,
+    coat_type: intent.coat_type || null,
+    pattern: intent.pattern || null,
+    dob: intent.dob || null,
+    registry: intent.registry || null,
+    price: intent.price ?? null,
+    status: intent.status || "Available",
+    buyer_id: buyer?.id ?? null,
+    owner_email: intent.owner_email || buyer?.email || intent.buyer_email || null,
+    notes: intent.notes || null,
+    description: intent.description || null,
+  };
+
+  const { data, error } = await admin
+    .from("puppies")
+    .insert(payload)
+    .select("id, call_name, puppy_name, name, status")
+    .single();
+
+  if (error) {
+    throw new Error(`Could not add puppy: ${error.message}`);
+  }
+
+  const puppyDisplay =
+    data?.call_name || data?.puppy_name || data?.name || "New puppy";
+
+  return `Core action completed. I added puppy "${puppyDisplay}" with status "${data?.status || payload.status}".`;
+}
+
+async function executeAddPuppyEvent(
+  admin: SupabaseClient,
+  intent: Extract<ActionIntent, { action: "add_puppy_event" }>
+) {
+  const puppy = await findPuppyByNameOrId(admin, intent.puppy_name, intent.puppy_id);
+
+  if (!puppy?.id) {
+    throw new Error("I could not find that puppy to attach the event.");
+  }
+
+  const payload = {
+    puppy_id: puppy.id,
+    event_date: intent.event_date,
+    event_type: intent.event_type || "milestone",
+    label: intent.label || intent.title || "Update",
+    title: intent.title || intent.label || null,
+    summary: intent.summary || null,
+    details: intent.details || null,
+    value: intent.value ?? null,
+    unit: intent.unit || null,
+    auto_generated: false,
+    is_published: intent.is_published ?? true,
+    is_private: false,
+    sort_order: 0,
+  };
+
+  const { error } = await admin.from("puppy_events").insert(payload);
+  if (error) {
+    throw new Error(`Could not add puppy event: ${error.message}`);
+  }
+
+  const puppyDisplay = puppy.call_name || puppy.puppy_name || puppy.name || "that puppy";
+  return `Core action completed. I added the event "${payload.label}" for ${puppyDisplay} on ${payload.event_date}.`;
+}
+
+async function executeLogPayment(
+  admin: SupabaseClient,
+  intent: Extract<ActionIntent, { action: "log_payment" }>
+) {
+  const buyer = await findBuyerByNameOrEmail(admin, intent.buyer_name, intent.buyer_email);
+
+  if (!buyer?.id) {
+    throw new Error("I could not find that buyer to log the payment.");
+  }
+
+  let puppy: PuppyRecord | null = null;
+  if (intent.puppy_name) {
+    puppy = await findPuppyByNameOrId(admin, intent.puppy_name, null);
+  }
+
+  const payload = {
+    buyer_id: buyer.id,
+    puppy_id: puppy?.id ?? buyer.puppy_id ?? null,
+    user_id: buyer.user_id ?? null,
+    payment_date: intent.payment_date,
+    amount: Number(intent.amount),
+    payment_type: intent.payment_type || "payment",
+    method: intent.method || null,
+    note: intent.note || null,
+    status: intent.status || "recorded",
+    reference_number: intent.reference_number || null,
+  };
+
+  const { error } = await admin.from("buyer_payments").insert(payload);
+  if (error) {
+    throw new Error(`Could not log payment: ${error.message}`);
+  }
+
+  const buyerDisplay = buyer.full_name || buyer.name || buyer.email || "that buyer";
+  return `Core action completed. I logged a payment of $${Number(payload.amount).toFixed(
+    2
+  )} for ${buyerDisplay} dated ${payload.payment_date}.`;
+}
+
 async function saveConversation(params: {
   admin: SupabaseClient;
   threadId?: string | null;
@@ -890,40 +1263,65 @@ export async function POST(req: Request) {
       documents,
     });
 
-    const system = buildSystemPrompt(summary);
+    const intent = await extractActionIntent(lastUserMessage);
+    const canWriteCore = isCoreWriteAllowed(user.id);
 
-    const anthropicResponse = await fetch(ANTHROPIC_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": getEnv("ANTHROPIC_API_KEY"),
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: ANTHROPIC_MODEL,
-        max_tokens: body.max_tokens || 1200,
-        system,
-        messages: messages.map((message) => ({
-          role: message.role,
-          content: message.content,
-        })),
-      }),
-    });
+    let text = "";
 
-    if (!anthropicResponse.ok) {
-      const errorText = await anthropicResponse.text();
-      console.error("Anthropic API Error:", errorText);
-      return jsonError("ChiChi had trouble generating a response right now.", 502);
+    if (intent.action !== "answer_only") {
+      if (!canWriteCore) {
+        text =
+          "You’re signed in, but Core write actions are limited to authorized admin accounts. I can still answer questions about the account and portal.";
+      } else {
+        const missing = missingFieldsForAction(intent);
+        if (missing.length) {
+          text = `I can do that, but I still need: ${missing.join(", ")}.`;
+        } else if (intent.action === "add_puppy") {
+          text = await executeAddPuppy(admin, intent);
+        } else if (intent.action === "add_puppy_event") {
+          text = await executeAddPuppyEvent(admin, intent);
+        } else if (intent.action === "log_payment") {
+          text = await executeLogPayment(admin, intent);
+        }
+      }
     }
-
-    const anthropicData = await anthropicResponse.json();
-    const text = anthropicData?.content?.[0]?.text?.trim();
 
     if (!text) {
-      return jsonError("ChiChi could not generate a response.", 502);
+      const system = buildSystemPrompt(summary);
+
+      const anthropicResponse = await fetch(ANTHROPIC_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": getEnv("ANTHROPIC_API_KEY"),
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: ANTHROPIC_MODEL,
+          max_tokens: body.max_tokens || 1200,
+          system,
+          messages: messages.map((message) => ({
+            role: message.role,
+            content: message.content,
+          })),
+        }),
+      });
+
+      if (!anthropicResponse.ok) {
+        const errorText = await anthropicResponse.text();
+        console.error("Anthropic API Error:", errorText);
+        return jsonError("ChiChi had trouble generating a response right now.", 502);
+      }
+
+      const anthropicData = await anthropicResponse.json();
+      text = anthropicData?.content?.[0]?.text?.trim();
+
+      if (!text) {
+        return jsonError("ChiChi could not generate a response.", 502);
+      }
     }
 
-    const threadId = await saveConversation({
+    const savedThreadId = await saveConversation({
       admin,
       threadId: body.threadId,
       userId: user.id,
@@ -936,7 +1334,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       text,
       assistant: "ChiChi",
-      threadId,
+      threadId: savedThreadId,
       context: {
         buyerName: buyer?.full_name || buyer?.name || null,
         puppyName: coalesceName(buyer, puppy),
@@ -946,7 +1344,7 @@ export async function POST(req: Request) {
     console.error("ChiChi route error:", error);
     return NextResponse.json(
       {
-        text: "ChiChi ran into a server error while loading your account.",
+        text: `ChiChi server error: ${error instanceof Error ? error.message : "Unknown error"}`,
       },
       { status: 500 }
     );

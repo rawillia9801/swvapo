@@ -79,6 +79,16 @@ function formatTime(date = new Date()) {
   });
 }
 
+function getClientCoreAdmins() {
+  const directOwner = process.env.NEXT_PUBLIC_DEV_OWNER_ID || "";
+  const extraAdmins = (process.env.NEXT_PUBLIC_CORE_ADMIN_USER_IDS || "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+
+  return [directOwner, ...extraAdmins].filter(Boolean);
+}
+
 export default function PortalLayout({
   children,
 }: {
@@ -104,7 +114,7 @@ export default function PortalLayout({
       id: makeId("assistant"),
       role: "assistant",
       text:
-        "Hi, I’m ChiChi Assistant. I can answer questions about your portal and help with Core actions like adding puppies, events, and payments.",
+        "Hi, I’m ChiChi Assistant. I can help with your puppy profile, payments, documents, messages, updates, and pickup details.",
       createdAt: formatTime(),
     },
   ]);
@@ -207,6 +217,15 @@ export default function PortalLayout({
     "Portal User";
 
   const userInitial = (displayName?.[0] || user?.email?.[0] || "U").toUpperCase();
+
+  const clientCoreAdmins = useMemo(() => getClientCoreAdmins(), []);
+  const isCoreAdmin = !!user?.id && clientCoreAdmins.includes(user.id);
+
+  useEffect(() => {
+    if (!isCoreAdmin && activeTab === "actions") {
+      setActiveTab("ask");
+    }
+  }, [isCoreAdmin, activeTab]);
 
   const askPrompts = [
     "How much do I still owe?",
@@ -569,16 +588,16 @@ export default function PortalLayout({
                         Puppy
                       </div>
                       <div className="mt-1 text-sm font-semibold text-[#4d3b2b]">
-                        {puppyName || "Not loaded yet"}
+                        {puppyName || "your puppy"}
                       </div>
                     </div>
 
                     <div className="rounded-[20px] border border-[#e2d2c0] bg-white px-4 py-3">
                       <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9a7a57]">
-                        Mode
+                        Access
                       </div>
                       <div className="mt-1 text-sm font-semibold text-[#4d3b2b]">
-                        {activeTab === "ask" ? "Ask ChiChi" : "Core Actions"}
+                        {isCoreAdmin ? "Portal + Core" : "Portal Help"}
                       </div>
                     </div>
                   </div>
@@ -595,23 +614,26 @@ export default function PortalLayout({
                     >
                       Ask
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("actions")}
-                      className={`rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-[0.16em] transition ${
-                        activeTab === "actions"
-                          ? "bg-[#8f6945] text-white"
-                          : "text-[#7a5b40] hover:bg-[#faf3ea]"
-                      }`}
-                    >
-                      Core Actions
-                    </button>
+
+                    {isCoreAdmin ? (
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab("actions")}
+                        className={`rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-[0.16em] transition ${
+                          activeTab === "actions"
+                            ? "bg-[#8f6945] text-white"
+                            : "text-[#7a5b40] hover:bg-[#faf3ea]"
+                        }`}
+                      >
+                        Core Actions
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               </div>
 
               <div className="border-b border-[#eadfce] px-4 py-3">
-                {activeTab === "ask" ? (
+                {activeTab === "ask" || !isCoreAdmin ? (
                   <div className="flex flex-wrap gap-2">
                     {askPrompts.map((prompt) => (
                       <button
@@ -691,9 +713,9 @@ export default function PortalLayout({
                     onChange={(e) => setChatDraft(e.target.value)}
                     rows={4}
                     placeholder={
-                      activeTab === "ask"
-                        ? "Ask ChiChi about your puppy, payments, documents, messages, or pickup details."
-                        : "Describe the Core action you want, like add puppy, add event, or log payment."
+                      activeTab === "actions" && isCoreAdmin
+                        ? "Describe the Core action you want, like add puppy, add event, or log payment."
+                        : "Ask ChiChi about your puppy, payments, documents, messages, or pickup details."
                     }
                     className="w-full resize-none bg-transparent text-sm leading-6 text-[#4d3b2b] outline-none placeholder:text-[#af8f70]"
                   />
@@ -701,9 +723,9 @@ export default function PortalLayout({
 
                 <div className="mt-3 flex items-center justify-between gap-3">
                   <div className="text-xs text-[#8f7257]">
-                    {activeTab === "ask"
-                      ? "Account-aware answers from your portal data"
-                      : "Core-ready actions for puppies, events, payments, and more"}
+                    {activeTab === "actions" && isCoreAdmin
+                      ? "Core-ready actions for puppies, events, payments, and more"
+                      : "Account-aware answers from your portal data"}
                   </div>
 
                   <button
