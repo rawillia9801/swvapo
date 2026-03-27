@@ -1,4 +1,3 @@
-// FILE: app/api/chichi-public/route.ts
 import { NextResponse } from "next/server";
 
 type PublicRequestBody = {
@@ -8,38 +7,36 @@ type PublicRequestBody = {
 };
 
 function getAllowedOrigin(origin: string | null) {
-  const allowed = new Set([
+  const allowedOrigins = [
     "https://swvachihuahua.com",
     "https://www.swvachihuahua.com",
+    "http://swvachihuahua.com",
+    "http://www.swvachihuahua.com",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-  ]);
+  ];
 
-  if (origin && allowed.has(origin)) return origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    return origin;
+  }
+
   return "https://swvachihuahua.com";
 }
 
-function corsHeaders(origin: string | null) {
+function withCors(origin: string | null, extra: Record<string, string> = {}) {
   return {
     "Access-Control-Allow-Origin": getAllowedOrigin(origin),
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Max-Age": "86400",
+    ...extra,
   };
-}
-
-function getEnv(name: string) {
-  const value = process.env[name];
-  if (!value) throw new Error(`Missing environment variable: ${name}`);
-  return value;
 }
 
 function localPublicFallback(message: string) {
   const q = String(message || "").trim().toLowerCase();
 
-  if (!q) {
-    return "Please type a question and I’ll help however I can.";
-  }
+  if (!q) return "Please type a question and I’ll help however I can.";
 
   if (
     q.includes("available") ||
@@ -47,7 +44,7 @@ function localPublicFallback(message: string) {
     q.includes("puppies right now") ||
     q.includes("do you have puppies")
   ) {
-    return "We do not currently have any available puppies. Our next litter is expected mid June, and interested families are welcome to join the Wait List.";
+    return "We do not currently have any available puppies. Our next litter is expected mid June, and interested families are welcome to join our Wait List.";
   }
 
   if (q.includes("wait list") || q.includes("waitlist")) {
@@ -124,11 +121,26 @@ Style:
 `.trim();
 }
 
+export async function GET(req: Request) {
+  const origin = req.headers.get("origin");
+  return NextResponse.json(
+    {
+      ok: true,
+      route: "chichi-public",
+      message: "ChiChi public endpoint is live.",
+    },
+    {
+      status: 200,
+      headers: withCors(origin),
+    }
+  );
+}
+
 export async function OPTIONS(req: Request) {
   const origin = req.headers.get("origin");
   return new NextResponse(null, {
     status: 204,
-    headers: corsHeaders(origin),
+    headers: withCors(origin),
   });
 }
 
@@ -142,7 +154,10 @@ export async function POST(req: Request) {
     if (!message) {
       return NextResponse.json(
         { text: "Please type a question and I’ll help however I can." },
-        { status: 400, headers: corsHeaders(origin) }
+        {
+          status: 400,
+          headers: withCors(origin),
+        }
       );
     }
 
@@ -152,7 +167,10 @@ export async function POST(req: Request) {
     if (!apiKey || !model) {
       return NextResponse.json(
         { text: localPublicFallback(message) },
-        { status: 200, headers: corsHeaders(origin) }
+        {
+          status: 200,
+          headers: withCors(origin),
+        }
       );
     }
 
@@ -177,10 +195,12 @@ export async function POST(req: Request) {
     });
 
     if (!response.ok) {
-      const fallback = localPublicFallback(message);
       return NextResponse.json(
-        { text: fallback },
-        { status: 200, headers: corsHeaders(origin) }
+        { text: localPublicFallback(message) },
+        {
+          status: 200,
+          headers: withCors(origin),
+        }
       );
     }
 
@@ -190,12 +210,18 @@ export async function POST(req: Request) {
 
     return NextResponse.json(
       { text },
-      { status: 200, headers: corsHeaders(origin) }
+      {
+        status: 200,
+        headers: withCors(origin),
+      }
     );
   } catch {
     return NextResponse.json(
       { text: "I had a little trouble answering that. Please try again." },
-      { status: 200, headers: corsHeaders(origin) }
+      {
+        status: 200,
+        headers: withCors(origin),
+      }
     );
   }
 }
