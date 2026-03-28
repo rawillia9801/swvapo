@@ -782,7 +782,7 @@ export default function PortalLayout({
         {/* Main Content Area */}
         <main className="min-w-0 flex-1">
           <div className="h-16 border-b border-[#4a3b2b] bg-[linear-gradient(90deg,#2a2118_0%,#3a2d1c_100%)] text-[#f3e4ca]">
-            <div className="mx-auto flex h-full max-w-7xl items-center justify-between gap-4 px-4 md:px-8 lg:px-12">
+            <div className="flex h-full w-full items-center justify-between gap-4 px-4 md:px-6 lg:px-8 xl:px-10">
               <div className="min-w-0">
                 <div className="font-serif text-[22px] leading-none tracking-wide text-white">
                   {pageTitle}
@@ -882,7 +882,7 @@ export default function PortalLayout({
             </div>
           </div>
 
-          <div className="mx-auto max-w-7xl px-4 py-5 md:px-8 md:py-5 lg:px-12">
+          <div className="w-full px-4 py-5 md:px-6 md:py-5 lg:px-8 xl:px-10">
             {children}
           </div>
         </main>

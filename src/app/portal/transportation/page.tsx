@@ -681,19 +681,19 @@ const row = data[0] as unknown as Record<string, unknown>;
 
   return (
     <div className="space-y-6 pb-8">
-      <section className="rounded-[30px] border border-slate-200 bg-white px-6 py-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)] sm:px-8 sm:py-8">
+      <section className="overflow-hidden rounded-[32px] border border-[#d8cab7] bg-[linear-gradient(135deg,#fffdf9_0%,#fff8ef_42%,#ffffff_100%)] px-6 py-6 shadow-[0_24px_80px_rgba(36,24,15,0.12)] sm:px-8 sm:py-8">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">
-            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#e6d6bf] bg-white/90 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-[#8d6f52] shadow-sm">
               <Truck className="h-4 w-4" />
               Transporation
             </div>
 
-            <h1 className="mt-4 font-serif text-3xl leading-tight text-slate-900 sm:text-4xl">
+            <h1 className="mt-4 font-serif text-3xl leading-tight text-[#22170f] sm:text-5xl">
               Pickup / Meet / Delivery Request
             </h1>
 
-            <p className="mt-3 max-w-3xl text-sm font-medium leading-6 text-slate-600 sm:text-[15px]">
+            <p className="mt-3 max-w-4xl text-sm font-medium leading-6 text-[#6f5a45] sm:text-[15px]">
               Use this page to request pickup at our location, a public meet-up,
               a drop-off arrangement, or transportation planning for your puppy.
             </p>
@@ -702,7 +702,7 @@ const row = data[0] as unknown as Record<string, unknown>;
           <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={refreshAll}
-              className="inline-flex items-center gap-2 rounded-[16px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
+              className="inline-flex items-center gap-2 rounded-[16px] border border-[#e5d9ca] bg-white px-4 py-3 text-sm font-semibold text-[#3f3125] shadow-[0_10px_25px_rgba(58,43,26,0.08)] transition hover:bg-[#fffaf3]"
             >
               <RefreshCw className="h-4 w-4" />
               Refresh
@@ -710,7 +710,7 @@ const row = data[0] as unknown as Record<string, unknown>;
 
             <button
               onClick={() => window.print()}
-              className="inline-flex items-center gap-2 rounded-[16px] bg-[#0f1938] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(15,25,56,0.24)] transition hover:bg-[#15214a]"
+              className="inline-flex items-center gap-2 rounded-[16px] bg-[#1a244a] px-4 py-3 text-sm font-semibold text-white shadow-[0_16px_32px_rgba(26,36,74,0.24)] transition hover:bg-[#202d5d]"
             >
               <Printer className="h-4 w-4" />
               Print
@@ -718,7 +718,7 @@ const row = data[0] as unknown as Record<string, unknown>;
           </div>
         </div>
 
-        <div className="mt-6 rounded-[24px] border border-emerald-200 bg-emerald-50/70 p-5">
+        <div className="mt-6 rounded-[26px] border border-[#bce5d2] bg-[linear-gradient(180deg,#eefbf5_0%,#e9f9f2_100%)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
           <div className="flex items-start gap-4">
             <div className="mt-0.5 flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-600 text-white">
               <ShieldCheck className="h-5 w-5" />
@@ -750,7 +750,7 @@ const row = data[0] as unknown as Record<string, unknown>;
           </div>
         </div>
 
-        <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
           <StatusCard
             label="Assigned Puppy"
             title={puppyName}
@@ -775,6 +775,13 @@ const row = data[0] as unknown as Record<string, unknown>;
             subtitle={selectedAvailability.hint}
             icon={<CheckCircle2 className="h-5 w-5" />}
           />
+
+          <StatusCard
+            label="Estimated Fee"
+            title={requestEstimate.label}
+            subtitle={requestEstimate.detail}
+            icon={<Truck className="h-5 w-5" />}
+          />
         </div>
       </section>
 
@@ -790,9 +797,9 @@ const row = data[0] as unknown as Record<string, unknown>;
         </div>
       ) : null}
 
-      <section className="rounded-[30px] border border-[#dccab7] bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)] sm:p-7">
+      <section className="rounded-[32px] border border-[#dccab7] bg-white p-6 shadow-[0_24px_80px_rgba(36,24,15,0.10)] sm:p-7">
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-          <div className="space-y-4 xl:col-span-7">
+          <div className="space-y-4 xl:col-span-8">
             <div>
               <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
                 Current Request
@@ -802,7 +809,7 @@ const row = data[0] as unknown as Record<string, unknown>;
               </h2>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
               <PolicyCard
                 label="Request Date"
                 value={latestRequest?.request_date ? formatDate(latestRequest.request_date) : "—"}
@@ -830,7 +837,7 @@ const row = data[0] as unknown as Record<string, unknown>;
             </div>
 
             {latestRequest?.location_text || latestRequest?.address_text || latestRequest?.notes ? (
-              <div className="rounded-[24px] border border-slate-200 bg-slate-50/70 p-5">
+              <div className="rounded-[24px] border border-[#e6ddd1] bg-[linear-gradient(180deg,#fbfaf8_0%,#f4f5f8_100%)] p-5">
                 <div className="grid gap-4 md:grid-cols-2">
                   <InfoDetail
                     label="Location"
@@ -850,7 +857,7 @@ const row = data[0] as unknown as Record<string, unknown>;
             ) : null}
           </div>
 
-          <div className="rounded-[28px] border border-[#e2cfba] bg-[linear-gradient(180deg,#fffaf3_0%,#fff_100%)] p-6 xl:col-span-5">
+          <div className="rounded-[28px] border border-[#e2cfba] bg-[linear-gradient(180deg,#fffaf3_0%,#fff_100%)] p-6 xl:col-span-4">
             <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
               Pricing Policy
             </div>
@@ -878,7 +885,7 @@ const row = data[0] as unknown as Record<string, unknown>;
       </section>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <section className="xl:col-span-5 rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)] sm:p-7">
+        <section className="xl:col-span-6 rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_24px_80px_rgba(36,24,15,0.10)] sm:p-7">
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
@@ -996,7 +1003,7 @@ const row = data[0] as unknown as Record<string, unknown>;
           </div>
         </section>
 
-        <section className="xl:col-span-7 rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)] sm:p-7">
+        <section className="xl:col-span-6 rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_24px_80px_rgba(36,24,15,0.10)] sm:p-7">
           <div>
             <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
               Request
@@ -1163,18 +1170,18 @@ function StatusCard({
   icon: React.ReactNode;
 }) {
   return (
-    <div className="rounded-[24px] border border-slate-200 bg-slate-50/60 p-5">
+    <div className="rounded-[24px] border border-[#e5dbcf] bg-[linear-gradient(180deg,#fffdfa_0%,#f8f4ee_100%)] p-5 shadow-[0_8px_22px_rgba(58,43,26,0.06)]">
       <div className="flex items-start gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-[#5a4634] shadow-[0_8px_18px_rgba(58,43,26,0.08)]">
           {icon}
         </div>
 
         <div className="min-w-0">
-          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[#8f7457]">
             {label}
           </div>
-          <div className="mt-1 text-lg font-bold text-slate-900">{title}</div>
-          <div className="mt-1 text-sm font-medium leading-6 text-slate-600">
+          <div className="mt-1 text-lg font-bold text-[#22170f]">{title}</div>
+          <div className="mt-1 text-sm font-medium leading-6 text-[#6f5a45]">
             {subtitle}
           </div>
         </div>
@@ -1193,12 +1200,12 @@ function PolicyCard({
   detail: string;
 }) {
   return (
-    <div className="rounded-[22px] border border-[#e2cfba] bg-white/80 p-4 shadow-sm">
+    <div className="rounded-[22px] border border-[#e2cfba] bg-[linear-gradient(180deg,#ffffff_0%,#fffaf3_100%)] p-4 shadow-[0_10px_26px_rgba(58,43,26,0.06)]">
       <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
         {label}
       </div>
-      <div className="mt-1 text-lg font-extrabold text-slate-900">{value}</div>
-      <div className="mt-1 text-[12px] font-semibold leading-5 text-slate-500">{detail}</div>
+      <div className="mt-1 text-lg font-extrabold text-[#22170f]">{value}</div>
+      <div className="mt-1 text-[12px] font-semibold leading-5 text-[#7a6652]">{detail}</div>
     </div>
   );
 }
