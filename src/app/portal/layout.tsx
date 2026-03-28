@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -35,6 +35,23 @@ type PortalUser = {
     full_name?: string | null;
     name?: string | null;
   };
+};
+
+type BuyerProfile = {
+  id?: number | null;
+  full_name?: string | null;
+  name?: string | null;
+  email?: string | null;
+  buyer_email?: string | null;
+  phone?: string | null;
+};
+
+type AppProfile = {
+  id?: number | null;
+  full_name?: string | null;
+  email?: string | null;
+  applicant_email?: string | null;
+  phone?: string | null;
 };
 
 type NavItem = {
@@ -94,7 +111,7 @@ function cleanAssistantText(text: string) {
     .replace(/\*\*(.*?)\*\*/g, "$1")
     .replace(/\*(.*?)\*/g, "$1")
     .replace(/^>\s*/gm, "")
-    .replace(/^[-•]\s+/gm, "• ")
+    .replace(/^[-â€¢]\s+/gm, "â€¢ ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
@@ -136,6 +153,10 @@ export default function PortalLayout({
   const [isSending, setIsSending] = useState(false);
   const [buyerName, setBuyerName] = useState<string | null>(null);
   const [puppyName, setPuppyName] = useState<string | null>(null);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const [notificationCount, setNotificationCount] = useState(0);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [profile, setProfile] = useState<BuyerProfile | AppProfile | null>(null);
   const [adminAuth, setAdminAuth] = useState<{
     userId?: string | null;
     email?: string | null;
@@ -146,13 +167,14 @@ export default function PortalLayout({
     {
       id: makeId("assistant"),
       role: "assistant",
-      text: "Hi, I’m your personal ChiChi Assistant. Ask me a question about your account, or anything Chihuahua related!",
+      text: "Hi, I'm your personal ChiChi Assistant. Ask me about your account, payments, messages, documents, puppy updates, or general Chihuahua questions anytime.",
       createdAt: formatTime(),
     },
   ]);
 
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const userMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -194,6 +216,152 @@ export default function PortalLayout({
       });
     }
   }, [messages, isChiChiOpen, isSending]);
+
+  useEffect(() => {
+    if (!user?.id && !user?.email) {
+      setUnreadMessageCount(0);
+      setNotificationCount(0);
+      setProfile(null);
+      return;
+    }
+
+    let active = true;
+
+    const loadPortalChromeData = async () => {
+      const email = String(user?.email || "").trim().toLowerCase();
+      const uid = user?.id;
+
+      let unread = 0;
+      let notifications = 0;
+      let matchedBuyer: BuyerProfile | null = null;
+      let matchedApp: AppProfile | null = null;
+      let puppyId: number | null = null;
+
+      if (uid) {
+        const unreadByUser = await sb
+          .from("portal_messages")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", uid)
+          .eq("read_by_user", false);
+
+        if (!unreadByUser.error) unread = unreadByUser.count || 0;
+      }
+
+      if (!unread && email) {
+        const unreadByEmail = await sb
+          .from("portal_messages")
+          .select("id", { count: "exact", head: true })
+          .ilike("user_email", email)
+          .eq("read_by_user", false);
+
+        if (!unreadByEmail.error) unread = unreadByEmail.count || 0;
+      }
+
+      if (uid) {
+        const buyerByUser = await sb
+          .from("buyers")
+          .select("id,full_name,name,email,buyer_email,phone")
+          .eq("user_id", uid)
+          .limit(1)
+          .maybeSingle();
+
+        if (!buyerByUser.error && buyerByUser.data) matchedBuyer = buyerByUser.data as BuyerProfile;
+      }
+
+      if (!matchedBuyer && email) {
+        const buyerByEmail = await sb
+          .from("buyers")
+          .select("id,full_name,name,email,buyer_email,phone")
+          .or(`email.ilike.${email},buyer_email.ilike.${email}`)
+          .limit(1)
+          .maybeSingle();
+
+        if (!buyerByEmail.error && buyerByEmail.data) matchedBuyer = buyerByEmail.data as BuyerProfile;
+      }
+
+      if (uid) {
+        const appByUser = await sb
+          .from("puppy_applications")
+          .select("id,full_name,email,applicant_email,phone")
+          .eq("user_id", uid)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!appByUser.error && appByUser.data) matchedApp = appByUser.data as AppProfile;
+      }
+
+      if (!matchedApp && email) {
+        const appByEmail = await sb
+          .from("puppy_applications")
+          .select("id,full_name,email,applicant_email,phone")
+          .or(`email.ilike.${email},applicant_email.ilike.${email}`)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!appByEmail.error && appByEmail.data) matchedApp = appByEmail.data as AppProfile;
+      }
+
+      if (matchedBuyer?.id) {
+        const puppyRes = await sb
+          .from("puppies")
+          .select("id")
+          .eq("buyer_id", matchedBuyer.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!puppyRes.error && puppyRes.data?.id) puppyId = Number(puppyRes.data.id);
+      }
+
+      if (puppyId) {
+        const thirtyDaysAgo = new Date(Date.now() - 1000 * 60 * 60 * 24 * 30)
+          .toISOString()
+          .slice(0, 10);
+
+        const [eventCountRes, healthCountRes] = await Promise.all([
+          sb
+            .from("puppy_events")
+            .select("id", { count: "exact", head: true })
+            .eq("puppy_id", puppyId)
+            .gte("event_date", thirtyDaysAgo),
+          sb
+            .from("puppy_health")
+            .select("id", { count: "exact", head: true })
+            .eq("puppy_id", puppyId)
+            .eq("is_visible_to_buyer", true)
+            .gte("record_date", thirtyDaysAgo),
+        ]);
+
+        notifications += (eventCountRes.count || 0) + (healthCountRes.count || 0);
+      }
+
+      notifications += unread;
+
+      if (!active) return;
+      setUnreadMessageCount(unread);
+      setNotificationCount(notifications);
+      setProfile(matchedBuyer || matchedApp);
+    };
+
+    void loadPortalChromeData();
+
+    return () => {
+      active = false;
+    };
+  }, [user?.email, user?.id, pathname]);
+
+  useEffect(() => {
+    const onPointerDown = (event: MouseEvent) => {
+      if (!userMenuRef.current?.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, []);
 
   const nav: NavItem[] = useMemo(
     () => [
@@ -250,7 +418,15 @@ export default function PortalLayout({
 
   const userInitial = (displayName?.[0] || user?.email?.[0] || "U").toUpperCase();
   const activeNavItem = nav.find((item) => isActive(item));
-  const pageTitle = activeNavItem?.label || "Portal";
+  const pageTitle =
+    activeNavItem?.label ||
+    (pathname.startsWith("/portal/profile")
+      ? "Profile"
+      : pathname.startsWith("/portal/notifications")
+        ? "Notifications"
+        : pathname.startsWith("/portal/help")
+          ? "Help and Support"
+          : "Portal");
 
   const hasAdminUi = !!user?.id;
 
@@ -266,6 +442,13 @@ export default function PortalLayout({
       label: "Add Puppy",
       prompt: "Core action: add a new puppy record. I will provide the puppy details next.",
       icon: <PlusCircle className="h-4 w-4" />,
+    },
+    {
+      key: "edit-puppy",
+      label: "Edit Puppy",
+      prompt:
+        "Core action: edit a puppy record. I will provide the puppy name and the fields to update next, such as microchip, registration number, litter name, sire, dam, description, notes, or weights.",
+      icon: <PawPrint className="h-4 w-4" />,
     },
     {
       key: "delete-puppy",
@@ -528,7 +711,7 @@ export default function PortalLayout({
             {nav.map((item) => (
               <Link key={item.href} href={item.href} className={navClass(item)}>
                 <span className={iconWrapClass(item)}>{item.icon}</span>
-                <span className="text-[15px] font-medium leading-tight tracking-wide">{item.label}</span>
+                <span className="whitespace-nowrap text-[15px] font-medium leading-tight tracking-wide">{item.label}</span>
               </Link>
             ))}
           </nav>
@@ -542,7 +725,7 @@ export default function PortalLayout({
             </button>
             <div className="mt-4 px-2 text-center text-xs text-[#A89F96]">
               Signed in as <br />
-              <span className="font-medium text-white/90">{user?.email || "—"}</span>
+              <span className="font-medium text-white/90">{user?.email || "â€”"}</span>
             </div>
           </div>
         </div>
@@ -551,7 +734,7 @@ export default function PortalLayout({
       {/* Desktop Layout */}
       <div className="flex min-h-screen bg-[radial-gradient(circle_at_top,#f8f1e8_0%,#f3eadf_42%,#eee3d7_100%)]">
         {/* Desktop Sidebar */}
-        <aside className="hidden w-[126px] shrink-0 border-r border-[#46372b] bg-[linear-gradient(180deg,#2d2924_0%,#23201c_100%)] md:block">
+        <aside className="hidden w-[220px] shrink-0 border-r border-[#46372b] bg-[linear-gradient(180deg,#2d2924_0%,#23201c_100%)] md:block">
           <div className="sticky top-0 flex h-screen flex-col text-white shadow-[4px_0_24px_rgba(0,0,0,0.15)]">
             <div className="border-b border-white/8 px-4 py-6">
               <div className="flex flex-col items-start gap-3">
@@ -573,7 +756,7 @@ export default function PortalLayout({
               {nav.map((item) => (
                 <Link key={item.href} href={item.href} className={navClass(item)}>
                   <span className={iconWrapClass(item)}>{item.icon}</span>
-                  <span className="text-[13px] font-medium leading-tight tracking-wide">
+                  <span className="whitespace-nowrap text-[13px] font-medium leading-tight tracking-wide">
                     {item.label}
                   </span>
                 </Link>
@@ -581,13 +764,18 @@ export default function PortalLayout({
             </nav>
 
             <div className="border-t border-white/8 px-3 py-5">
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+              <Link
+                href="/portal/help"
+                className="block rounded-2xl border border-white/8 bg-white/5 p-3 transition hover:bg-white/10"
+              >
                 <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#d1b082]">
-                  Help & Support
+                  Help and Support
                 </div>
                 <div className="mt-2 text-[11px] leading-5 text-[#d5c7b8]">
-                  Messages, documents, and puppy details stay organized here.
+                  Troubleshooting, account help, and portal guidance.
                 </div>
+              </Link>
+              <div className="mt-3">
                 <button
                   onClick={handleSignOut}
                   className="mt-4 w-full rounded-xl border border-white/10 bg-white/8 px-3 py-2.5 text-[12px] font-black uppercase tracking-[0.14em] text-[#f7efe6] transition hover:bg-white/14"
@@ -610,31 +798,94 @@ export default function PortalLayout({
               </div>
 
               <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  className="hidden h-10 w-10 items-center justify-center rounded-full border border-[#6a5641] bg-[#403730] text-[#e9cc98] transition hover:bg-[#4a4038] sm:inline-flex"
+                <Link
+                  href="/portal/notifications"
+                  className="relative hidden h-10 w-10 items-center justify-center rounded-full border border-[#6a5641] bg-[#403730] text-[#e9cc98] transition hover:bg-[#4a4038] sm:inline-flex"
                   aria-label="Notifications"
                 >
                   <Bell className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  className="hidden h-10 w-10 items-center justify-center rounded-full border border-[#6a5641] bg-[#403730] text-[#e9cc98] transition hover:bg-[#4a4038] sm:inline-flex"
+                  {notificationCount > 0 ? (
+                    <span className="absolute -right-1 -top-1 inline-flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#d97540] px-1 text-[10px] font-black text-white">
+                      {notificationCount > 9 ? "9+" : notificationCount}
+                    </span>
+                  ) : null}
+                </Link>
+                <Link
+                  href="/portal/messages"
+                  className="relative hidden h-10 w-10 items-center justify-center rounded-full border border-[#6a5641] bg-[#403730] text-[#e9cc98] transition hover:bg-[#4a4038] sm:inline-flex"
                   aria-label="Messages"
                 >
                   <Mail className="h-4 w-4" />
-                </button>
+                  {unreadMessageCount > 0 ? (
+                    <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-[#ef4444]" />
+                  ) : null}
+                </Link>
 
-                <div className="flex items-center gap-3 rounded-full border border-[#6a5641] bg-[#403730] py-1.5 pl-1.5 pr-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#e0bb85] to-[#bb8749] text-sm font-black text-[#24180f]">
-                    {userInitial}
-                  </div>
-                  <div className="hidden sm:block">
-                    <div className="max-w-[140px] truncate text-sm font-semibold text-[#f7f1e8]">
-                      {displayName}
+                <div ref={userMenuRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsUserMenuOpen((value) => !value)}
+                    className="flex items-center gap-3 rounded-full border border-[#6a5641] bg-[#403730] py-1.5 pl-1.5 pr-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition hover:bg-[#4a4038]"
+                    aria-label="Open profile menu"
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#e0bb85] to-[#bb8749] text-sm font-black text-[#24180f]">
+                      {userInitial}
                     </div>
-                  </div>
-                  <ChevronDown className="h-4 w-4 text-[#d9bb88]" />
+                    <div className="hidden sm:block">
+                      <div className="max-w-[140px] truncate text-sm font-semibold text-[#f7f1e8]">
+                        {displayName}
+                      </div>
+                      <div className="max-w-[140px] truncate text-[10px] uppercase tracking-[0.16em] text-[#d9bb88]">
+                        {profile?.phone || user?.email || "Profile"}
+                      </div>
+                    </div>
+                    <ChevronDown className="h-4 w-4 text-[#d9bb88]" />
+                  </button>
+
+                  {isUserMenuOpen ? (
+                    <div className="absolute right-0 top-[calc(100%+12px)] z-50 w-[270px] rounded-[1.5rem] border border-[#d8cab7] bg-[#fffaf4] p-3 text-[#4d392a] shadow-[0_24px_48px_rgba(47,32,20,0.18)]">
+                      <div className="rounded-[1.1rem] border border-[#eadfce] bg-white px-4 py-3">
+                        <div className="text-sm font-black text-[#342116]">{displayName}</div>
+                        <div className="mt-1 text-xs text-[#8b6b4d]">{user?.email || "No email on file"}</div>
+                        <div className="mt-1 text-xs text-[#8b6b4d]">{profile?.phone || "No phone on file"}</div>
+                      </div>
+
+                      <div className="mt-3 space-y-2">
+                        <Link
+                          href="/portal/profile"
+                          onClick={() => setIsUserMenuOpen(false)}
+                          className="block rounded-[1rem] border border-[#eadfce] bg-white px-4 py-3 text-sm font-semibold transition hover:bg-[#fff9f3]"
+                        >
+                          View and Edit Profile
+                        </Link>
+                        <Link
+                          href="/portal/notifications"
+                          onClick={() => setIsUserMenuOpen(false)}
+                          className="flex items-center justify-between rounded-[1rem] border border-[#eadfce] bg-white px-4 py-3 text-sm font-semibold transition hover:bg-[#fff9f3]"
+                        >
+                          <span>Notifications</span>
+                          <span className="text-xs text-[#8b6b4d]">{notificationCount}</span>
+                        </Link>
+                        <Link
+                          href="/portal/help"
+                          onClick={() => setIsUserMenuOpen(false)}
+                          className="block rounded-[1rem] border border-[#eadfce] bg-white px-4 py-3 text-sm font-semibold transition hover:bg-[#fff9f3]"
+                        >
+                          Help and Support
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsUserMenuOpen(false);
+                            void handleSignOut();
+                          }}
+                          className="w-full rounded-[1rem] border border-[#eadfce] bg-[#6f5037] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#5d4330]"
+                        >
+                          Sign Out
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -743,7 +994,7 @@ export default function PortalLayout({
                       Hi, I&apos;m your personal ChiChi Assistant!
                     </div>
                     <div className="mt-1">
-                      Ask me about your account, documents, puppies, or Chihuahua care.
+                      Ask me about your account, documents, payments, messages, puppy updates, or general Chihuahua care and breed questions.
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {[
@@ -927,4 +1178,5 @@ export default function PortalLayout({
     </div>
   );
 }
+
 

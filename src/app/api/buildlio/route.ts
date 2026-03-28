@@ -188,6 +188,9 @@ type ActionIntent =
       call_name?: string | null;
       puppy_name?: string | null;
       name?: string | null;
+      litter_name?: string | null;
+      sire?: string | null;
+      dam?: string | null;
       sex?: string | null;
       color?: string | null;
       coat_type?: string | null;
@@ -199,9 +202,13 @@ type ActionIntent =
       buyer_name?: string | null;
       buyer_email?: string | null;
       owner_email?: string | null;
+      birth_weight?: number | null;
+      current_weight?: number | null;
       weight_date?: string | null;
       weight_oz?: number | null;
       weight_g?: number | null;
+      microchip?: string | null;
+      registration_no?: string | null;
       notes?: string | null;
       description?: string | null;
     }
@@ -312,6 +319,9 @@ type ActionIntent =
       call_name?: string | null;
       new_puppy_name?: string | null;
       name?: string | null;
+      litter_name?: string | null;
+      sire?: string | null;
+      dam?: string | null;
       sex?: string | null;
       color?: string | null;
       coat_type?: string | null;
@@ -323,9 +333,13 @@ type ActionIntent =
       buyer_name?: string | null;
       buyer_email?: string | null;
       owner_email?: string | null;
+      birth_weight?: number | null;
+      current_weight?: number | null;
       weight_date?: string | null;
       weight_oz?: number | null;
       weight_g?: number | null;
+      microchip?: string | null;
+      registration_no?: string | null;
       notes?: string | null;
       description?: string | null;
     }
@@ -1053,7 +1067,9 @@ Your role:
 - Do not describe yourself as a builder, website generator, or app generator.
 - Do not use sci-fi, domination, manifestation, apex, neural-link, or system-diagnostic language.
 - Do not claim to have performed actions you did not perform.
-- Prefer concise, helpful answers.
+- Be genuinely informative when the user asks general Chihuahua questions, care questions, breed facts, temperament questions, feeding basics, size expectations, coat care, training, or socialization.
+- When answering general Chihuahua questions, clearly separate general guidance from account-specific facts.
+- Prefer concise, helpful answers, but do not be vague if the user is asking for practical Chihuahua guidance.
 - When useful, end with a short next step based on the actual account data.
 
 Important answer rules:
@@ -1108,10 +1124,10 @@ For "delete_buyer", try to extract:
 buyer_id, buyer_name, buyer_email, buyer_names
 
 For "add_puppy", try to extract:
-call_name, puppy_name, name, sex, color, coat_type, pattern, dob, registry, price, status, buyer_name, buyer_email, owner_email, weight_date, weight_oz, weight_g, notes, description
+call_name, puppy_name, name, litter_name, sire, dam, sex, color, coat_type, pattern, dob, registry, price, status, buyer_name, buyer_email, owner_email, birth_weight, current_weight, weight_date, weight_oz, weight_g, microchip, registration_no, notes, description
 
 For "update_puppy", try to extract:
-puppy_id, puppy_name, puppy_names, call_name, new_puppy_name, name, sex, color, coat_type, pattern, dob, registry, price, status, buyer_name, buyer_email, owner_email, notes, description
+puppy_id, puppy_name, puppy_names, call_name, new_puppy_name, name, litter_name, sire, dam, sex, color, coat_type, pattern, dob, registry, price, status, buyer_name, buyer_email, owner_email, birth_weight, current_weight, weight_date, weight_oz, weight_g, microchip, registration_no, notes, description
 
 For "delete_puppy", try to extract:
 puppy_id, puppy_name, puppy_names
@@ -1208,6 +1224,66 @@ function parseDirectActionIntent(userMessage: string): ActionIntent | null {
       registry: registryMatch?.[1] || null,
       notes: text,
     } as ActionIntent;
+  }
+
+  const updatePuppyMatch = text.match(
+    /^(?:edit|update)\s+puppy\s+(.+?)\s+(?:set\s+)?(call name|name|litter name|sire|dam|sex|color|coat(?: type)?|pattern|dob|registry|status|microchip|registration(?: no\.?| number)?|birth weight|current weight|description|notes?)\s+(?:to\s+)?(.+)$/i
+  );
+  if (updatePuppyMatch) {
+    const puppyName = updatePuppyMatch[1]?.trim() || null;
+    const rawField = updatePuppyMatch[2]?.trim().toLowerCase() || "";
+    const rawValue = updatePuppyMatch[3]?.trim() || null;
+    const value = rawValue?.replace(/^["']|["']$/g, "") || null;
+
+    if (puppyName && value) {
+      const base: Extract<ActionIntent, { action: "update_puppy" }> = {
+        action: "update_puppy",
+        puppy_name: puppyName,
+      };
+
+      switch (rawField) {
+        case "call name":
+          return { ...base, call_name: value };
+        case "name":
+          return { ...base, new_puppy_name: value, name: value };
+        case "litter name":
+          return { ...base, litter_name: value };
+        case "sire":
+          return { ...base, sire: value };
+        case "dam":
+          return { ...base, dam: value };
+        case "sex":
+          return { ...base, sex: value };
+        case "color":
+          return { ...base, color: value };
+        case "coat":
+        case "coat type":
+          return { ...base, coat_type: value };
+        case "pattern":
+          return { ...base, pattern: value };
+        case "dob":
+          return { ...base, dob: value };
+        case "registry":
+          return { ...base, registry: value };
+        case "status":
+          return { ...base, status: value };
+        case "microchip":
+          return { ...base, microchip: value };
+        case "registration no":
+        case "registration no.":
+        case "registration number":
+          return { ...base, registration_no: value };
+        case "birth weight":
+          return { ...base, birth_weight: Number(value.replace(/[^\d.]/g, "")) || null };
+        case "current weight":
+          return { ...base, current_weight: Number(value.replace(/[^\d.]/g, "")) || null };
+        case "description":
+          return { ...base, description: value };
+        case "note":
+        case "notes":
+          return { ...base, notes: value };
+      }
+    }
   }
 
   return null;
@@ -1396,6 +1472,9 @@ function missingFieldsForAction(intent: ActionIntent): string[] {
       !intent.call_name &&
       !intent.new_puppy_name &&
       !intent.name &&
+      !intent.litter_name &&
+      !intent.sire &&
+      !intent.dam &&
       !intent.sex &&
       !intent.color &&
       !intent.coat_type &&
@@ -1407,6 +1486,10 @@ function missingFieldsForAction(intent: ActionIntent): string[] {
       !intent.buyer_name &&
       !intent.buyer_email &&
       !intent.owner_email &&
+      (intent.birth_weight === null || intent.birth_weight === undefined) &&
+      (intent.current_weight === null || intent.current_weight === undefined) &&
+      !intent.microchip &&
+      !intent.registration_no &&
       !intent.notes &&
       !intent.description
     ) {
@@ -1654,6 +1737,9 @@ async function executeAddPuppy(
     call_name: intent.call_name || intent.puppy_name || intent.name || null,
     puppy_name: intent.puppy_name || intent.call_name || intent.name || null,
     name: intent.name || intent.call_name || intent.puppy_name || null,
+    litter_name: intent.litter_name || null,
+    sire: intent.sire || null,
+    dam: intent.dam || null,
     sex: intent.sex || null,
     color: intent.color || null,
     coat_type: intent.coat_type || null,
@@ -1664,9 +1750,15 @@ async function executeAddPuppy(
     status: intent.status || "Available",
     buyer_id: buyer?.id ?? null,
     owner_email: intent.owner_email || buyer?.email || intent.buyer_email || null,
+    birth_weight:
+      intent.birth_weight === null || intent.birth_weight === undefined
+        ? null
+        : Number(intent.birth_weight),
     current_weight:
-      intent.weight_oz === null || intent.weight_oz === undefined
-        ? intent.weight_g ?? null
+      intent.current_weight !== null && intent.current_weight !== undefined
+        ? Number(intent.current_weight)
+        : intent.weight_oz === null || intent.weight_oz === undefined
+          ? intent.weight_g ?? null
         : intent.weight_oz,
     weight_unit:
       intent.weight_oz === null || intent.weight_oz === undefined
@@ -1675,6 +1767,8 @@ async function executeAddPuppy(
           : "g"
         : "oz",
     weight_date: intent.weight_date || intent.dob || null,
+    microchip: intent.microchip || null,
+    registration_no: intent.registration_no || null,
     notes: intent.notes || null,
     description: intent.description || null,
   };
@@ -1738,6 +1832,9 @@ async function executeUpdatePuppy(
     call_name: intent.call_name || undefined,
     puppy_name: intent.new_puppy_name || undefined,
     name: intent.name || undefined,
+    litter_name: intent.litter_name || undefined,
+    sire: intent.sire || undefined,
+    dam: intent.dam || undefined,
     sex: intent.sex || undefined,
     color: intent.color || undefined,
     coat_type: intent.coat_type || undefined,
@@ -1748,6 +1845,17 @@ async function executeUpdatePuppy(
     status: intent.status || undefined,
     buyer_id: buyer?.id ?? undefined,
     owner_email: intent.owner_email || buyer?.email || undefined,
+    birth_weight:
+      intent.birth_weight === null || intent.birth_weight === undefined
+        ? undefined
+        : Number(intent.birth_weight),
+    current_weight:
+      intent.current_weight === null || intent.current_weight === undefined
+        ? undefined
+        : Number(intent.current_weight),
+    weight_date: intent.weight_date || undefined,
+    microchip: intent.microchip || undefined,
+    registration_no: intent.registration_no || undefined,
     notes: intent.notes || undefined,
     description: intent.description || undefined,
   });

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { sb, fmtMoney, fmtDate } from "@/lib/utils";
+import { fmtDate, fmtMoney, sb } from "@/lib/utils";
 
 type PaymentRow = {
   id: number;
@@ -14,7 +14,6 @@ type PaymentRow = {
   amount: number | null;
   puppy_id: number | null;
   client_id: string | null;
-  paid_at?: string | null;
   currency: string;
   status: string;
   provider: string;
@@ -41,12 +40,16 @@ type BuyerRow = {
   user_id?: string | null;
 };
 
+type SessionUser = {
+  id: string;
+  email?: string | null;
+};
+
 export default function PortalPaymentsPage() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [puppy, setPuppy] = useState<PuppyRow | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [statusText, setStatusText] = useState("");
 
   useEffect(() => {
@@ -59,10 +62,8 @@ export default function PortalPaymentsPage() {
         } = await sb.auth.getSession();
 
         if (!mounted) return;
-
-        const currentUser = session?.user ?? null;
+        const currentUser = (session?.user as SessionUser | null) ?? null;
         setUser(currentUser);
-
         if (currentUser) {
           await loadPaymentData(currentUser);
         }
@@ -71,25 +72,21 @@ export default function PortalPaymentsPage() {
       }
     };
 
-    init();
+    void init();
 
-    const { data: authListener } = sb.auth.onAuthStateChange(
-      async (_event, session) => {
-        const currentUser = session?.user ?? null;
-        if (!mounted) return;
+    const { data: authListener } = sb.auth.onAuthStateChange(async (_event, session) => {
+      const currentUser = (session?.user as SessionUser | null) ?? null;
+      if (!mounted) return;
 
-        setUser(currentUser);
-
-        if (currentUser) {
-          await loadPaymentData(currentUser);
-        } else {
-          setPayments([]);
-          setPuppy(null);
-        }
-
-        setLoading(false);
+      setUser(currentUser);
+      if (currentUser) {
+        await loadPaymentData(currentUser);
+      } else {
+        setPayments([]);
+        setPuppy(null);
       }
-    );
+      setLoading(false);
+    });
 
     return () => {
       mounted = false;
@@ -97,9 +94,9 @@ export default function PortalPaymentsPage() {
     };
   }, []);
 
-  async function loadPaymentData(currUser: any) {
-    const email = String(currUser?.email || "").toLowerCase();
-    const uid = currUser?.id;
+  async function loadPaymentData(currUser: SessionUser) {
+    const email = String(currUser.email || "").toLowerCase();
+    const uid = currUser.id;
 
     setStatusText("Loading payment history...");
 
@@ -140,8 +137,7 @@ export default function PortalPaymentsPage() {
     }
 
     if (!matchedPuppy) {
-      const paymentPuppyId =
-        paymentsRes.data?.find((p: PaymentRow) => p.puppy_id)?.puppy_id ?? null;
+      const paymentPuppyId = paymentsRes.data?.find((payment: PaymentRow) => payment.puppy_id)?.puppy_id ?? null;
 
       if (paymentPuppyId) {
         const puppyByPayment = await sb
@@ -159,54 +155,29 @@ export default function PortalPaymentsPage() {
     setStatusText("");
   }
 
-  async function handleRefresh() {
-    if (!user) return;
-    await loadPaymentData(user);
-  }
-
-  async function handleSignOut() {
-    await sb.auth.signOut();
-    setUser(null);
-    setPayments([]);
-    setPuppy(null);
-  }
-
-  const puppyName =
-    puppy?.call_name || puppy?.puppy_name || puppy?.name || "Your Puppy";
-
-  const succeededPayments = useMemo(
-    () => payments.filter((p) => String(p.status || "").toLowerCase() === "succeeded"),
-    [payments]
-  );
-
   const totalPaid = useMemo(() => {
-    return succeededPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
-  }, [succeededPayments]);
-
-  const latestPayment = useMemo(() => {
-    return payments.length ? payments[0] : null;
+    return payments
+      .filter((payment) => String(payment.status || "").toLowerCase() === "succeeded")
+      .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
   }, [payments]);
 
+  const latestPayment = useMemo(() => (payments.length ? payments[0] : null), [payments]);
   const totalCount = payments.length;
 
   const remainingBalance = useMemo(() => {
-    if (puppy?.balance !== null && puppy?.balance !== undefined) {
-      return Number(puppy.balance || 0);
-    }
-
     if (puppy?.price !== null && puppy?.price !== undefined) {
       return Math.max(0, Number(puppy.price || 0) - totalPaid);
+    }
+
+    if (puppy?.balance !== null && puppy?.balance !== undefined) {
+      return Number(puppy.balance || 0);
     }
 
     return null;
   }, [puppy, totalPaid]);
 
   if (loading) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-brand-50 italic">
-        Loading Financials...
-      </div>
-    );
+    return <div className="py-20 text-center text-sm font-semibold text-brand-500">Loading financials...</div>;
   }
 
   if (!user) {
@@ -214,377 +185,166 @@ export default function PortalPaymentsPage() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden text-brand-900 bg-brand-50">
-      <header className="md:hidden fixed top-0 left-0 right-0 z-30 bg-white/80 backdrop-blur-md h-16 flex items-center justify-between px-6 border-b border-brand-200/50">
-        <div className="flex items-center gap-4">
-          <button onClick={() => setIsDrawerOpen(true)} className="text-brand-700">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M4 6h16M4 12h16M4 18h16"
-              />
-            </svg>
-          </button>
-          <span className="font-serif font-bold text-xl">SWVA</span>
-        </div>
-
-        <div className="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center border border-brand-200 font-bold text-brand-600">
-          {user.email?.[0]?.toUpperCase() || "U"}
-        </div>
-      </header>
-
-      {isDrawerOpen && (
-        <div
-          className="fixed inset-0 bg-brand-900/40 backdrop-blur-sm z-40 md:hidden"
-          onClick={() => setIsDrawerOpen(false)}
-        />
-      )}
-
-      <aside
-        className={`fixed top-0 left-0 bottom-0 w-[82%] max-w-[320px] bg-[#FDFBF9] z-50 shadow-2xl flex flex-col transition-transform duration-300 md:hidden ${
-          isDrawerOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        <div className="p-6 border-b border-brand-100 flex justify-between items-center">
+    <div className="space-y-8 pb-14">
+      <section className="rounded-[2rem] border border-[#dccab7] bg-white p-7 shadow-[0_16px_40px_rgba(74,51,33,0.08)]">
+        <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
           <div>
-            <div className="font-serif font-bold text-xl">Menu</div>
-            <div className="text-[11px] text-brand-400 font-semibold mt-1 truncate max-w-[220px]">
-              {user.email}
-            </div>
-          </div>
-          <button onClick={() => setIsDrawerOpen(false)}>×</button>
-        </div>
-
-        <nav className="p-5 pt-7 flex flex-col gap-3 flex-1 overflow-y-auto">
-          <Link href="/portal" className="nav-item">
-            Dashboard
-          </Link>
-          <Link href="/portal/application" className="nav-item">
-            Application
-          </Link>
-          <Link href="/portal/mypuppy" className="nav-item">
-            My Puppy
-          </Link>
-          <Link href="/portal/messages" className="nav-item">
-            Messages
-          </Link>
-          <Link href="/portal/documents" className="nav-item">
-            Documents
-          </Link>
-          <Link href="/portal/payments" className="nav-item active">
-            Financials
-          </Link>
-          <Link href="/portal/resources" className="nav-item">
-            Resources
-          </Link>
-        </nav>
-
-        <div className="p-6 border-t border-brand-100 bg-brand-50">
-          <button
-            onClick={handleSignOut}
-            className="w-full py-3 rounded-lg border border-brand-200 text-brand-700 font-black text-sm hover:bg-white transition"
-          >
-            Sign Out
-          </button>
-        </div>
-      </aside>
-
-      <aside className="hidden md:flex flex-col w-72 bg-white/80 border-r border-brand-200/60 z-20 h-full backdrop-blur-sm">
-        <div className="p-8">
-          <h1 className="font-serif font-bold text-xl leading-none">SWVA</h1>
-          <p className="text-[10px] uppercase tracking-widest text-brand-500 font-black mt-1">
-            Chihuahua
-          </p>
-        </div>
-
-        <nav className="flex-1 px-4 pt-6 pb-6 overflow-y-auto">
-          <div className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-brand-400">
-            Portal
-          </div>
-
-          <div className="mt-3 flex flex-col gap-3">
-            <Link href="/portal" className="nav-item">
-              Dashboard
-            </Link>
-            <Link href="/portal/application" className="nav-item">
-              Application
-            </Link>
-            <Link href="/portal/mypuppy" className="nav-item">
-              My Puppy
-            </Link>
-          </div>
-
-          <div className="px-4 py-2 mt-8 text-[10px] font-black uppercase tracking-widest text-brand-400">
-            Communication
-          </div>
-
-          <div className="mt-3 flex flex-col gap-3">
-            <Link href="/portal/messages" className="nav-item">
-              Messages
-            </Link>
-            <Link href="/portal/documents" className="nav-item">
-              Contracts
-            </Link>
-            <Link href="/portal/payments" className="nav-item active">
+            <div className="text-[11px] font-black uppercase tracking-[0.22em] text-brand-500">Payments</div>
+            <h1 className="mt-3 font-serif text-4xl font-bold leading-[0.95] text-brand-900 md:text-5xl">
               Financials
-            </Link>
-            <Link href="/portal/resources" className="nav-item">
-              Resources
-            </Link>
+            </h1>
+            <p className="mt-3 font-semibold text-brand-500">
+              Review payment history, completed transactions, and remaining balance information.
+            </p>
           </div>
-        </nav>
 
-        <div className="p-4 border-t border-brand-100 bg-brand-50/50">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-brand-200 flex items-center justify-center text-brand-700 font-black text-xs">
-              {user.email?.[0]?.toUpperCase() || "U"}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-black truncate">{user.email}</p>
-              <div className="flex items-center gap-3 mt-1">
-                <button
-                  onClick={handleRefresh}
-                  className="text-[10px] font-black uppercase text-brand-500 hover:text-brand-800"
-                >
-                  Refresh
-                </button>
-                <button
-                  onClick={handleSignOut}
-                  className="text-[10px] font-black uppercase text-brand-500 hover:text-brand-800"
-                >
-                  Sign Out
-                </button>
-              </div>
-            </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-brand-700">
+              Payments: {totalCount}
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-brand-700">
+              Paid: {fmtMoney(totalPaid)}
+            </span>
           </div>
         </div>
-      </aside>
+      </section>
 
-      <main className="flex-1 h-full relative flex flex-col overflow-hidden bg-texturePaper pt-16 md:pt-0">
-        <div className="flex-1 p-6 md:p-10 lg:p-12 overflow-y-auto scroller max-w-[1600px] mx-auto w-full">
-          <div className="space-y-8 pb-14">
-            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
-              <div>
-                <h2 className="font-serif text-4xl md:text-5xl font-bold text-brand-900 leading-[0.95]">
-                  Financials
-                </h2>
-                <p className="mt-2 text-brand-500 font-semibold">
-                  Review payment history, completed transactions, and remaining balance information.
-                </p>
-              </div>
+      {statusText ? <div className="text-sm font-semibold text-brand-500">{statusText}</div> : null}
 
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.18em] bg-white border border-brand-200 text-brand-700">
-                  Payments: {totalCount}
-                </span>
-                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.18em] bg-white border border-brand-200 text-brand-700">
-                  Paid: {fmtMoney(totalPaid)}
-                </span>
-              </div>
+      <section className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+        <div className="space-y-8 lg:col-span-8">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            <InfoTile label="Total Paid" value={fmtMoney(totalPaid)} />
+            <InfoTile
+              label="Remaining Balance"
+              value={remainingBalance !== null ? fmtMoney(remainingBalance) : "—"}
+            />
+            <InfoTile label="Payment Count" value={String(totalCount)} />
+            <InfoTile
+              label="Latest Payment"
+              value={latestPayment?.created_at ? fmtDate(latestPayment.created_at) : "—"}
+            />
+          </div>
+
+          <div className="card-luxury p-7">
+            <div>
+              <h3 className="font-serif text-2xl font-bold text-brand-900">Payment History</h3>
+              <p className="mt-1 text-sm font-semibold text-brand-500">
+                Completed and recorded transactions for your portal account.
+              </p>
             </div>
 
-            {statusText ? (
-              <div className="text-sm font-semibold text-brand-500">{statusText}</div>
-            ) : null}
+            <div className="mt-6 space-y-4">
+              {payments.length ? (
+                payments.map((payment) => (
+                  <div key={payment.id} className="rounded-2xl border border-brand-200 bg-white/70 p-5">
+                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="text-base font-black text-brand-900">{payment.type || "Payment"}</h4>
+                          <span
+                            className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${
+                              String(payment.status || "").toLowerCase() === "succeeded"
+                                ? "border-emerald-200 bg-emerald-100 text-emerald-700"
+                                : "border-amber-200 bg-amber-100 text-amber-700"
+                            }`}
+                          >
+                            {payment.status || "recorded"}
+                          </span>
+                          <span className="inline-flex rounded-full border border-brand-200 bg-brand-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-brand-700">
+                            {payment.provider || "provider"}
+                          </span>
+                        </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-              <div className="lg:col-span-8 space-y-8">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <InfoTile label="Total Paid" value={fmtMoney(totalPaid)} />
-                  <InfoTile
-                    label="Remaining Balance"
-                    value={remainingBalance !== null ? fmtMoney(remainingBalance) : "—"}
-                  />
-                  <InfoTile label="Payment Count" value={String(totalCount)} />
-                  <InfoTile
-                    label="Latest Payment"
-                    value={latestPayment?.created_at ? fmtDate(latestPayment.created_at) : "—"}
-                  />
-                </div>
+                        <div className="mt-3 grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+                          <Detail label="Paid" value={fmtMoney(payment.amount || 0)} emphasize />
+                          <Detail
+                            label="Payment Date"
+                            value={
+                              payment.created_at
+                                ? fmtDate(payment.created_at)
+                                : payment.date
+                                  ? fmtDate(payment.date)
+                                  : "—"
+                            }
+                          />
+                          <Detail label="Buyer" value={payment.buyer || user.email || "—"} />
+                          <Detail label="Puppy" value={payment.puppy || puppyNameFromData(puppy) || "—"} />
+                        </div>
 
-                <div className="card-luxury p-7">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <h3 className="font-serif text-2xl font-bold text-brand-900">
-                        Payment History
-                      </h3>
-                      <p className="text-brand-500 font-semibold text-sm mt-1">
-                        Completed and recorded transactions for your portal account.
-                      </p>
+                        {payment.stripe_payment_intent_id ? (
+                          <div className="mt-4 break-all text-[11px] font-black uppercase tracking-[0.18em] text-brand-400">
+                            Stripe ID: {payment.stripe_payment_intent_id}
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div className="shrink-0 text-right">
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">Amount</div>
+                        <div className="mt-1 text-xl font-black text-brand-900">{fmtMoney(payment.amount || 0)}</div>
+                      </div>
                     </div>
                   </div>
-
-                  <div className="mt-6 space-y-4">
-                    {payments.length ? (
-                      payments.map((payment) => (
-                        <div
-                          key={payment.id}
-                          className="rounded-2xl border border-brand-200 bg-white/70 p-5"
-                        >
-                          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <h4 className="text-base font-black text-brand-900">
-                                  {payment.type || "Payment"}
-                                </h4>
-
-                                <span
-                                  className={`inline-flex px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.18em] border ${
-                                    String(payment.status || "").toLowerCase() === "succeeded"
-                                      ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-                                      : "bg-amber-100 text-amber-700 border-amber-200"
-                                  }`}
-                                >
-                                  {payment.status || "recorded"}
-                                </span>
-
-                                <span className="inline-flex px-2.5 py-1 rounded-full bg-brand-100 text-brand-700 border border-brand-200 text-[10px] font-black uppercase tracking-[0.18em]">
-                                  {payment.provider || "provider"}
-                                </span>
-                              </div>
-
-                              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                                <div>
-                                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-                                    Paid
-                                  </div>
-                                  <div className="mt-1 font-black text-brand-900">
-                                    {fmtMoney(payment.amount || 0)}
-                                  </div>
-                                </div>
-
-                                <div>
-                                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-                                    Payment Date
-                                  </div>
-                                  <div className="mt-1 font-semibold text-brand-800">
-                                    {payment.created_at
-                                      ? fmtDate(payment.created_at)
-                                      : payment.date
-                                      ? fmtDate(payment.date)
-                                      : "—"}
-                                  </div>
-                                </div>
-
-                                <div>
-                                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-                                    Buyer
-                                  </div>
-                                  <div className="mt-1 font-semibold text-brand-800">
-                                    {payment.buyer || user.email || "—"}
-                                  </div>
-                                </div>
-
-                                <div>
-                                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-                                    Puppy
-                                  </div>
-                                  <div className="mt-1 font-semibold text-brand-800">
-                                    {payment.puppy || puppyNameFromData(puppy) || "—"}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {payment.stripe_payment_intent_id ? (
-                                <div className="mt-4 text-[11px] font-black uppercase tracking-[0.18em] text-brand-400 break-all">
-                                  Stripe ID: {payment.stripe_payment_intent_id}
-                                </div>
-                              ) : null}
-                            </div>
-
-                            <div className="shrink-0">
-                              <div className="text-right">
-                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-                                  Amount
-                                </div>
-                                <div className="mt-1 text-xl font-black text-brand-900">
-                                  {fmtMoney(payment.amount || 0)}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-16">
-                        <div className="w-16 h-16 bg-brand-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl border border-brand-200">
-                          💳
-                        </div>
-                        <h4 className="font-serif text-3xl font-bold text-brand-800">
-                          No Payments Recorded Yet
-                        </h4>
-                        <p className="text-brand-500 mt-3 max-w-md mx-auto text-sm font-semibold leading-relaxed">
-                          Once payments are recorded to your account, they will appear here automatically.
-                        </p>
-                      </div>
-                    )}
+                ))
+              ) : (
+                <div className="py-16 text-center">
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-brand-200 bg-brand-50 text-2xl">
+                    ðŸ’³
                   </div>
-                </div>
-              </div>
-
-              <div className="lg:col-span-4 space-y-6">
-                <div className="card-luxury p-7">
-                  <h3 className="font-serif text-2xl font-bold text-brand-900 mb-4">
-                    Financial Overview
-                  </h3>
-
-                  <div className="space-y-4">
-                    <MiniInfo label="Puppy" value={puppyNameFromData(puppy) || "Pending"} />
-                    <MiniInfo label="Puppy Status" value={puppy?.status || "—"} />
-                    <MiniInfo
-                      label="Listed Price"
-                      value={
-                        puppy?.price !== null && puppy?.price !== undefined
-                          ? fmtMoney(puppy.price)
-                          : "—"
-                      }
-                    />
-                    <MiniInfo
-                      label="Deposit"
-                      value={
-                        puppy?.deposit !== null && puppy?.deposit !== undefined
-                          ? fmtMoney(puppy.deposit)
-                          : "—"
-                      }
-                    />
-                    <MiniInfo
-                      label="Remaining Balance"
-                      value={remainingBalance !== null ? fmtMoney(remainingBalance) : "—"}
-                    />
-                  </div>
-                </div>
-
-                <div className="card-luxury p-7">
-                  <h3 className="font-serif text-2xl font-bold text-brand-900 mb-4">
-                    Payment Notes
-                  </h3>
-
-                  <div className="space-y-3 text-sm font-semibold text-brand-600 leading-relaxed">
-                    <p>Only recorded portal payments appear here.</p>
-                    <p>Payment totals are based on succeeded transactions.</p>
-                    <p>For questions about balances or payment arrangements, use the Messages page.</p>
-                  </div>
-                </div>
-
-                <div className="rounded-3xl bg-brand-800 text-white p-7 shadow-luxury">
-                  <h4 className="font-serif text-2xl font-bold">Need Help?</h4>
-                  <p className="mt-2 text-brand-200 text-sm font-semibold">
-                    If something looks incorrect or you need help understanding a payment entry, message support.
+                  <h4 className="font-serif text-3xl font-bold text-brand-800">No Payments Recorded Yet</h4>
+                  <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-relaxed text-brand-500">
+                    Once payments are recorded to your account, they will appear here automatically.
                   </p>
-                  <Link
-                    href="/portal/messages"
-                    className="inline-block mt-5 px-5 py-3 bg-white/10 border border-white/20 rounded-xl text-xs font-black uppercase tracking-[0.18em] hover:bg-white/20 transition"
-                  >
-                    Message Support
-                  </Link>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
-      </main>
+
+        <div className="space-y-6 lg:col-span-4">
+          <div className="card-luxury p-7">
+            <h3 className="mb-4 font-serif text-2xl font-bold text-brand-900">Financial Overview</h3>
+            <div className="space-y-4">
+              <MiniInfo label="Puppy" value={puppyNameFromData(puppy) || "Pending"} />
+              <MiniInfo label="Puppy Status" value={puppy?.status || "—"} />
+              <MiniInfo
+                label="Listed Price"
+                value={puppy?.price !== null && puppy?.price !== undefined ? fmtMoney(puppy.price) : "—"}
+              />
+              <MiniInfo
+                label="Deposit"
+                value={puppy?.deposit !== null && puppy?.deposit !== undefined ? fmtMoney(puppy.deposit) : "—"}
+              />
+              <MiniInfo
+                label="Remaining Balance"
+                value={remainingBalance !== null ? fmtMoney(remainingBalance) : "—"}
+              />
+            </div>
+          </div>
+
+          <div className="card-luxury p-7">
+            <h3 className="mb-4 font-serif text-2xl font-bold text-brand-900">Payment Notes</h3>
+            <div className="space-y-3 text-sm font-semibold leading-relaxed text-brand-600">
+              <p>Only recorded portal payments appear here.</p>
+              <p>Payment totals are based on succeeded transactions.</p>
+              <p>Admin payment updates flow here automatically after records are changed in Core.</p>
+            </div>
+          </div>
+
+          <div className="rounded-3xl bg-brand-800 p-7 text-white shadow-luxury">
+            <h4 className="font-serif text-2xl font-bold">Need Help?</h4>
+            <p className="mt-2 text-sm font-semibold text-brand-200">
+              If something looks incorrect or you need help understanding a payment entry, message support.
+            </p>
+            <Link
+              href="/portal/messages"
+              className="mt-5 inline-block rounded-xl border border-white/20 bg-white/10 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] transition hover:bg-white/20"
+            >
+              Message Support
+            </Link>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
@@ -593,13 +353,30 @@ function puppyNameFromData(puppy: PuppyRow | null) {
   return puppy?.call_name || puppy?.puppy_name || puppy?.name || "";
 }
 
+function Detail({
+  label,
+  value,
+  emphasize = false,
+}: {
+  label: string;
+  value: string;
+  emphasize?: boolean;
+}) {
+  return (
+    <div>
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">{label}</div>
+      <div className={`mt-1 ${emphasize ? "font-black text-brand-900" : "font-semibold text-brand-800"}`}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
 function InfoTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="card-luxury p-5 text-center">
-      <div className="text-[11px] font-black text-brand-700 uppercase tracking-[0.18em]">
-        {label}
-      </div>
-      <div className="mt-2 text-sm font-black text-brand-900 break-words">{value}</div>
+      <div className="text-[11px] font-black uppercase tracking-[0.18em] text-brand-700">{label}</div>
+      <div className="mt-2 break-words text-sm font-black text-brand-900">{value}</div>
     </div>
   );
 }
@@ -607,9 +384,7 @@ function InfoTile({ label, value }: { label: string; value: string }) {
 function MiniInfo({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-brand-200 bg-white/65 p-4">
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-        {label}
-      </div>
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">{label}</div>
       <div className="mt-1 text-sm font-semibold text-brand-800">{value}</div>
     </div>
   );
@@ -631,40 +406,34 @@ function PaymentsLogin() {
   };
 
   return (
-    <div className="h-screen flex items-center justify-center bg-brand-50 p-6">
-      <div className="card-luxury shine p-10 w-full max-w-md border border-white">
-        <h2 className="font-serif text-4xl font-bold text-center mb-8">
-          Welcome Home
-        </h2>
+    <div className="flex h-screen items-center justify-center bg-brand-50 p-6">
+      <div className="card-luxury shine w-full max-w-md border border-white p-10">
+        <h2 className="mb-8 text-center font-serif text-4xl font-bold">Welcome Home</h2>
 
         <form onSubmit={login} className="space-y-5">
           <div>
-            <label className="text-[10px] font-black uppercase text-brand-500 mb-1 block">
-              Email
-            </label>
+            <label className="mb-1 block text-[10px] font-black uppercase text-brand-500">Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-3 rounded-xl border border-brand-200"
+              className="w-full rounded-xl border border-brand-200 p-3"
               required
             />
           </div>
 
           <div>
-            <label className="text-[10px] font-black uppercase text-brand-500 mb-1 block">
-              Password
-            </label>
+            <label className="mb-1 block text-[10px] font-black uppercase text-brand-500">Password</label>
             <input
               type="password"
               value={pass}
               onChange={(e) => setPass(e.target.value)}
-              className="w-full p-3 rounded-xl border border-brand-200"
+              className="w-full rounded-xl border border-brand-200 p-3"
               required
             />
           </div>
 
-          <button className="w-full bg-brand-800 text-white p-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lift">
+          <button className="w-full rounded-xl bg-brand-800 p-4 text-xs font-black uppercase tracking-widest text-white shadow-lift">
             Sign In
           </button>
         </form>

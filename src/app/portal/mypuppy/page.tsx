@@ -957,11 +957,32 @@ export default function PortalMyPuppyPage() {
 
               <div className="rounded-[30px] border border-[#dccab7] bg-white p-6 shadow-[0_12px_28px_rgba(74,51,33,0.06)] md:p-7">
                 <h2 className="font-serif text-2xl font-bold text-[#3b271b]">
-                  Personality & Highlights
+                  Edit With ChiChi
                 </h2>
+                <p className="mt-1 text-sm font-semibold text-[#8b6b4d]">
+                  Repetitive sidebar details were replaced with direct edit help for ChiChi.
+                </p>
 
                 <div className="mt-5 space-y-3">
-                  <MiniInfo label="Family Type" value={buyerExperience} />
+                  <div className="rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4">
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
+                      Good For Edits
+                    </div>
+                    <div className="mt-2 text-sm font-semibold leading-7 text-[#4e3727]">
+                      Microchip, registration number, litter name, sire, dam, coat, color, pattern, status, description, breeder notes, birth weight, current weight, and more.
+                    </div>
+                  </div>
+                  <div className="rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4">
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
+                      Example Commands
+                    </div>
+                    <div className="mt-2 space-y-2 text-sm font-semibold leading-7 text-[#4e3727]">
+                      <div>{`Edit puppy ${puppy.call_name || puppy.puppy_name || puppy.name || "this puppy"} microchip to 981000123456789`}</div>
+                      <div>{`Update puppy ${puppy.call_name || puppy.puppy_name || puppy.name || "this puppy"} registration number to CKC-12345`}</div>
+                      <div>{`Update puppy ${puppy.call_name || puppy.puppy_name || puppy.name || "this puppy"} sire to Gus Gus`}</div>
+                      <div>{`Update puppy ${puppy.call_name || puppy.puppy_name || puppy.name || "this puppy"} description to playful, confident, and loves to cuddle`}</div>
+                    </div>
+                  </div>
                   <MiniInfo
                     label="Coat"
                     value={puppy.coat_type || puppy.coat || "—"}
@@ -1016,11 +1037,11 @@ export default function PortalMyPuppyPage() {
                 </div>
                 <h2 className="mt-2 font-serif text-2xl font-bold">ChiChi Assistant</h2>
                 <p className="mt-2 text-sm font-semibold leading-7 text-white/82">
-                  Need help finding something in your portal? Use the ChiChi chat button in the bottom right for account-aware answers.
+                  Need help finding something in your portal or updating puppy profile fields? Use the ChiChi chat button in the bottom right for account-aware answers and admin edits.
                 </p>
 
                 <div className="mt-5 rounded-[22px] border border-white/15 bg-white/10 p-4 text-sm font-semibold leading-7 text-white/82">
-                  Ask about payments, documents, breeder messages, puppy updates, milestones, and more.
+                  Ask about payments, documents, breeder messages, puppy updates, milestones, or say things like &quot;Edit puppy Frey microchip to ...&quot; when you want to change a field.
                 </div>
               </div>
             </div>
@@ -1064,15 +1085,9 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function MiniInfo({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4">
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
-        {label}
-      </div>
-      <div className="mt-1 text-sm font-semibold text-[#4e3727]">{value}</div>
-    </div>
-  );
+function MiniInfo(_props: { label: string; value: string }) {
+  void _props;
+  return null;
 }
 
 function QuickLink({
