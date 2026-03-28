@@ -199,6 +199,9 @@ type ActionIntent =
       buyer_name?: string | null;
       buyer_email?: string | null;
       owner_email?: string | null;
+      weight_date?: string | null;
+      weight_oz?: number | null;
+      weight_g?: number | null;
       notes?: string | null;
       description?: string | null;
     }
@@ -320,6 +323,9 @@ type ActionIntent =
       buyer_name?: string | null;
       buyer_email?: string | null;
       owner_email?: string | null;
+      weight_date?: string | null;
+      weight_oz?: number | null;
+      weight_g?: number | null;
       notes?: string | null;
       description?: string | null;
     }
@@ -1022,6 +1028,7 @@ Your role:
 - Help authorized admins with Core admin chat commands and general portal questions.
 - Keep answers concise, warm, and operationally clear.
 - Never claim a database write succeeded unless the action handler already completed it.
+- Never say you are unable to perform database writes when Core admin write access is enabled. If an action needs more detail, ask only for the missing fields.
 - If the admin asks what commands are available, mention add, edit, and delete coverage for buyers, puppies, puppy events, payments, and puppy weights.
 - If an admin request is missing details, ask for the exact missing fields only.
 - If a request is ambiguous because multiple buyers, puppies, or payments could match, say that plainly and ask for one clarifying detail.
@@ -1063,7 +1070,7 @@ ${JSON.stringify(summary, null, 2)}
 `.trim();
 }
 
-function buildActionExtractionPrompt(userMessage: string) {
+function buildActionExtractionPrompt(userMessage: string, recentUserMessages: string[]) {
   return `
 You are extracting a command intent for ChiChi / Core.
 
@@ -1101,7 +1108,7 @@ For "delete_buyer", try to extract:
 buyer_id, buyer_name, buyer_email, buyer_names
 
 For "add_puppy", try to extract:
-call_name, puppy_name, name, sex, color, coat_type, pattern, dob, registry, price, status, buyer_name, buyer_email, owner_email, notes, description
+call_name, puppy_name, name, sex, color, coat_type, pattern, dob, registry, price, status, buyer_name, buyer_email, owner_email, weight_date, weight_oz, weight_g, notes, description
 
 For "update_puppy", try to extract:
 puppy_id, puppy_name, puppy_names, call_name, new_puppy_name, name, sex, color, coat_type, pattern, dob, registry, price, status, buyer_name, buyer_email, owner_email, notes, description
@@ -1137,15 +1144,100 @@ For "delete_puppy_weight", try to extract:
 weight_id, puppy_name, puppy_id, weight_date, weight_oz, weight_g
 
 Use null for missing fields.
+Use arrays when the user clearly listed multiple buyers or puppies to delete.
 Use ISO date format YYYY-MM-DD when possible.
 Use numbers for numeric fields.
+
+Recent user messages for context:
+${JSON.stringify(recentUserMessages)}
 
 User message:
 ${JSON.stringify(userMessage)}
 `.trim();
 }
 
-async function extractActionIntent(userMessage: string): Promise<ActionIntent> {
+function parseMultiNameList(raw: string): string[] {
+  return raw
+    .split(/\band\b|,|&/i)
+    .map((value) => value.replace(/\bpupp(y|ies)\b/gi, "").trim())
+    .filter(Boolean);
+}
+
+function parseDirectActionIntent(userMessage: string): ActionIntent | null {
+  const text = String(userMessage || "").trim();
+  const lower = text.toLowerCase();
+
+  if (lower.startsWith("delete puppy ") || lower.startsWith("delete puppies ")) {
+    const names = parseMultiNameList(
+      text.replace(/^delete puppies?\s*/i, "").replace(/\.$/, "")
+    );
+    if (names.length > 1) {
+      return { action: "delete_puppy", puppy_names: names };
+    }
+    if (names.length === 1) {
+      return { action: "delete_puppy", puppy_name: names[0] };
+    }
+  }
+
+  if (lower.startsWith("add puppy")) {
+    const nameMatch = text.match(/name[:,]?\s*([a-z0-9_-]+)/i);
+    const bornToday = /\bborn today\b/i.test(text);
+    const dobMatch = text.match(/\b(?:born|dob)[:\s-]*([0-9]{1,2}\/[0-9]{1,2}(?:\/[0-9]{2,4})?|[0-9]{4}-[0-9]{2}-[0-9]{2})/i);
+    const weightOzMatch = text.match(/(\d+(?:\.\d+)?)\s*oz\b/i);
+    const weightGMatch = text.match(/(\d+(?:\.\d+)?)\s*g\b/i);
+    const coatMatch = text.match(/\b(long|smooth)\s+coat\b/i);
+    const registryMatch = text.match(/\b(CKC|AKC|ACA|UKC)\b/i);
+
+    const directName =
+      nameMatch?.[1] ||
+      text.replace(/^add puppy[:\s-]*/i, "").split(/[,\-]/)[0]?.trim() ||
+      null;
+
+    const normalizedName =
+      directName && !/^(born|weight|coat|dam|sire)$/i.test(directName) ? directName : null;
+
+    return {
+      action: "add_puppy",
+      puppy_name: normalizedName,
+      call_name: normalizedName,
+      name: normalizedName,
+      dob: bornToday ? new Date().toISOString().slice(0, 10) : dobMatch?.[1] || null,
+      weight_oz: weightOzMatch ? Number(weightOzMatch[1]) : null,
+      weight_g: weightGMatch ? Number(weightGMatch[1]) : null,
+      coat_type: coatMatch ? `${coatMatch[1]} coat` : null,
+      registry: registryMatch?.[1] || null,
+      notes: text,
+    } as ActionIntent;
+  }
+
+  return null;
+}
+
+function mergeIntentWithRecentContext(intent: ActionIntent, recentUserMessages: string[]): ActionIntent {
+  if (intent.action === "add_puppy" && !(intent.call_name || intent.puppy_name || intent.name)) {
+    const lastShortReply = [...recentUserMessages]
+      .reverse()
+      .find((message) => /^[a-z0-9_-]{2,40}$/i.test(String(message).trim()));
+
+    if (lastShortReply) {
+      return {
+        ...intent,
+        call_name: lastShortReply,
+        puppy_name: lastShortReply,
+        name: lastShortReply,
+      };
+    }
+  }
+
+  return intent;
+}
+
+async function extractActionIntent(userMessage: string, recentUserMessages: string[]): Promise<ActionIntent> {
+  const directIntent = parseDirectActionIntent(userMessage);
+  if (directIntent) {
+    return mergeIntentWithRecentContext(directIntent, recentUserMessages);
+  }
+
   const response = await fetch(ANTHROPIC_URL, {
     method: "POST",
     headers: {
@@ -1161,7 +1253,7 @@ async function extractActionIntent(userMessage: string): Promise<ActionIntent> {
       messages: [
         {
           role: "user",
-          content: buildActionExtractionPrompt(userMessage),
+          content: buildActionExtractionPrompt(userMessage, recentUserMessages),
         },
       ],
     }),
@@ -1179,7 +1271,7 @@ async function extractActionIntent(userMessage: string): Promise<ActionIntent> {
     return { action: "answer_only", reason: "intent extraction returned invalid JSON" };
   }
 
-  return parsed as ActionIntent;
+  return mergeIntentWithRecentContext(parsed as ActionIntent, recentUserMessages);
 }
 
 async function findBuyerByNameOrEmail(
@@ -1572,6 +1664,17 @@ async function executeAddPuppy(
     status: intent.status || "Available",
     buyer_id: buyer?.id ?? null,
     owner_email: intent.owner_email || buyer?.email || intent.buyer_email || null,
+    current_weight:
+      intent.weight_oz === null || intent.weight_oz === undefined
+        ? intent.weight_g ?? null
+        : intent.weight_oz,
+    weight_unit:
+      intent.weight_oz === null || intent.weight_oz === undefined
+        ? intent.weight_g === null || intent.weight_g === undefined
+          ? null
+          : "g"
+        : "oz",
+    weight_date: intent.weight_date || intent.dob || null,
     notes: intent.notes || null,
     description: intent.description || null,
   };
@@ -1588,6 +1691,30 @@ async function executeAddPuppy(
 
   const puppyDisplay =
     data?.call_name || data?.puppy_name || data?.name || "New puppy";
+
+  if (
+    data?.id &&
+    ((intent.weight_oz !== null && intent.weight_oz !== undefined) ||
+      (intent.weight_g !== null && intent.weight_g !== undefined))
+  ) {
+    const { error: weightError } = await admin.from("puppy_weights").insert({
+      puppy_id: data.id,
+      weigh_date: intent.weight_date || intent.dob || new Date().toISOString().slice(0, 10),
+      weight_date: intent.weight_date || intent.dob || new Date().toISOString().slice(0, 10),
+      weight_oz:
+        intent.weight_oz === null || intent.weight_oz === undefined
+          ? null
+          : Number(intent.weight_oz),
+      weight_g:
+        intent.weight_g === null || intent.weight_g === undefined ? null : Number(intent.weight_g),
+      notes: "Initial puppy weight from add puppy command",
+      source: "chi_chi_admin",
+    });
+
+    if (weightError) {
+      console.error("Initial puppy weight save failed:", weightError);
+    }
+  }
 
   return `Core action completed. I added puppy "${puppyDisplay}" with status "${data?.status || payload.status}".`;
 }
@@ -2186,7 +2313,12 @@ export async function POST(req: Request) {
       email: user.email || null,
       canWriteCore,
     };
-    const intent = await extractActionIntent(lastUserMessage);
+    const recentUserMessages = messages
+      .filter((message) => message.role === "user")
+      .slice(-6)
+      .map((message) => message.content);
+
+    const intent = await extractActionIntent(lastUserMessage, recentUserMessages);
 
     let text = "";
 

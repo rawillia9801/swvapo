@@ -648,123 +648,138 @@ export default function PortalLayout({
 
       {/* Floating Chat Widget */}
       <div className="pointer-events-none fixed inset-0 z-[9999]">
-        <div className="pointer-events-none absolute bottom-6 right-6 flex flex-col items-end gap-4 sm:bottom-8 sm:right-8">
-          
+        <div className="pointer-events-none absolute bottom-[94px] right-3 flex flex-col items-end gap-4 sm:bottom-[104px] sm:right-7">
           {isChiChiOpen && (
-            <div className="pointer-events-auto w-[calc(100vw-32px)] max-w-[480px] overflow-hidden rounded-[2rem] border border-stone-200/60 bg-[#FAFAFA]/95 backdrop-blur-xl shadow-[0_30px_80px_rgba(28,22,20,0.15)] flex flex-col transform transition-all animate-in slide-in-from-bottom-4 fade-in duration-300">
-              
-              {/* Chat Header */}
-              <div className="flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-[#1C1614] to-[#2D2420] px-5 py-4 text-white">
-                <div className="flex items-center gap-3.5">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#D9A05B] to-[#C0853E] text-white shadow-md">
-                    <MessageCircle className="h-5 w-5" />
+            <div className="pointer-events-auto flex h-[min(680px,calc(100vh-120px))] w-[calc(100vw-24px)] max-w-[380px] flex-col overflow-hidden rounded-[1.15rem] border border-[#e8d5c3] bg-[#fffaf6] shadow-[0_16px_56px_rgba(90,50,20,0.15),0_2px_8px_rgba(0,0,0,0.06)] animate-in slide-in-from-bottom-4 fade-in duration-300 sm:w-[380px]">
+              <div className="flex items-center gap-3 bg-[linear-gradient(135deg,#d97540,#b85e2a)] px-4 py-4 text-white">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-white/40 bg-[#f2c47e] text-[#6b3816] shadow-[0_2px_8px_rgba(0,0,0,0.2)]">
+                  <Dog className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-extrabold">
+                    {hasAdminUi ? "ChiChi + Core" : "ChiChi"}
                   </div>
-                  <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-[#D9A05B]">
-                      {hasAdminUi ? "ChiChi + Core" : "Your Assistant"}
-                    </div>
-                    <div className="font-serif text-[20px] leading-none text-white tracking-wide mt-0.5">
-                      ChiChi AI
-                    </div>
+                  <div className="mt-0.5 flex items-center gap-2 text-xs text-white/85">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#6ddc8b]" />
+                    <span>{hasAdminUi ? "Online - admin ready" : "Online - ask me anything"}</span>
                   </div>
                 </div>
-
                 <button
                   type="button"
                   onClick={() => setIsChiChiOpen(false)}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white/80 transition-all hover:bg-white/20 hover:text-white"
+                  className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
                   aria-label="Close ChiChi Assistant"
                 >
-                  <X className="h-5 w-5" />
+                  <X className="h-4 w-4" />
                 </button>
               </div>
 
-              {/* Context / Tabs Bar */}
-              <div className="border-b border-stone-200 bg-white/60 px-5 py-4">
-                <div className="flex flex-col gap-4">
-                  {/* Context Cards */}
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="rounded-2xl border border-stone-100 bg-white/80 px-4 py-3 shadow-sm">
-                      <div className="text-[9px] font-black uppercase tracking-[0.15em] text-stone-400">Buyer</div>
-                      <div className="mt-1 text-xs font-semibold text-stone-700 truncate" title={buyerName || displayName}>
-                        {buyerName || displayName}
-                      </div>
+              <div className="border-b border-[#eadfce] bg-[#fffaf4] px-4 py-4">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="rounded-[1rem] border border-[#eadfce] bg-white px-3 py-2.5 shadow-sm">
+                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-stone-400">
+                      Buyer
                     </div>
-                    <div className="rounded-2xl border border-stone-100 bg-white/80 px-4 py-3 shadow-sm">
-                      <div className="text-[9px] font-black uppercase tracking-[0.15em] text-stone-400">Puppy</div>
-                      <div className="mt-1 text-xs font-semibold text-stone-700 truncate" title={puppyName || "your puppy"}>
-                        {puppyName || "Your Puppy"}
-                      </div>
-                    </div>
-                    <div className="rounded-2xl border border-stone-100 bg-white/80 px-4 py-3 shadow-sm">
-                      <div className="text-[9px] font-black uppercase tracking-[0.15em] text-stone-400">Access</div>
-                      <div className="mt-1 text-xs font-semibold text-stone-700 truncate">
-                        {hasAdminUi ? "Admin UI" : "Standard"}
-                      </div>
+                    <div
+                      className="mt-1 truncate text-xs font-semibold text-stone-700"
+                      title={buyerName || displayName}
+                    >
+                      {buyerName || displayName}
                     </div>
                   </div>
+                  <div className="rounded-[1rem] border border-[#eadfce] bg-white px-3 py-2.5 shadow-sm">
+                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-stone-400">
+                      Puppy
+                    </div>
+                    <div
+                      className="mt-1 truncate text-xs font-semibold text-stone-700"
+                      title={puppyName || "Your Puppy"}
+                    >
+                      {puppyName || "Your Puppy"}
+                    </div>
+                  </div>
+                  <div className="rounded-[1rem] border border-[#eadfce] bg-white px-3 py-2.5 shadow-sm">
+                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-stone-400">
+                      Access
+                    </div>
+                    <div className="mt-1 truncate text-xs font-semibold text-stone-700">
+                      {hasAdminUi ? "Admin UI" : "Standard"}
+                    </div>
+                  </div>
+                </div>
 
-                  {/* Tabs */}
-                  <div className="inline-flex rounded-xl bg-stone-200/50 p-1 w-fit self-start">
+                <div className="mt-3 inline-flex rounded-2xl bg-[#f2ede7] p-1">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("ask")}
+                    className={`rounded-xl px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em] transition ${
+                      activeTab === "ask"
+                        ? "bg-white text-stone-900 shadow-sm"
+                        : "text-stone-500 hover:text-stone-700"
+                    }`}
+                  >
+                    Ask
+                  </button>
+                  {hasAdminUi && (
                     <button
                       type="button"
-                      onClick={() => setActiveTab("ask")}
-                      className={`rounded-lg px-4 py-2 text-[11px] font-bold uppercase tracking-[0.15em] transition-all ${
-                        activeTab === "ask"
-                          ? "bg-white text-stone-800 shadow-sm"
+                      onClick={() => setActiveTab("actions")}
+                      className={`rounded-xl px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em] transition ${
+                        activeTab === "actions"
+                          ? "bg-white text-stone-900 shadow-sm"
                           : "text-stone-500 hover:text-stone-700"
                       }`}
                     >
-                      Ask
+                      Core Console
                     </button>
-                    {hasAdminUi && (
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab("actions")}
-                        className={`rounded-lg px-4 py-2 text-[11px] font-bold uppercase tracking-[0.15em] transition-all ${
-                          activeTab === "actions"
-                            ? "bg-white text-stone-800 shadow-sm"
-                            : "text-stone-500 hover:text-stone-700"
-                        }`}
-                      >
-                        Core Console
-                      </button>
-                    )}
-                  </div>
+                  )}
                 </div>
               </div>
 
-              {/* Chat Area / Action Area */}
-              <div className="border-b border-stone-100 px-5 py-4 bg-white/40">
+              <div className="border-b border-[#eadfce] bg-[#fffaf4] px-4 py-4">
                 {activeTab === "ask" || !hasAdminUi ? (
-                  <div className="rounded-2xl bg-stone-100/50 px-5 py-4 text-sm leading-relaxed text-stone-600 border border-stone-200/50">
-                    <div className="font-semibold text-stone-800">
-                      Hi, I’m your personal ChiChi Assistant!
+                  <div className="rounded-[1.35rem] border border-[#dfcfbd] bg-white p-4 text-[15px] leading-7 text-[#6d5037]">
+                    <div className="font-semibold text-[#4d3b2b]">
+                      Hi, I&apos;m your personal ChiChi Assistant!
                     </div>
                     <div className="mt-1">
-                      Ask me anything about your account, documents, or Chihuahuas in general.
+                      Ask me about your account, documents, puppies, or Chihuahua care.
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {[
+                        { label: "My Puppy", prompt: "Show me my puppy summary." },
+                        { label: "Messages", prompt: "Show me recent messages for this account." },
+                        { label: "Documents", prompt: "What documents are available for me?" },
+                      ].map((item) => (
+                        <button
+                          key={item.label}
+                          type="button"
+                          onClick={() => void sendChiChiMessage(undefined, item.prompt)}
+                          className="rounded-full border border-[#dfcfbd] bg-[#fff9f3] px-3 py-2 text-[11px] font-bold text-[#6d5037] transition hover:border-[#d7bea2] hover:bg-white"
+                        >
+                          {item.label}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     {adminAuth ? (
-                      <div className="rounded-2xl border border-stone-200/70 bg-white px-4 py-3 text-[11px] leading-5 text-stone-600">
-                        <div className="font-black uppercase tracking-[0.14em] text-stone-500">
+                      <div className="rounded-[1.15rem] border border-[#dfcfbd] bg-white px-4 py-3 text-[11px] leading-5 text-[#6d5037]">
+                        <div className="font-black uppercase tracking-[0.16em] text-stone-500">
                           Server Admin Status
                         </div>
                         <div className="mt-1">
                           {adminAuth.canWriteCore ? "Write access enabled." : "Write access not enabled yet."}
                         </div>
-                        <div className="mt-1 break-all">
-                          {adminAuth.email || "No email returned"}
-                        </div>
+                        <div className="mt-1 break-all">{adminAuth.email || "No email returned"}</div>
                         <div className="break-all text-stone-400">
                           {adminAuth.userId || "No user id returned"}
                         </div>
                       </div>
                     ) : null}
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-2">
                       {coreActions.map((action) => (
                         <button
                           key={action.key}
@@ -773,9 +788,9 @@ export default function PortalLayout({
                             setActiveTab("ask");
                             void sendChiChiMessage(undefined, action.prompt);
                           }}
-                          className="flex items-center gap-2.5 rounded-2xl border border-stone-200/60 bg-white px-4 py-3.5 text-left text-xs font-semibold text-stone-700 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md hover:border-[#D9A05B]/30"
+                          className="flex items-center gap-2 rounded-[1rem] border border-[#eadfce] bg-white px-3 py-3 text-left text-xs font-semibold text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#d7bea2] hover:bg-[#fff9f3]"
                         >
-                          <span className="text-[#C0853E]">{action.icon}</span>
+                          <span className="text-[#b85e2a]">{action.icon}</span>
                           <span>{action.label}</span>
                         </button>
                       ))}
@@ -783,38 +798,48 @@ export default function PortalLayout({
 
                     <Link
                       href="/admin/portal/assistant"
-                      className="flex items-center justify-between rounded-2xl border border-[#d7c3ab] bg-[#fcf8f3] px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-[#6e5035] transition hover:bg-white"
+                      className="flex items-center justify-between rounded-[1rem] border border-[#d7bea2] bg-[#fff7ef] px-4 py-3 text-[11px] font-black uppercase tracking-[0.16em] text-[#6e5035] transition hover:bg-white"
                     >
                       <span>Open Full Admin Assistant</span>
-                      <span aria-hidden="true">↗</span>
+                      <span aria-hidden="true">{"->"}</span>
                     </Link>
                   </div>
                 )}
               </div>
 
-              {/* Messages Container */}
-              <div className="h-[380px] overflow-y-auto px-5 py-5 scroll-smooth">
-                <div className="space-y-4">
+              <div className="flex-1 overflow-y-auto px-4 pb-2 pt-4">
+                <div className="flex flex-col gap-3">
                   {messages.map((message) => {
                     const isUser = message.role === "user";
 
                     return (
                       <div
                         key={message.id}
-                        className={`flex ${isUser ? "justify-end" : "justify-start"} animate-in slide-in-from-bottom-2 fade-in duration-300`}
+                        className={`flex max-w-[88%] items-end gap-2 ${
+                          isUser ? "ml-auto flex-row-reverse" : "mr-auto"
+                        } animate-in slide-in-from-bottom-2 fade-in duration-300`}
                       >
                         <div
-                          className={[
-                            "max-w-[85%] rounded-[1.5rem] px-5 py-3.5 text-[14px] leading-relaxed shadow-sm",
-                            isUser
-                              ? "bg-[#2D2825] text-[#FDFCF8] rounded-tr-md"
-                              : "border border-stone-200 bg-white text-stone-700 rounded-tl-md",
-                          ].join(" ")}
+                          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
+                            isUser ? "bg-[#fdf1e8] text-[#b85e2a]" : "bg-[#f2c47e] text-[#6b3816]"
+                          }`}
                         >
-                          {renderChatText(message.text)}
+                          {isUser ? userInitial : <Dog className="h-3.5 w-3.5" />}
+                        </div>
+                        <div className="min-w-0">
                           <div
-                            className={`mt-2 text-[10px] font-medium tracking-wider uppercase ${
-                              isUser ? "text-white/40" : "text-stone-400"
+                            className={[
+                              "rounded-2xl px-3.5 py-2.5 text-sm leading-6 shadow-sm",
+                              isUser
+                                ? "rounded-br-md bg-[#d97540] text-white"
+                                : "rounded-bl-md border border-[#e8d5c3] bg-[#fff8f2] text-[#2d1f12]",
+                            ].join(" ")}
+                          >
+                            {renderChatText(message.text)}
+                          </div>
+                          <div
+                            className={`mt-1 px-1 text-[10px] ${
+                              isUser ? "text-right text-[#7a5c42]" : "text-[#7a5c42]"
                             }`}
                           >
                             {message.createdAt}
@@ -825,13 +850,14 @@ export default function PortalLayout({
                   })}
 
                   {isSending && (
-                    <div className="flex justify-start animate-in fade-in">
-                      <div className="max-w-[85%] rounded-[1.5rem] rounded-tl-md border border-stone-200 bg-white px-5 py-3.5 text-sm text-stone-500 shadow-sm flex items-center gap-2">
-                        <span className="flex space-x-1">
-                          <span className="w-1.5 h-1.5 bg-stone-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                          <span className="w-1.5 h-1.5 bg-stone-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                          <span className="w-1.5 h-1.5 bg-stone-400 rounded-full animate-bounce"></span>
-                        </span>
+                    <div className="mr-auto flex max-w-[88%] items-end gap-2 animate-in fade-in">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f2c47e] text-[#6b3816]">
+                        <Dog className="h-3.5 w-3.5" />
+                      </div>
+                      <div className="flex items-center gap-1 rounded-2xl rounded-bl-md border border-[#e8d5c3] bg-[#fff8f2] px-4 py-3">
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#d97540] [animation-delay:-0.3s]" />
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#d97540] [animation-delay:-0.15s]" />
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#d97540]" />
                       </div>
                     </div>
                   )}
@@ -840,65 +866,65 @@ export default function PortalLayout({
                 </div>
               </div>
 
-              {/* Input Area */}
               <form
                 onSubmit={(e) => void sendChiChiMessage(e)}
-                className="bg-white px-5 py-4 border-t border-stone-100"
+                className="border-t border-[#e8d5c3] bg-[#fffaf6] px-3.5 pb-3 pt-3"
               >
-                <div className="relative flex items-end gap-3 rounded-[1.5rem] border border-stone-200 bg-[#FDFCF8] p-2 pr-2 shadow-sm focus-within:ring-2 focus-within:ring-[#D9A05B]/30 focus-within:border-[#D9A05B] transition-all">
+                <div className="flex items-end gap-2">
                   <textarea
                     ref={chatInputRef}
                     value={chatDraft}
                     onChange={(e) => setChatDraft(e.target.value)}
                     onKeyDown={handleTextareaKeyDown}
                     rows={1}
-                    style={{ minHeight: "44px", maxHeight: "120px" }}
+                    style={{ minHeight: "42px", maxHeight: "100px" }}
                     placeholder={
                       activeTab === "actions" && hasAdminUi
-                        ? "Describe Core action..."
-                        : "Ask a question..."
+                        ? "Describe a Core action..."
+                        : "Ask me about puppies, care tips, availability..."
                     }
-                    className="w-full resize-none bg-transparent py-2.5 pl-4 text-sm leading-relaxed text-stone-800 outline-none placeholder:text-stone-400"
+                    className="max-h-[100px] flex-1 resize-none rounded-[1.35rem] border border-[#e8d5c3] bg-white px-4 py-2.5 text-sm leading-6 text-[#2d1f12] outline-none transition placeholder:text-[#bfa990] focus:border-[#d97540]"
                   />
                   <button
                     type="submit"
                     disabled={isSending || !chatDraft.trim()}
-                    className="shrink-0 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-[#D9A05B] to-[#C0853E] text-white shadow-md transition-all hover:scale-105 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+                    className="inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#d97540,#b85e2a)] text-white shadow-[0_3px_12px_rgba(90,50,20,0.15)] transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+                    aria-label="Send message"
                   >
-                    <SendHorizonal className="h-4 w-4 ml-0.5" />
+                    <SendHorizonal className="h-4 w-4" />
                   </button>
                 </div>
-                
-                <div className="mt-3 px-2 text-[11px] leading-tight text-stone-400">
+
+                <div className="pt-2 text-center text-[10.5px] text-[#c4a88c]">
                   Emergency? Please contact your vet.{" "}
                   <a
                     href="https://www.google.com/maps/search/emergency+veterinarian+near+me"
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1 font-semibold text-[#C0853E] hover:text-[#9c6a30] transition-colors"
+                    className="font-semibold text-[#7b5b3f] underline underline-offset-2"
                   >
                     Nearby emergency vets
-                    <ExternalLink className="h-3 w-3" />
+                    <ExternalLink className="ml-1 inline h-3 w-3" />
                   </a>
                 </div>
               </form>
             </div>
           )}
 
-          {/* Chat Toggle Button */}
           <button
             type="button"
             onClick={() => setIsChiChiOpen((v) => !v)}
-            className={`pointer-events-auto inline-flex items-center gap-3 rounded-full bg-gradient-to-r from-[#1C1614] to-[#2D2420] p-1.5 pr-5 text-sm font-medium text-[#FDFCF8] shadow-[0_16px_40px_rgba(28,22,20,0.3)] border border-[#3A322D] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_50px_rgba(28,22,20,0.4)] ${isChiChiOpen ? 'scale-0 opacity-0' : 'scale-100 opacity-100'}`}
+            className={`pointer-events-auto inline-flex h-16 w-16 items-center justify-center rounded-full bg-[linear-gradient(135deg,#d97540,#b85e2a)] text-white shadow-[0_6px_24px_rgba(90,50,20,0.15)] transition duration-200 hover:scale-[1.08] hover:shadow-[0_10px_32px_rgba(90,50,20,0.18)] ${
+              isChiChiOpen ? "scale-0 opacity-0" : "scale-100 opacity-100"
+            }`}
             aria-label="Toggle ChiChi Assistant"
+            title="Chat with ChiChi"
           >
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#D9A05B] to-[#C0853E] shadow-inner">
-              <Sparkles className="h-5 w-5 text-white" />
-            </span>
-            <span className="tracking-wide">Ask ChiChi</span>
+            <PawPrint className="h-7 w-7" />
           </button>
         </div>
       </div>
     </div>
   );
 }
+
