@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createHash } from "crypto";
 
+// ─────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────
+
 type PublicRequestBody = {
   message?: string;
   source?: string;
@@ -13,6 +17,8 @@ type PublicRequestBody = {
   utm_campaign?: string;
   utm_term?: string;
   utm_content?: string;
+  /** Full conversation history sent from the client for context */
+  history?: { role: "user" | "assistant"; content: string }[];
 };
 
 type LeadAnalysis = {
@@ -32,6 +38,10 @@ type LeadAnalysis = {
   phone: string | null;
 };
 
+// ─────────────────────────────────────────────
+// Env / Supabase helpers
+// ─────────────────────────────────────────────
+
 function getEnv(name: string) {
   const value = process.env[name];
   if (!value) throw new Error(`Missing environment variable: ${name}`);
@@ -42,14 +52,16 @@ function createServiceSupabase(): SupabaseClient {
   return createClient(
     getEnv("NEXT_PUBLIC_SUPABASE_URL"),
     getEnv("SUPABASE_SERVICE_ROLE_KEY"),
-    {
-      auth: { persistSession: false, autoRefreshToken: false },
-    }
+    { auth: { persistSession: false, autoRefreshToken: false } }
   );
 }
 
+// ─────────────────────────────────────────────
+// CORS
+// ─────────────────────────────────────────────
+
 function getAllowedOrigin(origin: string | null) {
-  const allowedOrigins = [
+  const allowed = [
     "https://swvachihuahua.com",
     "https://www.swvachihuahua.com",
     "http://swvachihuahua.com",
@@ -57,9 +69,7 @@ function getAllowedOrigin(origin: string | null) {
     "http://localhost:3000",
     "http://127.0.0.1:3000",
   ];
-
-  if (origin && allowedOrigins.includes(origin)) return origin;
-  return "https://swvachihuahua.com";
+  return origin && allowed.includes(origin) ? origin : "https://swvachihuahua.com";
 }
 
 function withCors(origin: string | null, extra: Record<string, string> = {}) {
@@ -71,6 +81,10 @@ function withCors(origin: string | null, extra: Record<string, string> = {}) {
     ...extra,
   };
 }
+
+// ─────────────────────────────────────────────
+// Utilities
+// ─────────────────────────────────────────────
 
 function sha256(value: string) {
   return createHash("sha256").update(value).digest("hex");
@@ -92,19 +106,33 @@ function extractEmail(text: string) {
 }
 
 function extractPhone(text: string) {
-  const match = text.match(/(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}/);
+  const match = text.match(
+    /(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}/
+  );
   return match ? match[0] : null;
 }
 
-function detectTopic(q: string) {
-  if (q.includes("payment plan") || q.includes("financing") || q.includes("monthly")) return "payment_plans";
+function detectTopic(q: string): string | null {
+  if (q.includes("payment plan") || q.includes("financing") || q.includes("monthly"))
+    return "payment_plans";
   if (q.includes("wait list") || q.includes("waitlist")) return "wait_list";
-  if (q.includes("available") || q.includes("puppies") || q.includes("litter")) return "availability";
+  if (q.includes("available") || q.includes("puppies") || q.includes("litter"))
+    return "availability";
   if (q.includes("apply") || q.includes("application")) return "application";
   if (q.includes("policy") || q.includes("policies")) return "policies";
   if (q.includes("portal")) return "puppy_portal";
-  if (q.includes("transport") || q.includes("delivery") || q.includes("pickup")) return "transport";
-  if (q.includes("health guarantee") || q.includes("vaccine") || q.includes("deworm")) return "health";
+  if (
+    q.includes("transport") ||
+    q.includes("delivery") ||
+    q.includes("pickup")
+  )
+    return "transport";
+  if (
+    q.includes("health guarantee") ||
+    q.includes("vaccine") ||
+    q.includes("deworm")
+  )
+    return "health";
   if (
     q.includes("hydrocephalus") ||
     q.includes("hypoglycemia") ||
@@ -115,11 +143,14 @@ function detectTopic(q: string) {
     q.includes("seizure") ||
     q.includes("ailment") ||
     q.includes("breed problem")
-  ) {
+  )
     return "breed_health";
-  }
   return null;
 }
+
+// ─────────────────────────────────────────────
+// Lead Analysis (pure local logic, no AI needed)
+// ─────────────────────────────────────────────
 
 function analyzeLead(message: string): LeadAnalysis {
   const q = cleanText(message);
@@ -129,7 +160,6 @@ function analyzeLead(message: string): LeadAnalysis {
 
   const wantsPaymentPlan =
     q.includes("payment plan") ||
-    q.includes("payment plans") ||
     q.includes("financing") ||
     q.includes("finance") ||
     q.includes("monthly") ||
@@ -144,7 +174,6 @@ function analyzeLead(message: string): LeadAnalysis {
     q.includes("available") ||
     q.includes("any puppies") ||
     q.includes("do you have puppies") ||
-    q.includes("do you have any puppies") ||
     q.includes("next litter") ||
     q.includes("upcoming litter");
 
@@ -154,16 +183,29 @@ function analyzeLead(message: string): LeadAnalysis {
     q.includes("how do i apply");
 
   let interestTimeline: LeadAnalysis["interestTimeline"] = "unknown";
-  if (q.includes("right now") || q.includes("asap") || q.includes("immediately") || q.includes("ready now")) {
+  if (
+    q.includes("right now") ||
+    q.includes("asap") ||
+    q.includes("immediately") ||
+    q.includes("ready now")
+  ) {
     interestTimeline = "now";
-  } else if (q.includes("soon") || q.includes("next month") || q.includes("this summer") || q.includes("mid june")) {
+  } else if (
+    q.includes("soon") ||
+    q.includes("next month") ||
+    q.includes("this summer") ||
+    q.includes("mid june")
+  ) {
     interestTimeline = "soon";
-  } else if (q.includes("later") || q.includes("future") || q.includes("next year")) {
+  } else if (
+    q.includes("later") ||
+    q.includes("future") ||
+    q.includes("next year")
+  ) {
     interestTimeline = "later";
   }
 
   const topic = detectTopic(q);
-
   if (topic) tags.add(topic);
   if (wantsPaymentPlan) tags.add("payment_plan");
   if (wantsWaitList) tags.add("wait_list");
@@ -193,18 +235,16 @@ function analyzeLead(message: string): LeadAnalysis {
     contactRequested ||
     !!email ||
     !!phone ||
-    (interestTimeline === "now" && (wantsAvailablePuppy || wantsPaymentPlan || wantsApplication));
+    (interestTimeline === "now" &&
+      (wantsAvailablePuppy || wantsPaymentPlan || wantsApplication));
 
   let followUpReason: string | null = null;
-  if (contactRequested) {
-    followUpReason = "Visitor requested direct contact.";
-  } else if (email || phone) {
-    followUpReason = "Visitor provided contact information.";
-  } else if (interestTimeline === "now" && wantsAvailablePuppy) {
-    followUpReason = "Visitor appears to be looking for a puppy now.";
-  } else if (interestTimeline === "now" && wantsPaymentPlan) {
+  if (contactRequested) followUpReason = "Visitor requested direct contact.";
+  else if (email || phone) followUpReason = "Visitor provided contact information.";
+  else if (interestTimeline === "now" && wantsAvailablePuppy)
+    followUpReason = "Visitor is looking for a puppy right now.";
+  else if (interestTimeline === "now" && wantsPaymentPlan)
     followUpReason = "Visitor asked about payment plans and appears ready soon.";
-  }
 
   let leadStatus: LeadAnalysis["leadStatus"] = "new";
   if (leadScore >= 60) leadStatus = "hot";
@@ -217,8 +257,8 @@ function analyzeLead(message: string): LeadAnalysis {
     wantsApplication ? "Interested in application" : null,
     wantsPaymentPlan ? "Asked about payment plans" : null,
     interestTimeline !== "unknown" ? `Timeline: ${interestTimeline}` : null,
-    email ? `Email provided` : null,
-    phone ? `Phone provided` : null,
+    email ? "Email provided" : null,
+    phone ? "Phone provided" : null,
   ].filter(Boolean);
 
   return {
@@ -239,143 +279,113 @@ function analyzeLead(message: string): LeadAnalysis {
   };
 }
 
-function localPublicFallback(message: string) {
-  const q = cleanText(message);
+// ─────────────────────────────────────────────
+// System Prompt — playful, human, conversational
+// ─────────────────────────────────────────────
 
-  if (!q) return "Please type a question and I’ll help however I can.";
-
-  if (
-    q.includes("available") ||
-    q.includes("available puppies") ||
-    q.includes("puppies right now") ||
-    q.includes("do you have puppies") ||
-    q.includes("do you have any puppies") ||
-    q.includes("any puppies") ||
-    q.includes("have puppies")
-  ) {
-    return "We do not currently have any available puppies. Our next litter is expected mid June, and interested families are welcome to join our Wait List.";
-  }
-
-  if (
-    q.includes("next litter") ||
-    q.includes("upcoming litter") ||
-    q.includes("when is your next litter") ||
-    q.includes("when are you expecting")
-  ) {
-    return "Our next litter is expected mid June.";
-  }
-
-  if (
-    q.includes("wait list") ||
-    q.includes("waitlist") ||
-    q.includes("join the wait list") ||
-    q.includes("join wait list")
-  ) {
-    return "You can join the Wait List using the form linked on the website. It is the best way to be notified first when upcoming availability opens.";
-  }
-
-  if (
-    q.includes("apply") ||
-    q.includes("application") ||
-    q.includes("how do i apply")
-  ) {
-    return "You can apply using the application page on the website. If you are planning ahead for an upcoming litter, joining the Wait List first is also a great step.";
-  }
-
-  if (
-    q.includes("payment plan") ||
-    q.includes("payment plans") ||
-    q.includes("financing") ||
-    q.includes("finance") ||
-    q.includes("pay over time") ||
-    q.includes("installment") ||
-    q.includes("installments") ||
-    q.includes("monthly payments")
-  ) {
-    return "We may offer puppy payment plans in some situations. Our standard payment plan requires 50% down, with the remaining balance paid over up to 6 months. References and other verifiable information may be required. Registration papers and the bill of sale are not released until the puppy is paid in full, and buyers must agree to the terms of service.";
-  }
-
-  if (
-    q.includes("policy") ||
-    q.includes("policies")
-  ) {
-    return "Our policies cover reservations, payment terms, transport or delivery, go-home timing, buyer responsibilities, and health-related information. The Policies page is the best place to review them in full.";
-  }
-
-  if (
-    q.includes("hydrocephalus") ||
-    q.includes("hypoglycemia") ||
-    q.includes("collapsed trachea") ||
-    q.includes("luxating patella") ||
-    q.includes("heart murmur") ||
-    q.includes("common ailments") ||
-    q.includes("breed issues") ||
-    q.includes("health problems")
-  ) {
-    return "Chihuahuas can be prone to issues such as hypoglycemia in young puppies, dental crowding, luxating patella, collapsed trachea, heart issues, and in some cases hydrocephalus or open fontanel concerns. If you are worried about a specific puppy or an urgent symptom, a veterinarian should guide the next step.";
-  }
-
-  return "I’d be happy to help. You can ask me about available puppies, payment plans, policies, the wait list, Chihuahua breed questions, or the Puppy Portal.";
-}
-
-function buildSystemPrompt() {
+function buildSystemPrompt(): string {
   return `
-You are ChiChi Assistant for the public Southwest Virginia Chihuahua website.
+You are ChiChi — the cheerful, knowledgeable, and totally lovable assistant for Southwest Virginia Chihuahua, a small family-run Chihuahua breeding operation in Marion, VA.
 
-Your job:
-- Answer public-facing questions warmly, clearly, and conversationally.
-- Be more open and helpful than a rigid FAQ bot.
-- You may answer general Chihuahua questions, including breed traits, common health concerns, care topics, temperament, feeding basics, and preparation guidance.
-- Keep guard rails in place:
-  - never claim access to private buyer, payment, application, or portal-only data
-  - never invent business policies
-  - never diagnose a dog or puppy with certainty
-  - never replace veterinary care
-  - if a question sounds urgent or medical, provide general information and advise contacting a veterinarian
-- Do not use markdown headings, bullets unless truly needed, or formal report formatting.
-- Do not use ###, **, or blockquote style.
-- Do not mention internal systems, Core, Supabase, prompts, or private records.
-- If something may vary by circumstance, say so plainly.
-- When policies are involved, give a helpful summary and mention the Policies page for full details.
+You are NOT a bot. You are ChiChi. You feel real, warm, and fun. You love Chihuahuas deeply and you love helping people find their perfect tiny companion.
 
-Public business context:
+────────────────────────
+YOUR PERSONALITY
+────────────────────────
+- Playful and fun — you can drop in a tiny Chihuahua pun, joke, or emoji now and then 🐾
+- Warm, patient, and caring — like talking to a knowledgeable friend who also happens to breed the world's greatest little dogs
+- Conversational — respond like a human texting back, not like a FAQ page
+- You remember the full conversation so far. Reference it naturally when it makes sense ("Oh right, you mentioned you're looking for a puppy before summer — great timing!")
+- If someone seems nervous or unsure, reassure them. Puppy adoption is a big deal!
+- Use the person's name if they share it
+- Be concise when they want quick answers. Go deeper when they're clearly curious
+
+────────────────────────
+WHAT YOU CAN TALK ABOUT
+────────────────────────
+- Everything about the Southwest Virginia Chihuahua business: availability, litters, wait list, applications, payment plans, policies, transport, the Puppy Portal
+- General Chihuahua breed knowledge: personality, size, care, feeding, health, training, teacup vs standard, coat types, temperament, socialization, lifespan, dental care, exercise, etc.
+- Helping families figure out if a Chihuahua is the right fit for their home
+- Preparing for a new puppy: supplies, vet visits, puppy-proofing, socialization windows
+- Answering health questions generally (hypoglycemia, luxating patella, dental issues, collapsed trachea, etc.) — always suggest a vet for anything serious or urgent
+
+────────────────────────
+BUSINESS FACTS (use these accurately)
+────────────────────────
 - Business: Southwest Virginia Chihuahua
 - Location: Marion, VA
 - Phone: (276) 378-0184
 - Current availability: no puppies currently available
 - Next litter expected: mid June
-- Interested families should join the Wait List
-- Puppy Portal exists for approved families
-- Puppies typically go home around 8 weeks old once ready
-- Families receive health records, vaccination information, starter food, and breeder support
+- Best next step for interested families: join the Wait List on the website
+- Puppies typically go home around 8 weeks old
+- Families receive: health records, vaccination info, starter food, and ongoing breeder support
+- Puppy Portal: available for approved families to track their puppy's progress
+- Transport/delivery: may be available depending on distance and circumstances
 
-Public policy/payment guidance:
-- Payment plans may be offered in some situations
-- Standard payment plan: 50% down
-- Remaining balance may be paid over up to 6 months
-- References and other verifiable information may be required
-- Registration papers and bill of sale are not released until the puppy is paid in full
+────────────────────────
+PAYMENT PLAN DETAILS
+────────────────────────
+- Payment plans may be available in some situations
+- Standard plan: 50% down, remaining balance paid over up to 6 months
+- References and verifiable information may be required
+- Registration papers and bill of sale are NOT released until paid in full
 - Buyers must agree to the terms of service
-- Transport or delivery options may be available depending on circumstances and distance
-- Policies page is the best source for full official terms
 
-Style:
-- Friendly
-- Calm
-- Reassuring
-- Helpful
-- Natural
-- Short to medium length by default
-- More detailed when the question calls for it
-- No markdown heading markup
-- No fake certainty
+────────────────────────
+POLICIES
+────────────────────────
+Policies cover: reservations, payment terms, transport, go-home timing, buyer responsibilities, and health info.
+Always point people to the Policies page on the website for the full official details.
 
-Important:
-- General Chihuahua knowledge is allowed.
-- Public website business knowledge is allowed.
-- Private account-specific answers are not allowed here.
+────────────────────────
+HARD LIMITS (always follow these)
+────────────────────────
+- Never access, claim to access, or invent private buyer/account/portal data
+- Never diagnose a specific dog with certainty
+- Never replace veterinary care — if something sounds urgent or medical, give general info then say a vet should take a look
+- Never invent or guess at business policies — only share what's listed above
+- Never mention Supabase, APIs, internal systems, or that you're an AI language model
+- If someone asks if you're a real person, be honest but charming: "I'm ChiChi — part assistant, part Chihuahua enthusiast, 100% here to help! 🐾"
+
+────────────────────────
+CONVERSATION STYLE
+────────────────────────
+- No markdown headings (###, **bold headers**, etc.)
+- No bullet-point walls — use natural sentences
+- A single emoji here and there is fine, don't overdo it
+- Short and punchy for simple questions. Thoughtful and warm for bigger ones.
+- End with a natural follow-up question or offer when it makes sense, to keep the conversation going
+- If you don't know something, say so honestly and point them to the website or suggest they call (276) 378-0184
 `.trim();
 }
+
+// ─────────────────────────────────────────────
+// Local fallback (used if no API key configured)
+// ─────────────────────────────────────────────
+
+function localFallback(message: string): string {
+  const q = cleanText(message);
+  if (!q) return "Hey there! Ask me anything — puppies, availability, care tips, you name it 🐾";
+
+  if (q.includes("available") || q.includes("any puppies") || q.includes("have puppies"))
+    return "We don't have any puppies available right now, but our next litter is expected mid June! The best move is to join our Wait List so you're first to know when they're ready. 🐾";
+
+  if (q.includes("wait list") || q.includes("waitlist"))
+    return "You can join the Wait List right on our website! It's the best way to stay in the loop and get first dibs when a litter is ready.";
+
+  if (q.includes("payment plan") || q.includes("financing") || q.includes("monthly"))
+    return "We do offer payment plans in some situations! It's typically 50% down with the balance spread over up to 6 months. References may be needed, and papers are released once everything's paid. Want more details?";
+
+  if (q.includes("apply") || q.includes("application"))
+    return "You can apply right on our website! If you're planning ahead for the June litter, joining the Wait List first is a great idea too.";
+
+  return "I'd love to help! You can ask me about available puppies, our Wait List, payment plans, Chihuahua care, or anything else. Or give us a call at (276) 378-0184 😊";
+}
+
+// ─────────────────────────────────────────────
+// Database helpers
+// ─────────────────────────────────────────────
 
 async function findOrCreateVisitor(
   admin: SupabaseClient,
@@ -400,9 +410,6 @@ async function findOrCreateVisitor(
     .maybeSingle();
 
   if (existing) {
-    const visitCount = Number(existing.visit_count || 1);
-    const nextVisitCount = visitCount < 1 ? 1 : visitCount;
-
     const { data: updated, error } = await admin
       .from("website_visitors")
       .update({
@@ -417,13 +424,13 @@ async function findOrCreateVisitor(
         utm_term: body.utm_term || existing.utm_term || null,
         utm_content: body.utm_content || existing.utm_content || null,
         is_returning: true,
-        visit_count: nextVisitCount,
+        visit_count: Math.max(Number(existing.visit_count || 1), 1),
       })
       .eq("id", existing.id)
       .select("*")
       .single();
 
-    if (error) throw new Error(`Could not update website visitor: ${error.message}`);
+    if (error) throw new Error(`Could not update visitor: ${error.message}`);
     return updated;
   }
 
@@ -445,14 +452,12 @@ async function findOrCreateVisitor(
       utm_content: body.utm_content || null,
       is_returning: false,
       visit_count: 1,
-      meta: {
-        source: body.source || "public_website",
-      },
+      meta: { source: body.source || "public_website" },
     })
     .select("*")
     .single();
 
-  if (error) throw new Error(`Could not create website visitor: ${error.message}`);
+  if (error) throw new Error(`Could not create visitor: ${error.message}`);
   return created;
 }
 
@@ -488,8 +493,28 @@ async function findOrCreateThread(
     .select("*")
     .single();
 
-  if (error) throw new Error(`Could not create chat thread: ${error.message}`);
+  if (error) throw new Error(`Could not create thread: ${error.message}`);
   return created;
+}
+
+async function loadThreadHistory(
+  admin: SupabaseClient,
+  threadId: string
+): Promise<{ role: "user" | "assistant"; content: string }[]> {
+  const { data, error } = await admin
+    .from("chichi_public_messages")
+    .select("sender, content")
+    .eq("thread_id", threadId)
+    .order("created_at", { ascending: true });
+
+  if (error || !data) return [];
+
+  return data
+    .filter((m) => m.sender === "visitor" || m.sender === "assistant")
+    .map((m) => ({
+      role: m.sender === "visitor" ? "user" : "assistant",
+      content: m.content,
+    }));
 }
 
 async function insertMessage(
@@ -519,16 +544,12 @@ async function insertMessage(
     meta: {},
   });
 
-  if (error) throw new Error(`Could not save chat message: ${error.message}`);
+  if (error) throw new Error(`Could not save message: ${error.message}`);
 }
 
 async function upsertLead(
   admin: SupabaseClient,
-  params: {
-    visitorId: string;
-    threadId: string;
-    analysis: LeadAnalysis;
-  }
+  params: { visitorId: string; threadId: string; analysis: LeadAnalysis }
 ) {
   const { visitorId, threadId, analysis } = params;
 
@@ -563,8 +584,12 @@ async function upsertLead(
   };
 
   if (existing) {
-    const mergedInterest = Array.from(new Set([...(existing.interest_type || []), ...analysis.tags]));
-    const mergedTags = Array.from(new Set([...(existing.tags || []), ...analysis.tags]));
+    const mergedInterest = Array.from(
+      new Set([...(existing.interest_type || []), ...analysis.tags])
+    );
+    const mergedTags = Array.from(
+      new Set([...(existing.tags || []), ...analysis.tags])
+    );
 
     const { data: updated, error } = await admin
       .from("crm_leads")
@@ -579,14 +604,14 @@ async function upsertLead(
           analysis.leadStatus === "hot" || existing.lead_status === "hot"
             ? "hot"
             : analysis.leadStatus === "warm" || existing.lead_status === "warm"
-              ? "warm"
-              : "new",
+            ? "warm"
+            : "new",
       })
       .eq("id", existing.id)
       .select("*")
       .single();
 
-    if (error) throw new Error(`Could not update CRM lead: ${error.message}`);
+    if (error) throw new Error(`Could not update lead: ${error.message}`);
     return updated;
   }
 
@@ -596,7 +621,7 @@ async function upsertLead(
     .select("*")
     .single();
 
-  if (error) throw new Error(`Could not create CRM lead: ${error.message}`);
+  if (error) throw new Error(`Could not create lead: ${error.message}`);
   return created;
 }
 
@@ -643,10 +668,7 @@ async function ensureFollowUpTask(
 
 async function updateThread(
   admin: SupabaseClient,
-  params: {
-    threadId: string;
-    analysis: LeadAnalysis;
-  }
+  params: { threadId: string; analysis: LeadAnalysis }
 ) {
   const { error } = await admin
     .from("chichi_public_threads")
@@ -658,8 +680,8 @@ async function updateThread(
         params.analysis.leadStatus === "hot"
           ? "hot"
           : params.analysis.leadStatus === "warm"
-            ? "warm"
-            : "visitor",
+          ? "warm"
+          : "visitor",
       summary: params.analysis.summary,
       intent_summary: params.analysis.topic || null,
       last_user_message_at: new Date().toISOString(),
@@ -667,30 +689,24 @@ async function updateThread(
     })
     .eq("id", params.threadId);
 
-  if (error) throw new Error(`Could not update chat thread: ${error.message}`);
+  if (error) throw new Error(`Could not update thread: ${error.message}`);
 }
+
+// ─────────────────────────────────────────────
+// Route handlers
+// ─────────────────────────────────────────────
 
 export async function GET(req: Request) {
   const origin = req.headers.get("origin");
   return NextResponse.json(
-    {
-      ok: true,
-      route: "chichi-public",
-      message: "ChiChi public endpoint is live.",
-    },
-    {
-      status: 200,
-      headers: withCors(origin),
-    }
+    { ok: true, route: "chichi-public", message: "ChiChi is live and ready to chat! 🐾" },
+    { status: 200, headers: withCors(origin) }
   );
 }
 
 export async function OPTIONS(req: Request) {
   const origin = req.headers.get("origin");
-  return new NextResponse(null, {
-    status: 204,
-    headers: withCors(origin),
-  });
+  return new NextResponse(null, { status: 204, headers: withCors(origin) });
 }
 
 export async function POST(req: Request) {
@@ -702,7 +718,7 @@ export async function POST(req: Request) {
 
     if (!message) {
       return NextResponse.json(
-        { text: "Please type a question and I’ll help however I can." },
+        { text: "Hey! Go ahead and type your question — I'm all ears 🐾" },
         { status: 400, headers: withCors(origin) }
       );
     }
@@ -712,6 +728,7 @@ export async function POST(req: Request) {
     const thread = await findOrCreateThread(admin, visitor.id, body);
     const analysis = analyzeLead(message);
 
+    // Save the incoming visitor message
     await insertMessage(admin, {
       threadId: thread.id,
       visitorId: visitor.id,
@@ -724,13 +741,27 @@ export async function POST(req: Request) {
       tags: analysis.tags,
     });
 
+    // Build full conversation history for the AI
+    // Priority: use history sent by client (already has full context),
+    // otherwise fall back to loading from DB
+    let conversationHistory: { role: "user" | "assistant"; content: string }[] =
+      body.history && body.history.length > 0
+        ? body.history
+        : await loadThreadHistory(admin, thread.id);
+
+    // Ensure the current message is at the end (client may or may not include it)
+    const lastInHistory = conversationHistory[conversationHistory.length - 1];
+    if (!lastInHistory || lastInHistory.role !== "user" || lastInHistory.content !== message) {
+      conversationHistory = [...conversationHistory, { role: "user", content: message }];
+    }
+
     const apiKey = process.env.ANTHROPIC_API_KEY;
-    const model = process.env.ANTHROPIC_PUBLIC_MODEL;
+    const model = process.env.ANTHROPIC_PUBLIC_MODEL || "claude-opus-4-5";
 
     let text = "";
 
-    if (!apiKey || !model) {
-      text = localPublicFallback(message);
+    if (!apiKey) {
+      text = localFallback(message);
     } else {
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -741,25 +772,22 @@ export async function POST(req: Request) {
         },
         body: JSON.stringify({
           model,
-          max_tokens: 700,
+          max_tokens: 800,
           system: buildSystemPrompt(),
-          messages: [
-            {
-              role: "user",
-              content: message,
-            },
-          ],
+          messages: conversationHistory,
         }),
       });
 
       if (!response.ok) {
-        text = localPublicFallback(message);
+        console.error("Anthropic API error:", response.status, await response.text());
+        text = localFallback(message);
       } else {
         const data = await response.json();
-        text = String(data?.content?.[0]?.text || "").trim() || localPublicFallback(message);
+        text = String(data?.content?.[0]?.text || "").trim() || localFallback(message);
       }
     }
 
+    // Save ChiChi's response
     await insertMessage(admin, {
       threadId: thread.id,
       visitorId: visitor.id,
@@ -769,6 +797,7 @@ export async function POST(req: Request) {
       tags: analysis.tags,
     });
 
+    // CRM pipeline
     const lead = await upsertLead(admin, {
       visitorId: visitor.id,
       threadId: thread.id,
@@ -782,10 +811,7 @@ export async function POST(req: Request) {
       analysis,
     });
 
-    await updateThread(admin, {
-      threadId: thread.id,
-      analysis,
-    });
+    await updateThread(admin, { threadId: thread.id, analysis });
 
     return NextResponse.json(
       {
@@ -795,19 +821,13 @@ export async function POST(req: Request) {
         leadStatus: analysis.leadStatus,
         followUpNeeded: analysis.requiresFollowUp,
       },
-      {
-        status: 200,
-        headers: withCors(origin),
-      }
+      { status: 200, headers: withCors(origin) }
     );
   } catch (error) {
-    console.error("ChiChi public route error:", error);
+    console.error("ChiChi route error:", error);
     return NextResponse.json(
-      { text: "I had a little trouble answering that. Please try again." },
-      {
-        status: 200,
-        headers: withCors(origin),
-      }
+      { text: "Oops, something went sideways on my end! Try again in a second 🐾" },
+      { status: 200, headers: withCors(origin) }
     );
   }
 }
