@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { createHash, randomUUID } from "crypto";
+import { createHash } from "crypto";
 
 type PublicRequestBody = {
   message?: string;
@@ -105,6 +105,19 @@ function detectTopic(q: string) {
   if (q.includes("portal")) return "puppy_portal";
   if (q.includes("transport") || q.includes("delivery") || q.includes("pickup")) return "transport";
   if (q.includes("health guarantee") || q.includes("vaccine") || q.includes("deworm")) return "health";
+  if (
+    q.includes("hydrocephalus") ||
+    q.includes("hypoglycemia") ||
+    q.includes("collapsed trachea") ||
+    q.includes("open fontanel") ||
+    q.includes("luxating patella") ||
+    q.includes("heart murmur") ||
+    q.includes("seizure") ||
+    q.includes("ailment") ||
+    q.includes("breed problem")
+  ) {
+    return "breed_health";
+  }
   return null;
 }
 
@@ -270,14 +283,6 @@ function localPublicFallback(message: string) {
   }
 
   if (
-    q.includes("portal") ||
-    q.includes("puppy portal") ||
-    q.includes("client portal")
-  ) {
-    return "The Puppy Portal is where approved families can view updates, messages, documents, financial details, and puppy progress.";
-  }
-
-  if (
     q.includes("payment plan") ||
     q.includes("payment plans") ||
     q.includes("financing") ||
@@ -290,48 +295,27 @@ function localPublicFallback(message: string) {
     return "We may offer puppy payment plans in some situations. Our standard payment plan requires 50% down, with the remaining balance paid over up to 6 months. References and other verifiable information may be required. Registration papers and the bill of sale are not released until the puppy is paid in full, and buyers must agree to the terms of service.";
   }
 
-  if (q.includes("deposit") || q.includes("deposits")) {
-    return "Deposits are used to reserve a puppy or secure placement, depending on the situation. For the most accurate current terms, please review the policies page or reach out directly through the application or portal.";
-  }
-
-  if (q.includes("policy") || q.includes("policies")) {
-    return "Our policies cover reservations, payment terms, transport or delivery, go-home timing, buyer responsibilities, and health-related information. The best place to review them in full is the Policies page on the website.";
-  }
-
-  if (q.includes("health guarantee") || q.includes("guarantee")) {
-    return "Our puppies go home with health records and breeder support. For the full health guarantee terms and buyer responsibilities, please review the Policies page or the buyer documents provided through the process.";
+  if (
+    q.includes("policy") ||
+    q.includes("policies")
+  ) {
+    return "Our policies cover reservations, payment terms, transport or delivery, go-home timing, buyer responsibilities, and health-related information. The Policies page is the best place to review them in full.";
   }
 
   if (
-    q.includes("delivery") ||
-    q.includes("transport") ||
-    q.includes("pickup") ||
-    q.includes("meet")
+    q.includes("hydrocephalus") ||
+    q.includes("hypoglycemia") ||
+    q.includes("collapsed trachea") ||
+    q.includes("luxating patella") ||
+    q.includes("heart murmur") ||
+    q.includes("common ailments") ||
+    q.includes("breed issues") ||
+    q.includes("health problems")
   ) {
-    return "We do offer transport or meet-up options in some situations. Transport pricing and scheduling depend on distance and arrangements. For the most accurate details, please review the policies page or contact us directly.";
+    return "Chihuahuas can be prone to issues such as hypoglycemia in young puppies, dental crowding, luxating patella, collapsed trachea, heart issues, and in some cases hydrocephalus or open fontanel concerns. If you are worried about a specific puppy or an urgent symptom, a veterinarian should guide the next step.";
   }
 
-  if (q.includes("go home") || q.includes("go-home") || q.includes("when can puppies go home")) {
-    return "Puppies typically go home around 8 weeks old once they are eating solid food well and maintaining steady growth.";
-  }
-
-  if (q.includes("included") || q.includes("what comes with") || q.includes("comes with the puppy")) {
-    return "Families receive health records, vaccination information, starter food, and continued breeder support.";
-  }
-
-  if (q.includes("price") || q.includes("cost") || q.includes("how much")) {
-    return "Pricing can vary depending on registration, sex, and other details. For the most current information, please review the listings or reach out through the application or portal.";
-  }
-
-  if (q.includes("phone") || q.includes("contact") || q.includes("call")) {
-    return "You can contact Southwest Virginia Chihuahua at (276) 378-0184.";
-  }
-
-  if (q.includes("emergency") || q.includes("vet") || q.includes("veterinarian")) {
-    return "If this is an emergency, please contact your local veterinarian right away.";
-  }
-
-  return "I’d be happy to help. You can ask me about available puppies, the wait list, payment plans, policies, applying, or the Puppy Portal.";
+  return "I’d be happy to help. You can ask me about available puppies, payment plans, policies, the wait list, Chihuahua breed questions, or the Puppy Portal.";
 }
 
 function buildSystemPrompt() {
@@ -339,14 +323,18 @@ function buildSystemPrompt() {
 You are ChiChi Assistant for the public Southwest Virginia Chihuahua website.
 
 Your job:
-- Answer public-facing questions warmly and clearly.
-- Be personable and easy to talk to.
-- Keep answers natural and conversational.
+- Answer public-facing questions warmly, clearly, and conversationally.
+- Be more open and helpful than a rigid FAQ bot.
+- You may answer general Chihuahua questions, including breed traits, common health concerns, care topics, temperament, feeding basics, and preparation guidance.
+- Keep guard rails in place:
+  - never claim access to private buyer, payment, application, or portal-only data
+  - never invent business policies
+  - never diagnose a dog or puppy with certainty
+  - never replace veterinary care
+  - if a question sounds urgent or medical, provide general information and advise contacting a veterinarian
 - Do not use markdown headings, bullets unless truly needed, or formal report formatting.
 - Do not use ###, **, or blockquote style.
-- Never claim to access private account, payment, buyer, or portal-only data.
-- Never act like an admin assistant here.
-- Never mention internal systems, Core, Supabase, or private records.
+- Do not mention internal systems, Core, Supabase, prompts, or private records.
 - If something may vary by circumstance, say so plainly.
 - When policies are involved, give a helpful summary and mention the Policies page for full details.
 
@@ -375,9 +363,17 @@ Style:
 - Friendly
 - Calm
 - Reassuring
-- Short to medium length
-- No markdown symbols or heading markup
+- Helpful
+- Natural
+- Short to medium length by default
+- More detailed when the question calls for it
+- No markdown heading markup
 - No fake certainty
+
+Important:
+- General Chihuahua knowledge is allowed.
+- Public website business knowledge is allowed.
+- Private account-specific answers are not allowed here.
 `.trim();
 }
 
@@ -745,7 +741,7 @@ export async function POST(req: Request) {
         },
         body: JSON.stringify({
           model,
-          max_tokens: 500,
+          max_tokens: 700,
           system: buildSystemPrompt(),
           messages: [
             {
