@@ -586,6 +586,46 @@ export default function PortalPage() {
     recentUpdates[0]?.date ||
     (hasPuppy ? "Check My Puppy" : hasApp ? "Watch Messages" : "Portal updates");
 
+  const recentMessages = data?.msgs?.slice(0, 3) || [];
+
+  const puppyCards = [
+    {
+      key: "primary",
+      title: hasPuppy ? puppyDisplayName : "Available Puppies",
+      meta: hasPuppy
+        ? `${data?.puppy?.sex || "Puppy"}${data?.puppy?.dob ? ` · DOB: ${fmtDate(data.puppy.dob)}` : ""}`
+        : "Browse current and upcoming matches",
+      href: hasPuppy ? "/portal/mypuppy" : "/portal/available-puppies",
+      image: puppyImage,
+      muted: false,
+    },
+    {
+      key: "secondary-1",
+      title: hasPuppy ? "Documents" : "Profile",
+      meta: hasPuppy ? "Contracts and records" : "Portal details stay here",
+      href: hasPuppy ? "/portal/documents" : "/portal/application",
+      image: "",
+      muted: true,
+    },
+    {
+      key: "secondary-2",
+      title: hasPuppy ? "Updates" : "Updates",
+      meta: `${data?.updates?.length || 0} posted`,
+      href: "/portal/updates",
+      image: "",
+      muted: true,
+    },
+    {
+      key: "secondary-3",
+      title: hasPuppy ? "Messages" : "Messages",
+      meta: `${recentMessages.length} recent`,
+      href: "/portal/messages",
+      image: "",
+      muted: true,
+    },
+  ];
+  void puppyCards;
+
   const overviewCards = [
     {
       label: "Application Status",
@@ -662,8 +702,6 @@ export default function PortalPage() {
             date: "Portal timeline",
           },
         ];
-  const recentMessages = data?.msgs?.slice(0, 3) || [];
-
   if (loading) {
     return (
       <div className="flex min-h-[70vh] items-center justify-center rounded-[28px] border border-[#dcc9b7] bg-white text-sm font-semibold text-[#7f6144] shadow-sm">
@@ -676,7 +714,7 @@ export default function PortalPage() {
 
   return (
     <div className="space-y-5">
-      <section className="overflow-hidden rounded-[12px] border border-[#d8cdbd] bg-white shadow-[0_10px_28px_rgba(58,43,26,0.08)]">
+      <section className="overflow-hidden rounded-[10px] border border-[#d8cdbd] bg-white shadow-[0_8px_22px_rgba(58,43,26,0.08)]">
         <div className="relative min-h-[180px] overflow-hidden">
           <img
             src={puppyImage}
@@ -687,18 +725,18 @@ export default function PortalPage() {
 
           <div className="relative z-10 flex min-h-[180px] items-center px-7 py-8 md:px-8">
             <div className="max-w-2xl text-white">
-              <h1 className="font-serif text-3xl font-bold tracking-tight md:text-4xl">
+              <h1 className="font-serif text-[30px] font-bold tracking-tight [font-family:var(--font-merriweather)] md:text-[32px]">
                 Welcome back, {greetingName}!
               </h1>
-              <p className="mt-2 max-w-xl text-sm font-medium text-white/82 md:text-[15px]">
+              <p className="mt-2 max-w-xl text-sm font-normal text-white/82 md:text-[15px]">
                 Here’s your quick link to everything in the portal, including your puppy
-                documents, and payment details.
+                profile.
               </p>
 
               <div className="mt-5 flex flex-wrap gap-3">
                 <Link
                   href={primaryHref}
-                  className="inline-flex items-center rounded-[6px] bg-[linear-gradient(135deg,#c9943a_0%,#a87228_100%)] px-5 py-2.5 text-sm font-bold text-white transition hover:brightness-105"
+                  className="inline-flex items-center rounded-[5px] bg-[linear-gradient(135deg,#c9943a_0%,#a87228_100%)] px-5 py-2.5 text-[13px] font-semibold text-white transition hover:brightness-105"
                 >
                   {primaryLabel}
                 </Link>
@@ -713,15 +751,15 @@ export default function PortalPage() {
           <Link
             key={card.label}
             href={card.href}
-            className="rounded-[8px] border border-[#e2d9c8] bg-white p-5 transition hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(58,43,26,0.08)]"
+            className="rounded-[8px] border border-[#e2d9c8] bg-white px-[18px] py-4 transition hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(58,43,26,0.08)]"
           >
-            <div className="border-b border-[#ede7d9] pb-3 text-[12px] font-semibold text-[#4a3f2f]">
+            <div className="border-b border-[#ede7d9] pb-2 text-[12px] font-semibold text-[#34271c]">
               {card.label}
             </div>
-            <div className="mt-4 break-words text-[26px] font-bold leading-none text-[#1a1208]">
+            <div className="mt-4 break-words text-[22px] font-bold leading-tight text-[#1a1208]">
               {card.value}
             </div>
-            <div className="mt-2 text-[12px] text-[#7a6a52]">
+            <div className="mt-2 text-[12px] leading-5 text-[#7a6a52]">
               {card.sub}
             </div>
             <div className="mt-4 text-[12px] font-medium text-[#c9943a]">
@@ -731,17 +769,12 @@ export default function PortalPage() {
         ))}
       </section>
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <div className="space-y-6 xl:col-span-4">
-          <div className="rounded-[30px] border border-[#dccab7] bg-white p-6 shadow-[0_12px_28px_rgba(74,51,33,0.06)] md:p-7">
-            <div className="mb-5 flex items-end justify-between gap-4">
+      <section className="grid grid-cols-1 gap-5 xl:grid-cols-12">
+        <div className="space-y-5 xl:col-span-4">
+          <div className="overflow-hidden rounded-[8px] border border-[#e2d9c8] bg-white shadow-[0_8px_22px_rgba(58,43,26,0.06)]">
+            <div className="flex items-end justify-between gap-4 border-b border-[#ede7d9] px-5 py-4">
               <div>
-                <h2 className="font-serif text-2xl font-bold text-[#3b271b]">
-                  Recent Messages
-                </h2>
-                <p className="mt-1 text-sm font-semibold text-[#8b6b4d]">
-                  Your latest conversation activity at a glance.
-                </p>
+                <h2 className="text-[14px] font-bold text-[#2a2118]">Recent Messages</h2>
               </div>
 
               <Link
@@ -752,14 +785,14 @@ export default function PortalPage() {
               </Link>
             </div>
 
-            <div className="space-y-3">
+            <div>
               {recentMessages.length ? (
                 recentMessages.map((m: any) => (
                   <div
                     key={m.id}
-                    className="rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4 transition hover:bg-white"
+                    className="flex items-center gap-3 border-b border-[#f5f0e8] px-5 py-4 transition hover:bg-[#faf8f3]"
                   >
-                    <div className="mb-2 flex justify-between gap-4">
+                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-[#ddb880] bg-[#fff7ea] text-[13px] text-[#b37b26]">
                       <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
                         {m.sender_name || m.sender || m.from_name || "Support"}
                       </span>
@@ -798,7 +831,7 @@ export default function PortalPage() {
 
               <Link
                 href={hasPuppy ? "/portal/mypuppy" : "/portal/available-puppies"}
-                className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9a7854] hover:text-[#4f3726]"
+                className="text-[12px] font-medium text-[#c9943a] hover:underline"
               >
                 {hasPuppy ? "Open My Puppy" : "View All Puppies"}
               </Link>

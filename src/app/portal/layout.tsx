@@ -529,7 +529,7 @@ export default function PortalLayout({
   function navClass(item: NavItem) {
     const active = isActive(item);
     return [
-      "group flex items-center gap-3 rounded-r-xl px-4 py-3 transition-all duration-200 ease-out border-l-[3px]",
+      "group flex items-center gap-[11px] border-l-[3px] px-[18px] py-[10px] transition-all duration-150 ease-out",
       active
         ? "border-l-[#c9943a] bg-white/10 text-white"
         : "border-l-transparent text-white/65 hover:bg-white/7 hover:text-white/90",
@@ -539,10 +539,10 @@ export default function PortalLayout({
   function iconWrapClass(item: NavItem) {
     const active = isActive(item);
     return [
-      "flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-200",
+      "flex h-[17px] w-[17px] items-center justify-center transition-all duration-150",
       active
-        ? "bg-[#c9943a22] text-[#f4dfbf]"
-        : "bg-transparent text-white/70 group-hover:text-white/90",
+        ? "text-white"
+        : "text-white/80 group-hover:text-white/95",
     ].join(" ");
   }
 
@@ -739,23 +739,25 @@ export default function PortalLayout({
       {/* Desktop Layout */}
       <div className="flex min-h-screen bg-[#f0ebe0]">
         {/* Desktop Sidebar */}
-        <aside className="hidden w-[178px] shrink-0 bg-[linear-gradient(180deg,#2a2118_0%,#1c160e_100%)] md:block">
+        <aside className="hidden w-[174px] shrink-0 bg-[linear-gradient(180deg,#2a2118_0%,#1c160e_100%)] md:block">
           <div className="sticky top-0 flex h-screen flex-col text-white shadow-[4px_0_24px_rgba(0,0,0,0.15)]">
-            <div className="flex items-center gap-3 border-b border-white/8 px-4 py-[18px]">
-              <div className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-[#c9943a] to-[#a87228] text-white">
-                <Dog className="h-5 w-5" />
+            <div className="flex items-center gap-[10px] border-b border-white/8 px-3 py-[18px]">
+              <div className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[6px] bg-gradient-to-br from-[#c9943a] to-[#a87228] text-white">
+                <Dog className="h-[22px] w-[22px]" />
               </div>
               <div className="leading-tight">
-                <div className="font-serif text-[13px] font-bold text-white">Puppy Portal</div>
-                <div className="text-[11px] font-light text-white/50">SWVA Chihuahua</div>
+                <div className="font-serif text-[13px] font-bold text-white [font-family:var(--font-merriweather)]">
+                  Puppy Portal
+                </div>
+                <div className="text-[10px] font-normal text-white/50">SWVA Chihuahua</div>
               </div>
             </div>
 
-            <nav className="flex-1 space-y-1 px-0 py-2">
+            <nav className="flex-1 space-y-0 px-0 py-2">
               {nav.map((item) => (
                 <Link key={item.href} href={item.href} className={navClass(item)}>
                   <span className={iconWrapClass(item)}>{item.icon}</span>
-                  <span className="whitespace-nowrap text-[13.5px] font-normal leading-tight">
+                  <span className="whitespace-nowrap text-[13.5px] font-[500] leading-tight tracking-[0.01em]">
                     {item.label}
                   </span>
                   {item.href === "/portal/messages" && unreadMessageCount > 0 ? (
@@ -767,10 +769,10 @@ export default function PortalLayout({
               ))}
             </nav>
 
-            <div className="mt-auto border-t border-white/8 px-4 py-4">
+            <div className="mt-auto border-t border-white/8 px-[18px] py-4">
               <Link
                 href="/portal/help"
-                className="flex items-center gap-2 text-[12.5px] text-white/60 transition hover:text-white/90"
+                className="flex items-center gap-[9px] text-[12.5px] text-white/60 transition hover:text-white/90"
               >
                 <Bell className="h-4 w-4" />
                 <span>Help &amp; Support</span>
@@ -784,7 +786,7 @@ export default function PortalLayout({
           <div className="h-16 border-b border-[#4a3b2b] bg-[linear-gradient(90deg,#2a2118_0%,#3a2d1c_100%)] text-[#f3e4ca]">
             <div className="flex h-full w-full items-center justify-between gap-4 px-4 md:px-6 lg:px-8 xl:px-10">
               <div className="min-w-0">
-                <div className="font-serif text-[22px] leading-none tracking-wide text-white">
+                <div className="font-serif text-[22px] font-normal leading-none tracking-[0.01em] text-white [font-family:var(--font-merriweather)]">
                   {pageTitle}
                 </div>
               </div>
