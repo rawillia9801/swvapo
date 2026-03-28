@@ -1,7 +1,9 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
+import type { User } from "@supabase/supabase-js";
 import { sb, fmtMoney, fmtDate, buildPuppyPhotoUrl } from "@/lib/utils";
 
 type PuppyRow = {
@@ -87,7 +89,7 @@ type BuyerRow = {
 };
 
 export default function PortalMyPuppyPage() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [puppy, setPuppy] = useState<PuppyRow | null>(null);
   const [weights, setWeights] = useState<PuppyWeightRow[]>([]);
   const [events, setEvents] = useState<PuppyEventRow[]>([]);
@@ -143,6 +145,8 @@ export default function PortalMyPuppyPage() {
       mounted = false;
       authListener.subscription.unsubscribe();
     };
+  // We intentionally subscribe once on mount and handle auth changes from the listener.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function tryBuyerByUserId(uid: string | undefined): Promise<BuyerRow | null> {
@@ -220,7 +224,7 @@ export default function PortalMyPuppyPage() {
     return (data as PuppyRow | null) ?? null;
   }
 
-  async function loadPuppyProfile(currUser: any) {
+  async function loadPuppyProfile(currUser: User) {
     const email = String(currUser?.email || "").trim().toLowerCase();
     const uid = currUser?.id as string | undefined;
 
@@ -309,6 +313,7 @@ export default function PortalMyPuppyPage() {
     today.setHours(0, 0, 0, 0);
 
     return (events || []).filter((event) => {
+      if (event.auto_generated) return false;
       const eventDate = new Date(event.event_date);
       eventDate.setHours(0, 0, 0, 0);
       return eventDate.getTime() <= today.getTime();
@@ -382,12 +387,12 @@ export default function PortalMyPuppyPage() {
   }, [weights, puppy, weeklyWeights]);
 
   const projectedAdultWeight = useMemo(() => {
-    if (!latestWeight?.oz) return "—";
+    if (!latestWeight?.oz) return "â€”";
 
     const currentOz = Number(latestWeight.oz);
     const ageWeeks = latestWeight.ageWeeks;
 
-    if (!currentOz || !ageWeeks) return "—";
+    if (!currentOz || !ageWeeks) return "â€”";
 
     let projectedOz = 0;
 
@@ -415,7 +420,7 @@ export default function PortalMyPuppyPage() {
   }, [puppy]);
 
   const ageDisplay = useMemo(() => {
-    if (!puppy?.dob) return "—";
+    if (!puppy?.dob) return "â€”";
 
     const dob = new Date(puppy.dob);
     const today = new Date();
@@ -427,15 +432,6 @@ export default function PortalMyPuppyPage() {
     return `${weeks} week${weeks === 1 ? "" : "s"}`;
   }, [puppy]);
 
-  const buyerExperience = useMemo(() => {
-    if (!puppy) return "Companion";
-
-    if ((puppy.registry || "").toLowerCase().includes("akc")) return "AKC puppy";
-    if ((puppy.registry || "").toLowerCase().includes("ckc")) return "CKC puppy";
-    if ((puppy.registry || "").toLowerCase().includes("aca")) return "ACA puppy";
-    return "Family puppy";
-  }, [puppy]);
-
   const careOverview = useMemo(() => {
     const week = ageNumber ?? 0;
 
@@ -443,61 +439,61 @@ export default function PortalMyPuppyPage() {
       {
         min: 0,
         max: 1,
-        title: "Your Puppy at Week 0–1",
+        title: "A gentle start focused on stability and healthy early growth",
         facts: [
-          "Newborn Chihuahua puppies sleep most of the day and depend fully on warmth and nursing.",
-          "Weight checks are especially important in these early days.",
-          "Tiny puppies can change quickly, so gentle close observation matters.",
+          "Daily care is centered on warmth, feeding, rest, and close observation.",
+          "Toy breed puppies can change quickly in the first days, so steady breeder monitoring matters.",
+          "The goal at this stage is dependable early growth and calm, consistent care.",
         ],
       },
       {
         min: 2,
         max: 3,
-        title: "Your Puppy at Week 2–3",
+        title: "Awareness and strength are beginning to build",
         facts: [
-          "Eyes and ears begin opening, and puppies become a little more aware of the world around them.",
-          "Early strength and coordination begin developing.",
-          "Small daily changes are often easier to notice in photos and weights.",
+          "You may start to see more responsiveness, stronger movement, and early awareness.",
+          "Progress is tracked through thoughtful breeder notes, weight checks, and visible development.",
+          "This stage is about a healthy transition from fragile newborn care into stronger early development.",
         ],
       },
       {
         min: 4,
         max: 5,
-        title: "Your Puppy at Week 4–5",
+        title: "Exploration and personality are becoming easier to see",
         facts: [
-          "Chihuahua puppies begin exploring more and showing early personality traits.",
-          "They often become more curious, alert, and interactive.",
-          "This stage is a big bridge between newborn care and playful puppy behavior.",
+          "Curiosity, movement, and early personality are usually much more noticeable now.",
+          "This is an important bridge between early routines and more playful puppy behavior.",
+          "Healthy progress includes confidence, body condition, and how your puppy is developing overall.",
         ],
       },
       {
         min: 6,
         max: 7,
-        title: "Your Puppy at Week 6–7",
+        title: "Confidence, structure, and social progress are taking shape",
         facts: [
-          "Social development becomes more noticeable during this stage.",
-          "Routine handling, gentle exposure, and structure matter a lot.",
-          "Weight and overall condition still remain very important for toy breeds.",
+          "Routine handling and gentle structure help support confidence during this stage.",
+          "Toy breeds still benefit from close attention to body condition and weight consistency.",
+          "Development becomes a fuller picture of behavior, strength, routine, and readiness.",
         ],
       },
       {
         min: 8,
         max: 10,
-        title: "Your Puppy at Week 8–10",
+        title: "Preparation, consistency, and transition readiness",
         facts: [
-          "This is often the stage when families become especially focused on transition and go-home prep.",
-          "Consistency with feeding and routine helps small breeds adjust well.",
-          "Chihuahuas may be tiny, but they are often observant, sensitive, and full of personality.",
+          "Consistency with feeding, routine, and handling supports a smoother transition.",
+          "Readiness is measured by more than age alone, especially in a very small breed.",
+          "The focus is on stability, confidence, and thoughtful preparation for the next step.",
         ],
       },
       {
         min: 11,
         max: 999,
-        title: `Your Puppy at Week ${week || "—"}`,
+        title: `Current developmental focus for week ${week || "—"}`,
         facts: [
-          "As Chihuahua puppies grow, confidence, routine, and bonding become just as important as size.",
-          "Small-breed puppies often benefit from predictable structure and careful observation.",
-          "Progress is best understood as a full picture: weight, milestones, health, and temperament together.",
+          "As Chihuahua puppies mature, routine, bonding, and confidence remain just as important as size.",
+          "Predictable structure and thoughtful observation continue to matter for small-breed development.",
+          "Progress is best understood as the full picture of weight, health, milestones, and temperament together.",
         ],
       },
     ];
@@ -507,6 +503,39 @@ export default function PortalMyPuppyPage() {
 
     return matched;
   }, [ageNumber]);
+  const weightTrend = useMemo(() => {
+    const detailed = [...weights]
+      .slice()
+      .reverse()
+      .map((weight, index) => ({
+        id: `weight-${weight.id}`,
+        label:
+          weight.age_weeks !== null && weight.age_weeks !== undefined
+            ? `Wk ${weight.age_weeks}`
+            : `Entry ${index + 1}`,
+        value:
+          weight.weight_oz !== null && weight.weight_oz !== undefined
+            ? Number(weight.weight_oz)
+            : weight.weight_g !== null && weight.weight_g !== undefined
+              ? Number(weight.weight_g) / 28.3495
+              : 0,
+      }))
+      .filter((item) => item.value > 0);
+
+    if (detailed.length) return detailed;
+
+    return weeklyWeights
+      .map((item) => ({
+        id: item.label,
+        label: item.label.replace("Week ", "Wk "),
+        value: Number(item.value || 0),
+      }))
+      .filter((item) => item.value > 0);
+  }, [weights, weeklyWeights]);
+
+  const weightTrendMax = useMemo(() => {
+    return weightTrend.length ? Math.max(...weightTrend.map((item) => item.value), 1) : 1;
+  }, [weightTrend]);
 
   if (loading) {
     return (
@@ -537,7 +566,7 @@ export default function PortalMyPuppyPage() {
 
             <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-white/82 md:text-[15px]">
               {puppy
-                ? "A complete view of your puppy’s profile, milestones, progress, and breeder updates."
+                ? "A complete view of your puppyâ€™s profile, milestones, progress, and breeder updates."
                 : "Your puppy profile will appear here once a puppy has been matched to your portal."}
             </p>
 
@@ -554,7 +583,7 @@ export default function PortalMyPuppyPage() {
                 </span>
               ) : null}
 
-              {ageDisplay !== "—" ? (
+              {ageDisplay !== "â€”" ? (
                 <span className="inline-flex items-center gap-2 rounded-full border border-white/18 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white">
                   Age: {ageDisplay}
                 </span>
@@ -585,9 +614,11 @@ export default function PortalMyPuppyPage() {
           <div className="relative min-h-[320px] bg-[#efe6dc]">
             {puppy ? (
               <>
-                <img
+                <Image
                   src={puppyImage}
                   alt={puppyName}
+                  fill
+                  sizes="(min-width: 1280px) 45vw, 100vw"
                   className="h-full w-full object-cover"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
@@ -618,7 +649,7 @@ export default function PortalMyPuppyPage() {
                   </div>
                   <div className="mt-2 max-w-xl text-sm font-semibold text-white/84">
                     {puppy.description ||
-                      "Your puppy’s profile, milestones, progress, and breeder updates all in one place."}
+                      "Your puppyâ€™s profile, milestones, progress, and breeder updates all in one place."}
                   </div>
                 </div>
               </>
@@ -626,7 +657,7 @@ export default function PortalMyPuppyPage() {
               <div className="flex h-full items-center justify-center p-8 text-center">
                 <div>
                   <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#dcc8b2] bg-white text-2xl shadow-sm">
-                    🐾
+                    ðŸ¾
                   </div>
                   <div className="font-serif text-2xl font-bold text-[#4a3325]">
                     No Puppy Assigned Yet
@@ -644,7 +675,7 @@ export default function PortalMyPuppyPage() {
       {!puppy ? (
         <section className="rounded-[30px] border border-[#dccab7] bg-white p-10 text-center shadow-[0_12px_28px_rgba(74,51,33,0.06)]">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#dcc8b2] bg-[#fcf8f3] text-2xl shadow-sm">
-            🐾
+            ðŸ¾
           </div>
           <h2 className="font-serif text-3xl font-bold text-[#3b271b]">
             No Puppy Assigned Yet
@@ -673,9 +704,9 @@ export default function PortalMyPuppyPage() {
       ) : (
         <>
           <section className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-            <InfoTile label="Price" value={puppy.price ? fmtMoney(puppy.price) : "—"} />
-            <InfoTile label="Deposit" value={puppy.deposit ? fmtMoney(puppy.deposit) : "—"} />
-            <InfoTile label="Balance" value={puppy.balance ? fmtMoney(puppy.balance) : "—"} />
+            <InfoTile label="Price" value={puppy.price ? fmtMoney(puppy.price) : "â€”"} />
+            <InfoTile label="Deposit" value={puppy.deposit ? fmtMoney(puppy.deposit) : "â€”"} />
+            <InfoTile label="Balance" value={puppy.balance ? fmtMoney(puppy.balance) : "â€”"} />
             <InfoTile label="Age" value={ageDisplay} />
           </section>
 
@@ -687,29 +718,27 @@ export default function PortalMyPuppyPage() {
                     Puppy Overview
                   </h2>
                   <p className="mt-1 text-sm font-semibold text-[#8b6b4d]">
-                    A polished overview of your puppy’s details and progress.
+                    A polished overview of your puppyâ€™s details and progress.
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  <SummaryCard label="Call Name" value={puppy.call_name || puppy.puppy_name || puppy.name || "—"} />
-                  <SummaryCard label="Litter Name" value={puppy.litter_name || "—"} />
-                  <SummaryCard label="Type" value={buyerExperience} />
-                  <SummaryCard label="Sex" value={puppy.sex || "—"} />
-                  <SummaryCard label="Color" value={puppy.color || "—"} />
-                  <SummaryCard label="Pattern" value={puppy.pattern || "—"} />
-                  <SummaryCard label="Coat Type" value={puppy.coat_type || puppy.coat || "—"} />
-                  <SummaryCard label="DOB" value={puppy.dob ? fmtDate(puppy.dob) : "—"} />
-                  <SummaryCard label="Registry" value={puppy.registry || "—"} />
-                  <SummaryCard label="Sire" value={puppy.sire || "—"} />
-                  <SummaryCard label="Dam" value={puppy.dam || "—"} />
-                  <SummaryCard label="Status" value={puppy.status || "—"} />
+                  <SummaryCard label="Call Name" value={puppy.call_name || puppy.puppy_name || puppy.name || "â€”"} />
+                  <SummaryCard label="Sex" value={puppy.sex || "â€”"} />
+                  <SummaryCard label="Color" value={puppy.color || "â€”"} />
+                  <SummaryCard label="Pattern" value={puppy.pattern || "â€”"} />
+                  <SummaryCard label="Coat Type" value={puppy.coat_type || puppy.coat || "â€”"} />
+                  <SummaryCard label="DOB" value={puppy.dob ? fmtDate(puppy.dob) : "â€”"} />
+                  <SummaryCard label="Registry" value={puppy.registry || "â€”"} />
+                  <SummaryCard label="Sire" value={puppy.sire || "â€”"} />
+                  <SummaryCard label="Dam" value={puppy.dam || "â€”"} />
+                  <SummaryCard label="Status" value={puppy.status || "â€”"} />
                   <SummaryCard label="Birth Weight" value={formatWeight(puppy.birth_weight, puppy.weight_unit)} />
                   <SummaryCard label="Current Weight" value={formatWeight(puppy.current_weight, puppy.weight_unit)} />
                   <SummaryCard label="Projected Adult Weight" value={projectedAdultWeight} />
-                  <SummaryCard label="Weight Date" value={puppy.weight_date ? fmtDate(puppy.weight_date) : "—"} />
-                  <SummaryCard label="Microchip" value={puppy.microchip || "—"} />
-                  <SummaryCard label="Registration No." value={puppy.registration_no || "—"} />
+                  <SummaryCard label="Weight Date" value={puppy.weight_date ? fmtDate(puppy.weight_date) : "â€”"} />
+                  <SummaryCard label="Microchip" value={puppy.microchip || "â€”"} />
+                  <SummaryCard label="Registration No." value={puppy.registration_no || "â€”"} />
                 </div>
 
                 {(puppy.description || puppy.notes) && (
@@ -745,13 +774,13 @@ export default function PortalMyPuppyPage() {
                     Care Overview
                   </h2>
                   <p className="mt-1 text-sm font-semibold text-[#8b6b4d]">
-                    Age-based Chihuahua facts and development notes.
+                    Meaningful breeder guidance, developmental progress, and timely care notes.
                   </p>
                 </div>
 
                 <div className="rounded-[24px] bg-[linear-gradient(135deg,#8f6945_0%,#6f5037_100%)] p-6 text-white">
                   <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/75">
-                    Rotating Care Snapshot
+                    Current Care Focus
                   </div>
                   <h3 className="mt-2 font-serif text-3xl font-bold">
                     {careOverview.title}
@@ -767,6 +796,70 @@ export default function PortalMyPuppyPage() {
                       </div>
                     ))}
                   </div>
+                </div>
+
+                <div className="mt-6 rounded-[24px] border border-[#e5d7c8] bg-[#fcf9f5] p-5">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
+                        Milestone Timeline
+                      </div>
+                      <div className="mt-2 text-lg font-black text-[#342116]">
+                        {latestMilestone?.label || "No visible milestone has been posted yet"}
+                      </div>
+                      <div className="mt-1 text-sm font-semibold leading-7 text-[#8d6f52]">
+                        {latestMilestone?.details || "Important updates will appear here as your puppy reaches meaningful milestones."}
+                      </div>
+                    </div>
+
+                    {latestMilestone ? (
+                      <div className="rounded-full border border-[#dccab7] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#7f5f42]">
+                        {fmtDate(latestMilestone.event_date)}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {pastMilestones.length ? (
+                    <div className="mt-5">
+                      <button
+                        type="button"
+                        onClick={() => setShowPastMilestones((v) => !v)}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-[#dccab7] bg-white px-4 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-[#7f5f42] transition hover:bg-[#fffaf4]"
+                      >
+                        {showPastMilestones ? "Hide Past Updates" : "View Past Updates"}
+                      </button>
+
+                      {showPastMilestones ? (
+                        <div className="mt-4 space-y-3">
+                          {pastMilestones.map((event) => (
+                            <div
+                              key={event.id}
+                              className="rounded-[20px] border border-[#e5d7c8] bg-white p-4"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
+                                  {event.event_type || "Update"}
+                                </div>
+                                <div className="text-[10px] font-semibold text-[#bea184]">
+                                  {fmtDate(event.event_date)}
+                                </div>
+                              </div>
+
+                              <div className="mt-1 text-sm font-black text-[#342116]">
+                                {event.label || "Milestone"}
+                              </div>
+
+                              {event.details ? (
+                                <div className="mt-1 text-[12px] font-semibold leading-6 text-[#8d6f52]">
+                                  {event.details}
+                                </div>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
@@ -794,7 +887,7 @@ export default function PortalMyPuppyPage() {
                       latestWeight?.ageWeeks !== null &&
                       latestWeight?.ageWeeks !== undefined
                         ? `${latestWeight.ageWeeks} weeks`
-                        : "—"
+                        : "â€”"
                     }
                   />
                   <HighlightCard
@@ -802,6 +895,43 @@ export default function PortalMyPuppyPage() {
                     value={projectedAdultWeight}
                   />
                 </div>
+
+                {weightTrend.length ? (
+                  <div className="mt-6 rounded-[24px] border border-[#e5d7c8] bg-[#fcf9f5] p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
+                          Growth Trend
+                        </div>
+                        <div className="mt-1 text-sm font-semibold text-[#8d6f52]">
+                          A visual look at recorded growth over time.
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 flex h-48 items-end gap-3">
+                      {weightTrend.map((point) => {
+                        const height = Math.max(18, (point.value / weightTrendMax) * 100);
+                        return (
+                          <div key={point.id} className="flex flex-1 flex-col items-center gap-3">
+                            <div className="text-[10px] font-black uppercase tracking-[0.12em] text-[#8d6f52]">
+                              {point.value.toFixed(1)} oz
+                            </div>
+                            <div className="flex h-32 w-full items-end rounded-[18px] bg-white px-2 py-2">
+                              <div
+                                className="w-full rounded-[14px] bg-[linear-gradient(180deg,#c78a58_0%,#8f6945_100%)]"
+                                style={{ height: `${height}%` }}
+                              />
+                            </div>
+                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
+                              {point.label}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
 
                 {weeklyWeights.length ? (
                   <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -866,139 +996,23 @@ export default function PortalMyPuppyPage() {
 
             <div className="space-y-6 xl:col-span-4">
               <div className="rounded-[30px] border border-[#dccab7] bg-white p-6 shadow-[0_12px_28px_rgba(74,51,33,0.06)] md:p-7">
-                <div className="mb-5 flex items-end justify-between gap-4">
-                  <div>
-                    <h2 className="font-serif text-2xl font-bold text-[#3b271b]">
-                      Health & Milestones
-                    </h2>
-                    <p className="mt-1 text-sm font-semibold text-[#8b6b4d]">
-                      Most recent milestone first, with past milestones available on demand.
-                    </p>
-                  </div>
-                </div>
-
-                {latestMilestone ? (
-                  <div className="space-y-4">
-                    <div className="rounded-[24px] bg-[linear-gradient(135deg,#8f6945_0%,#6f5037_100%)] p-5 text-white">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/75">
-                          Most Current Milestone
-                        </div>
-                        <div className="text-[10px] font-semibold text-white/75">
-                          {fmtDate(latestMilestone.event_date)}
-                        </div>
-                      </div>
-
-                      <div className="mt-2 text-xl font-black">
-                        {latestMilestone.label || "Update"}
-                      </div>
-
-                      {latestMilestone.details ? (
-                        <div className="mt-2 text-sm font-semibold leading-7 text-white/88">
-                          {latestMilestone.details}
-                        </div>
-                      ) : null}
-
-                      {latestMilestone.value !== null && latestMilestone.value !== undefined ? (
-                        <div className="mt-3 text-[11px] font-black uppercase tracking-[0.18em] text-white/82">
-                          {latestMilestone.value} {latestMilestone.unit || ""}
-                        </div>
-                      ) : null}
-                    </div>
-
-                    {pastMilestones.length ? (
-                      <div>
-                        <button
-                          type="button"
-                          onClick={() => setShowPastMilestones((v) => !v)}
-                          className="inline-flex items-center gap-2 rounded-2xl border border-[#dccab7] bg-[#fcf8f3] px-4 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-[#7f5f42] transition hover:bg-white"
-                        >
-                          {showPastMilestones ? "Hide Past Milestones" : "View Past Milestones"}
-                        </button>
-
-                        {showPastMilestones ? (
-                          <div className="mt-4 space-y-3">
-                            {pastMilestones.map((event) => (
-                              <div
-                                key={event.id}
-                                className="rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4"
-                              >
-                                <div className="flex items-center justify-between gap-3">
-                                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
-                                    {event.event_type || "Update"}
-                                  </div>
-                                  <div className="text-[10px] font-semibold text-[#bea184]">
-                                    {fmtDate(event.event_date)}
-                                  </div>
-                                </div>
-
-                                <div className="mt-1 text-sm font-black text-[#342116]">
-                                  {event.label || "Milestone"}
-                                </div>
-
-                                {event.details ? (
-                                  <div className="mt-1 text-[12px] font-semibold leading-6 text-[#8d6f52]">
-                                    {event.details}
-                                  </div>
-                                ) : null}
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : (
-                  <div className="rounded-[22px] border border-dashed border-[#e3d4c2] bg-[#fcf8f3] py-10 text-center text-sm italic text-[#9e8164]">
-                    No milestones are visible yet.
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-[30px] border border-[#dccab7] bg-white p-6 shadow-[0_12px_28px_rgba(74,51,33,0.06)] md:p-7">
                 <h2 className="font-serif text-2xl font-bold text-[#3b271b]">
-                  Edit With ChiChi
+                  Notes & Highlights
                 </h2>
                 <p className="mt-1 text-sm font-semibold text-[#8b6b4d]">
-                  Repetitive sidebar details were replaced with direct edit help for ChiChi.
+                  A cleaner summary of the details that matter most for your puppy.
                 </p>
 
                 <div className="mt-5 space-y-3">
-                  <div className="rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4">
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
-                      Good For Edits
-                    </div>
-                    <div className="mt-2 text-sm font-semibold leading-7 text-[#4e3727]">
-                      Microchip, registration number, litter name, sire, dam, coat, color, pattern, status, description, breeder notes, birth weight, current weight, and more.
-                    </div>
-                  </div>
-                  <div className="rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4">
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
-                      Example Commands
-                    </div>
-                    <div className="mt-2 space-y-2 text-sm font-semibold leading-7 text-[#4e3727]">
-                      <div>{`Edit puppy ${puppy.call_name || puppy.puppy_name || puppy.name || "this puppy"} microchip to 981000123456789`}</div>
-                      <div>{`Update puppy ${puppy.call_name || puppy.puppy_name || puppy.name || "this puppy"} registration number to CKC-12345`}</div>
-                      <div>{`Update puppy ${puppy.call_name || puppy.puppy_name || puppy.name || "this puppy"} sire to Gus Gus`}</div>
-                      <div>{`Update puppy ${puppy.call_name || puppy.puppy_name || puppy.name || "this puppy"} description to playful, confident, and loves to cuddle`}</div>
-                    </div>
-                  </div>
-                  <MiniInfo
-                    label="Coat"
-                    value={puppy.coat_type || puppy.coat || "—"}
-                  />
-                  <MiniInfo
+                  <SummaryCard label="Registration" value={puppy.registry || "â€”"} />
+                  <SummaryCard label="Coat Type" value={puppy.coat_type || puppy.coat || "â€”"} />
+                  <SummaryCard
                     label="Color / Pattern"
-                    value={[puppy.color, puppy.pattern].filter(Boolean).join(" • ") || "—"}
+                    value={[puppy.color, puppy.pattern].filter(Boolean).join(" â€¢ ") || "â€”"}
                   />
-                  <MiniInfo
-                    label="Registration"
-                    value={puppy.registry || "—"}
-                  />
-                  <MiniInfo
-                    label="Go-Home Progress"
-                    value={puppy.status || "In Progress"}
-                  />
+                  <SummaryCard label="Status" value={puppy.status || "â€”"} />
+                  <SummaryCard label="Sire" value={puppy.sire || "â€”"} />
+                  <SummaryCard label="Dam" value={puppy.dam || "â€”"} />
                 </div>
               </div>
 
@@ -1028,20 +1042,6 @@ export default function PortalMyPuppyPage() {
                     title="Resources"
                     desc="Puppy prep, feeding guidance, and care help."
                   />
-                </div>
-              </div>
-
-              <div className="rounded-[30px] bg-[linear-gradient(135deg,#8f6945_0%,#6f5037_100%)] p-6 text-white shadow-[0_20px_44px_rgba(74,51,33,0.18)] md:p-7">
-                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/75">
-                  Assistant
-                </div>
-                <h2 className="mt-2 font-serif text-2xl font-bold">ChiChi Assistant</h2>
-                <p className="mt-2 text-sm font-semibold leading-7 text-white/82">
-                  Need help finding something in your portal or updating puppy profile fields? Use the ChiChi chat button in the bottom right for account-aware answers and admin edits.
-                </p>
-
-                <div className="mt-5 rounded-[22px] border border-white/15 bg-white/10 p-4 text-sm font-semibold leading-7 text-white/82">
-                  Ask about payments, documents, breeder messages, puppy updates, milestones, or say things like &quot;Edit puppy Frey microchip to ...&quot; when you want to change a field.
                 </div>
               </div>
             </div>
@@ -1085,11 +1085,6 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function MiniInfo(_props: { label: string; value: string }) {
-  void _props;
-  return null;
-}
-
 function QuickLink({
   href,
   title,
@@ -1113,7 +1108,7 @@ function QuickLink({
 }
 
 function formatWeight(value?: number | null, unit?: string | null) {
-  if (value === null || value === undefined || Number(value) === 0) return "—";
+  if (value === null || value === undefined || Number(value) === 0) return "â€”";
   return `${value} ${unit || ""}`.trim();
 }
 
@@ -1144,11 +1139,11 @@ function MyPuppyLogin() {
 
           <div className="mt-10 max-w-3xl">
             <h1 className="font-serif text-5xl font-bold leading-[0.95] text-[#3e2a1f] md:text-6xl">
-              Welcome to your puppy’s private profile.
+              Welcome to your puppyâ€™s private profile.
             </h1>
 
             <p className="mt-6 max-w-2xl text-[17px] font-semibold leading-8 text-[#7a5a3a]">
-              Sign in to view your puppy’s profile, milestones, weight progress,
+              Sign in to view your puppyâ€™s profile, milestones, weight progress,
               breeder notes, and account-connected portal details.
             </p>
           </div>
@@ -1205,3 +1200,4 @@ function MyPuppyLogin() {
     </div>
   );
 }
+
