@@ -22,14 +22,6 @@ type BuyerRow = {
   user_id?: string | null;
 };
 
-type NextStep = {
-  icon: string;
-  title: string;
-  desc: string;
-  href: string;
-  cta: string;
-};
-
 function statusPill(statusRaw: any, type?: "application" | "puppy") {
   const raw = String(statusRaw || "").trim();
   const s = raw.toLowerCase();
@@ -561,47 +553,85 @@ export default function PortalPage() {
       ? "View Application"
       : "Start Application";
 
-  const steps = nextSteps(hasApp, hasPuppy);
+  const financialValue =
+    data?.puppy?.balance || data?.puppy?.balance === 0
+      ? fmtMoney(data.puppy.balance)
+      : data?.puppy?.price || data?.puppy?.total_price || data?.puppy?.adoption_fee
+        ? fmtMoney(
+            data?.puppy?.price || data?.puppy?.total_price || data?.puppy?.adoption_fee
+          )
+        : "—";
 
   const overviewCards = [
     {
-      label: "Application",
+      label: "Application Status",
       value: data?.app?.status || data?.app?.application_status || "Not started",
       sub: data?.app?.created_at
         ? `Submitted ${fmtDate(data.app.created_at)}`
         : "Complete when ready",
       href: "/portal/application",
-      icon: "📝",
+      icon: "✓",
     },
     {
-      label: "Documents",
-      value: data?.docCount ? `${data.docCount} file(s)` : "—",
-      sub: "Contracts and saved files",
-      href: "/portal/documents",
-      icon: "📄",
+      label: "Next Step",
+      value: hasPuppy ? "My Puppy" : hasApp ? "Messages" : "Application",
+      sub: hasPuppy ? "Profile, milestones, and updates" : hasApp ? "Stay in touch with us" : "Complete your portal setup",
+      href: hasPuppy ? "/portal/mypuppy" : hasApp ? "/portal/messages" : "/portal/application",
+      icon: "→",
     },
     {
-      label: "Messages",
-      value: `${data?.msgs?.length || 0}`,
-      sub: "Recent message activity",
-      href: "/portal/messages",
-      icon: "💬",
-    },
-    {
-      label: "Financials",
-      value:
-        data?.puppy?.price || data?.puppy?.total_price || data?.puppy?.adoption_fee
-          ? fmtMoney(
-              data?.puppy?.price ||
-                data?.puppy?.total_price ||
-                data?.puppy?.adoption_fee
-            )
-          : "—",
-      sub: "View payment details",
+      label: "Balance Due",
+      value: financialValue,
+      sub: "Open payments for details",
       href: "/portal/payments",
-      icon: "💳",
+      icon: "$",
+    },
+    {
+      label: hasPuppy ? "View My Puppy" : "Available Puppies",
+      value: hasPuppy ? (data?.puppy?.call_name || data?.puppy?.puppy_name || data?.puppy?.name || "Open profile") : "Browse now",
+      sub: hasPuppy ? "Full profile and updates" : "See current and future matches",
+      href: hasPuppy ? "/portal/mypuppy" : "/portal/available-puppies",
+      icon: "🐾",
     },
   ];
+
+  const resourceTiles = [
+    {
+      title: "Application",
+      desc: "Review your submitted information or start the process.",
+      href: "/portal/application",
+    },
+    {
+      title: "Contracts & Docs",
+      desc: "Open agreements, saved files, and portal paperwork.",
+      href: "/portal/documents",
+    },
+    {
+      title: "Resources",
+      desc: "Care guidance, prep notes, and helpful references.",
+      href: "/portal/resources",
+    },
+  ];
+
+  const timelineItems =
+    data?.updates?.length
+      ? data.updates.slice(0, 3).map((u: any) => ({
+          id: String(u.id),
+          title: u.title || u.label || u.name || "Update",
+          date: fmtDate(u.event_date || u.created_at || u.date),
+        }))
+      : [
+          {
+            id: "placeholder-1",
+            title: hasPuppy ? "Puppy profile updates will appear here" : "Puppy match updates will appear here",
+            date: "Check My Puppy",
+          },
+          {
+            id: "placeholder-2",
+            title: "Messages and milestones stay organized in one place",
+            date: "Portal timeline",
+          },
+        ];
 
   if (loading) {
     return (
@@ -615,173 +645,69 @@ export default function PortalPage() {
 
   return (
     <div className="space-y-6">
-      <section className="overflow-hidden rounded-[30px] border border-[#d7c7b6] bg-white shadow-[0_14px_40px_rgba(61,39,22,0.08)]">
-        <div className="grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr]">
-          <div className="bg-[linear-gradient(135deg,#8f6945_0%,#6f5037_100%)] px-6 py-7 text-white md:px-8 md:py-8">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/85">
-              <span>My Puppy Portal</span>
-              <span className="h-1 w-1 rounded-full bg-white/50" />
-              <span>Southwest Virginia Chihuahua</span>
-            </div>
+      <section className="overflow-hidden rounded-[30px] border border-[#d2c0ab] bg-white shadow-[0_18px_45px_rgba(61,39,22,0.09)]">
+        <div className="relative min-h-[250px] overflow-hidden">
+          <img
+            src={puppyImage}
+            alt={hasPuppy ? "Portal hero puppy" : "Portal welcome puppy"}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(41,31,24,0.88)_0%,rgba(41,31,24,0.60)_36%,rgba(41,31,24,0.18)_74%,rgba(41,31,24,0.08)_100%)]" />
 
-            <h1 className="mt-5 font-serif text-3xl font-bold leading-[0.95] md:text-5xl">
-              Hello, {greetingName}
-            </h1>
+          <div className="relative z-10 flex min-h-[250px] items-center px-6 py-8 md:px-10">
+            <div className="max-w-2xl text-white">
+              <h1 className="font-serif text-4xl font-bold leading-[0.95] md:text-5xl">
+                Welcome back, {greetingName}!
+              </h1>
+              <p className="mt-3 max-w-xl text-sm font-semibold leading-7 text-white/88 md:text-[15px]">
+                Here’s your quick link to everything in the portal, including your puppy
+                profile, messages, documents, payment details, and next steps.
+              </p>
 
-            <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-white/82 md:text-[15px]">
-              Your dashboard keeps everything important organized in one place —
-              application status, messages, documents, financials, resources, and next steps.
-            </p>
-
-            <div className="mt-5 flex flex-wrap items-center gap-3">
-              <span
-                className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${appStatus.cls}`}
-              >
-                <span className="h-2 w-2 rounded-full bg-current opacity-70" />
-                Application: {appStatus.label}
-              </span>
-
-              <span
-                className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${puppyStatus.cls}`}
-              >
-                <span className="h-2 w-2 rounded-full bg-current opacity-70" />
-                Puppy: {puppyStatus.label}
-              </span>
-            </div>
-
-            <div className="mt-7 flex flex-wrap gap-3">
-              <Link
-                href={primaryHref}
-                className="inline-flex items-center gap-2 rounded-2xl bg-[#d6ab73] px-5 py-3 text-sm font-black uppercase tracking-[0.12em] text-[#24180f] transition hover:bg-[#dfba87]"
-              >
-                {primaryLabel}
-                <span aria-hidden="true">→</span>
-              </Link>
-
-              <Link
-                href="/portal/messages"
-                className="inline-flex items-center gap-2 rounded-2xl border border-white/18 bg-white/10 px-5 py-3 text-sm font-black uppercase tracking-[0.12em] text-white transition hover:bg-white/14"
-              >
-                Open Messages
-                <span aria-hidden="true">↗</span>
-              </Link>
-            </div>
-          </div>
-
-          <div className="relative min-h-[280px] bg-[#efe6dc]">
-            {hasPuppy ? (
-              <>
-                <img
-                  src={puppyImage}
-                  alt="Puppy"
-                  className="h-full w-full object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-                <div className="absolute inset-x-0 bottom-0 p-6">
-                  <div className="mb-3 flex flex-wrap gap-2">
-                    <span className="rounded-full border border-white/25 bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white backdrop-blur-sm">
-                      {data?.puppy?.sex || data?.puppy?.gender || "Puppy"}
-                    </span>
-
-                    {(data?.puppy?.dob || data?.puppy?.birth_date) && (
-                      <span className="rounded-full border border-white/25 bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white backdrop-blur-sm">
-                        Born {fmtDate(data?.puppy?.dob || data?.puppy?.birth_date)}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="font-serif text-3xl font-bold text-white">
-                    {data?.puppy?.call_name ||
-                      data?.puppy?.puppy_name ||
-                      data?.puppy?.name ||
-                      "Your Puppy"}
-                  </div>
-
-                  <div className="mt-2 max-w-xl text-sm font-semibold text-white/84">
-                    Full profile, milestones, photos, and breeder updates are available in the My Puppy section.
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="flex h-full items-center justify-center p-8 text-center">
-                <div>
-                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#dcc8b2] bg-white text-2xl shadow-sm">
-                    🐾
-                  </div>
-                  <div className="font-serif text-2xl font-bold text-[#4a3325]">
-                    No Puppy Assigned Yet
-                  </div>
-                  <div className="mt-2 max-w-sm text-sm font-semibold leading-7 text-[#8b6b4d]">
-                    Once a match is confirmed, this area will highlight your puppy while the full details live in My Puppy.
-                  </div>
-                </div>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link
+                  href={primaryHref}
+                  className="inline-flex items-center gap-2 rounded-xl bg-[linear-gradient(180deg,#deb56f_0%,#b9853f_100%)] px-5 py-3 text-sm font-black text-[#24180f] shadow-[0_10px_24px_rgba(0,0,0,0.18)] transition hover:brightness-105"
+                >
+                  {primaryLabel}
+                </Link>
+                <Link
+                  href="/portal/messages"
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/12 px-5 py-3 text-sm font-black text-white transition hover:bg-white/18"
+                >
+                  Open Messages
+                </Link>
               </div>
-            )}
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {overviewCards.map((card) => (
           <Link
             key={card.label}
             href={card.href}
-            className="rounded-[24px] border border-[#dccab7] bg-white p-5 shadow-[0_12px_28px_rgba(74,51,33,0.06)] transition hover:-translate-y-1 hover:shadow-[0_16px_32px_rgba(74,51,33,0.10)]"
+            className="rounded-[24px] border border-[#dccab7] bg-[linear-gradient(180deg,#fffdfa_0%,#f8f2ea_100%)] p-5 shadow-[0_12px_28px_rgba(74,51,33,0.06)] transition hover:-translate-y-1 hover:shadow-[0_16px_32px_rgba(74,51,33,0.10)]"
           >
-            <div className="text-2xl">{card.icon}</div>
             <div className="mt-3 text-[10px] font-black uppercase tracking-[0.18em] text-[#9d7a55]">
               {card.label}
             </div>
-            <div className="mt-1 break-words text-sm font-black text-[#342116]">
+            <div className="mt-2 break-words text-2xl font-black text-[#342116]">
               {card.value}
             </div>
-            <div className="mt-1 text-[11px] font-semibold text-[#8d6f52]">
+            <div className="mt-2 text-[12px] font-semibold text-[#8d6f52]">
               {card.sub}
+            </div>
+            <div className="mt-4 text-[11px] font-black uppercase tracking-[0.18em] text-[#7f5f42]">
+              Open
             </div>
           </Link>
         ))}
       </section>
 
-      <section className="rounded-[30px] border border-[#dccab7] bg-white p-6 shadow-[0_12px_28px_rgba(74,51,33,0.06)] md:p-7">
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h2 className="font-serif text-2xl font-bold text-[#3b271b]">Next Steps</h2>
-            <p className="mt-1 text-sm font-semibold text-[#8b6b4d]">
-              Your dashboard overview of what to do next.
-            </p>
-          </div>
-
-          <Link
-            href={primaryHref}
-            className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9a7854] hover:text-[#4f3726]"
-          >
-            Open Main Area →
-          </Link>
-        </div>
-
-        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {steps.map((step) => (
-            <Link
-              key={step.title}
-              href={step.href}
-              className="rounded-[24px] border border-[#e4d5c4] bg-[#fcf8f3] p-5 transition hover:bg-white"
-            >
-              <div className="text-2xl">{step.icon}</div>
-              <div className="mt-3 text-sm font-black text-[#372419]">{step.title}</div>
-              <div className="mt-1 text-[12px] font-semibold leading-6 text-[#8b6d50]">
-                {step.desc}
-              </div>
-              <div className="mt-4 inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-[#7f5f42]">
-                {step.cta}
-                <span aria-hidden="true">→</span>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
-
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <div className="space-y-6 xl:col-span-7">
+        <div className="space-y-6 xl:col-span-4">
           <div className="rounded-[30px] border border-[#dccab7] bg-white p-6 shadow-[0_12px_28px_rgba(74,51,33,0.06)] md:p-7">
             <div className="mb-5 flex items-end justify-between gap-4">
               <div>
@@ -829,65 +755,87 @@ export default function PortalPage() {
               )}
             </div>
           </div>
+        </div>
 
-          <div className="rounded-[30px] border border-[#dccab7] bg-white p-6 shadow-[0_12px_28px_rgba(74,51,33,0.06)] md:p-7">
-            <div className="mb-5 flex items-end justify-between gap-4">
+        <div className="space-y-6 xl:col-span-5">
+          <div className="overflow-hidden rounded-[30px] border border-[#dccab7] bg-white shadow-[0_12px_28px_rgba(74,51,33,0.06)]">
+            <div className="flex items-end justify-between border-b border-[#eadccc] px-6 py-5 md:px-7">
               <div>
                 <h2 className="font-serif text-2xl font-bold text-[#3b271b]">
-                  Pupdates
+                  My Puppy
                 </h2>
                 <p className="mt-1 text-sm font-semibold text-[#8b6b4d]">
-                  A quick look at recent puppy-related updates.
+                  {hasPuppy
+                    ? "Your puppy profile and breeder updates."
+                    : "Open the available puppies area while you wait for a match."}
                 </p>
               </div>
 
               <Link
-                href="/portal/mypuppy"
+                href={hasPuppy ? "/portal/mypuppy" : "/portal/available-puppies"}
                 className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9a7854] hover:text-[#4f3726]"
               >
-                Open My Puppy
+                {hasPuppy ? "Open My Puppy" : "View All Puppies"}
               </Link>
             </div>
 
-            <div className="space-y-3">
-              {data?.updates?.length ? (
-                data.updates.slice(0, 5).map((u: any) => (
-                  <div
-                    key={u.id}
-                    className="rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4 transition hover:bg-white"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
-                        {u.event_type || u.type || u.category || "Update"}
-                      </div>
-                      <div className="text-[10px] font-semibold text-[#bea184]">
-                        {fmtDate(u.event_date || u.created_at || u.date)}
-                      </div>
-                    </div>
+            <div className="grid grid-cols-1 gap-0 md:grid-cols-[220px_minmax(0,1fr)]">
+              <div className="relative min-h-[240px] border-b border-[#eadccc] md:border-b-0 md:border-r">
+                <img
+                  src={puppyImage}
+                  alt={hasPuppy ? "My puppy preview" : "Available puppies preview"}
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+              </div>
 
-                    <div className="mt-1 text-sm font-black text-[#342116]">
-                      {u.title || u.label || u.name || "Update"}
-                    </div>
-
-                    {(u.summary || u.details || u.description || u.notes || u.value) && (
-                      <div className="mt-1 line-clamp-2 text-[12px] font-semibold text-[#8d6f52]">
-                        {u.summary || u.details || u.description || u.notes || u.value}
-                      </div>
-                    )}
+              <div className="space-y-4 p-6">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
+                    {hasPuppy ? "Current Puppy" : "Next Best Step"}
                   </div>
-                ))
-              ) : (
-                <div className="rounded-[22px] border border-dashed border-[#e3d4c2] bg-[#fcf8f3] py-10 text-center text-sm italic text-[#9e8164]">
-                  {hasPuppy
-                    ? "No pupdates posted yet."
-                    : "Pupdates will appear after a puppy is matched."}
+                  <div className="mt-2 font-serif text-3xl font-bold text-[#342116]">
+                    {hasPuppy
+                      ? data?.puppy?.call_name || data?.puppy?.puppy_name || data?.puppy?.name || "Your Puppy"
+                      : "Available Puppies"}
+                  </div>
+                  <div className="mt-2 text-sm font-semibold leading-7 text-[#8d6f52]">
+                    {hasPuppy
+                      ? "Full profile, milestones, photos, and breeder notes are organized in the My Puppy section."
+                      : "Browse the portal’s available puppies page with the correct route and keep an eye on new matches."}
+                  </div>
                 </div>
-              )}
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <InfoPill
+                    label="Application"
+                    value={appStatus.label}
+                  />
+                  <InfoPill
+                    label="Puppy Status"
+                    value={puppyStatus.label}
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <Link
+                    href={hasPuppy ? "/portal/mypuppy" : "/portal/available-puppies"}
+                    className="inline-flex items-center gap-2 rounded-xl bg-[linear-gradient(180deg,#deb56f_0%,#b9853f_100%)] px-4 py-3 text-sm font-black text-[#24180f] transition hover:brightness-105"
+                  >
+                    {hasPuppy ? "View" : "Browse"}
+                  </Link>
+                  <Link
+                    href="/portal/documents"
+                    className="inline-flex items-center gap-2 rounded-xl border border-[#ddccb8] bg-[#fcf8f3] px-4 py-3 text-sm font-black text-[#5f4531] transition hover:bg-white"
+                  >
+                    Contracts & Docs
+                  </Link>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="space-y-6 xl:col-span-5">
+        <div className="space-y-6 xl:col-span-3">
           <div className="rounded-[30px] border border-[#dccab7] bg-white p-6 shadow-[0_12px_28px_rgba(74,51,33,0.06)] md:p-7">
             <div className="flex items-end justify-between gap-4">
               <div>
@@ -908,20 +856,9 @@ export default function PortalPage() {
             </div>
 
             <div className="mt-6 space-y-4">
-              <FinancialRow
-                label="Adoption Fee"
-                value={
-                  data?.puppy?.price ||
-                  data?.puppy?.total_price ||
-                  data?.puppy?.adoption_fee
-                    ? fmtMoney(
-                        data?.puppy?.price ||
-                          data?.puppy?.total_price ||
-                          data?.puppy?.adoption_fee
-                      )
-                    : "—"
-                }
-              />
+              <FinancialRow label="Balance Due" value={financialValue} />
+              <FinancialRow label="Documents" value={data?.docCount ? `${data.docCount}` : "—"} />
+              <FinancialRow label="Messages" value={`${data?.msgs?.length || 0}`} />
 
               <div className="rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4">
                 <div className="text-[10px] font-black uppercase tracking-[0.22em] text-[#9c7b58]">
@@ -935,31 +872,54 @@ export default function PortalPage() {
           </div>
 
           <div className="rounded-[30px] border border-[#dccab7] bg-white p-6 shadow-[0_12px_28px_rgba(74,51,33,0.06)] md:p-7">
-            <h2 className="font-serif text-2xl font-bold text-[#3b271b]">
-              Quick Access
-            </h2>
-
-            <div className="mt-5 space-y-3">
-              <QuickLink
-                href="/portal/application"
-                title="Application"
-                desc="Review or update your submitted information."
-              />
-              <QuickLink
-                href="/portal/documents"
-                title="Documents"
-                desc="Open contracts, files, and saved paperwork."
-              />
-              <QuickLink
-                href="/portal/payments"
-                title="Payments"
-                desc="View payment records and financial details."
-              />
-              <QuickLink
+            <div className="mb-5 flex items-end justify-between gap-4">
+              <div>
+                <h2 className="font-serif text-2xl font-bold text-[#3b271b]">
+                  Helpful Resources
+                </h2>
+                <p className="mt-1 text-sm font-semibold text-[#8b6b4d]">
+                  Keep the key portal areas close by.
+                </p>
+              </div>
+              <Link
                 href="/portal/resources"
-                title="Resources"
-                desc="Care guidance, prep tips, and important reading."
-              />
+                className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9a7854] hover:text-[#4f3726]"
+              >
+                Open Resources
+              </Link>
+            </div>
+
+            <div className="space-y-3">
+              {resourceTiles.map((tile) => (
+                <QuickLink key={tile.title} href={tile.href} title={tile.title} desc={tile.desc} />
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-[30px] border border-[#dccab7] bg-white p-6 shadow-[0_12px_28px_rgba(74,51,33,0.06)] md:p-7">
+            <div className="mb-5 flex items-end justify-between gap-4">
+              <div>
+                <h2 className="font-serif text-2xl font-bold text-[#3b271b]">
+                  Upcoming Events
+                </h2>
+                <p className="mt-1 text-sm font-semibold text-[#8b6b4d]">
+                  Timeline items and puppy-related milestones.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {timelineItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4"
+                >
+                  <div className="text-sm font-black text-[#342116]">{item.title}</div>
+                  <div className="mt-1 text-[12px] font-semibold text-[#8d6f52]">
+                    {item.date}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -1436,6 +1396,17 @@ function LoginComponent() {
           </div>
         </section>
       </div>
+    </div>
+  );
+}
+
+function InfoPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[18px] border border-[#e5d7c8] bg-[#fcf9f5] px-4 py-3">
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
+        {label}
+      </div>
+      <div className="mt-1 text-sm font-black text-[#342116]">{value}</div>
     </div>
   );
 }

@@ -430,6 +430,7 @@ export default function AdminPortalPage() {
                 <SidebarMiniLink href="/portal" label="Open Buyer Portal" />
                 <SidebarMiniLink href="/admin" label="Main Admin" />
                 <SidebarMiniLink href="/admin/portal" label="Refresh Admin View" />
+                <SidebarMiniLink href="/admin/portal/assistant" label="Open ChiChi Console" />
               </div>
             </div>
           </div>
@@ -460,14 +461,23 @@ export default function AdminPortalPage() {
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:w-[520px]">
-                  <KpiPill label="Families" value={String(stats.buyersCount)} />
-                  <KpiPill
-                    label="Applications"
-                    value={String(stats.applicationsCount)}
-                  />
-                  <KpiPill label="Puppies" value={String(stats.puppiesCount)} />
-                  <KpiPill label="Messages" value={String(stats.messagesCount)} />
+                <div className="flex flex-col items-stretch gap-3 xl:items-end">
+                  <Link
+                    href="/admin/portal/assistant"
+                    className="inline-flex items-center justify-center rounded-[18px] border border-brand-200 bg-white px-5 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-brand-700 transition hover:bg-brand-50"
+                  >
+                    Open ChiChi Console
+                  </Link>
+
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:w-[520px]">
+                    <KpiPill label="Families" value={String(stats.buyersCount)} />
+                    <KpiPill
+                      label="Applications"
+                      value={String(stats.applicationsCount)}
+                    />
+                    <KpiPill label="Puppies" value={String(stats.puppiesCount)} />
+                    <KpiPill label="Messages" value={String(stats.messagesCount)} />
+                  </div>
                 </div>
               </div>
 

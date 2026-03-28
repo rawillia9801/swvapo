@@ -224,6 +224,44 @@ type ActionIntent =
       note?: string | null;
       reference_number?: string | null;
       status?: string | null;
+    }
+  | {
+      action: "add_buyer";
+      confidence?: string;
+      full_name?: string | null;
+      name?: string | null;
+      email?: string | null;
+      phone?: string | null;
+      status?: string | null;
+      notes?: string | null;
+    }
+  | {
+      action: "update_payment";
+      confidence?: string;
+      payment_id?: string | null;
+      buyer_name?: string | null;
+      buyer_email?: string | null;
+      reference_number?: string | null;
+      payment_date?: string | null;
+      amount?: number | null;
+      new_payment_date?: string | null;
+      new_amount?: number | null;
+      payment_type?: string | null;
+      method?: string | null;
+      note?: string | null;
+      status?: string | null;
+    }
+  | {
+      action: "add_puppy_weight";
+      confidence?: string;
+      puppy_name?: string | null;
+      puppy_id?: number | null;
+      weight_date?: string | null;
+      age_weeks?: number | null;
+      weight_oz?: number | null;
+      weight_g?: number | null;
+      notes?: string | null;
+      source?: string | null;
     };
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
@@ -325,7 +363,7 @@ function isCoreWriteAllowed(userId: string): boolean {
   return false;
 }
 
-function extractJsonObject(text: string): any | null {
+function extractJsonObject(text: string): Record<string, unknown> | null {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start === -1 || end === -1 || end <= start) return null;
@@ -835,7 +873,30 @@ function buildContextSummary(params: {
   };
 }
 
-function buildSystemPrompt(summary: ReturnType<typeof buildContextSummary>) {
+function buildSystemPrompt(
+  summary: ReturnType<typeof buildContextSummary>,
+  options?: { isAdmin?: boolean; canWriteCore?: boolean }
+) {
+  if (options?.isAdmin) {
+    return `
+You are ChiChi Assistant for Southwest Virginia Chihuahua.
+
+Your role:
+- Help authorized admins with Core admin chat commands and general portal questions.
+- Keep answers concise, warm, and operationally clear.
+- Never claim a database write succeeded unless the action handler already completed it.
+- If the admin asks what commands are available, mention: add buyer, add puppy, add puppy event, log payment, edit payment, and add puppy weight.
+- If an admin request is missing details, ask for the exact missing fields only.
+- If a request is ambiguous because multiple buyers, puppies, or payments could match, say that plainly and ask for one clarifying detail.
+
+Current signed-in account context:
+${JSON.stringify(summary, null, 2)}
+
+Admin write access:
+${options.canWriteCore ? "enabled" : "disabled"}
+`.trim();
+  }
+
   return `
 You are ChiChi Assistant for Southwest Virginia Chihuahua.
 
@@ -875,11 +936,17 @@ No explanation.
 
 Allowed actions:
 - "answer_only"
+- "add_buyer"
 - "add_puppy"
 - "add_puppy_event"
 - "log_payment"
+- "update_payment"
+- "add_puppy_weight"
 
 Use "answer_only" if the message is mostly a question, lookup, explanation, or lacks enough intent to act.
+
+For "add_buyer", try to extract:
+full_name, name, email, phone, status, notes
 
 For "add_puppy", try to extract:
 call_name, puppy_name, name, sex, color, coat_type, pattern, dob, registry, price, status, buyer_name, buyer_email, owner_email, notes, description
@@ -889,6 +956,12 @@ puppy_name, puppy_id, event_date, event_type, label, title, summary, details, va
 
 For "log_payment", try to extract:
 buyer_name, buyer_email, puppy_name, amount, payment_date, payment_type, method, note, reference_number, status
+
+For "update_payment", try to extract:
+payment_id, buyer_name, buyer_email, reference_number, payment_date, amount, new_payment_date, new_amount, payment_type, method, note, status
+
+For "add_puppy_weight", try to extract:
+puppy_name, puppy_id, weight_date, age_weeks, weight_oz, weight_g, notes, source
 
 Use null for missing fields.
 Use ISO date format YYYY-MM-DD when possible.
@@ -958,7 +1031,7 @@ async function findBuyerByNameOrEmail(
   if (name) {
     const { data, error } = await admin.from("buyers").select("*").limit(200);
     if (!error && data?.length) {
-      const match = data.find((b: any) => {
+      const match = data.find((b: BuyerRecord) => {
         const full = normalizeName(b.full_name);
         const simple = normalizeName(b.name);
         return full === name || simple === name;
@@ -968,6 +1041,11 @@ async function findBuyerByNameOrEmail(
   }
 
   return null;
+}
+
+function paymentMatchesAmount(payment: PaymentRecord, amount?: number | null) {
+  if (amount === null || amount === undefined || Number.isNaN(Number(amount))) return true;
+  return Number(payment.amount) === Number(amount);
 }
 
 async function findPuppyByNameOrId(
@@ -990,7 +1068,7 @@ async function findPuppyByNameOrId(
   const { data, error } = await admin.from("puppies").select("*").limit(300);
   if (error || !data?.length) return null;
 
-  const match = data.find((p: any) => {
+  const match = data.find((p: PuppyRecord) => {
     const a = normalizeName(p.call_name);
     const b = normalizeName(p.puppy_name);
     const c = normalizeName(p.name);
@@ -1001,6 +1079,13 @@ async function findPuppyByNameOrId(
 }
 
 function missingFieldsForAction(intent: ActionIntent): string[] {
+  if (intent.action === "add_buyer") {
+    const missing: string[] = [];
+    if (!intent.full_name && !intent.name) missing.push("buyer name");
+    if (!intent.email) missing.push("buyer email");
+    return missing;
+  }
+
   if (intent.action === "add_puppy") {
     const hasName = !!(intent.call_name || intent.puppy_name || intent.name);
     const missing: string[] = [];
@@ -1026,7 +1111,79 @@ function missingFieldsForAction(intent: ActionIntent): string[] {
     return missing;
   }
 
+  if (intent.action === "update_payment") {
+    const missing: string[] = [];
+    const hasMatcher =
+      !!intent.payment_id ||
+      !!intent.reference_number ||
+      !!intent.buyer_name ||
+      !!intent.buyer_email;
+    const hasChange =
+      intent.new_amount !== null ||
+      intent.new_amount !== undefined ||
+      !!intent.new_payment_date ||
+      !!intent.payment_type ||
+      !!intent.method ||
+      !!intent.note ||
+      !!intent.status;
+
+    if (!hasMatcher) missing.push("payment reference, payment id, or buyer");
+    if (!hasChange) missing.push("what should change on the payment");
+    return missing;
+  }
+
+  if (intent.action === "add_puppy_weight") {
+    const missing: string[] = [];
+    if (!intent.puppy_id && !intent.puppy_name) missing.push("puppy");
+    if (!intent.weight_date) missing.push("weight date");
+    if (
+      (intent.weight_oz === null || intent.weight_oz === undefined) &&
+      (intent.weight_g === null || intent.weight_g === undefined)
+    ) {
+      missing.push("weight");
+    }
+    return missing;
+  }
+
   return [];
+}
+
+async function executeAddBuyer(
+  admin: SupabaseClient,
+  intent: Extract<ActionIntent, { action: "add_buyer" }>
+) {
+  const existing = await findBuyerByNameOrEmail(
+    admin,
+    intent.full_name || intent.name,
+    intent.email
+  );
+
+  if (existing?.id) {
+    const display = existing.full_name || existing.name || existing.email || "that buyer";
+    return `Core action skipped. A buyer record already exists for ${display}.`;
+  }
+
+  const payload = {
+    full_name: intent.full_name || intent.name || null,
+    name: intent.name || intent.full_name || null,
+    email: intent.email || null,
+    phone: intent.phone || null,
+    status: intent.status || "lead",
+    notes: intent.notes || null,
+  };
+
+  const { data, error } = await admin
+    .from("buyers")
+    .insert(payload)
+    .select("id, full_name, name, email, status")
+    .single();
+
+  if (error) {
+    throw new Error(`Could not add buyer: ${error.message}`);
+  }
+
+  const buyerDisplay = data?.full_name || data?.name || data?.email || "New buyer";
+  return `Core action completed. I added buyer "${buyerDisplay}" with status "${data?.status || payload.status}".`;
 }
 
 async function executeAddPuppy(
@@ -1141,6 +1298,157 @@ async function executeLogPayment(
   return `Core action completed. I logged a payment of $${Number(payload.amount).toFixed(
     2
   )} for ${buyerDisplay} dated ${payload.payment_date}.`;
+}
+
+async function findPaymentForUpdate(
+  admin: SupabaseClient,
+  intent: Extract<ActionIntent, { action: "update_payment" }>
+) {
+  if (intent.payment_id) {
+    const { data, error } = await admin
+      .from("buyer_payments")
+      .select("*")
+      .eq("id", intent.payment_id)
+      .maybeSingle<PaymentRecord>();
+    if (error) {
+      throw new Error(`Could not load that payment: ${error.message}`);
+    }
+    if (!data) {
+      throw new Error("I could not find that payment id.");
+    }
+    return data;
+  }
+
+  const buyer = await findBuyerByNameOrEmail(admin, intent.buyer_name, intent.buyer_email);
+  if (!buyer?.id) {
+    throw new Error("I could not find that buyer to locate the payment.");
+  }
+
+  let query = admin
+    .from("buyer_payments")
+    .select("*")
+    .eq("buyer_id", buyer.id)
+    .order("payment_date", { ascending: false })
+    .limit(50);
+
+  if (intent.reference_number) {
+    query = query.eq("reference_number", intent.reference_number);
+  }
+
+  if (intent.payment_date) {
+    query = query.eq("payment_date", intent.payment_date);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(`Could not load payments for update: ${error.message}`);
+  }
+
+  const filtered = (data || []).filter((payment) =>
+    paymentMatchesAmount(payment as PaymentRecord, intent.amount)
+  ) as PaymentRecord[];
+
+  if (!filtered.length) {
+    throw new Error("I could not find a matching payment to update.");
+  }
+
+  if (filtered.length > 1) {
+    throw new Error(
+      "I found multiple matching payments. Please include a reference number, payment id, or a more specific date and amount."
+    );
+  }
+
+  return filtered[0];
+}
+
+async function executeUpdatePayment(
+  admin: SupabaseClient,
+  intent: Extract<ActionIntent, { action: "update_payment" }>
+) {
+  const payment = await findPaymentForUpdate(admin, intent);
+
+  const payload = compactObject({
+    payment_date: intent.new_payment_date || undefined,
+    amount:
+      intent.new_amount === null || intent.new_amount === undefined
+        ? undefined
+        : Number(intent.new_amount),
+    payment_type: intent.payment_type || undefined,
+    method: intent.method || undefined,
+    note: intent.note || undefined,
+    status: intent.status || undefined,
+  });
+
+  if (!Object.keys(payload).length) {
+    throw new Error("I need at least one updated payment field to save.");
+  }
+
+  const { error } = await admin.from("buyer_payments").update(payload).eq("id", payment.id);
+  if (error) {
+    throw new Error(`Could not update payment: ${error.message}`);
+  }
+
+  return `Core action completed. I updated payment ${payment.id} dated ${
+    intent.new_payment_date || payment.payment_date
+  }.`;
+}
+
+async function executeAddPuppyWeight(
+  admin: SupabaseClient,
+  intent: Extract<ActionIntent, { action: "add_puppy_weight" }>
+) {
+  const puppy = await findPuppyByNameOrId(admin, intent.puppy_name, intent.puppy_id);
+
+  if (!puppy?.id) {
+    throw new Error("I could not find that puppy to add the weight entry.");
+  }
+
+  const payload = {
+    puppy_id: puppy.id,
+    weigh_date: intent.weight_date,
+    weight_date: intent.weight_date,
+    age_weeks:
+      intent.age_weeks === null || intent.age_weeks === undefined
+        ? null
+        : Number(intent.age_weeks),
+    weight_oz:
+      intent.weight_oz === null || intent.weight_oz === undefined
+        ? null
+        : Number(intent.weight_oz),
+    weight_g:
+      intent.weight_g === null || intent.weight_g === undefined ? null : Number(intent.weight_g),
+    notes: intent.notes || null,
+    source: intent.source || "chi_chi_admin",
+  };
+
+  const { error } = await admin.from("puppy_weights").insert(payload);
+  if (error) {
+    throw new Error(`Could not add puppy weight: ${error.message}`);
+  }
+
+  const currentWeight =
+    payload.weight_oz === null || payload.weight_oz === undefined
+      ? payload.weight_g
+      : payload.weight_oz;
+  const weightUnit =
+    payload.weight_oz === null || payload.weight_oz === undefined ? "g" : "oz";
+
+  await admin
+    .from("puppies")
+    .update({
+      current_weight: currentWeight,
+      weight_unit: weightUnit,
+      weight_date: intent.weight_date,
+    })
+    .eq("id", puppy.id);
+
+  const puppyDisplay = puppy.call_name || puppy.puppy_name || puppy.name || "that puppy";
+  const weightText =
+    payload.weight_oz !== null && payload.weight_oz !== undefined
+      ? `${payload.weight_oz} oz`
+      : `${payload.weight_g} g`;
+
+  return `Core action completed. I logged a weight of ${weightText} for ${puppyDisplay} on ${intent.weight_date}.`;
 }
 
 async function saveConversation(params: {
@@ -1263,8 +1571,8 @@ export async function POST(req: Request) {
       documents,
     });
 
-    const intent = await extractActionIntent(lastUserMessage);
     const canWriteCore = isCoreWriteAllowed(user.id);
+    const intent = await extractActionIntent(lastUserMessage);
 
     let text = "";
 
@@ -1276,18 +1584,27 @@ export async function POST(req: Request) {
         const missing = missingFieldsForAction(intent);
         if (missing.length) {
           text = `I can do that, but I still need: ${missing.join(", ")}.`;
+        } else if (intent.action === "add_buyer") {
+          text = await executeAddBuyer(admin, intent);
         } else if (intent.action === "add_puppy") {
           text = await executeAddPuppy(admin, intent);
         } else if (intent.action === "add_puppy_event") {
           text = await executeAddPuppyEvent(admin, intent);
         } else if (intent.action === "log_payment") {
           text = await executeLogPayment(admin, intent);
+        } else if (intent.action === "update_payment") {
+          text = await executeUpdatePayment(admin, intent);
+        } else if (intent.action === "add_puppy_weight") {
+          text = await executeAddPuppyWeight(admin, intent);
         }
       }
     }
 
     if (!text) {
-      const system = buildSystemPrompt(summary);
+      const system = buildSystemPrompt(summary, {
+        isAdmin: canWriteCore,
+        canWriteCore,
+      });
 
       const anthropicResponse = await fetch(ANTHROPIC_URL, {
         method: "POST",

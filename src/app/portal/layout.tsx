@@ -22,6 +22,9 @@ import {
   MessagesSquare,
   PawPrint,
   ExternalLink,
+  Bell,
+  Mail,
+  ChevronDown,
 } from "lucide-react";
 import { sb } from "@/lib/utils";
 
@@ -231,7 +234,7 @@ export default function PortalLayout({
         icon: <MessageCircle className="h-[18px] w-[18px]" />,
       },
       {
-        href: "/portalavailable-puppies",
+        href: "/portal/available-puppies",
         label: "Available Puppies",
         icon: <Sparkles className="h-[18px] w-[18px]" />,
       },
@@ -246,6 +249,8 @@ export default function PortalLayout({
     "Portal User";
 
   const userInitial = (displayName?.[0] || user?.email?.[0] || "U").toUpperCase();
+  const activeNavItem = nav.find((item) => isActive(item));
+  const pageTitle = activeNavItem?.label || "Portal";
 
   const clientCoreAdmins = useMemo(() => getClientCoreAdmins(), []);
   const isCoreAdmin = !!user?.id && clientCoreAdmins.includes(user.id);
@@ -315,8 +320,8 @@ export default function PortalLayout({
     return [
       "group flex items-center gap-3.5 rounded-2xl px-4 py-3.5 transition-all duration-300 ease-out",
       active
-        ? "bg-gradient-to-r from-[#D9A05B] to-[#C0853E] text-white shadow-[0_8px_20px_rgba(192,133,62,0.25)] scale-[1.02]"
-        : "text-[#A89F96] hover:bg-white/5 hover:text-white hover:translate-x-1",
+        ? "border border-[#806448] bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] text-[#f4dfbf] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_10px_24px_rgba(0,0,0,0.22)]"
+        : "border border-transparent text-[#c6b8a8] hover:border-white/5 hover:bg-white/4 hover:text-white hover:translate-x-1",
     ].join(" ");
   }
 
@@ -325,8 +330,8 @@ export default function PortalLayout({
     return [
       "flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-300",
       active
-        ? "bg-white/20 text-white shadow-inner"
-        : "bg-white/5 text-[#A89F96] group-hover:bg-white/10 group-hover:text-white group-hover:scale-110",
+        ? "bg-[#c7954b] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.28)]"
+        : "bg-white/5 text-[#bba58d] group-hover:bg-white/10 group-hover:text-white group-hover:scale-110",
     ].join(" ");
   }
 
@@ -520,59 +525,100 @@ export default function PortalLayout({
       </aside>
 
       {/* Desktop Layout */}
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen bg-[radial-gradient(circle_at_top,#f8f1e8_0%,#f3eadf_42%,#eee3d7_100%)]">
         {/* Desktop Sidebar */}
-        <aside className="hidden w-[300px] shrink-0 md:block">
-          <div className="sticky top-0 flex h-screen flex-col border-r border-black/5 bg-gradient-to-b from-[#1C1614] to-[#120D0A] px-5 py-8 text-white shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
-            <div className="flex items-center gap-4 px-2">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#D9A05B] to-[#C0853E] text-white shadow-lg shadow-orange-900/20">
-                <Dog className="h-6 w-6" />
-              </div>
-
-              <div className="leading-tight">
-                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-[#D9A05B]">
-                  SW VA Chihuahua
+        <aside className="hidden w-[126px] shrink-0 border-r border-[#46372b] bg-[linear-gradient(180deg,#2d2924_0%,#23201c_100%)] md:block">
+          <div className="sticky top-0 flex h-screen flex-col text-white shadow-[4px_0_24px_rgba(0,0,0,0.15)]">
+            <div className="border-b border-white/8 px-4 py-6">
+              <div className="flex flex-col items-start gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#D9A05B] to-[#C0853E] text-white shadow-lg shadow-orange-900/20">
+                  <Dog className="h-6 w-6" />
                 </div>
-                <div className="mt-0.5 font-serif text-[22px] leading-none text-white tracking-wide">
-                  Puppy Portal
+                <div className="leading-tight">
+                  <div className="font-serif text-[17px] leading-none text-[#f4eadf]">
+                    Puppy
+                  </div>
+                  <div className="mt-1 font-serif text-[17px] leading-none text-[#f4eadf]">
+                    Portal
+                  </div>
                 </div>
               </div>
             </div>
 
-            <nav className="mt-10 flex-1 space-y-2">
+            <nav className="flex-1 space-y-2 px-3 py-5">
               {nav.map((item) => (
                 <Link key={item.href} href={item.href} className={navClass(item)}>
                   <span className={iconWrapClass(item)}>{item.icon}</span>
-                  <span className="text-[15px] font-medium leading-tight tracking-wide">{item.label}</span>
+                  <span className="text-[13px] font-medium leading-tight tracking-wide">
+                    {item.label}
+                  </span>
                 </Link>
               ))}
             </nav>
 
-            <div className="mt-6 rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
-                <Sparkles className="w-16 h-16" />
+            <div className="border-t border-white/8 px-3 py-5">
+              <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#d1b082]">
+                  Help & Support
+                </div>
+                <div className="mt-2 text-[11px] leading-5 text-[#d5c7b8]">
+                  Messages, documents, and puppy details stay organized here.
+                </div>
+                <button
+                  onClick={handleSignOut}
+                  className="mt-4 w-full rounded-xl border border-white/10 bg-white/8 px-3 py-2.5 text-[12px] font-black uppercase tracking-[0.14em] text-[#f7efe6] transition hover:bg-white/14"
+                >
+                  Sign Out
+                </button>
               </div>
-              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-[#D9A05B]">
-                Portal Access
-              </div>
-              <div className="mt-2 text-sm font-medium text-white truncate">{displayName}</div>
-              <div className="mt-2 text-xs leading-relaxed text-[#A89F96]">
-                Your portal keeps your puppy updates, documents, messages, and payment details in one secure place.
-              </div>
-
-              <button
-                onClick={handleSignOut}
-                className="mt-5 w-full rounded-2xl bg-white/10 px-4 py-3 text-sm font-medium text-white transition-all hover:bg-white/20 hover:shadow-md"
-              >
-                Sign out
-              </button>
             </div>
           </div>
         </aside>
 
         {/* Main Content Area */}
-        <main className="min-w-0 flex-1 bg-[#FDFCF8]">
-          <div className="px-4 py-6 md:px-8 md:py-10 lg:px-12 max-w-7xl mx-auto">{children}</div>
+        <main className="min-w-0 flex-1">
+          <div className="border-b border-[#d8cab7] bg-[linear-gradient(180deg,#3a352f_0%,#2e2a25_100%)] text-[#f3e4ca] shadow-[0_12px_30px_rgba(56,42,30,0.14)]">
+            <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 md:px-8 lg:px-12">
+              <div className="min-w-0">
+                <div className="font-serif text-2xl leading-none tracking-wide text-[#f6efe7]">
+                  {pageTitle}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  className="hidden h-10 w-10 items-center justify-center rounded-full border border-[#6a5641] bg-[#403730] text-[#e9cc98] transition hover:bg-[#4a4038] sm:inline-flex"
+                  aria-label="Notifications"
+                >
+                  <Bell className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  className="hidden h-10 w-10 items-center justify-center rounded-full border border-[#6a5641] bg-[#403730] text-[#e9cc98] transition hover:bg-[#4a4038] sm:inline-flex"
+                  aria-label="Messages"
+                >
+                  <Mail className="h-4 w-4" />
+                </button>
+
+                <div className="flex items-center gap-3 rounded-full border border-[#6a5641] bg-[#403730] py-1.5 pl-1.5 pr-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#e0bb85] to-[#bb8749] text-sm font-black text-[#24180f]">
+                    {userInitial}
+                  </div>
+                  <div className="hidden sm:block">
+                    <div className="max-w-[140px] truncate text-sm font-semibold text-[#f7f1e8]">
+                      {displayName}
+                    </div>
+                  </div>
+                  <ChevronDown className="h-4 w-4 text-[#d9bb88]" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mx-auto max-w-7xl px-4 py-6 md:px-8 md:py-8 lg:px-12">
+            {children}
+          </div>
         </main>
       </div>
 
