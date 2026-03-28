@@ -570,6 +570,22 @@ export default function PortalPage() {
           )
         : "—";
 
+  const puppyDisplayName =
+    data?.puppy?.call_name || data?.puppy?.puppy_name || data?.puppy?.name || "My Puppy";
+
+  const recentUpdates =
+    data?.updates?.length
+      ? data.updates.slice(0, 2).map((u: any) => ({
+          id: String(u.id),
+          title: u.title || u.label || u.name || "Update",
+          date: fmtDate(u.event_date || u.created_at || u.date),
+        }))
+      : [];
+
+  const nextUpdateLabel =
+    recentUpdates[0]?.date ||
+    (hasPuppy ? "Check My Puppy" : hasApp ? "Watch Messages" : "Portal updates");
+
   const overviewCards = [
     {
       label: "Application Status",
@@ -581,9 +597,15 @@ export default function PortalPage() {
       icon: "✓",
     },
     {
-      label: "Next Step",
-      value: hasPuppy ? "My Puppy" : hasApp ? "Messages" : "Application",
-      sub: hasPuppy ? "Profile, milestones, and updates" : hasApp ? "Stay in touch with us" : "Complete your portal setup",
+      label: "Next Update",
+      value: nextUpdateLabel,
+      sub:
+        recentUpdates[0]?.title ||
+        (hasPuppy
+          ? "Breeder updates and milestones appear here."
+          : hasApp
+            ? "Stay in touch with us through the portal."
+            : "Complete your portal setup."),
       href: hasPuppy ? "/portal/mypuppy" : hasApp ? "/portal/messages" : "/portal/application",
       icon: "→",
     },
@@ -595,8 +617,8 @@ export default function PortalPage() {
       icon: "$",
     },
     {
-      label: hasPuppy ? "View My Puppy" : "Available Puppies",
-      value: hasPuppy ? (data?.puppy?.call_name || data?.puppy?.puppy_name || data?.puppy?.name || "Open profile") : "Browse now",
+      label: hasPuppy ? "My Puppy" : "Available Puppies",
+      value: hasPuppy ? puppyDisplayName : "Browse now",
       sub: hasPuppy ? "Full profile and updates" : "See current and future matches",
       href: hasPuppy ? "/portal/mypuppy" : "/portal/available-puppies",
       icon: "🐾",
@@ -605,19 +627,19 @@ export default function PortalPage() {
 
   const resourceTiles = [
     {
-      title: "Application",
-      desc: "Review your submitted information or start the process.",
-      href: "/portal/application",
-    },
-    {
       title: "Contracts & Docs",
-      desc: "Open agreements, saved files, and portal paperwork.",
+      desc: "Open agreements, forms, and portal records in one place.",
       href: "/portal/documents",
     },
     {
       title: "Resources",
-      desc: "Care guidance, prep notes, and helpful references.",
+      desc: "Helpful Chihuahua care guidance and trusted breeder links.",
       href: "/portal/resources",
+    },
+    {
+      title: "Transporation",
+      desc: "Request pickup, meet-up, or delivery details and pricing.",
+      href: "/portal/transportation",
     },
   ];
 
@@ -640,6 +662,7 @@ export default function PortalPage() {
             date: "Portal timeline",
           },
         ];
+  const recentMessages = data?.msgs?.slice(0, 3) || [];
 
   if (loading) {
     return (
@@ -652,38 +675,32 @@ export default function PortalPage() {
   if (!user) return <LoginComponent />;
 
   return (
-    <div className="space-y-6">
-      <section className="overflow-hidden rounded-[30px] border border-[#d2c0ab] bg-white shadow-[0_18px_45px_rgba(61,39,22,0.09)]">
-        <div className="relative min-h-[250px] overflow-hidden">
+    <div className="space-y-5">
+      <section className="overflow-hidden rounded-[12px] border border-[#d8cdbd] bg-white shadow-[0_10px_28px_rgba(58,43,26,0.08)]">
+        <div className="relative min-h-[180px] overflow-hidden">
           <img
             src={puppyImage}
             alt={hasPuppy ? "Portal hero puppy" : "Portal welcome puppy"}
             className="absolute inset-0 h-full w-full object-cover"
           />
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(41,31,24,0.88)_0%,rgba(41,31,24,0.60)_36%,rgba(41,31,24,0.18)_74%,rgba(41,31,24,0.08)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(22,16,8,0.84)_0%,rgba(22,16,8,0.62)_42%,rgba(22,16,8,0.12)_100%)]" />
 
-          <div className="relative z-10 flex min-h-[250px] items-center px-6 py-8 md:px-10">
+          <div className="relative z-10 flex min-h-[180px] items-center px-7 py-8 md:px-8">
             <div className="max-w-2xl text-white">
-              <h1 className="font-serif text-4xl font-bold leading-[0.95] md:text-5xl">
+              <h1 className="font-serif text-3xl font-bold tracking-tight md:text-4xl">
                 Welcome back, {greetingName}!
               </h1>
-              <p className="mt-3 max-w-xl text-sm font-semibold leading-7 text-white/88 md:text-[15px]">
+              <p className="mt-2 max-w-xl text-sm font-medium text-white/82 md:text-[15px]">
                 Here’s your quick link to everything in the portal, including your puppy
-                profile, messages, documents, payment details, and next steps.
+                documents, and payment details.
               </p>
 
-              <div className="mt-6 flex flex-wrap gap-3">
+              <div className="mt-5 flex flex-wrap gap-3">
                 <Link
                   href={primaryHref}
-                  className="inline-flex items-center gap-2 rounded-xl bg-[linear-gradient(180deg,#deb56f_0%,#b9853f_100%)] px-5 py-3 text-sm font-black text-[#24180f] shadow-[0_10px_24px_rgba(0,0,0,0.18)] transition hover:brightness-105"
+                  className="inline-flex items-center rounded-[6px] bg-[linear-gradient(135deg,#c9943a_0%,#a87228_100%)] px-5 py-2.5 text-sm font-bold text-white transition hover:brightness-105"
                 >
                   {primaryLabel}
-                </Link>
-                <Link
-                  href="/portal/messages"
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/12 px-5 py-3 text-sm font-black text-white transition hover:bg-white/18"
-                >
-                  Open Messages
                 </Link>
               </div>
             </div>
@@ -696,18 +713,18 @@ export default function PortalPage() {
           <Link
             key={card.label}
             href={card.href}
-            className="rounded-[24px] border border-[#dccab7] bg-[linear-gradient(180deg,#fffdfa_0%,#f8f2ea_100%)] p-5 shadow-[0_12px_28px_rgba(74,51,33,0.06)] transition hover:-translate-y-1 hover:shadow-[0_16px_32px_rgba(74,51,33,0.10)]"
+            className="rounded-[8px] border border-[#e2d9c8] bg-white p-5 transition hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(58,43,26,0.08)]"
           >
-            <div className="mt-3 text-[10px] font-black uppercase tracking-[0.18em] text-[#9d7a55]">
+            <div className="border-b border-[#ede7d9] pb-3 text-[12px] font-semibold text-[#4a3f2f]">
               {card.label}
             </div>
-            <div className="mt-2 break-words text-2xl font-black text-[#342116]">
+            <div className="mt-4 break-words text-[26px] font-bold leading-none text-[#1a1208]">
               {card.value}
             </div>
-            <div className="mt-2 text-[12px] font-semibold text-[#8d6f52]">
+            <div className="mt-2 text-[12px] text-[#7a6a52]">
               {card.sub}
             </div>
-            <div className="mt-4 text-[11px] font-black uppercase tracking-[0.18em] text-[#7f5f42]">
+            <div className="mt-4 text-[12px] font-medium text-[#c9943a]">
               Open
             </div>
           </Link>
@@ -736,8 +753,8 @@ export default function PortalPage() {
             </div>
 
             <div className="space-y-3">
-              {data?.msgs?.length ? (
-                data.msgs.map((m: any) => (
+              {recentMessages.length ? (
+                recentMessages.map((m: any) => (
                   <div
                     key={m.id}
                     className="rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4 transition hover:bg-white"
@@ -802,9 +819,7 @@ export default function PortalPage() {
                     {hasPuppy ? "Current Puppy" : "Next Best Step"}
                   </div>
                   <div className="mt-2 font-serif text-3xl font-bold text-[#342116]">
-                    {hasPuppy
-                      ? data?.puppy?.call_name || data?.puppy?.puppy_name || data?.puppy?.name || "Your Puppy"
-                      : "Available Puppies"}
+                    {hasPuppy ? puppyDisplayName : "Available Puppies"}
                   </div>
                   <div className="mt-2 text-sm font-semibold leading-7 text-[#8d6f52]">
                     {hasPuppy
