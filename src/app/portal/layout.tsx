@@ -529,20 +529,20 @@ export default function PortalLayout({
   function navClass(item: NavItem) {
     const active = isActive(item);
     return [
-      "group flex items-center gap-[11px] border-l-[3px] px-[18px] py-[10px] transition-all duration-150 ease-out",
+      "group flex items-center gap-3 rounded-2xl px-4 py-3 transition-all duration-200 ease-out",
       active
-        ? "border-l-[#c9943a] bg-white/10 text-white"
-        : "border-l-transparent text-white/65 hover:bg-white/7 hover:text-white/90",
+        ? "bg-[linear-gradient(135deg,rgba(96,165,250,0.18),rgba(168,85,247,0.16))] text-white shadow-[0_14px_32px_rgba(15,23,42,0.22)] ring-1 ring-white/10"
+        : "text-[#94a3b8] hover:bg-white/6 hover:text-white",
     ].join(" ");
   }
 
   function iconWrapClass(item: NavItem) {
     const active = isActive(item);
     return [
-      "flex h-[17px] w-[17px] items-center justify-center transition-all duration-150",
+      "flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-200",
       active
-        ? "text-white"
-        : "text-white/80 group-hover:text-white/95",
+        ? "bg-white/10 text-[#c4b5fd]"
+        : "bg-white/[0.03] text-[#94a3b8] group-hover:bg-white/[0.06] group-hover:text-white",
     ].join(" ");
   }
 
@@ -641,9 +641,9 @@ export default function PortalLayout({
   }
 
   return (
-    <div className="min-h-screen bg-[#FDFCF8] text-[#2D2825]">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#17213b_0%,#0b1020_42%,#070b16_100%)] text-white">
       {/* Mobile Header */}
-      <header className="sticky top-0 z-40 border-b border-black/5 bg-[#1C1614]/95 backdrop-blur-md text-white shadow-sm md:hidden">
+      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0b1020]/90 backdrop-blur-xl text-white shadow-[0_10px_30px_rgba(0,0,0,0.25)] md:hidden">
         <div className="flex h-16 items-center justify-between px-4">
           <button
             onClick={() => setIsDrawerOpen(true)}
@@ -654,15 +654,15 @@ export default function PortalLayout({
           </button>
 
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#D9A05B] to-[#C0853E] text-white shadow-md">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[linear-gradient(135deg,#60a5fa_0%,#8b5cf6_100%)] text-white shadow-[0_12px_26px_rgba(96,165,250,0.25)]">
               <Dog className="h-5 w-5" />
             </div>
             <div className="leading-tight">
-              <div className="text-[9px] font-black uppercase tracking-[0.2em] text-[#D9A05B]">
-                SW VA Chihuahua
-              </div>
-              <div className="font-serif text-[20px] leading-none text-white tracking-wide">
-                My Puppy Portal
+                <div className="text-[9px] font-black uppercase tracking-[0.2em] text-[#93c5fd]">
+                  Private Client Access
+                </div>
+                <div className="font-serif text-[20px] leading-none text-white tracking-wide">
+                  My Puppy Portal
               </div>
             </div>
           </div>
@@ -676,7 +676,7 @@ export default function PortalLayout({
       {/* Mobile Drawer Overlay */}
       {isDrawerOpen && (
         <div
-          className="fixed inset-0 z-40 bg-[#1C1614]/60 backdrop-blur-sm transition-opacity md:hidden"
+          className="fixed inset-0 z-40 bg-[#020617]/70 backdrop-blur-sm transition-opacity md:hidden"
           onClick={() => setIsDrawerOpen(false)}
         />
       )}
@@ -687,15 +687,15 @@ export default function PortalLayout({
           isDrawerOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex h-full flex-col rounded-[2rem] border border-white/10 bg-gradient-to-b from-[#1C1614] to-[#120D0A] px-5 py-6 shadow-[0_24px_80px_rgba(0,0,0,0.5)]">
+        <div className="flex h-full flex-col rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.96)_0%,rgba(11,16,32,0.96)_100%)] px-5 py-6 shadow-[0_24px_80px_rgba(0,0,0,0.5)] backdrop-blur-xl">
           <div className="flex items-start justify-between gap-3 px-1">
             <div className="flex items-center gap-3.5">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#D9A05B] to-[#C0853E] text-white shadow-lg shadow-orange-900/20">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#60a5fa_0%,#8b5cf6_100%)] text-white shadow-[0_16px_30px_rgba(96,165,250,0.24)]">
                 <Dog className="h-6 w-6" />
               </div>
               <div className="leading-tight">
-                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-[#D9A05B]">
-                  SW VA Chihuahua
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-[#93c5fd]">
+                  Private Client Access
                 </div>
                 <div className="font-serif text-[22px] leading-none text-white tracking-wide">
                   Puppy Portal
@@ -737,27 +737,27 @@ export default function PortalLayout({
       </aside>
 
       {/* Desktop Layout */}
-      <div className="flex min-h-screen bg-[#f0ebe0]">
+      <div className="flex min-h-screen bg-transparent">
         {/* Desktop Sidebar */}
-        <aside className="hidden w-[174px] shrink-0 bg-[linear-gradient(180deg,#2a2118_0%,#1c160e_100%)] md:block">
-          <div className="sticky top-0 flex h-screen flex-col text-white shadow-[4px_0_24px_rgba(0,0,0,0.15)]">
-            <div className="flex items-center gap-[10px] border-b border-white/8 px-3 py-[18px]">
-              <div className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[6px] bg-gradient-to-br from-[#c9943a] to-[#a87228] text-white">
+        <aside className="hidden w-[248px] shrink-0 p-4 md:block">
+          <div className="sticky top-4 flex h-[calc(100vh-32px)] flex-col rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.94)_0%,rgba(11,16,32,0.96)_100%)] text-white shadow-[0_30px_80px_rgba(2,6,23,0.45)] backdrop-blur-2xl">
+            <div className="flex items-center gap-3 border-b border-white/10 px-5 py-5">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#60a5fa_0%,#8b5cf6_100%)] text-white shadow-[0_18px_34px_rgba(96,165,250,0.22)]">
                 <Dog className="h-[22px] w-[22px]" />
               </div>
               <div className="leading-tight">
-                <div className="font-serif text-[13px] font-bold text-white [font-family:var(--font-merriweather)]">
+                <div className="font-serif text-[15px] font-bold text-white [font-family:var(--font-merriweather)]">
                   Puppy Portal
                 </div>
-                <div className="text-[10px] font-normal text-white/50">SWVA Chihuahua</div>
+                <div className="text-[11px] font-normal text-[#93c5fd]">SWVA Chihuahua</div>
               </div>
             </div>
 
-            <nav className="flex-1 space-y-0 px-0 py-2">
+            <nav className="flex-1 space-y-1 px-4 py-4">
               {nav.map((item) => (
                 <Link key={item.href} href={item.href} className={navClass(item)}>
                   <span className={iconWrapClass(item)}>{item.icon}</span>
-                  <span className="whitespace-nowrap text-[13.5px] font-[500] leading-tight tracking-[0.01em]">
+                  <span className="whitespace-nowrap text-[14px] font-medium leading-tight tracking-[0.01em]">
                     {item.label}
                   </span>
                   {item.href === "/portal/messages" && unreadMessageCount > 0 ? (
@@ -769,10 +769,10 @@ export default function PortalLayout({
               ))}
             </nav>
 
-            <div className="mt-auto border-t border-white/8 px-[18px] py-4">
+            <div className="mt-auto border-t border-white/10 px-5 py-5">
               <Link
                 href="/portal/help"
-                className="flex items-center gap-[9px] text-[12.5px] text-white/60 transition hover:text-white/90"
+                className="flex items-center gap-3 rounded-2xl bg-white/[0.03] px-4 py-3 text-[13px] text-[#94a3b8] transition hover:bg-white/[0.06] hover:text-white"
               >
                 <Bell className="h-4 w-4" />
                 <span>Help &amp; Support</span>
@@ -782,26 +782,30 @@ export default function PortalLayout({
         </aside>
 
         {/* Main Content Area */}
-        <main className="min-w-0 flex-1">
-          <div className="h-16 border-b border-[#4a3b2b] bg-[linear-gradient(90deg,#2a2118_0%,#3a2d1c_100%)] text-[#f3e4ca]">
-            <div className="flex h-full w-full items-center justify-between gap-4 px-4 md:px-6 lg:px-8 xl:px-10">
+        <main className="min-w-0 flex-1 p-4 md:pl-0">
+          <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06)_0%,rgba(255,255,255,0.02)_100%)] shadow-[0_30px_80px_rgba(2,6,23,0.26)] backdrop-blur-xl">
+          <div className="h-[76px] border-b border-white/10 bg-[linear-gradient(90deg,rgba(15,23,42,0.82)_0%,rgba(30,41,59,0.66)_100%)] text-white">
+            <div className="flex h-full w-full items-center justify-between gap-4 px-5 md:px-6 lg:px-8 xl:px-10">
               <div className="min-w-0">
-                <div className="font-serif text-[22px] font-normal leading-none tracking-[0.01em] text-white [font-family:var(--font-merriweather)]">
+                <div className="text-[11px] font-black uppercase tracking-[0.22em] text-[#93c5fd]">
+                  SWVA Chihuahua
+                </div>
+                <div className="mt-1 font-serif text-[28px] font-normal leading-none tracking-[0.01em] text-white [font-family:var(--font-merriweather)]">
                   {pageTitle}
                 </div>
               </div>
 
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-2">
                 <Link
                   href="/portal/updates"
-                  className="relative hidden h-[38px] w-[38px] items-center justify-center rounded-full text-white/80 transition hover:bg-white/12 sm:inline-flex"
+                  className="relative hidden h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] text-[#cbd5e1] transition hover:bg-white/[0.08] hover:text-white sm:inline-flex"
                   aria-label="Updates"
                 >
                   <CalendarDays className="h-4.5 w-4.5" />
                 </Link>
                 <Link
                   href="/portal/notifications"
-                  className="relative hidden h-[38px] w-[38px] items-center justify-center rounded-full text-white/80 transition hover:bg-white/12 sm:inline-flex"
+                  className="relative hidden h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] text-[#cbd5e1] transition hover:bg-white/[0.08] hover:text-white sm:inline-flex"
                   aria-label="Notifications"
                 >
                   <Bell className="h-4 w-4" />
@@ -813,7 +817,7 @@ export default function PortalLayout({
                 </Link>
                 <Link
                   href="/portal/messages"
-                  className="relative hidden h-[38px] w-[38px] items-center justify-center rounded-full text-white/80 transition hover:bg-white/12 sm:inline-flex"
+                  className="relative hidden h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] text-[#cbd5e1] transition hover:bg-white/[0.08] hover:text-white sm:inline-flex"
                   aria-label="Messages"
                 >
                   <Mail className="h-4 w-4" />
@@ -826,13 +830,13 @@ export default function PortalLayout({
                   <button
                     type="button"
                     onClick={() => setIsUserMenuOpen((value) => !value)}
-                    className="flex items-center gap-2 rounded-full bg-[#403730] py-1 pl-1 pr-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition hover:bg-[#4a4038]"
+                    className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] py-1 pl-1 pr-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition hover:bg-white/[0.08]"
                     aria-label="Open profile menu"
                   >
-                    <div className="flex h-[38px] w-[38px] items-center justify-center rounded-full bg-gradient-to-br from-[#e0bb85] to-[#bb8749] text-sm font-black text-[#24180f]">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[linear-gradient(135deg,#f59e0b_0%,#fb7185_100%)] text-sm font-black text-white">
                       {userInitial}
                     </div>
-                    <ChevronDown className="h-4 w-4 text-[#d9bb88]" />
+                    <ChevronDown className="h-4 w-4 text-[#cbd5e1]" />
                   </button>
 
                   {isUserMenuOpen ? (
@@ -884,8 +888,9 @@ export default function PortalLayout({
             </div>
           </div>
 
-          <div className="w-full px-4 py-5 md:px-6 md:py-5 lg:px-8 xl:px-10">
+          <div className="min-h-[calc(100vh-76px)] w-full bg-[radial-gradient(circle_at_top_right,rgba(96,165,250,0.08),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(168,85,247,0.08),transparent_22%)] px-5 py-5 md:px-6 md:py-6 lg:px-8 xl:px-10">
             {children}
+          </div>
           </div>
         </main>
       </div>
