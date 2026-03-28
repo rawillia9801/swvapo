@@ -551,67 +551,70 @@ export default function PortalMyPuppyPage() {
 
   return (
     <div className="space-y-6">
-      <section className="overflow-hidden rounded-[30px] border border-[#d7c7b6] bg-white shadow-[0_14px_40px_rgba(61,39,22,0.08)]">
+      <section className="overflow-hidden rounded-[34px] border border-[#d7c7b6] bg-white shadow-[0_18px_50px_rgba(61,39,22,0.10)]">
         <div className="grid grid-cols-1 xl:grid-cols-[1.05fr_0.95fr]">
-          <div className="bg-[linear-gradient(135deg,#8f6945_0%,#6f5037_100%)] px-6 py-7 text-white md:px-8 md:py-8">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/85">
+          <div className="relative overflow-hidden bg-[linear-gradient(145deg,#2f2118_0%,#6f5037_42%,#b07d4f_100%)] px-6 py-7 text-white md:px-8 md:py-9">
+            <div className="pointer-events-none absolute -left-10 top-0 h-36 w-36 rounded-full bg-white/10 blur-3xl" />
+            <div className="pointer-events-none absolute bottom-0 right-0 h-48 w-48 rounded-full bg-[#f0cfaa]/20 blur-3xl" />
+
+            <div className="relative inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/85 backdrop-blur-sm">
               <span>My Puppy</span>
               <span className="h-1 w-1 rounded-full bg-white/50" />
-              <span>My Puppy Portal</span>
+              <span>Private Profile</span>
             </div>
 
-            <h1 className="mt-5 font-serif text-3xl font-bold leading-[0.95] md:text-5xl">
+            <h1 className="relative mt-6 max-w-2xl font-serif text-4xl font-bold leading-[0.92] md:text-6xl">
               {puppy ? puppyName : "My Puppy"}
             </h1>
 
-            <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-white/82 md:text-[15px]">
+            <p className="relative mt-4 max-w-2xl text-sm font-semibold leading-7 text-white/80 md:text-[15px]">
               {puppy
-                ? "A complete view of your puppyâ€™s profile, milestones, progress, and breeder updates."
+                ? "A thoughtfully curated profile with breeder updates, meaningful care notes, and milestone progress in one refined place."
                 : "Your puppy profile will appear here once a puppy has been matched to your portal."}
             </p>
 
-            <div className="mt-5 flex flex-wrap items-center gap-3">
+            <div className="relative mt-6 flex flex-wrap items-center gap-3">
               {puppy?.status ? (
-                <span className="inline-flex items-center gap-2 rounded-full border border-white/18 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white">
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/18 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-white backdrop-blur-sm">
                   Status: {puppy.status}
                 </span>
               ) : null}
 
               {puppy?.registry ? (
-                <span className="inline-flex items-center gap-2 rounded-full border border-white/18 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white">
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/18 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-white backdrop-blur-sm">
                   Registry: {puppy.registry}
                 </span>
               ) : null}
 
               {ageDisplay !== "â€”" ? (
-                <span className="inline-flex items-center gap-2 rounded-full border border-white/18 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white">
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/18 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-white backdrop-blur-sm">
                   Age: {ageDisplay}
                 </span>
               ) : null}
             </div>
 
-            <div className="mt-7 flex flex-wrap gap-3">
+            <div className="relative mt-8 flex flex-wrap gap-3">
               <button
                 onClick={handleRefresh}
-                className="inline-flex items-center gap-2 rounded-2xl bg-[#d6ab73] px-5 py-3 text-sm font-black uppercase tracking-[0.12em] text-[#24180f] transition hover:bg-[#dfba87]"
+                className="inline-flex items-center gap-2 rounded-2xl bg-[linear-gradient(135deg,#f0c98f_0%,#d9a666_100%)] px-5 py-3 text-sm font-black uppercase tracking-[0.12em] text-[#24180f] shadow-[0_14px_28px_rgba(33,22,15,0.18)] transition hover:translate-y-[-1px] hover:brightness-105"
               >
                 Refresh Profile
               </button>
 
               <Link
                 href="/portal/messages"
-                className="inline-flex items-center gap-2 rounded-2xl border border-white/18 bg-white/10 px-5 py-3 text-sm font-black uppercase tracking-[0.12em] text-white transition hover:bg-white/14"
+                className="inline-flex items-center gap-2 rounded-2xl border border-white/18 bg-white/10 px-5 py-3 text-sm font-black uppercase tracking-[0.12em] text-white backdrop-blur-sm transition hover:bg-white/14"
               >
                 Message Support
               </Link>
             </div>
 
             {statusText ? (
-              <div className="mt-4 text-sm font-semibold text-white/80">{statusText}</div>
+              <div className="relative mt-5 text-sm font-semibold text-white/80">{statusText}</div>
             ) : null}
           </div>
 
-          <div className="relative min-h-[320px] bg-[#efe6dc]">
+          <div className="relative min-h-[360px] bg-[#efe6dc] xl:min-h-[420px]">
             {puppy ? (
               <>
                 <Image
@@ -621,7 +624,8 @@ export default function PortalMyPuppyPage() {
                   sizes="(min-width: 1280px) 45vw, 100vw"
                   className="h-full w-full object-cover"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(23,15,10,0.16)_0%,rgba(23,15,10,0.04)_35%,rgba(23,15,10,0.72)_100%)]" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.22),transparent_32%)]" />
 
                 <div className="absolute left-0 top-0 p-6">
                   <div className="flex flex-wrap gap-2">
@@ -644,12 +648,27 @@ export default function PortalMyPuppyPage() {
                 </div>
 
                 <div className="absolute inset-x-0 bottom-0 p-6">
-                  <div className="font-serif text-3xl font-bold text-white">
-                    {puppyName}
-                  </div>
-                  <div className="mt-2 max-w-xl text-sm font-semibold text-white/84">
-                    {puppy.description ||
-                      "Your puppyâ€™s profile, milestones, progress, and breeder updates all in one place."}
+                  <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
+                    <div>
+                      <div className="font-serif text-3xl font-bold text-white md:text-4xl">
+                        {puppyName}
+                      </div>
+                      <div className="mt-2 max-w-xl text-sm font-semibold leading-7 text-white/84">
+                        {puppy.description ||
+                          "Your puppy's profile, milestone progress, and breeder notes are gathered here in a more polished experience."}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 md:w-[260px]">
+                      <LuxuryInsetCard
+                        label="Current Weight"
+                        value={formatWeight(latestWeight?.oz || puppy.current_weight, puppy.weight_unit || "oz")}
+                      />
+                      <LuxuryInsetCard
+                        label="Adult Estimate"
+                        value={projectedAdultWeight}
+                      />
+                    </div>
                   </div>
                 </div>
               </>
@@ -703,11 +722,27 @@ export default function PortalMyPuppyPage() {
         </section>
       ) : (
         <>
-          <section className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-            <InfoTile label="Price" value={puppy.price ? fmtMoney(puppy.price) : "â€”"} />
-            <InfoTile label="Deposit" value={puppy.deposit ? fmtMoney(puppy.deposit) : "â€”"} />
-            <InfoTile label="Balance" value={puppy.balance ? fmtMoney(puppy.balance) : "â€”"} />
-            <InfoTile label="Age" value={ageDisplay} />
+          <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <InfoTile
+              label="Puppy Investment"
+              value={puppy.price ? fmtMoney(puppy.price) : "â€”"}
+              detail="Total profile price"
+            />
+            <InfoTile
+              label="Reservation Paid"
+              value={puppy.deposit ? fmtMoney(puppy.deposit) : "â€”"}
+              detail="Deposit on file"
+            />
+            <InfoTile
+              label="Remaining Balance"
+              value={puppy.balance ? fmtMoney(puppy.balance) : "â€”"}
+              detail="Current financial balance"
+            />
+            <InfoTile
+              label="Current Age"
+              value={ageDisplay}
+              detail="Updated from date of birth"
+            />
           </section>
 
           <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
@@ -1052,13 +1087,40 @@ export default function PortalMyPuppyPage() {
   );
 }
 
-function InfoTile({ label, value }: { label: string; value: string }) {
+function InfoTile({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+}) {
   return (
-    <div className="rounded-[24px] border border-[#dccab7] bg-white p-5 text-center shadow-[0_12px_28px_rgba(74,51,33,0.06)] transition hover:-translate-y-1 hover:shadow-[0_16px_32px_rgba(74,51,33,0.10)]">
-      <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
+    <div className="group relative overflow-hidden rounded-[26px] border border-[#ddcab7] bg-[linear-gradient(180deg,#fffdfa_0%,#fbf5ee_100%)] p-5 shadow-[0_16px_34px_rgba(74,51,33,0.08)] transition hover:-translate-y-1 hover:shadow-[0_22px_40px_rgba(74,51,33,0.12)]">
+      <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,#d9b082_0%,#8f6945_100%)] opacity-80" />
+      <div className="text-[10px] font-black uppercase tracking-[0.2em] text-[#9c7b58]">
         {label}
       </div>
-      <div className="mt-2 break-words text-sm font-black text-[#342116]">{value}</div>
+      <div className="mt-3 break-words font-serif text-2xl font-bold leading-none text-[#342116]">
+        {value}
+      </div>
+      {detail ? (
+        <div className="mt-3 text-[12px] font-semibold leading-6 text-[#8d6f52]">
+          {detail}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function LuxuryInsetCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[22px] border border-white/18 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,rgba(255,255,255,0.12)_100%)] p-4 text-white backdrop-blur-md shadow-[0_18px_34px_rgba(23,15,10,0.18)]">
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/70">
+        {label}
+      </div>
+      <div className="mt-2 text-lg font-black text-white">{value}</div>
     </div>
   );
 }
