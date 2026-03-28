@@ -57,6 +57,11 @@ type ChiChiResponse = {
   text?: string;
   assistant?: string;
   threadId?: string | null;
+  adminAuth?: {
+    userId?: string | null;
+    email?: string | null;
+    canWriteCore?: boolean;
+  };
   context?: {
     buyerName?: string | null;
     puppyName?: string | null;
@@ -131,6 +136,11 @@ export default function PortalLayout({
   const [isSending, setIsSending] = useState(false);
   const [buyerName, setBuyerName] = useState<string | null>(null);
   const [puppyName, setPuppyName] = useState<string | null>(null);
+  const [adminAuth, setAdminAuth] = useState<{
+    userId?: string | null;
+    email?: string | null;
+    canWriteCore?: boolean;
+  } | null>(null);
 
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -395,6 +405,7 @@ export default function PortalLayout({
       if (data?.threadId) setThreadId(data.threadId);
       if (data?.context?.buyerName) setBuyerName(data.context.buyerName);
       if (data?.context?.puppyName) setPuppyName(data.context.puppyName);
+      if (data?.adminAuth) setAdminAuth(data.adminAuth);
 
       setMessages((prev) => [
         ...prev,
@@ -724,6 +735,23 @@ export default function PortalLayout({
                   </div>
                 ) : (
                   <div className="space-y-3">
+                    {adminAuth ? (
+                      <div className="rounded-2xl border border-stone-200/70 bg-white px-4 py-3 text-[11px] leading-5 text-stone-600">
+                        <div className="font-black uppercase tracking-[0.14em] text-stone-500">
+                          Server Admin Status
+                        </div>
+                        <div className="mt-1">
+                          {adminAuth.canWriteCore ? "Write access enabled." : "Write access not enabled yet."}
+                        </div>
+                        <div className="mt-1 break-all">
+                          {adminAuth.email || "No email returned"}
+                        </div>
+                        <div className="break-all text-stone-400">
+                          {adminAuth.userId || "No user id returned"}
+                        </div>
+                      </div>
+                    ) : null}
+
                     <div className="grid grid-cols-2 gap-3">
                       {coreActions.map((action) => (
                         <button

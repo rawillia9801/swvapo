@@ -14,6 +14,12 @@ type RequestBody = {
   accessToken?: string | null;
 };
 
+type AdminAuthContext = {
+  userId: string | null;
+  email: string | null;
+  canWriteCore: boolean;
+};
+
 type BuyerRecord = {
   id: number;
   user_id: string | null;
@@ -1595,6 +1601,11 @@ export async function POST(req: Request) {
       id: user.id,
       email: user.email,
     });
+    const adminAuth: AdminAuthContext = {
+      userId: user.id,
+      email: user.email || null,
+      canWriteCore,
+    };
     const intent = await extractActionIntent(lastUserMessage);
 
     let text = "";
@@ -1675,6 +1686,7 @@ export async function POST(req: Request) {
       text,
       assistant: "ChiChi",
       threadId: savedThreadId,
+      adminAuth,
       context: {
         buyerName: buyer?.full_name || buyer?.name || null,
         puppyName: coalesceName(buyer, puppy),

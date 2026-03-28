@@ -14,6 +14,11 @@ type ChatMessage = {
 type ChiChiResponse = {
   text?: string;
   threadId?: string | null;
+  adminAuth?: {
+    userId?: string | null;
+    email?: string | null;
+    canWriteCore?: boolean;
+  };
 };
 
 const STARTER_MESSAGES = [
@@ -43,6 +48,11 @@ export default function AdminPortalAssistantPage() {
   const [threadId, setThreadId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [statusText, setStatusText] = useState("");
+  const [adminAuth, setAdminAuth] = useState<{
+    userId?: string | null;
+    email?: string | null;
+    canWriteCore?: boolean;
+  } | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: makeId("assistant"),
@@ -138,6 +148,7 @@ export default function AdminPortalAssistantPage() {
         "I ran into a problem while processing that admin command.";
 
       if (data?.threadId) setThreadId(data.threadId);
+      if (data?.adminAuth) setAdminAuth(data.adminAuth);
 
       setMessages((prev) => [
         ...prev,
@@ -230,6 +241,21 @@ export default function AdminPortalAssistantPage() {
                   </button>
                 </div>
               </div>
+
+              {adminAuth ? (
+                <div className="mt-5 rounded-[20px] border border-brand-200 bg-white/80 p-4 text-xs font-semibold leading-6 text-brand-600">
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
+                    Server Admin Status
+                  </div>
+                  <div className="mt-1">
+                    {adminAuth.canWriteCore ? "Write access enabled." : "Write access not enabled yet."}
+                  </div>
+                  <div className="break-all">{adminAuth.email || "No email returned"}</div>
+                  <div className="break-all text-brand-400">
+                    {adminAuth.userId || "No user id returned"}
+                  </div>
+                </div>
+              ) : null}
             </header>
 
             {statusText ? (
