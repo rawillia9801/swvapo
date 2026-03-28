@@ -268,6 +268,12 @@ export default function PortalLayout({
       icon: <PlusCircle className="h-4 w-4" />,
     },
     {
+      key: "delete-puppy",
+      label: "Delete Puppy",
+      prompt: "Core action: delete puppy records. I will provide the puppy name or names next.",
+      icon: <PawPrint className="h-4 w-4" />,
+    },
+    {
       key: "add-event",
       label: "Add Puppy Event",
       prompt: "Core action: add a puppy event. I will provide the puppy name, date, title, and details next.",
@@ -283,6 +289,12 @@ export default function PortalLayout({
       key: "edit-payment",
       label: "Edit Payment",
       prompt: "Core action: edit a payment record. I will provide the buyer, payment date or reference, and the fields to update next.",
+      icon: <DollarSign className="h-4 w-4" />,
+    },
+    {
+      key: "delete-payment",
+      label: "Delete Payment",
+      prompt: "Core action: delete a payment record. I will provide the buyer and payment reference details next.",
       icon: <DollarSign className="h-4 w-4" />,
     },
     {

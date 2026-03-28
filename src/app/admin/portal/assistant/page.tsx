@@ -27,6 +27,7 @@ const STARTER_MESSAGES = [
   "Log a payment of 500 for Jane Doe on 2026-03-28 by cash",
   "Edit Jane Doe's payment on 2026-03-28 to status cleared and note paid in person",
   "Add a puppy weight for Bella of 24 oz on 2026-03-28",
+  "Delete puppies Test and Daisy",
 ];
 
 function makeId(prefix: string) {
@@ -291,12 +292,12 @@ export default function AdminPortalAssistantPage() {
                     Supported Actions
                   </h2>
                   <div className="mt-4 space-y-3 text-sm font-semibold leading-6 text-brand-600">
-                    <p>`add buyer` with name, email, phone, status, and notes</p>
-                    <p>`add puppy` with puppy details and optional buyer assignment</p>
-                    <p>`log payment` for a buyer with amount and date</p>
-                    <p>`edit payment` using buyer plus date or reference details</p>
-                    <p>`add puppy weight` with ounces or grams and a date</p>
-                    <p>`add puppy event` for milestones and updates</p>
+                    <p>`add`, `edit`, and `delete buyer` commands</p>
+                    <p>`add`, `edit`, and `delete puppy` commands</p>
+                    <p>`add`, `edit`, and `delete payment` commands</p>
+                    <p>`add`, `edit`, and `delete puppy weight` commands</p>
+                    <p>`add`, `edit`, and `delete puppy event` commands</p>
+                    <p>multi-delete works when you name more than one puppy or buyer</p>
                   </div>
                 </div>
               </div>

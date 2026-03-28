@@ -242,6 +242,27 @@ type ActionIntent =
       notes?: string | null;
     }
   | {
+      action: "update_buyer";
+      confidence?: string;
+      buyer_id?: number | null;
+      buyer_name?: string | null;
+      buyer_email?: string | null;
+      full_name?: string | null;
+      name?: string | null;
+      email?: string | null;
+      phone?: string | null;
+      status?: string | null;
+      notes?: string | null;
+    }
+  | {
+      action: "delete_buyer";
+      confidence?: string;
+      buyer_id?: number | null;
+      buyer_name?: string | null;
+      buyer_email?: string | null;
+      buyer_names?: string[] | null;
+    }
+  | {
       action: "update_payment";
       confidence?: string;
       payment_id?: string | null;
@@ -258,6 +279,16 @@ type ActionIntent =
       status?: string | null;
     }
   | {
+      action: "delete_payment";
+      confidence?: string;
+      payment_id?: string | null;
+      buyer_name?: string | null;
+      buyer_email?: string | null;
+      reference_number?: string | null;
+      payment_date?: string | null;
+      amount?: number | null;
+    }
+  | {
       action: "add_puppy_weight";
       confidence?: string;
       puppy_name?: string | null;
@@ -268,6 +299,86 @@ type ActionIntent =
       weight_g?: number | null;
       notes?: string | null;
       source?: string | null;
+    }
+  | {
+      action: "update_puppy";
+      confidence?: string;
+      puppy_name?: string | null;
+      puppy_names?: string[] | null;
+      puppy_id?: number | null;
+      call_name?: string | null;
+      new_puppy_name?: string | null;
+      name?: string | null;
+      sex?: string | null;
+      color?: string | null;
+      coat_type?: string | null;
+      pattern?: string | null;
+      dob?: string | null;
+      registry?: string | null;
+      price?: number | null;
+      status?: string | null;
+      buyer_name?: string | null;
+      buyer_email?: string | null;
+      owner_email?: string | null;
+      notes?: string | null;
+      description?: string | null;
+    }
+  | {
+      action: "delete_puppy";
+      confidence?: string;
+      puppy_name?: string | null;
+      puppy_names?: string[] | null;
+      puppy_id?: number | null;
+    }
+  | {
+      action: "update_puppy_event";
+      confidence?: string;
+      event_id?: number | null;
+      puppy_name?: string | null;
+      puppy_id?: number | null;
+      event_date?: string | null;
+      label?: string | null;
+      title?: string | null;
+      event_type?: string | null;
+      summary?: string | null;
+      details?: string | null;
+      value?: number | null;
+      unit?: string | null;
+      is_published?: boolean | null;
+    }
+  | {
+      action: "delete_puppy_event";
+      confidence?: string;
+      event_id?: number | null;
+      puppy_name?: string | null;
+      puppy_id?: number | null;
+      event_date?: string | null;
+      label?: string | null;
+      title?: string | null;
+    }
+  | {
+      action: "update_puppy_weight";
+      confidence?: string;
+      weight_id?: number | null;
+      puppy_name?: string | null;
+      puppy_id?: number | null;
+      weight_date?: string | null;
+      new_weight_date?: string | null;
+      age_weeks?: number | null;
+      weight_oz?: number | null;
+      weight_g?: number | null;
+      notes?: string | null;
+      source?: string | null;
+    }
+  | {
+      action: "delete_puppy_weight";
+      confidence?: string;
+      weight_id?: number | null;
+      puppy_name?: string | null;
+      puppy_id?: number | null;
+      weight_date?: string | null;
+      weight_oz?: number | null;
+      weight_g?: number | null;
     };
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
@@ -911,7 +1022,7 @@ Your role:
 - Help authorized admins with Core admin chat commands and general portal questions.
 - Keep answers concise, warm, and operationally clear.
 - Never claim a database write succeeded unless the action handler already completed it.
-- If the admin asks what commands are available, mention: add buyer, add puppy, add puppy event, log payment, edit payment, and add puppy weight.
+- If the admin asks what commands are available, mention add, edit, and delete coverage for buyers, puppies, puppy events, payments, and puppy weights.
 - If an admin request is missing details, ask for the exact missing fields only.
 - If a request is ambiguous because multiple buyers, puppies, or payments could match, say that plainly and ask for one clarifying detail.
 
@@ -963,22 +1074,49 @@ No explanation.
 Allowed actions:
 - "answer_only"
 - "add_buyer"
+- "update_buyer"
+- "delete_buyer"
 - "add_puppy"
+- "update_puppy"
+- "delete_puppy"
 - "add_puppy_event"
+- "update_puppy_event"
+- "delete_puppy_event"
 - "log_payment"
 - "update_payment"
+- "delete_payment"
 - "add_puppy_weight"
+- "update_puppy_weight"
+- "delete_puppy_weight"
 
 Use "answer_only" if the message is mostly a question, lookup, explanation, or lacks enough intent to act.
 
 For "add_buyer", try to extract:
 full_name, name, email, phone, status, notes
 
+For "update_buyer", try to extract:
+buyer_id, buyer_name, buyer_email, full_name, name, email, phone, status, notes
+
+For "delete_buyer", try to extract:
+buyer_id, buyer_name, buyer_email, buyer_names
+
 For "add_puppy", try to extract:
 call_name, puppy_name, name, sex, color, coat_type, pattern, dob, registry, price, status, buyer_name, buyer_email, owner_email, notes, description
 
+For "update_puppy", try to extract:
+puppy_id, puppy_name, puppy_names, call_name, new_puppy_name, name, sex, color, coat_type, pattern, dob, registry, price, status, buyer_name, buyer_email, owner_email, notes, description
+
+For "delete_puppy", try to extract:
+puppy_id, puppy_name, puppy_names
+
 For "add_puppy_event", try to extract:
 puppy_name, puppy_id, event_date, event_type, label, title, summary, details, value, unit, is_published
+
+For "update_puppy_event", try to extract:
+event_id, puppy_name, puppy_id, event_date, label, title, event_type, summary, details, value, unit, is_published
+
+For "delete_puppy_event", try to extract:
+event_id, puppy_name, puppy_id, event_date, label, title
 
 For "log_payment", try to extract:
 buyer_name, buyer_email, puppy_name, amount, payment_date, payment_type, method, note, reference_number, status
@@ -986,8 +1124,17 @@ buyer_name, buyer_email, puppy_name, amount, payment_date, payment_type, method,
 For "update_payment", try to extract:
 payment_id, buyer_name, buyer_email, reference_number, payment_date, amount, new_payment_date, new_amount, payment_type, method, note, status
 
+For "delete_payment", try to extract:
+payment_id, buyer_name, buyer_email, reference_number, payment_date, amount
+
 For "add_puppy_weight", try to extract:
 puppy_name, puppy_id, weight_date, age_weeks, weight_oz, weight_g, notes, source
+
+For "update_puppy_weight", try to extract:
+weight_id, puppy_name, puppy_id, weight_date, new_weight_date, age_weeks, weight_oz, weight_g, notes, source
+
+For "delete_puppy_weight", try to extract:
+weight_id, puppy_name, puppy_id, weight_date, weight_oz, weight_g
 
 Use null for missing fields.
 Use ISO date format YYYY-MM-DD when possible.
@@ -1112,10 +1259,75 @@ function missingFieldsForAction(intent: ActionIntent): string[] {
     return missing;
   }
 
+  if (intent.action === "update_buyer") {
+    const missing: string[] = [];
+    if (!intent.buyer_id && !intent.buyer_name && !intent.buyer_email) missing.push("buyer");
+    if (
+      !intent.full_name &&
+      !intent.name &&
+      !intent.email &&
+      !intent.phone &&
+      !intent.status &&
+      !intent.notes
+    ) {
+      missing.push("what should change on the buyer");
+    }
+    return missing;
+  }
+
+  if (intent.action === "delete_buyer") {
+    const missing: string[] = [];
+    if (
+      !intent.buyer_id &&
+      !intent.buyer_name &&
+      !intent.buyer_email &&
+      !(intent.buyer_names && intent.buyer_names.length)
+    ) {
+      missing.push("buyer");
+    }
+    return missing;
+  }
+
   if (intent.action === "add_puppy") {
     const hasName = !!(intent.call_name || intent.puppy_name || intent.name);
     const missing: string[] = [];
     if (!hasName) missing.push("puppy name");
+    return missing;
+  }
+
+  if (intent.action === "update_puppy") {
+    const missing: string[] = [];
+    if (!intent.puppy_id && !intent.puppy_name && !(intent.puppy_names && intent.puppy_names.length)) {
+      missing.push("puppy");
+    }
+    if (
+      !intent.call_name &&
+      !intent.new_puppy_name &&
+      !intent.name &&
+      !intent.sex &&
+      !intent.color &&
+      !intent.coat_type &&
+      !intent.pattern &&
+      !intent.dob &&
+      !intent.registry &&
+      (intent.price === null || intent.price === undefined) &&
+      !intent.status &&
+      !intent.buyer_name &&
+      !intent.buyer_email &&
+      !intent.owner_email &&
+      !intent.notes &&
+      !intent.description
+    ) {
+      missing.push("what should change on the puppy");
+    }
+    return missing;
+  }
+
+  if (intent.action === "delete_puppy") {
+    const missing: string[] = [];
+    if (!intent.puppy_id && !intent.puppy_name && !(intent.puppy_names && intent.puppy_names.length)) {
+      missing.push("puppy");
+    }
     return missing;
   }
 
@@ -1127,6 +1339,32 @@ function missingFieldsForAction(intent: ActionIntent): string[] {
     return missing;
   }
 
+  if (intent.action === "update_puppy_event") {
+    const missing: string[] = [];
+    if (!intent.event_id && !intent.puppy_id && !intent.puppy_name) missing.push("event or puppy");
+    if (
+      !intent.event_date &&
+      !intent.label &&
+      !intent.title &&
+      !intent.event_type &&
+      !intent.summary &&
+      !intent.details &&
+      (intent.value === null || intent.value === undefined) &&
+      !intent.unit &&
+      intent.is_published === null &&
+      intent.is_published === undefined
+    ) {
+      missing.push("what should change on the event");
+    }
+    return missing;
+  }
+
+  if (intent.action === "delete_puppy_event") {
+    const missing: string[] = [];
+    if (!intent.event_id && !intent.puppy_id && !intent.puppy_name) missing.push("event or puppy");
+    return missing;
+  }
+
   if (intent.action === "log_payment") {
     const missing: string[] = [];
     if (!intent.buyer_name && !intent.buyer_email) missing.push("buyer");
@@ -1134,6 +1372,14 @@ function missingFieldsForAction(intent: ActionIntent): string[] {
       missing.push("amount");
     }
     if (!intent.payment_date) missing.push("payment date");
+    return missing;
+  }
+
+  if (intent.action === "delete_payment") {
+    const missing: string[] = [];
+    if (!intent.payment_id && !intent.reference_number && !intent.buyer_name && !intent.buyer_email) {
+      missing.push("payment reference or buyer");
+    }
     return missing;
   }
 
@@ -1168,6 +1414,28 @@ function missingFieldsForAction(intent: ActionIntent): string[] {
     ) {
       missing.push("weight");
     }
+    return missing;
+  }
+
+  if (intent.action === "update_puppy_weight") {
+    const missing: string[] = [];
+    if (!intent.weight_id && !intent.puppy_id && !intent.puppy_name) missing.push("weight entry or puppy");
+    if (
+      !intent.new_weight_date &&
+      (intent.age_weeks === null || intent.age_weeks === undefined) &&
+      (intent.weight_oz === null || intent.weight_oz === undefined) &&
+      (intent.weight_g === null || intent.weight_g === undefined) &&
+      !intent.notes &&
+      !intent.source
+    ) {
+      missing.push("what should change on the weight");
+    }
+    return missing;
+  }
+
+  if (intent.action === "delete_puppy_weight") {
+    const missing: string[] = [];
+    if (!intent.weight_id && !intent.puppy_id && !intent.puppy_name) missing.push("weight entry or puppy");
     return missing;
   }
 
@@ -1212,6 +1480,78 @@ async function executeAddBuyer(
   return `Core action completed. I added buyer "${buyerDisplay}" with status "${data?.status || payload.status}".`;
 }
 
+async function executeUpdateBuyer(
+  admin: SupabaseClient,
+  intent: Extract<ActionIntent, { action: "update_buyer" }>
+) {
+  let buyer: BuyerRecord | null = null;
+
+  if (intent.buyer_id) {
+    const { data, error } = await admin
+      .from("buyers")
+      .select("*")
+      .eq("id", intent.buyer_id)
+      .maybeSingle<BuyerRecord>();
+    if (error) throw new Error(`Could not load that buyer: ${error.message}`);
+    buyer = data;
+  } else {
+    buyer = await findBuyerByNameOrEmail(admin, intent.buyer_name, intent.buyer_email);
+  }
+
+  if (!buyer?.id) {
+    throw new Error("I could not find that buyer to update.");
+  }
+
+  const payload = compactObject({
+    full_name: intent.full_name || undefined,
+    name: intent.name || undefined,
+    email: intent.email || undefined,
+    phone: intent.phone || undefined,
+    status: intent.status || undefined,
+    notes: intent.notes || undefined,
+  });
+
+  const { error } = await admin.from("buyers").update(payload).eq("id", buyer.id);
+  if (error) throw new Error(`Could not update buyer: ${error.message}`);
+
+  const buyerDisplay = buyer.full_name || buyer.name || buyer.email || "that buyer";
+  return `Core action completed. I updated buyer "${buyerDisplay}".`;
+}
+
+async function executeDeleteBuyer(
+  admin: SupabaseClient,
+  intent: Extract<ActionIntent, { action: "delete_buyer" }>
+) {
+  const targetNames = (intent.buyer_names || []).filter(Boolean);
+  const buyers: BuyerRecord[] = [];
+
+  if (intent.buyer_id) {
+    const { data, error } = await admin
+      .from("buyers")
+      .select("*")
+      .eq("id", intent.buyer_id)
+      .maybeSingle<BuyerRecord>();
+    if (error) throw new Error(`Could not load that buyer: ${error.message}`);
+    if (data) buyers.push(data);
+  } else if (targetNames.length) {
+    for (const name of targetNames) {
+      const buyer = await findBuyerByNameOrEmail(admin, name, null);
+      if (!buyer?.id) throw new Error(`I could not find buyer "${name}" to delete.`);
+      buyers.push(buyer);
+    }
+  } else {
+    const buyer = await findBuyerByNameOrEmail(admin, intent.buyer_name, intent.buyer_email);
+    if (!buyer?.id) throw new Error("I could not find that buyer to delete.");
+    buyers.push(buyer);
+  }
+
+  const ids = Array.from(new Set(buyers.map((buyer) => buyer.id)));
+  const { error } = await admin.from("buyers").delete().in("id", ids);
+  if (error) throw new Error(`Could not delete buyer: ${error.message}`);
+
+  return `Core action completed. I deleted ${ids.length} buyer record${ids.length === 1 ? "" : "s"}.`;
+}
+
 async function executeAddPuppy(
   admin: SupabaseClient,
   intent: Extract<ActionIntent, { action: "add_puppy" }>
@@ -1252,6 +1592,76 @@ async function executeAddPuppy(
   return `Core action completed. I added puppy "${puppyDisplay}" with status "${data?.status || payload.status}".`;
 }
 
+async function executeUpdatePuppy(
+  admin: SupabaseClient,
+  intent: Extract<ActionIntent, { action: "update_puppy" }>
+) {
+  const puppy = await findPuppyByNameOrId(admin, intent.puppy_name, intent.puppy_id);
+  if (!puppy?.id) {
+    throw new Error("I could not find that puppy to update.");
+  }
+
+  let buyer: BuyerRecord | null = null;
+  if (intent.buyer_name || intent.buyer_email) {
+    buyer = await findBuyerByNameOrEmail(admin, intent.buyer_name, intent.buyer_email);
+    if (!buyer?.id) throw new Error("I could not find that buyer to assign to the puppy.");
+  }
+
+  const payload = compactObject({
+    call_name: intent.call_name || undefined,
+    puppy_name: intent.new_puppy_name || undefined,
+    name: intent.name || undefined,
+    sex: intent.sex || undefined,
+    color: intent.color || undefined,
+    coat_type: intent.coat_type || undefined,
+    pattern: intent.pattern || undefined,
+    dob: intent.dob || undefined,
+    registry: intent.registry || undefined,
+    price: intent.price === null || intent.price === undefined ? undefined : Number(intent.price),
+    status: intent.status || undefined,
+    buyer_id: buyer?.id ?? undefined,
+    owner_email: intent.owner_email || buyer?.email || undefined,
+    notes: intent.notes || undefined,
+    description: intent.description || undefined,
+  });
+
+  const { error } = await admin.from("puppies").update(payload).eq("id", puppy.id);
+  if (error) throw new Error(`Could not update puppy: ${error.message}`);
+
+  const puppyDisplay = puppy.call_name || puppy.puppy_name || puppy.name || "that puppy";
+  return `Core action completed. I updated puppy "${puppyDisplay}".`;
+}
+
+async function executeDeletePuppy(
+  admin: SupabaseClient,
+  intent: Extract<ActionIntent, { action: "delete_puppy" }>
+) {
+  const targetNames = (intent.puppy_names || []).filter(Boolean);
+  const puppies: PuppyRecord[] = [];
+
+  if (intent.puppy_id) {
+    const puppy = await findPuppyByNameOrId(admin, null, intent.puppy_id);
+    if (!puppy?.id) throw new Error("I could not find that puppy to delete.");
+    puppies.push(puppy);
+  } else if (targetNames.length) {
+    for (const name of targetNames) {
+      const puppy = await findPuppyByNameOrId(admin, name, null);
+      if (!puppy?.id) throw new Error(`I could not find puppy "${name}" to delete.`);
+      puppies.push(puppy);
+    }
+  } else {
+    const puppy = await findPuppyByNameOrId(admin, intent.puppy_name, null);
+    if (!puppy?.id) throw new Error("I could not find that puppy to delete.");
+    puppies.push(puppy);
+  }
+
+  const ids = Array.from(new Set(puppies.map((puppy) => puppy.id)));
+  const { error } = await admin.from("puppies").delete().in("id", ids);
+  if (error) throw new Error(`Could not delete puppy: ${error.message}`);
+
+  return `Core action completed. I deleted ${ids.length} puppy record${ids.length === 1 ? "" : "s"}.`;
+}
+
 async function executeAddPuppyEvent(
   admin: SupabaseClient,
   intent: Extract<ActionIntent, { action: "add_puppy_event" }>
@@ -1285,6 +1695,79 @@ async function executeAddPuppyEvent(
 
   const puppyDisplay = puppy.call_name || puppy.puppy_name || puppy.name || "that puppy";
   return `Core action completed. I added the event "${payload.label}" for ${puppyDisplay} on ${payload.event_date}.`;
+}
+
+async function findPuppyEvent(
+  admin: SupabaseClient,
+  intent:
+    | Extract<ActionIntent, { action: "update_puppy_event" }>
+    | Extract<ActionIntent, { action: "delete_puppy_event" }>
+) {
+  if (intent.event_id) {
+    const { data, error } = await admin
+      .from("puppy_events")
+      .select("*")
+      .eq("id", intent.event_id)
+      .maybeSingle<EventRecord>();
+    if (error) throw new Error(`Could not load that puppy event: ${error.message}`);
+    return data;
+  }
+
+  const puppy = await findPuppyByNameOrId(admin, intent.puppy_name, intent.puppy_id);
+  if (!puppy?.id) throw new Error("I could not find that puppy event without a valid puppy.");
+
+  let query = admin.from("puppy_events").select("*").eq("puppy_id", puppy.id).limit(50);
+  if (intent.event_date) query = query.eq("event_date", intent.event_date);
+  const { data, error } = await query;
+  if (error) throw new Error(`Could not load puppy events: ${error.message}`);
+
+  const filtered = (data || []).filter((event) => {
+    if (intent.label && event.label !== intent.label) return false;
+    if (intent.title && event.title !== intent.title) return false;
+    return true;
+  });
+
+  if (!filtered.length) throw new Error("I could not find a matching puppy event.");
+  if (filtered.length > 1) {
+    throw new Error("I found multiple matching puppy events. Please include the event id or a more specific date/title.");
+  }
+  return filtered[0] as EventRecord;
+}
+
+async function executeUpdatePuppyEvent(
+  admin: SupabaseClient,
+  intent: Extract<ActionIntent, { action: "update_puppy_event" }>
+) {
+  const event = await findPuppyEvent(admin, intent);
+  if (!event?.id) throw new Error("I could not find that puppy event to update.");
+
+  const payload = compactObject({
+    event_date: intent.event_date || undefined,
+    event_type: intent.event_type || undefined,
+    label: intent.label || undefined,
+    title: intent.title || undefined,
+    summary: intent.summary || undefined,
+    details: intent.details || undefined,
+    value: intent.value === null || intent.value === undefined ? undefined : Number(intent.value),
+    unit: intent.unit || undefined,
+    is_published: intent.is_published,
+  });
+
+  const { error } = await admin.from("puppy_events").update(payload).eq("id", event.id);
+  if (error) throw new Error(`Could not update puppy event: ${error.message}`);
+  return `Core action completed. I updated puppy event ${event.id}.`;
+}
+
+async function executeDeletePuppyEvent(
+  admin: SupabaseClient,
+  intent: Extract<ActionIntent, { action: "delete_puppy_event" }>
+) {
+  const event = await findPuppyEvent(admin, intent);
+  if (!event?.id) throw new Error("I could not find that puppy event to delete.");
+
+  const { error } = await admin.from("puppy_events").delete().eq("id", event.id);
+  if (error) throw new Error(`Could not delete puppy event: ${error.message}`);
+  return `Core action completed. I deleted puppy event ${event.id}.`;
 }
 
 async function executeLogPayment(
@@ -1419,6 +1902,20 @@ async function executeUpdatePayment(
   }.`;
 }
 
+async function executeDeletePayment(
+  admin: SupabaseClient,
+  intent: Extract<ActionIntent, { action: "delete_payment" }>
+) {
+  const payment = await findPaymentForUpdate(admin, {
+    ...intent,
+    action: "update_payment",
+  });
+
+  const { error } = await admin.from("buyer_payments").delete().eq("id", payment.id);
+  if (error) throw new Error(`Could not delete payment: ${error.message}`);
+  return `Core action completed. I deleted payment ${payment.id}.`;
+}
+
 async function executeAddPuppyWeight(
   admin: SupabaseClient,
   intent: Extract<ActionIntent, { action: "add_puppy_weight" }>
@@ -1475,6 +1972,89 @@ async function executeAddPuppyWeight(
       : `${payload.weight_g} g`;
 
   return `Core action completed. I logged a weight of ${weightText} for ${puppyDisplay} on ${intent.weight_date}.`;
+}
+
+async function findPuppyWeight(
+  admin: SupabaseClient,
+  intent:
+    | Extract<ActionIntent, { action: "update_puppy_weight" }>
+    | Extract<ActionIntent, { action: "delete_puppy_weight" }>
+) {
+  if (intent.weight_id) {
+    const { data, error } = await admin
+      .from("puppy_weights")
+      .select("*")
+      .eq("id", intent.weight_id)
+      .maybeSingle<WeightRecord>();
+    if (error) throw new Error(`Could not load that weight entry: ${error.message}`);
+    return data;
+  }
+
+  const puppy = await findPuppyByNameOrId(admin, intent.puppy_name, intent.puppy_id);
+  if (!puppy?.id) throw new Error("I could not find that puppy to locate the weight entry.");
+
+  let query = admin.from("puppy_weights").select("*").eq("puppy_id", puppy.id).limit(50);
+  if (intent.weight_date) query = query.eq("weight_date", intent.weight_date);
+  const { data, error } = await query;
+  if (error) throw new Error(`Could not load puppy weights: ${error.message}`);
+
+  const filtered = (data || []).filter((weight) => {
+    if (
+      intent.weight_oz !== null &&
+      intent.weight_oz !== undefined &&
+      Number(weight.weight_oz) !== Number(intent.weight_oz)
+    ) {
+      return false;
+    }
+    if (
+      intent.weight_g !== null &&
+      intent.weight_g !== undefined &&
+      Number(weight.weight_g) !== Number(intent.weight_g)
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  if (!filtered.length) throw new Error("I could not find a matching puppy weight entry.");
+  if (filtered.length > 1) {
+    throw new Error("I found multiple matching puppy weights. Please include the weight id or a more specific date/weight.");
+  }
+  return filtered[0] as WeightRecord;
+}
+
+async function executeUpdatePuppyWeight(
+  admin: SupabaseClient,
+  intent: Extract<ActionIntent, { action: "update_puppy_weight" }>
+) {
+  const weight = await findPuppyWeight(admin, intent);
+  if (!weight?.id) throw new Error("I could not find that weight entry to update.");
+
+  const payload = compactObject({
+    weight_date: intent.new_weight_date || undefined,
+    weigh_date: intent.new_weight_date || undefined,
+    age_weeks: intent.age_weeks === null || intent.age_weeks === undefined ? undefined : Number(intent.age_weeks),
+    weight_oz: intent.weight_oz === null || intent.weight_oz === undefined ? undefined : Number(intent.weight_oz),
+    weight_g: intent.weight_g === null || intent.weight_g === undefined ? undefined : Number(intent.weight_g),
+    notes: intent.notes || undefined,
+    source: intent.source || undefined,
+  });
+
+  const { error } = await admin.from("puppy_weights").update(payload).eq("id", weight.id);
+  if (error) throw new Error(`Could not update puppy weight: ${error.message}`);
+  return `Core action completed. I updated puppy weight entry ${weight.id}.`;
+}
+
+async function executeDeletePuppyWeight(
+  admin: SupabaseClient,
+  intent: Extract<ActionIntent, { action: "delete_puppy_weight" }>
+) {
+  const weight = await findPuppyWeight(admin, intent);
+  if (!weight?.id) throw new Error("I could not find that weight entry to delete.");
+
+  const { error } = await admin.from("puppy_weights").delete().eq("id", weight.id);
+  if (error) throw new Error(`Could not delete puppy weight: ${error.message}`);
+  return `Core action completed. I deleted puppy weight entry ${weight.id}.`;
 }
 
 async function saveConversation(params: {
@@ -1620,16 +2200,34 @@ export async function POST(req: Request) {
           text = `I can do that, but I still need: ${missing.join(", ")}.`;
         } else if (intent.action === "add_buyer") {
           text = await executeAddBuyer(admin, intent);
+        } else if (intent.action === "update_buyer") {
+          text = await executeUpdateBuyer(admin, intent);
+        } else if (intent.action === "delete_buyer") {
+          text = await executeDeleteBuyer(admin, intent);
         } else if (intent.action === "add_puppy") {
           text = await executeAddPuppy(admin, intent);
+        } else if (intent.action === "update_puppy") {
+          text = await executeUpdatePuppy(admin, intent);
+        } else if (intent.action === "delete_puppy") {
+          text = await executeDeletePuppy(admin, intent);
         } else if (intent.action === "add_puppy_event") {
           text = await executeAddPuppyEvent(admin, intent);
+        } else if (intent.action === "update_puppy_event") {
+          text = await executeUpdatePuppyEvent(admin, intent);
+        } else if (intent.action === "delete_puppy_event") {
+          text = await executeDeletePuppyEvent(admin, intent);
         } else if (intent.action === "log_payment") {
           text = await executeLogPayment(admin, intent);
         } else if (intent.action === "update_payment") {
           text = await executeUpdatePayment(admin, intent);
+        } else if (intent.action === "delete_payment") {
+          text = await executeDeletePayment(admin, intent);
         } else if (intent.action === "add_puppy_weight") {
           text = await executeAddPuppyWeight(admin, intent);
+        } else if (intent.action === "update_puppy_weight") {
+          text = await executeUpdatePuppyWeight(admin, intent);
+        } else if (intent.action === "delete_puppy_weight") {
+          text = await executeDeletePuppyWeight(admin, intent);
         }
       }
     }
