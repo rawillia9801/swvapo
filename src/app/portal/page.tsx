@@ -22,6 +22,14 @@ type BuyerRow = {
   user_id?: string | null;
 };
 
+type NextStep = {
+  icon: string;
+  title: string;
+  desc: string;
+  href: string;
+  cta: string;
+};
+
 function statusPill(statusRaw: any, type?: "application" | "puppy") {
   const raw = String(statusRaw || "").trim();
   const s = raw.toLowerCase();
