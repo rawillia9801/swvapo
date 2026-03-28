@@ -393,8 +393,13 @@ export default function PortalLayout({
       },
       {
         href: "/portal/transportation",
-        label: "Pickup / Meet / Delivery",
+        label: "Transporation",
         icon: <CarFront className="h-[18px] w-[18px]" />,
+      },
+      {
+        href: "/portal/resources",
+        label: "Resources",
+        icon: <ExternalLink className="h-[18px] w-[18px]" />,
       },
       {
         href: "/portal/messages",

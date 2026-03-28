@@ -52,6 +52,31 @@ type PortalUser = {
   email?: string | null;
 };
 
+type QueryFilter = {
+  col: string;
+  value: string | number | null | undefined;
+};
+
+type RequestDateRow = {
+  request_date?: string | null;
+};
+
+type PickupRequestRow = {
+  id: number;
+  request_date: string | null;
+  request_type: PickupRequestType | null;
+  miles: number | null;
+  location_text: string | null;
+  address_text: string | null;
+  notes: string | null;
+  status: PickupRequestStatus | string | null;
+};
+
+const FREE_MILES_ONE_WAY = 50;
+const RATE_PER_MILE = 1.25;
+const MINIMUM_DELIVERY_FEE = 75;
+const LOCAL_DELIVERY_RADIUS = 200;
+
 function firstOfMonth(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
@@ -84,6 +109,90 @@ function todayIso() {
   return toIsoDate(new Date());
 }
 
+function formatMoney(value: number | null | undefined) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "—";
+  return Number(value).toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+  });
+}
+
+function calculateTransportEstimate(
+  type: PickupRequestType | "",
+  milesRaw: string | number | null | undefined
+) {
+  const normalizedType = String(type || "").toLowerCase() as PickupRequestType | "";
+  const miles =
+    typeof milesRaw === "number"
+      ? milesRaw
+      : milesRaw === null || milesRaw === undefined || milesRaw === ""
+        ? NaN
+        : Number(milesRaw);
+
+  if (normalizedType === "pickup") {
+    return {
+      fee: 0,
+      label: formatMoney(0),
+      detail: "Pickup at our location does not include a transportation fee.",
+    };
+  }
+
+  if (normalizedType === "transportation") {
+    return {
+      fee: null,
+      label: "Custom quote required",
+      detail:
+        "Flight nanny, courier, and third-party transportation are priced separately and confirmed before scheduling.",
+    };
+  }
+
+  if (normalizedType === "meet" || normalizedType === "dropoff") {
+    if (!Number.isFinite(miles) || miles < 0) {
+      return {
+        fee: null,
+        label: "Enter mileage",
+        detail: `The first ${FREE_MILES_ONE_WAY} miles are free. Beyond that, pricing is ${formatMoney(
+          RATE_PER_MILE
+        )} per mile one-way with a ${formatMoney(
+          MINIMUM_DELIVERY_FEE
+        )} minimum fee beyond the free-mile zone.`,
+      };
+    }
+
+    if (miles <= FREE_MILES_ONE_WAY) {
+      return {
+        fee: 0,
+        label: formatMoney(0),
+        detail: `This trip is within the first ${FREE_MILES_ONE_WAY} one-way miles included at no charge.`,
+      };
+    }
+
+    const billableMiles = miles - FREE_MILES_ONE_WAY;
+    const rawFee = billableMiles * RATE_PER_MILE;
+    const fee = Math.max(MINIMUM_DELIVERY_FEE, rawFee);
+
+    let detail = `${billableMiles.toFixed(1).replace(/\.0$/, "")} billable one-way miles × ${formatMoney(
+      RATE_PER_MILE
+    )} = ${formatMoney(rawFee)}. Minimum fee policy applies beyond ${FREE_MILES_ONE_WAY} miles.`;
+
+    if (miles > LOCAL_DELIVERY_RADIUS) {
+      detail += ` This request is beyond the normal ${LOCAL_DELIVERY_RADIUS}-mile local range and may require breeder approval or added travel arrangements.`;
+    }
+
+    return {
+      fee,
+      label: formatMoney(fee),
+      detail,
+    };
+  }
+
+  return {
+    fee: null,
+    label: "—",
+    detail: "Select a request type to see how pricing applies.",
+  };
+}
+
 const inputClass =
   "w-full rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:ring-4 focus:ring-slate-200/60";
 
@@ -106,6 +215,7 @@ export default function PortalTransportationPage() {
   const [locationText, setLocationText] = useState("");
   const [addressText, setAddressText] = useState("");
   const [notes, setNotes] = useState("");
+  const [latestRequest, setLatestRequest] = useState<PickupRequestRow | null>(null);
 
   const [alertText, setAlertText] = useState("");
   const [successText, setSuccessText] = useState("");
@@ -142,6 +252,7 @@ export default function PortalTransportationPage() {
         }
 
         await loadBlockedDates(firstOfMonth(new Date()));
+        await loadLatestRequest(currentUser);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -168,11 +279,13 @@ export default function PortalTransportationPage() {
       mounted = false;
       authListener.subscription.unsubscribe();
     };
+    // We intentionally subscribe once on mount and refresh state from auth callbacks.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
   async function safeSelectFirst(
     table: string,
-    filters: Array<{ col: string; value: any }>
+    filters: QueryFilter[]
   ) {
     try {
       let query = sb.from(table).select("*").limit(1);
@@ -193,7 +306,7 @@ export default function PortalTransportationPage() {
 
     const candidates: Array<{
       table: string;
-      filters: Array<{ col: string; value: any }>;
+      filters: QueryFilter[];
     }> = [
       { table: "bp_buyers", filters: [{ col: "user_id", value: uid }] },
       { table: "bp_buyers", filters: [{ col: "email", value: email }] },
@@ -279,7 +392,7 @@ const row = data[0] as unknown as Record<string, unknown>;
       if (error) throw error;
 
       const next = new Set<string>();
-      (data || []).forEach((row: any) => {
+      ((data as RequestDateRow[] | null) || []).forEach((row) => {
         if (row.request_date) next.add(row.request_date);
       });
 
@@ -314,6 +427,24 @@ const row = data[0] as unknown as Record<string, unknown>;
     setAlertText("");
     setSuccessText("");
     await loadBlockedDates(month);
+    if (user) await loadLatestRequest(user);
+  }
+
+  async function loadLatestRequest(currentUser: PortalUser) {
+    try {
+      const { data, error } = await sb
+        .from("portal_pickup_requests")
+        .select("id,request_date,request_type,miles,location_text,address_text,notes,status")
+        .eq("user_id", currentUser.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      setLatestRequest((data as PickupRequestRow | null) ?? null);
+    } catch {
+      setLatestRequest(null);
+    }
   }
 
   const puppyName =
@@ -361,6 +492,17 @@ const row = data[0] as unknown as Record<string, unknown>;
     requestType === "meet" || requestType === "dropoff";
 
   const showTransportationFields = requestType === "transportation";
+  const requestEstimate = useMemo(
+    () => calculateTransportEstimate(requestType, miles),
+    [requestType, miles]
+  );
+  const currentRequestEstimate = useMemo(
+    () =>
+      latestRequest
+        ? calculateTransportEstimate(latestRequest.request_type || "", latestRequest.miles)
+        : null,
+    [latestRequest]
+  );
 
   const calendarDays = useMemo(() => {
     const first = new Date(month.getFullYear(), month.getMonth(), 1);
@@ -413,6 +555,7 @@ const row = data[0] as unknown as Record<string, unknown>;
     const available = await checkDateAvailable(iso);
     if (!available) {
       await loadBlockedDates(month);
+      if (user) await loadLatestRequest(user);
       setSelectedDate("");
       setAlertText(
         "That day was just taken by another client. Please choose another day."
@@ -510,8 +653,10 @@ const row = data[0] as unknown as Record<string, unknown>;
       setSuccessText(
         "Request submitted. We’ll confirm details through Messages."
       );
-    } catch (error: any) {
-      setAlertText(error?.message || "Unable to submit the request.");
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Unable to submit the request.";
+      setAlertText(message);
     } finally {
       setBusy(false);
     }
@@ -644,6 +789,93 @@ const row = data[0] as unknown as Record<string, unknown>;
           {successText}
         </div>
       ) : null}
+
+      <section className="rounded-[30px] border border-[#dccab7] bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)] sm:p-7">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+          <div className="space-y-4 xl:col-span-7">
+            <div>
+              <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
+                Current Request
+              </div>
+              <h2 className="mt-2 font-serif text-2xl text-slate-900">
+                Your latest transportation request
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <PolicyCard
+                label="Request Date"
+                value={latestRequest?.request_date ? formatDate(latestRequest.request_date) : "—"}
+                detail="Most recent saved request"
+              />
+              <PolicyCard
+                label="Type"
+                value={latestRequest?.request_type ? latestRequest.request_type.replace(/^./, (c) => c.toUpperCase()) : "—"}
+                detail="Pickup, meet, drop-off, or transportation"
+              />
+              <PolicyCard
+                label="Miles"
+                value={
+                  latestRequest?.miles !== null && latestRequest?.miles !== undefined
+                    ? String(latestRequest.miles)
+                    : "—"
+                }
+                detail="One-way mileage"
+              />
+              <PolicyCard
+                label="Estimated Fee"
+                value={currentRequestEstimate?.label || "—"}
+                detail="Based on current pricing policy"
+              />
+            </div>
+
+            {latestRequest?.location_text || latestRequest?.address_text || latestRequest?.notes ? (
+              <div className="rounded-[24px] border border-slate-200 bg-slate-50/70 p-5">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <InfoDetail
+                    label="Location"
+                    value={latestRequest.location_text || latestRequest.address_text || "—"}
+                  />
+                  <InfoDetail
+                    label="Status"
+                    value={latestRequest.status || "pending"}
+                  />
+                </div>
+                {latestRequest.notes ? (
+                  <div className="mt-4 text-sm font-medium leading-6 text-slate-700">
+                    {latestRequest.notes}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="rounded-[28px] border border-[#e2cfba] bg-[linear-gradient(180deg,#fffaf3_0%,#fff_100%)] p-6 xl:col-span-5">
+            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
+              Pricing Policy
+            </div>
+            <h3 className="mt-2 font-serif text-2xl font-bold text-[#3b271b]">
+              Transportation pricing
+            </h3>
+
+            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <PolicyCard label="Free Mileage" value="First 50 miles" detail="One-way from Marion, VA" />
+              <PolicyCard label="After 50 Miles" value="$1.25 / mile" detail="One-way rate" />
+              <PolicyCard label="Minimum Fee" value="$75" detail="Beyond the free-mile zone" />
+              <PolicyCard label="Local Range" value="200 miles" detail="Longer trips by approval" />
+            </div>
+
+            <div className="mt-5 space-y-2 text-sm font-medium leading-6 text-slate-700">
+              <p>One request per day total is allowed across all portal clients.</p>
+              <p>Pending and approved requests block the day for other clients.</p>
+              <p>Pickup at our location does not include a transportation fee.</p>
+              <p>Meet-up and drop-off pricing uses the mileage policy above.</p>
+              <p>Longer distances may require added travel costs or breeder approval.</p>
+              <p>Transportation, flight nanny, or courier arrangements are quoted separately.</p>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <section className="xl:col-span-5 rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)] sm:p-7">
@@ -861,9 +1093,21 @@ const row = data[0] as unknown as Record<string, unknown>;
             {showTransportationFields ? (
               <div className="rounded-[24px] border border-slate-200 bg-slate-50/70 p-4 text-sm font-medium leading-6 text-slate-700">
                 For transportation requests, include helpful details in the notes below,
-                such as airport, nearest major city, preferred carrier, or any timing limits.
+                such as airport, nearest major city, preferred carrier, or any timing limits. Transportation pricing is arranged separately and must be confirmed before scheduling.
               </div>
             ) : null}
+
+            <div className="rounded-[24px] border border-[#e2cfba] bg-[#fffaf3] p-5">
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
+                Estimated Transportation Fee
+              </div>
+              <div className="mt-2 text-2xl font-extrabold text-slate-900">
+                {requestEstimate.label}
+              </div>
+              <div className="mt-2 text-[12px] font-semibold leading-6 text-slate-600">
+                {requestEstimate.detail}
+              </div>
+            </div>
 
             <Field>
               <Label>Notes</Label>
@@ -935,6 +1179,37 @@ function StatusCard({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function PolicyCard({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-[22px] border border-[#e2cfba] bg-white/80 p-4 shadow-sm">
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
+        {label}
+      </div>
+      <div className="mt-1 text-lg font-extrabold text-slate-900">{value}</div>
+      <div className="mt-1 text-[12px] font-semibold leading-5 text-slate-500">{detail}</div>
+    </div>
+  );
+}
+
+function InfoDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
+        {label}
+      </div>
+      <div className="mt-1 text-sm font-semibold text-slate-800">{value}</div>
     </div>
   );
 }
