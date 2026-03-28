@@ -231,7 +231,7 @@ export default function PortalLayout({
         icon: <MessageCircle className="h-[18px] w-[18px]" />,
       },
       {
-        href: "/available-puppies",
+        href: "/portalavailable-puppies",
         label: "Available Puppies",
         icon: <Sparkles className="h-[18px] w-[18px]" />,
       },
