@@ -208,6 +208,11 @@ export default function AdminPortalAssistantPage() {
                     Type natural admin commands to create buyers and puppies, log or edit payments,
                     and add puppy weights without leaving the portal.
                   </p>
+                  <p className="mt-2 max-w-3xl text-xs font-semibold leading-6 text-brand-400 md:text-sm">
+                    This admin UI is always available to signed-in staff. If a command is refused,
+                    that means the server-side Core admin permission list still needs your account
+                    added.
+                  </p>
                 </div>
 
                 <div className="flex flex-wrap gap-3">

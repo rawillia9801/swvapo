@@ -83,16 +83,6 @@ function formatTime(date = new Date()) {
   });
 }
 
-function getClientCoreAdmins() {
-  const directOwner = process.env.NEXT_PUBLIC_DEV_OWNER_ID || "";
-  const extraAdmins = (process.env.NEXT_PUBLIC_CORE_ADMIN_USER_IDS || "")
-    .split(",")
-    .map((v) => v.trim())
-    .filter(Boolean);
-
-  return [directOwner, ...extraAdmins].filter(Boolean);
-}
-
 function cleanAssistantText(text: string) {
   return String(text || "")
     .replace(/^#{1,6}\s*/gm, "")
@@ -252,16 +242,15 @@ export default function PortalLayout({
   const activeNavItem = nav.find((item) => isActive(item));
   const pageTitle = activeNavItem?.label || "Portal";
 
-  const clientCoreAdmins = useMemo(() => getClientCoreAdmins(), []);
-  const isCoreAdmin = !!user?.id && clientCoreAdmins.includes(user.id);
-
-  useEffect(() => {
-    if (!isCoreAdmin && activeTab === "actions") {
-      setActiveTab("ask");
-    }
-  }, [isCoreAdmin, activeTab]);
+  const hasAdminUi = !!user?.id;
 
   const coreActions: QuickAction[] = [
+    {
+      key: "add-buyer",
+      label: "Add Buyer",
+      prompt: "Core action: add a new buyer record. I will provide the buyer details next.",
+      icon: <PlusCircle className="h-4 w-4" />,
+    },
     {
       key: "add-puppy",
       label: "Add Puppy",
@@ -279,6 +268,18 @@ export default function PortalLayout({
       label: "Log Payment",
       prompt: "Core action: log a buyer payment. I will provide the buyer, amount, date, and method next.",
       icon: <DollarSign className="h-4 w-4" />,
+    },
+    {
+      key: "edit-payment",
+      label: "Edit Payment",
+      prompt: "Core action: edit a payment record. I will provide the buyer, payment date or reference, and the fields to update next.",
+      icon: <DollarSign className="h-4 w-4" />,
+    },
+    {
+      key: "add-weight",
+      label: "Add Weight",
+      prompt: "Core action: add a puppy weight entry. I will provide the puppy, date, and weight next.",
+      icon: <PawPrint className="h-4 w-4" />,
     },
     {
       key: "open-documents",
@@ -637,7 +638,7 @@ export default function PortalLayout({
                   </div>
                   <div>
                     <div className="text-[10px] font-black uppercase tracking-[0.2em] text-[#D9A05B]">
-                      {isCoreAdmin ? "ChiChi + Core" : "Your Assistant"}
+                      {hasAdminUi ? "ChiChi + Core" : "Your Assistant"}
                     </div>
                     <div className="font-serif text-[20px] leading-none text-white tracking-wide mt-0.5">
                       ChiChi AI
@@ -675,7 +676,7 @@ export default function PortalLayout({
                     <div className="rounded-2xl border border-stone-100 bg-white/80 px-4 py-3 shadow-sm">
                       <div className="text-[9px] font-black uppercase tracking-[0.15em] text-stone-400">Access</div>
                       <div className="mt-1 text-xs font-semibold text-stone-700 truncate">
-                        {isCoreAdmin ? "Admin" : "Standard"}
+                        {hasAdminUi ? "Admin UI" : "Standard"}
                       </div>
                     </div>
                   </div>
@@ -693,7 +694,7 @@ export default function PortalLayout({
                     >
                       Ask
                     </button>
-                    {isCoreAdmin && (
+                    {hasAdminUi && (
                       <button
                         type="button"
                         onClick={() => setActiveTab("actions")}
@@ -712,7 +713,7 @@ export default function PortalLayout({
 
               {/* Chat Area / Action Area */}
               <div className="border-b border-stone-100 px-5 py-4 bg-white/40">
-                {activeTab === "ask" || !isCoreAdmin ? (
+                {activeTab === "ask" || !hasAdminUi ? (
                   <div className="rounded-2xl bg-stone-100/50 px-5 py-4 text-sm leading-relaxed text-stone-600 border border-stone-200/50">
                     <div className="font-semibold text-stone-800">
                       Hi, I’m your personal ChiChi Assistant!
@@ -722,21 +723,31 @@ export default function PortalLayout({
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-3">
-                    {coreActions.map((action) => (
-                      <button
-                        key={action.key}
-                        type="button"
-                        onClick={() => {
-                          setActiveTab("ask");
-                          void sendChiChiMessage(undefined, action.prompt);
-                        }}
-                        className="flex items-center gap-2.5 rounded-2xl border border-stone-200/60 bg-white px-4 py-3.5 text-left text-xs font-semibold text-stone-700 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md hover:border-[#D9A05B]/30"
-                      >
-                        <span className="text-[#C0853E]">{action.icon}</span>
-                        <span>{action.label}</span>
-                      </button>
-                    ))}
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      {coreActions.map((action) => (
+                        <button
+                          key={action.key}
+                          type="button"
+                          onClick={() => {
+                            setActiveTab("ask");
+                            void sendChiChiMessage(undefined, action.prompt);
+                          }}
+                          className="flex items-center gap-2.5 rounded-2xl border border-stone-200/60 bg-white px-4 py-3.5 text-left text-xs font-semibold text-stone-700 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md hover:border-[#D9A05B]/30"
+                        >
+                          <span className="text-[#C0853E]">{action.icon}</span>
+                          <span>{action.label}</span>
+                        </button>
+                      ))}
+                    </div>
+
+                    <Link
+                      href="/admin/portal/assistant"
+                      className="flex items-center justify-between rounded-2xl border border-[#d7c3ab] bg-[#fcf8f3] px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-[#6e5035] transition hover:bg-white"
+                    >
+                      <span>Open Full Admin Assistant</span>
+                      <span aria-hidden="true">↗</span>
+                    </Link>
                   </div>
                 )}
               </div>
@@ -803,7 +814,7 @@ export default function PortalLayout({
                     rows={1}
                     style={{ minHeight: "44px", maxHeight: "120px" }}
                     placeholder={
-                      activeTab === "actions" && isCoreAdmin
+                      activeTab === "actions" && hasAdminUi
                         ? "Describe Core action..."
                         : "Ask a question..."
                     }

@@ -351,15 +351,35 @@ function normalizeName(value: string | null | undefined): string {
     .toLowerCase();
 }
 
-function isCoreWriteAllowed(userId: string): boolean {
-  const devOwnerId = getOptionalEnv("DEV_OWNER_ID");
-  const allowedIds = String(getOptionalEnv("CORE_ADMIN_USER_IDS") || "")
-    .split(",")
-    .map((v) => v.trim())
+function splitEnvList(...names: string[]): string[] {
+  return names
+    .flatMap((name) => String(getOptionalEnv(name) || "").split(","))
+    .map((value) => value.trim())
     .filter(Boolean);
+}
 
-  if (devOwnerId && userId === devOwnerId) return true;
-  if (allowedIds.includes(userId)) return true;
+function isCoreWriteAllowed(user: { id: string; email?: string | null }): boolean {
+  const allowedIds = Array.from(
+    new Set(
+      splitEnvList(
+        "DEV_OWNER_ID",
+        "CORE_ADMIN_USER_IDS",
+        "NEXT_PUBLIC_DEV_OWNER_ID",
+        "NEXT_PUBLIC_CORE_ADMIN_USER_IDS"
+      )
+    )
+  );
+
+  const allowedEmails = Array.from(
+    new Set(
+      splitEnvList("CORE_ADMIN_EMAILS", "NEXT_PUBLIC_CORE_ADMIN_EMAILS").map((email) =>
+        email.toLowerCase()
+      )
+    )
+  );
+
+  if (allowedIds.includes(user.id)) return true;
+  if (user.email && allowedEmails.includes(String(user.email).trim().toLowerCase())) return true;
   return false;
 }
 
@@ -1571,7 +1591,10 @@ export async function POST(req: Request) {
       documents,
     });
 
-    const canWriteCore = isCoreWriteAllowed(user.id);
+    const canWriteCore = isCoreWriteAllowed({
+      id: user.id,
+      email: user.email,
+    });
     const intent = await extractActionIntent(lastUserMessage);
 
     let text = "";
