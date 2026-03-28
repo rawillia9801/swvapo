@@ -779,7 +779,7 @@ export default function PortalPage() {
 
               <Link
                 href="/portal/messages"
-                className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9a7854] hover:text-[#4f3726]"
+                className="text-[12px] font-medium text-[#c9943a] hover:underline"
               >
                 View All
               </Link>
@@ -815,14 +815,12 @@ export default function PortalPage() {
           </div>
         </div>
 
-        <div className="space-y-6 xl:col-span-5">
-          <div className="overflow-hidden rounded-[30px] border border-[#dccab7] bg-white shadow-[0_12px_28px_rgba(74,51,33,0.06)]">
-            <div className="flex items-end justify-between border-b border-[#eadccc] px-6 py-5 md:px-7">
+        <div className="space-y-5 xl:col-span-5">
+          <div className="overflow-hidden rounded-[8px] border border-[#e2d9c8] bg-white shadow-[0_8px_22px_rgba(58,43,26,0.06)]">
+            <div className="flex items-end justify-between border-b border-[#ede7d9] px-5 py-4">
               <div>
-                <h2 className="font-serif text-2xl font-bold text-[#3b271b]">
-                  My Puppy
-                </h2>
-                <p className="mt-1 text-sm font-semibold text-[#8b6b4d]">
+                <h2 className="text-[14px] font-bold text-[#2a2118]">My Puppy</h2>
+                <p className="mt-1 text-[12px] text-[#7a6a52]">
                   {hasPuppy
                     ? "Your puppy profile and breeder updates."
                     : "Open the available puppies area while you wait for a match."}
@@ -838,7 +836,7 @@ export default function PortalPage() {
             </div>
 
             <div className="grid grid-cols-1 gap-0 md:grid-cols-[220px_minmax(0,1fr)]">
-              <div className="relative min-h-[240px] border-b border-[#eadccc] md:border-b-0 md:border-r">
+              <div className="relative min-h-[240px] border-b border-[#ede7d9] md:border-b-0 md:border-r">
                 <img
                   src={puppyImage}
                   alt={hasPuppy ? "My puppy preview" : "Available puppies preview"}
@@ -846,15 +844,15 @@ export default function PortalPage() {
                 />
               </div>
 
-              <div className="space-y-4 p-6">
+              <div className="space-y-4 p-5">
                 <div>
                   <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
                     {hasPuppy ? "Current Puppy" : "Next Best Step"}
                   </div>
-                  <div className="mt-2 font-serif text-3xl font-bold text-[#342116]">
+                  <div className="mt-2 font-serif text-[28px] font-bold text-[#342116] [font-family:var(--font-merriweather)]">
                     {hasPuppy ? puppyDisplayName : "Available Puppies"}
                   </div>
-                  <div className="mt-2 text-sm font-semibold leading-7 text-[#8d6f52]">
+                  <div className="mt-2 text-[13px] leading-6 text-[#7a6a52]">
                     {hasPuppy
                       ? "Full profile, milestones, photos, and breeder notes are organized in the My Puppy section."
                       : "Browse the portal’s available puppies page with the correct route and keep an eye on new matches."}
@@ -875,13 +873,13 @@ export default function PortalPage() {
                 <div className="flex flex-wrap gap-3">
                   <Link
                     href={hasPuppy ? "/portal/mypuppy" : "/portal/available-puppies"}
-                    className="inline-flex items-center gap-2 rounded-xl bg-[linear-gradient(180deg,#deb56f_0%,#b9853f_100%)] px-4 py-3 text-sm font-black text-[#24180f] transition hover:brightness-105"
+                    className="inline-flex items-center rounded-[5px] bg-[linear-gradient(135deg,#c9943a_0%,#a87228_100%)] px-4 py-2.5 text-[13px] font-semibold text-white transition hover:brightness-105"
                   >
                     {hasPuppy ? "View" : "Browse"}
                   </Link>
                   <Link
                     href="/portal/documents"
-                    className="inline-flex items-center gap-2 rounded-xl border border-[#ddccb8] bg-[#fcf8f3] px-4 py-3 text-sm font-black text-[#5f4531] transition hover:bg-white"
+                    className="inline-flex items-center rounded-[5px] border border-[#ddccb8] bg-[#fcf8f3] px-4 py-2.5 text-[13px] font-semibold text-[#5f4531] transition hover:bg-white"
                   >
                     Contracts & Docs
                   </Link>
@@ -891,21 +889,19 @@ export default function PortalPage() {
           </div>
         </div>
 
-        <div className="space-y-6 xl:col-span-3">
-          <div className="rounded-[30px] border border-[#dccab7] bg-white p-6 shadow-[0_12px_28px_rgba(74,51,33,0.06)] md:p-7">
+        <div className="space-y-5 xl:col-span-3">
+          <div className="rounded-[8px] border border-[#e2d9c8] bg-white p-5 shadow-[0_8px_22px_rgba(58,43,26,0.06)]">
             <div className="flex items-end justify-between gap-4">
               <div>
-                <h2 className="font-serif text-2xl font-bold text-[#3b271b]">
-                  Financial Overview
-                </h2>
-                <p className="mt-1 text-sm font-semibold text-[#8b6b4d]">
+                <h2 className="text-[14px] font-bold text-[#2a2118]">Financial Overview</h2>
+                <p className="mt-1 text-[12px] text-[#7a6a52]">
                   A quick look before opening the full payments page.
                 </p>
               </div>
 
               <Link
                 href="/portal/payments"
-                className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9a7854] hover:text-[#4f3726]"
+                className="text-[12px] font-medium text-[#c9943a] hover:underline"
               >
                 Open
               </Link>
@@ -927,19 +923,17 @@ export default function PortalPage() {
             </div>
           </div>
 
-          <div className="rounded-[30px] border border-[#dccab7] bg-white p-6 shadow-[0_12px_28px_rgba(74,51,33,0.06)] md:p-7">
+          <div className="rounded-[8px] border border-[#e2d9c8] bg-white p-5 shadow-[0_8px_22px_rgba(58,43,26,0.06)]">
             <div className="mb-5 flex items-end justify-between gap-4">
               <div>
-                <h2 className="font-serif text-2xl font-bold text-[#3b271b]">
-                  Helpful Resources
-                </h2>
-                <p className="mt-1 text-sm font-semibold text-[#8b6b4d]">
+                <h2 className="text-[14px] font-bold text-[#2a2118]">Helpful Resources</h2>
+                <p className="mt-1 text-[12px] text-[#7a6a52]">
                   Keep the key portal areas close by.
                 </p>
               </div>
               <Link
                 href="/portal/resources"
-                className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9a7854] hover:text-[#4f3726]"
+                className="text-[12px] font-medium text-[#c9943a] hover:underline"
               >
                 Open Resources
               </Link>
@@ -952,13 +946,11 @@ export default function PortalPage() {
             </div>
           </div>
 
-          <div className="rounded-[30px] border border-[#dccab7] bg-white p-6 shadow-[0_12px_28px_rgba(74,51,33,0.06)] md:p-7">
+          <div className="rounded-[8px] border border-[#e2d9c8] bg-white p-5 shadow-[0_8px_22px_rgba(58,43,26,0.06)]">
             <div className="mb-5 flex items-end justify-between gap-4">
               <div>
-                <h2 className="font-serif text-2xl font-bold text-[#3b271b]">
-                  Upcoming Events
-                </h2>
-                <p className="mt-1 text-sm font-semibold text-[#8b6b4d]">
+                <h2 className="text-[14px] font-bold text-[#2a2118]">Upcoming Events</h2>
+                <p className="mt-1 text-[12px] text-[#7a6a52]">
                   Timeline items and puppy-related milestones.
                 </p>
               </div>
@@ -1007,7 +999,7 @@ function QuickLink({
   return (
     <Link
       href={href}
-      className="block rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4 transition hover:bg-white"
+      className="block rounded-[8px] border border-[#e5d7c8] bg-[#fcf9f5] p-4 transition hover:bg-white"
     >
       <div className="text-sm font-black text-[#342116]">{title}</div>
       <div className="mt-1 text-[12px] font-semibold leading-6 text-[#8d6f52]">
