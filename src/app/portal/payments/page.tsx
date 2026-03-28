@@ -15,6 +15,7 @@ type BuyerRow = {
   deposit_amount?: number | null;
   deposit_date?: string | null;
   finance_enabled?: boolean | null;
+  finance_admin_fee?: boolean | null;
   finance_rate?: number | null;
   finance_months?: number | null;
   finance_monthly_amount?: number | null;
@@ -50,15 +51,16 @@ type BuyerPayment = {
   reference_number: string | null;
 };
 
+const buyerSelect =
+  "id,email,full_name,name,user_id,sale_price,deposit_amount,deposit_date,finance_enabled,finance_admin_fee,finance_rate,finance_months,finance_monthly_amount,finance_day_of_month,finance_next_due_date,finance_last_payment_date,delivery_option,delivery_date,delivery_location,delivery_fee";
+
 async function findBuyerForUser(user: User): Promise<BuyerRow | null> {
   const email = String(user.email || "").trim().toLowerCase();
 
   if (user.id) {
     const byUserId = await sb
       .from("buyers")
-      .select(
-        "id,email,full_name,name,user_id,sale_price,deposit_amount,deposit_date,finance_enabled,finance_rate,finance_months,finance_monthly_amount,finance_day_of_month,finance_next_due_date,finance_last_payment_date,delivery_option,delivery_date,delivery_location,delivery_fee"
-      )
+      .select(buyerSelect)
       .eq("user_id", user.id)
       .limit(1)
       .maybeSingle();
@@ -70,9 +72,7 @@ async function findBuyerForUser(user: User): Promise<BuyerRow | null> {
 
   const byEmail = await sb
     .from("buyers")
-    .select(
-      "id,email,full_name,name,user_id,sale_price,deposit_amount,deposit_date,finance_enabled,finance_rate,finance_months,finance_monthly_amount,finance_day_of_month,finance_next_due_date,finance_last_payment_date,delivery_option,delivery_date,delivery_location,delivery_fee"
-    )
+    .select(buyerSelect)
     .ilike("email", email)
     .limit(1)
     .maybeSingle();
@@ -206,6 +206,18 @@ export default function PortalPaymentsPage() {
   const listedPrice = buyer?.sale_price ?? puppy?.price ?? null;
   const reservationPaid = buyer?.deposit_amount ?? puppy?.deposit ?? null;
   const latestPayment = payments[0] || null;
+  const paymentCount = payments.length;
+  const completionPercent = useMemo(() => {
+    if (listedPrice === null || listedPrice === undefined || Number(listedPrice) <= 0) return 0;
+    return Math.max(0, Math.min(100, Math.round((totalPaid / Number(listedPrice)) * 100)));
+  }, [listedPrice, totalPaid]);
+  const scheduleLabel = buyer?.finance_enabled
+    ? buyer?.finance_next_due_date
+      ? `Next due ${fmtDate(buyer.finance_next_due_date)}`
+      : "Financing active"
+    : "No schedule";
+  const financingUrl =
+    "https://forms.zoho.com/southwestvirginiachihuahua/form/PuppyFinancingApplication";
 
   const remainingBalance = useMemo(() => {
     if (listedPrice !== null && listedPrice !== undefined) {
@@ -227,45 +239,36 @@ export default function PortalPaymentsPage() {
 
   return (
     <div className="space-y-8 pb-14">
-      <section className="overflow-hidden rounded-[34px] border border-[#dccab7] bg-white shadow-[0_20px_50px_rgba(74,51,33,0.10)]">
-        <div className="grid grid-cols-1 xl:grid-cols-[1.08fr_0.92fr]">
-          <div className="relative overflow-hidden bg-[linear-gradient(145deg,#302218_0%,#6f5037_45%,#ae7a49_100%)] px-7 py-8 text-white md:px-9 md:py-10">
-            <div className="absolute -left-8 top-0 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
-            <div className="absolute bottom-0 right-0 h-52 w-52 rounded-full bg-[#f1d3ab]/20 blur-3xl" />
-
-            <div className="relative inline-flex items-center rounded-full border border-white/15 bg-white/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white/82">
-              Financials
+      <section className="rounded-[34px] border border-[#dccab7] bg-[radial-gradient(circle_at_top_right,rgba(240,201,143,0.22),transparent_25%),radial-gradient(circle_at_bottom_left,rgba(217,166,102,0.10),transparent_28%),linear-gradient(180deg,#fffdfa_0%,#fbf6ef_100%)] p-7 shadow-[0_20px_50px_rgba(74,51,33,0.10)] md:p-8">
+        <div className="flex flex-col gap-5">
+          <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
+            <div>
+              <div className="inline-flex items-center rounded-full border border-[#e2d4c6] bg-white px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-[#9c7b58]">
+                My Puppy Portal
+              </div>
+              <h1 className="mt-5 font-serif text-4xl font-bold leading-[0.94] text-[#3b271b] md:text-6xl">
+                Financial Dashboard
+              </h1>
+              <p className="mt-3 max-w-3xl text-sm font-semibold leading-7 text-[#8b6b4d] md:text-[15px]">
+                A live view of your puppy purchase progress, payments made, remaining balance, and any available financing details.
+              </p>
             </div>
 
-            <h1 className="relative mt-6 max-w-2xl font-serif text-4xl font-bold leading-[0.94] md:text-6xl">
-              A clearer financial view for {puppyNameFromData(puppy)}.
-            </h1>
-
-            <p className="relative mt-4 max-w-2xl text-sm font-semibold leading-7 text-white/80 md:text-[15px]">
-              Payments, balance details, and financing information are collected here so your portal experience feels straightforward and well organized.
-            </p>
-
-            <div className="relative mt-8 flex flex-wrap gap-3">
-              <Link
-                href="/portal/messages"
-                className="inline-flex items-center rounded-2xl bg-[linear-gradient(135deg,#f0c98f_0%,#d9a666_100%)] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-[#24180f] shadow-[0_14px_28px_rgba(33,22,15,0.18)] transition hover:translate-y-[-1px]"
-              >
-                Ask About Payments
-              </Link>
-              <Link
-                href="/portal/documents"
-                className="inline-flex items-center rounded-2xl border border-white/15 bg-white/10 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-white backdrop-blur-sm transition hover:bg-white/15"
-              >
-                Open Documents
-              </Link>
+            <div className="inline-flex items-center rounded-full border border-[#e2d4c6] bg-white px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#7f5f42]">
+              {scheduleLabel}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 bg-[linear-gradient(180deg,#fffdfa_0%,#faf4ed_100%)] p-7 md:grid-cols-2 md:p-8">
-            <PremiumStat label="Listed Price" value={listedPrice !== null ? fmtMoney(listedPrice) : "—"} detail="Primary sale amount" />
-            <PremiumStat label="Paid To Date" value={fmtMoney(totalPaid)} detail="Recorded payments on file" />
-            <PremiumStat label="Remaining Balance" value={remainingBalance !== null ? fmtMoney(remainingBalance) : "—"} detail="Current estimated balance" />
-            <PremiumStat label="Next Due" value={buyer?.finance_next_due_date ? fmtDate(buyer.finance_next_due_date) : "Not scheduled"} detail={buyer?.finance_enabled ? "Financing timeline" : "No financing plan active"} />
+          <div>
+            <div className="h-3 overflow-hidden rounded-full bg-[#efe4d8]">
+              <div
+                className="h-full rounded-full bg-[linear-gradient(90deg,#d9b082_0%,#8f6945_100%)] transition-all"
+                style={{ width: `${completionPercent}%` }}
+              />
+            </div>
+            <div className="mt-3 text-[11px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
+              {completionPercent}% complete
+            </div>
           </div>
         </div>
       </section>
@@ -274,6 +277,13 @@ export default function PortalPaymentsPage() {
 
       <section className="grid grid-cols-1 gap-8 xl:grid-cols-12">
         <div className="space-y-8 xl:col-span-8">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            <PremiumStat label="Total Price" value={listedPrice !== null ? fmtMoney(listedPrice) : "—"} detail="Purchase amount" />
+            <PremiumStat label="Paid" value={fmtMoney(totalPaid)} detail="Recorded payments" />
+            <PremiumStat label="Remaining" value={remainingBalance !== null ? fmtMoney(remainingBalance) : "—"} detail="Balance due" />
+            <PremiumStat label="Next Due" value={buyer?.finance_next_due_date ? fmtDate(buyer.finance_next_due_date) : "—"} detail={buyer?.finance_enabled ? "Financing schedule" : "No active plan"} />
+          </div>
+
           <div className="rounded-[30px] border border-[#dccab7] bg-white p-7 shadow-[0_16px_40px_rgba(74,51,33,0.08)]">
             <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#9c7b58]">
               Payment History
@@ -281,6 +291,9 @@ export default function PortalPaymentsPage() {
             <h2 className="mt-3 font-serif text-3xl font-bold text-[#3b271b]">
               Recorded account activity
             </h2>
+            <div className="mt-2 text-sm font-semibold text-[#8b6b4d]">
+              Recorded payments for your account.
+            </div>
 
             <div className="mt-6 space-y-4">
               {payments.length ? (
@@ -313,11 +326,50 @@ export default function PortalPaymentsPage() {
                   </div>
                 ))
               ) : (
-                <div className="rounded-[24px] border border-dashed border-[#e5d7c8] bg-[#fcf8f3] py-14 text-center text-sm font-semibold italic text-[#9e8164]">
-                  No payment records have been added yet.
+                <div className="rounded-[24px] border border-dashed border-[#e5d7c8] bg-[#fcf8f3] py-14 text-center">
+                  <div className="text-base font-black text-[#342116]">No payments recorded yet</div>
+                  <div className="mt-2 text-sm font-semibold italic text-[#9e8164]">
+                    When payments are added to your account, they will appear here automatically.
+                  </div>
                 </div>
               )}
             </div>
+          </div>
+
+          <div className="rounded-[30px] border border-[#dccab7] bg-white p-7 shadow-[0_16px_40px_rgba(74,51,33,0.08)]">
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#9c7b58]">
+              Financing
+            </div>
+            <h2 className="mt-3 font-serif text-3xl font-bold text-[#3b271b]">
+              Puppy payment financing
+            </h2>
+            <p className="mt-2 text-sm font-semibold leading-7 text-[#8b6b4d]">
+              Families interested in financing can apply directly here. Once approved, your financing details will appear in this section of the portal.
+            </p>
+
+            {buyer?.finance_enabled ? (
+              <div className="mt-6 grid gap-4 md:grid-cols-2">
+                <InfoTile label="Financing Status" value="Approved / Active" />
+                <InfoTile label="APR" value={buyer.finance_rate !== null && buyer.finance_rate !== undefined ? `${buyer.finance_rate}%` : "—"} />
+                <InfoTile label="Monthly Amount" value={buyer.finance_monthly_amount ? fmtMoney(buyer.finance_monthly_amount) : "—"} />
+                <InfoTile label="Months" value={buyer.finance_months ? String(buyer.finance_months) : "—"} />
+                <InfoTile label="Next Due Date" value={buyer.finance_next_due_date ? fmtDate(buyer.finance_next_due_date) : "—"} />
+                <InfoTile label="Last Payment" value={buyer.finance_last_payment_date ? fmtDate(buyer.finance_last_payment_date) : "—"} />
+                <InfoTile label="Admin Fee" value={buyer.finance_admin_fee ? "Applies" : "Not applied"} />
+                <InfoTile label="Payment Day" value={buyer.finance_day_of_month ? `Day ${buyer.finance_day_of_month}` : "—"} />
+              </div>
+            ) : (
+              <div className="mt-6 overflow-hidden rounded-[24px] border border-[#e5d7c8] bg-[#fcf9f5]">
+                <div className="border-b border-[#e5d7c8] px-5 py-4 text-sm font-semibold text-[#6f5037]">
+                  Financing is not active on this account yet. You can submit the financing application below.
+                </div>
+                <iframe
+                  src={financingUrl}
+                  title="Puppy Financing Application"
+                  className="h-[780px] w-full border-0 bg-white"
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -326,9 +378,9 @@ export default function PortalPaymentsPage() {
             <h3 className="font-serif text-2xl font-bold text-[#3b271b]">Account Summary</h3>
             <div className="mt-5 space-y-3">
               <InfoTile label="Puppy" value={puppyNameFromData(puppy)} />
-              <InfoTile label="Puppy Status" value={puppy?.status || "Pending"} />
               <InfoTile label="Reservation Paid" value={reservationPaid !== null && reservationPaid !== undefined ? fmtMoney(reservationPaid) : "—"} />
               <InfoTile label="Latest Payment" value={latestPayment?.payment_date ? fmtDate(latestPayment.payment_date) : "No payments yet"} />
+              <InfoTile label="Payment Count" value={String(paymentCount)} />
             </div>
           </div>
 
@@ -338,6 +390,7 @@ export default function PortalPaymentsPage() {
               <InfoTile label="Financing" value={buyer?.finance_enabled ? "Enabled" : "Not enabled"} />
               <InfoTile label="Monthly Amount" value={buyer?.finance_monthly_amount ? fmtMoney(buyer.finance_monthly_amount) : "—"} />
               <InfoTile label="Next Due Date" value={buyer?.finance_next_due_date ? fmtDate(buyer.finance_next_due_date) : "—"} />
+              <InfoTile label="APR" value={buyer?.finance_rate !== null && buyer?.finance_rate !== undefined ? `${buyer.finance_rate}%` : "—"} />
               <InfoTile label="Delivery" value={buyer?.delivery_option || buyer?.delivery_location || "Not scheduled"} />
               <InfoTile label="Delivery Fee" value={buyer?.delivery_fee ? fmtMoney(buyer.delivery_fee) : "—"} />
             </div>

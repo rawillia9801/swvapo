@@ -686,7 +686,7 @@ const row = data[0] as unknown as Record<string, unknown>;
           <div className="min-w-0">
             <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
               <Truck className="h-4 w-4" />
-              Transportation
+              Transporation
             </div>
 
             <h1 className="mt-4 font-serif text-3xl leading-tight text-slate-900 sm:text-4xl">
