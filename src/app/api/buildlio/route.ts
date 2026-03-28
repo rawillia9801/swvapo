@@ -68,6 +68,14 @@ type PuppyRecord = {
   weight_date: string | null;
   microchip: string | null;
   registration_no: string | null;
+  w_1?: number | null;
+  w_2?: number | null;
+  w_3?: number | null;
+  w_4?: number | null;
+  w_5?: number | null;
+  w_6?: number | null;
+  w_7?: number | null;
+  w_8?: number | null;
   registry?: string | null;
   owner_email?: string | null;
 };
@@ -204,6 +212,14 @@ type ActionIntent =
       owner_email?: string | null;
       birth_weight?: number | null;
       current_weight?: number | null;
+      w_1?: number | null;
+      w_2?: number | null;
+      w_3?: number | null;
+      w_4?: number | null;
+      w_5?: number | null;
+      w_6?: number | null;
+      w_7?: number | null;
+      w_8?: number | null;
       weight_date?: string | null;
       weight_oz?: number | null;
       weight_g?: number | null;
@@ -335,6 +351,14 @@ type ActionIntent =
       owner_email?: string | null;
       birth_weight?: number | null;
       current_weight?: number | null;
+      w_1?: number | null;
+      w_2?: number | null;
+      w_3?: number | null;
+      w_4?: number | null;
+      w_5?: number | null;
+      w_6?: number | null;
+      w_7?: number | null;
+      w_8?: number | null;
       weight_date?: string | null;
       weight_oz?: number | null;
       weight_g?: number | null;
@@ -1124,10 +1148,10 @@ For "delete_buyer", try to extract:
 buyer_id, buyer_name, buyer_email, buyer_names
 
 For "add_puppy", try to extract:
-call_name, puppy_name, name, litter_name, sire, dam, sex, color, coat_type, pattern, dob, registry, price, status, buyer_name, buyer_email, owner_email, birth_weight, current_weight, weight_date, weight_oz, weight_g, microchip, registration_no, notes, description
+call_name, puppy_name, name, litter_name, sire, dam, sex, color, coat_type, pattern, dob, registry, price, status, buyer_name, buyer_email, owner_email, birth_weight, current_weight, w_1, w_2, w_3, w_4, w_5, w_6, w_7, w_8, weight_date, weight_oz, weight_g, microchip, registration_no, notes, description
 
 For "update_puppy", try to extract:
-puppy_id, puppy_name, puppy_names, call_name, new_puppy_name, name, litter_name, sire, dam, sex, color, coat_type, pattern, dob, registry, price, status, buyer_name, buyer_email, owner_email, birth_weight, current_weight, weight_date, weight_oz, weight_g, microchip, registration_no, notes, description
+puppy_id, puppy_name, puppy_names, call_name, new_puppy_name, name, litter_name, sire, dam, sex, color, coat_type, pattern, dob, registry, price, status, buyer_name, buyer_email, owner_email, birth_weight, current_weight, w_1, w_2, w_3, w_4, w_5, w_6, w_7, w_8, weight_date, weight_oz, weight_g, microchip, registration_no, notes, description
 
 For "delete_puppy", try to extract:
 puppy_id, puppy_name, puppy_names
@@ -1226,8 +1250,52 @@ function parseDirectActionIntent(userMessage: string): ActionIntent | null {
     } as ActionIntent;
   }
 
+  const bulkWeeksMatch = text.match(/^(?:edit|update)\s+puppy\s+(.+)$/i);
+  if (bulkWeeksMatch && /\b(?:born|week\s*[1-8]|w[._\s-]*[1-8])\b/i.test(text)) {
+    const puppyName =
+      bulkWeeksMatch[1]
+        ?.split(/\b(?:born|week\s*[1-8]|w[._\s-]*[1-8])\b/i)[0]
+        ?.replace(/[,:-]+$/g, "")
+        ?.trim() || null;
+
+    if (puppyName) {
+      const base: Extract<ActionIntent, { action: "update_puppy" }> = {
+        action: "update_puppy",
+        puppy_name: puppyName,
+      };
+
+      const bornMatch = text.match(/\bborn\b[^0-9]*([\d.]+)\s*(?:oz|ounces?)?/i);
+      const weekPairs = Array.from(
+        text.matchAll(/\b(?:week\s*([1-8])|w[._\s-]*([1-8]))\b[^0-9]*([\d.]+)\s*(?:oz|ounces?)?/gi)
+      );
+
+      if (bornMatch || weekPairs.length) {
+        const weeklyValues: Partial<Extract<ActionIntent, { action: "update_puppy" }>> = {};
+
+        if (bornMatch) weeklyValues.birth_weight = Number(bornMatch[1]) || null;
+
+        for (const pair of weekPairs) {
+          const weekNumber = Number(pair[1] || pair[2]);
+          const weightValue = Number(pair[3]) || null;
+          if (!weekNumber || weightValue === null) continue;
+
+          if (weekNumber === 1) weeklyValues.w_1 = weightValue;
+          if (weekNumber === 2) weeklyValues.w_2 = weightValue;
+          if (weekNumber === 3) weeklyValues.w_3 = weightValue;
+          if (weekNumber === 4) weeklyValues.w_4 = weightValue;
+          if (weekNumber === 5) weeklyValues.w_5 = weightValue;
+          if (weekNumber === 6) weeklyValues.w_6 = weightValue;
+          if (weekNumber === 7) weeklyValues.w_7 = weightValue;
+          if (weekNumber === 8) weeklyValues.w_8 = weightValue;
+        }
+
+        return { ...base, ...weeklyValues };
+      }
+    }
+  }
+
   const updatePuppyMatch = text.match(
-    /^(?:edit|update)\s+puppy\s+(.+?)\s+(?:set\s+)?(call name|name|litter name|sire|dam|sex|color|coat(?: type)?|pattern|dob|registry|status|microchip|registration(?: no\.?| number)?|birth weight|current weight|description|notes?)\s+(?:to\s+)?(.+)$/i
+    /^(?:edit|update)\s+puppy\s+(.+?)\s+(?:set\s+)?(call name|name|litter name|sire|dam|sex|color|coat(?: type)?|pattern|dob|registry|status|microchip|registration(?: no\.?| number)?|birth weight|born|current weight|week\s*[1-8]|w[._\s-]*[1-8]|description|notes?)\s+(?:to\s+)?(.+)$/i
   );
   if (updatePuppyMatch) {
     const puppyName = updatePuppyMatch[1]?.trim() || null;
@@ -1274,9 +1342,50 @@ function parseDirectActionIntent(userMessage: string): ActionIntent | null {
         case "registration number":
           return { ...base, registration_no: value };
         case "birth weight":
+        case "born":
           return { ...base, birth_weight: Number(value.replace(/[^\d.]/g, "")) || null };
         case "current weight":
           return { ...base, current_weight: Number(value.replace(/[^\d.]/g, "")) || null };
+        case "week 1":
+        case "w 1":
+        case "w_1":
+        case "w-1":
+          return { ...base, w_1: Number(value.replace(/[^\d.]/g, "")) || null };
+        case "week 2":
+        case "w 2":
+        case "w_2":
+        case "w-2":
+          return { ...base, w_2: Number(value.replace(/[^\d.]/g, "")) || null };
+        case "week 3":
+        case "w 3":
+        case "w_3":
+        case "w-3":
+          return { ...base, w_3: Number(value.replace(/[^\d.]/g, "")) || null };
+        case "week 4":
+        case "w 4":
+        case "w_4":
+        case "w-4":
+          return { ...base, w_4: Number(value.replace(/[^\d.]/g, "")) || null };
+        case "week 5":
+        case "w 5":
+        case "w_5":
+        case "w-5":
+          return { ...base, w_5: Number(value.replace(/[^\d.]/g, "")) || null };
+        case "week 6":
+        case "w 6":
+        case "w_6":
+        case "w-6":
+          return { ...base, w_6: Number(value.replace(/[^\d.]/g, "")) || null };
+        case "week 7":
+        case "w 7":
+        case "w_7":
+        case "w-7":
+          return { ...base, w_7: Number(value.replace(/[^\d.]/g, "")) || null };
+        case "week 8":
+        case "w 8":
+        case "w_8":
+        case "w-8":
+          return { ...base, w_8: Number(value.replace(/[^\d.]/g, "")) || null };
         case "description":
           return { ...base, description: value };
         case "note":
@@ -1488,6 +1597,14 @@ function missingFieldsForAction(intent: ActionIntent): string[] {
       !intent.owner_email &&
       (intent.birth_weight === null || intent.birth_weight === undefined) &&
       (intent.current_weight === null || intent.current_weight === undefined) &&
+      (intent.w_1 === null || intent.w_1 === undefined) &&
+      (intent.w_2 === null || intent.w_2 === undefined) &&
+      (intent.w_3 === null || intent.w_3 === undefined) &&
+      (intent.w_4 === null || intent.w_4 === undefined) &&
+      (intent.w_5 === null || intent.w_5 === undefined) &&
+      (intent.w_6 === null || intent.w_6 === undefined) &&
+      (intent.w_7 === null || intent.w_7 === undefined) &&
+      (intent.w_8 === null || intent.w_8 === undefined) &&
       !intent.microchip &&
       !intent.registration_no &&
       !intent.notes &&
@@ -1760,6 +1877,14 @@ async function executeAddPuppy(
         : intent.weight_oz === null || intent.weight_oz === undefined
           ? intent.weight_g ?? null
         : intent.weight_oz,
+    w_1: intent.w_1 === null || intent.w_1 === undefined ? null : Number(intent.w_1),
+    w_2: intent.w_2 === null || intent.w_2 === undefined ? null : Number(intent.w_2),
+    w_3: intent.w_3 === null || intent.w_3 === undefined ? null : Number(intent.w_3),
+    w_4: intent.w_4 === null || intent.w_4 === undefined ? null : Number(intent.w_4),
+    w_5: intent.w_5 === null || intent.w_5 === undefined ? null : Number(intent.w_5),
+    w_6: intent.w_6 === null || intent.w_6 === undefined ? null : Number(intent.w_6),
+    w_7: intent.w_7 === null || intent.w_7 === undefined ? null : Number(intent.w_7),
+    w_8: intent.w_8 === null || intent.w_8 === undefined ? null : Number(intent.w_8),
     weight_unit:
       intent.weight_oz === null || intent.weight_oz === undefined
         ? intent.weight_g === null || intent.weight_g === undefined
@@ -1853,6 +1978,14 @@ async function executeUpdatePuppy(
       intent.current_weight === null || intent.current_weight === undefined
         ? undefined
         : Number(intent.current_weight),
+    w_1: intent.w_1 === null || intent.w_1 === undefined ? undefined : Number(intent.w_1),
+    w_2: intent.w_2 === null || intent.w_2 === undefined ? undefined : Number(intent.w_2),
+    w_3: intent.w_3 === null || intent.w_3 === undefined ? undefined : Number(intent.w_3),
+    w_4: intent.w_4 === null || intent.w_4 === undefined ? undefined : Number(intent.w_4),
+    w_5: intent.w_5 === null || intent.w_5 === undefined ? undefined : Number(intent.w_5),
+    w_6: intent.w_6 === null || intent.w_6 === undefined ? undefined : Number(intent.w_6),
+    w_7: intent.w_7 === null || intent.w_7 === undefined ? undefined : Number(intent.w_7),
+    w_8: intent.w_8 === null || intent.w_8 === undefined ? undefined : Number(intent.w_8),
     weight_date: intent.weight_date || undefined,
     microchip: intent.microchip || undefined,
     registration_no: intent.registration_no || undefined,
