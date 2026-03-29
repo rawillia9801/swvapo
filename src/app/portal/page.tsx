@@ -768,7 +768,7 @@ function PortalHomeDashboard({
 }) {
   return (
     <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(84,120,255,0.18),transparent_26%),radial-gradient(circle_at_85%_15%,rgba(96,211,255,0.16),transparent_28%),linear-gradient(135deg,#0b1120_0%,#121a31_48%,#1b2340_100%)] p-6 shadow-[0_32px_80px_rgba(3,8,23,0.48)] md:p-8">
+      <section className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.22),transparent_24%),radial-gradient(circle_at_75%_18%,rgba(124,58,237,0.22),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(14,165,233,0.16),transparent_26%),linear-gradient(135deg,#050816_0%,#0c1427_42%,#18233f_100%)] p-6 shadow-[0_40px_100px_rgba(3,8,23,0.55)] md:p-8">
         <div className="absolute inset-y-0 right-0 hidden w-[34%] overflow-hidden lg:block">
           <img
             src={puppyImage}
@@ -782,19 +782,16 @@ function PortalHomeDashboard({
           <div className="max-w-4xl">
             <div className="flex flex-wrap items-center gap-3">
               <span className="inline-flex rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-100">
-                Private Client Dashboard
-              </span>
-              <span className="inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-slate-300">
                 Southwest Virginia Chihuahua
               </span>
             </div>
 
-            <h1 className="mt-6 max-w-3xl font-serif text-4xl font-bold leading-[1.02] text-white [font-family:var(--font-merriweather)] md:text-5xl xl:text-[56px]">
-              A premium portal for your puppy journey.
+            <h1 className="mt-6 max-w-3xl font-serif text-4xl font-bold leading-[0.98] text-white [font-family:var(--font-merriweather)] md:text-6xl xl:text-[64px]">
+              Welcome to your Puppy Portal
             </h1>
             <p className="mt-4 max-w-2xl text-[15px] leading-7 text-slate-300 md:text-base">
-              Your updates, documents, breeder communication, payment details, and puppy
-              profile all live here in one polished private experience for {greetingName}.
+              Everything for {greetingName} lives here: your puppy profile, documents,
+              breeder communication, payments, and milestone updates in one private place.
             </p>
 
             <div className="mt-6 flex flex-wrap gap-3">
@@ -851,14 +848,10 @@ function PortalHomeDashboard({
                 <GlassMetric label="Latest Activity" value={nextUpdateLabel} />
               </div>
 
-              <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-                  Experience Standard
-                </div>
-                <p className="mt-2 text-sm leading-6 text-slate-300">
-                  Built for high-touch puppy placement with organized records, proactive
-                  updates, and a cleaner luxury client experience.
-                </p>
+              <div className="mt-5 grid grid-cols-3 gap-3">
+                <MiniMetricBadge label="Secure" />
+                <MiniMetricBadge label="Organized" />
+                <MiniMetricBadge label="Private" />
               </div>
             </div>
           </div>
@@ -1119,6 +1112,14 @@ function GlassMetric({ label, value }: { label: string; value: string }) {
         {label}
       </span>
       <span className="text-sm font-semibold text-white">{value}</span>
+    </div>
+  );
+}
+
+function MiniMetricBadge({ label }: { label: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-center text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-200">
+      {label}
     </div>
   );
 }

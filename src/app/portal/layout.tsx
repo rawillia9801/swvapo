@@ -378,7 +378,7 @@ export default function PortalLayout({
       },
       {
         href: "/portal/updates",
-        label: "Updates",
+        label: "Pupdates",
         icon: <CalendarDays className="h-[18px] w-[18px]" />,
       },
       {
@@ -749,7 +749,7 @@ export default function PortalLayout({
                 <div className="font-serif text-[15px] font-bold text-white [font-family:var(--font-merriweather)]">
                   Puppy Portal
                 </div>
-                <div className="text-[11px] font-normal text-[#93c5fd]">SWVA Chihuahua</div>
+                <div className="text-[11px] font-normal text-[#93c5fd]">Southwest Virginia Chihuahua</div>
               </div>
             </div>
 
@@ -788,7 +788,7 @@ export default function PortalLayout({
             <div className="flex h-full w-full items-center justify-between gap-4 px-5 md:px-6 lg:px-8 xl:px-10">
               <div className="min-w-0">
                 <div className="text-[11px] font-black uppercase tracking-[0.22em] text-[#93c5fd]">
-                  SWVA Chihuahua
+                  Southwest Virginia Chihuahua
                 </div>
                 <div className="mt-1 font-serif text-[28px] font-normal leading-none tracking-[0.01em] text-white [font-family:var(--font-merriweather)]">
                   {pageTitle}

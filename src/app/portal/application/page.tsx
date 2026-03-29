@@ -557,7 +557,7 @@ export default function PortalApplicationPage() {
                   </span>
                   <span className="w-1 h-1 rounded-full bg-brand-300" />
                   <span className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-                    SWVA Chihuahua
+                    Southwest Virginia Chihuahua
                   </span>
                 </div>
 
