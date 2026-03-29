@@ -813,8 +813,10 @@ function PortalHomeDashboard({
               {spotlightMetrics.map((metric) => (
                 <div
                   key={metric.label}
-                  className="rounded-2xl border border-white/10 bg-white/6 px-4 py-4 backdrop-blur-sm"
+                  className="group relative overflow-hidden rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_100%)] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_18px_34px_rgba(2,6,23,0.18)] backdrop-blur-sm transition hover:-translate-y-1 hover:border-sky-300/20"
                 >
+                  <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+                  <div className="absolute -right-6 -top-6 h-16 w-16 rounded-full bg-sky-400/10 blur-2xl transition group-hover:bg-sky-400/20" />
                   <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
                     {metric.label}
                   </div>
@@ -826,7 +828,9 @@ function PortalHomeDashboard({
           </div>
 
           <div className="relative z-10">
-            <div className="rounded-[26px] border border-white/10 bg-slate-950/45 p-5 shadow-[0_18px_42px_rgba(2,6,23,0.45)] backdrop-blur-xl">
+            <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(2,6,23,0.58)_0%,rgba(15,23,42,0.58)_100%)] p-5 shadow-[0_24px_56px_rgba(2,6,23,0.48),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl">
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+              <div className="absolute right-0 top-0 h-24 w-24 rounded-full bg-violet-400/10 blur-3xl" />
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
@@ -863,8 +867,10 @@ function PortalHomeDashboard({
           <Link
             key={card.label}
             href={card.href}
-            className="group overflow-hidden rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.88)_0%,rgba(15,23,42,0.72)_100%)] p-5 shadow-[0_20px_44px_rgba(2,6,23,0.26)] transition hover:-translate-y-1 hover:border-sky-300/20"
+            className="group relative overflow-hidden rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.92)_0%,rgba(15,23,42,0.72)_100%)] p-5 shadow-[0_24px_48px_rgba(2,6,23,0.32),inset_0_1px_0_rgba(255,255,255,0.06)] transition hover:-translate-y-1.5 hover:border-sky-300/20 hover:shadow-[0_30px_64px_rgba(2,6,23,0.42),inset_0_1px_0_rgba(255,255,255,0.08)]"
           >
+            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+            <div className="absolute -right-10 top-6 h-24 w-24 rounded-full bg-white/5 blur-3xl transition group-hover:bg-sky-400/10" />
             <div
               className={`h-1.5 w-full rounded-full bg-gradient-to-r ${
                 card.accent || "from-slate-400/20 to-slate-500/10"
@@ -937,7 +943,8 @@ function PortalHomeDashboard({
                   />
                 </div>
 
-                <div className="rounded-[24px] border border-white/10 bg-slate-950/45 p-5">
+                <div className="relative overflow-hidden rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(2,6,23,0.45)_0%,rgba(15,23,42,0.52)_100%)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                  <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
                   <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
                     Recommended Next Steps
                   </div>
@@ -1081,7 +1088,9 @@ function DashboardPanel({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.82)_0%,rgba(15,23,42,0.66)_100%)] p-5 shadow-[0_20px_50px_rgba(2,6,23,0.3)] backdrop-blur-xl md:p-6">
+    <section className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.86)_0%,rgba(15,23,42,0.68)_100%)] p-5 shadow-[0_28px_60px_rgba(2,6,23,0.34),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl md:p-6">
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+      <div className="absolute -right-8 top-0 h-24 w-24 rounded-full bg-sky-400/8 blur-3xl" />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
@@ -1107,7 +1116,8 @@ function DashboardPanel({
 
 function GlassMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+    <div className="relative overflow-hidden flex items-center justify-between gap-4 rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06)_0%,rgba(255,255,255,0.03)_100%)] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+      <div className="absolute inset-y-0 left-0 w-1 rounded-full bg-gradient-to-b from-sky-400/80 to-violet-400/70" />
       <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
         {label}
       </span>
@@ -1118,7 +1128,7 @@ function GlassMetric({ label, value }: { label: string; value: string }) {
 
 function MiniMetricBadge({ label }: { label: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-center text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-200">
+    <div className="rounded-[18px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07)_0%,rgba(255,255,255,0.03)_100%)] px-3 py-3 text-center text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
       {label}
     </div>
   );
@@ -1126,7 +1136,8 @@ function MiniMetricBadge({ label }: { label: string }) {
 
 function MetricRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+    <div className="relative overflow-hidden flex items-center justify-between gap-4 rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06)_0%,rgba(255,255,255,0.03)_100%)] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+      <div className="absolute inset-y-0 left-0 w-1 rounded-full bg-gradient-to-b from-emerald-400/70 to-sky-400/70" />
       <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
         {label}
       </span>
@@ -1147,11 +1158,15 @@ function QuickLink({
   return (
     <Link
       href={href}
-      className="block rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:border-sky-300/20 hover:bg-white/8"
+      className="group relative block overflow-hidden rounded-[22px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06)_0%,rgba(255,255,255,0.03)_100%)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition hover:-translate-y-1 hover:border-sky-300/20 hover:bg-white/8"
     >
+      <div className="absolute inset-y-0 left-0 w-1 rounded-full bg-gradient-to-b from-sky-400/80 to-violet-400/70 opacity-80" />
       <div className="text-sm font-semibold text-white">{title}</div>
       <div className="mt-1 text-[13px] leading-6 text-slate-300">
         {desc}
+      </div>
+      <div className="mt-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-300 transition group-hover:text-sky-200">
+        Open
       </div>
     </Link>
   );
@@ -1167,7 +1182,8 @@ function InfoTile({
   detail: string;
 }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+    <div className="relative overflow-hidden rounded-[22px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06)_0%,rgba(255,255,255,0.03)_100%)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+      <div className="absolute inset-y-0 left-0 w-1 rounded-full bg-gradient-to-b from-fuchsia-400/70 to-sky-400/70" />
       <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
         {label}
       </div>
@@ -1179,7 +1195,7 @@ function InfoTile({
 
 function EmptyState({ title, desc }: { title: string; desc: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-white/10 bg-white/4 px-5 py-10 text-center">
+    <div className="rounded-[24px] border border-dashed border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0.02)_100%)] px-5 py-10 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
       <div className="text-base font-semibold text-white">{title}</div>
       <div className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-300">{desc}</div>
     </div>
