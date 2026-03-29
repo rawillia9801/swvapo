@@ -230,50 +230,50 @@ export default function PortalPaymentsPage() {
   }, [listedPrice, puppy, totalPaid]);
 
   if (loading) {
-    return <div className="py-20 text-center text-sm font-semibold text-[#8b6b4d]">Loading financials...</div>;
+    return <div className="py-20 text-center text-sm font-semibold text-slate-300">Loading financials...</div>;
   }
 
   if (!user) {
-    return <div className="py-20 text-center text-sm font-semibold text-[#8b6b4d]">Please sign in to view payments.</div>;
+    return <div className="py-20 text-center text-sm font-semibold text-slate-300">Please sign in to view payments.</div>;
   }
 
   return (
-    <div className="space-y-8 pb-14">
-      <section className="rounded-[34px] border border-[#dccab7] bg-[radial-gradient(circle_at_top_right,rgba(240,201,143,0.22),transparent_25%),radial-gradient(circle_at_bottom_left,rgba(217,166,102,0.10),transparent_28%),linear-gradient(180deg,#fffdfa_0%,#fbf6ef_100%)] p-7 shadow-[0_20px_50px_rgba(74,51,33,0.10)] md:p-8">
+    <div className="space-y-6 pb-14">
+      <section className="rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(96,165,250,0.16),transparent_22%),radial-gradient(circle_at_bottom_left,rgba(124,58,237,0.12),transparent_24%),linear-gradient(135deg,#0b1120_0%,#111827_45%,#172036_100%)] p-7 shadow-[0_30px_80px_rgba(2,6,23,0.42)] md:p-8">
         <div className="flex flex-col gap-5">
           <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
             <div>
-              <div className="inline-flex items-center rounded-full border border-[#e2d4c6] bg-white px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-[#9c7b58]">
-                My Puppy Portal
+              <div className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-sky-200">
+                Client Finance
               </div>
-              <h1 className="mt-5 font-serif text-4xl font-bold leading-[0.94] text-[#3b271b] md:text-6xl">
+              <h1 className="mt-5 font-serif text-4xl font-bold leading-[0.94] text-white md:text-6xl">
                 Financial Dashboard
               </h1>
-              <p className="mt-3 max-w-3xl text-sm font-semibold leading-7 text-[#8b6b4d] md:text-[15px]">
+              <p className="mt-3 max-w-3xl text-sm font-semibold leading-7 text-slate-300 md:text-[15px]">
                 A live view of your puppy purchase progress, payments made, remaining balance, and any available financing details.
               </p>
             </div>
 
-            <div className="inline-flex items-center rounded-full border border-[#e2d4c6] bg-white px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#7f5f42]">
+            <div className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">
               {scheduleLabel}
             </div>
           </div>
 
           <div>
-            <div className="h-3 overflow-hidden rounded-full bg-[#efe4d8]">
+            <div className="h-3 overflow-hidden rounded-full bg-white/10">
               <div
-                className="h-full rounded-full bg-[linear-gradient(90deg,#d9b082_0%,#8f6945_100%)] transition-all"
+                className="h-full rounded-full bg-[linear-gradient(90deg,#38bdf8_0%,#8b5cf6_100%)] transition-all"
                 style={{ width: `${completionPercent}%` }}
               />
             </div>
-            <div className="mt-3 text-[11px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
+            <div className="mt-3 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
               {completionPercent}% complete
             </div>
           </div>
         </div>
       </section>
 
-      {statusText ? <div className="text-sm font-semibold text-[#8b6b4d]">{statusText}</div> : null}
+      {statusText ? <div className="text-sm font-semibold text-slate-300">{statusText}</div> : null}
 
       <section className="grid grid-cols-1 gap-8 xl:grid-cols-12">
         <div className="space-y-8 xl:col-span-8">
@@ -284,31 +284,31 @@ export default function PortalPaymentsPage() {
             <PremiumStat label="Next Due" value={buyer?.finance_next_due_date ? fmtDate(buyer.finance_next_due_date) : "—"} detail={buyer?.finance_enabled ? "Financing schedule" : "No active plan"} />
           </div>
 
-          <div className="rounded-[30px] border border-[#dccab7] bg-white p-7 shadow-[0_16px_40px_rgba(74,51,33,0.08)]">
-            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#9c7b58]">
+          <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.9)_0%,rgba(15,23,42,0.72)_100%)] p-7 shadow-[0_20px_50px_rgba(2,6,23,0.3)]">
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
               Payment History
             </div>
-            <h2 className="mt-3 font-serif text-3xl font-bold text-[#3b271b]">
+            <h2 className="mt-3 font-serif text-3xl font-bold text-white">
               Recorded account activity
             </h2>
-            <div className="mt-2 text-sm font-semibold text-[#8b6b4d]">
+            <div className="mt-2 text-sm font-semibold text-slate-300">
               Recorded payments for your account.
             </div>
 
             <div className="mt-6 space-y-4">
               {payments.length ? (
                 payments.map((payment) => (
-                  <div key={payment.id} className="rounded-[24px] border border-[#e5d7c8] bg-[#fcf9f5] p-5">
+                  <div key={payment.id} className="rounded-[24px] border border-white/10 bg-white/5 p-5">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex flex-wrap items-center gap-2">
-                        <div className="text-lg font-black text-[#342116]">
+                        <div className="text-lg font-black text-white">
                           {payment.payment_type || "Payment"}
                         </div>
-                        <span className="rounded-full border border-[#dccab7] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#7f5f42]">
+                        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">
                           {payment.status || "recorded"}
                         </span>
                       </div>
-                      <div className="text-sm font-black text-[#342116]">{fmtMoney(payment.amount || 0)}</div>
+                      <div className="text-sm font-black text-white">{fmtMoney(payment.amount || 0)}</div>
                     </div>
 
                     <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -319,16 +319,16 @@ export default function PortalPaymentsPage() {
                     </div>
 
                     {payment.note ? (
-                      <div className="mt-4 rounded-[18px] border border-[#e2d2c0] bg-white px-4 py-3 text-sm font-semibold text-[#6f5037]">
+                      <div className="mt-4 rounded-[18px] border border-white/10 bg-slate-950/35 px-4 py-3 text-sm font-semibold text-slate-200">
                         {payment.note}
                       </div>
                     ) : null}
                   </div>
                 ))
               ) : (
-                <div className="rounded-[24px] border border-dashed border-[#e5d7c8] bg-[#fcf8f3] py-14 text-center">
-                  <div className="text-base font-black text-[#342116]">No payments recorded yet</div>
-                  <div className="mt-2 text-sm font-semibold italic text-[#9e8164]">
+                <div className="rounded-[24px] border border-dashed border-white/10 bg-white/4 py-14 text-center">
+                  <div className="text-base font-black text-white">No payments recorded yet</div>
+                  <div className="mt-2 text-sm font-semibold italic text-slate-400">
                     When payments are added to your account, they will appear here automatically.
                   </div>
                 </div>
@@ -336,14 +336,14 @@ export default function PortalPaymentsPage() {
             </div>
           </div>
 
-          <div className="rounded-[30px] border border-[#dccab7] bg-white p-7 shadow-[0_16px_40px_rgba(74,51,33,0.08)]">
-            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#9c7b58]">
+          <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.9)_0%,rgba(15,23,42,0.72)_100%)] p-7 shadow-[0_20px_50px_rgba(2,6,23,0.3)]">
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
               Financing
             </div>
-            <h2 className="mt-3 font-serif text-3xl font-bold text-[#3b271b]">
+            <h2 className="mt-3 font-serif text-3xl font-bold text-white">
               Puppy payment financing
             </h2>
-            <p className="mt-2 text-sm font-semibold leading-7 text-[#8b6b4d]">
+            <p className="mt-2 text-sm font-semibold leading-7 text-slate-300">
               Families interested in financing can apply directly here. Once approved, your financing details will appear in this section of the portal.
             </p>
 
@@ -359,8 +359,8 @@ export default function PortalPaymentsPage() {
                 <InfoTile label="Payment Day" value={buyer.finance_day_of_month ? `Day ${buyer.finance_day_of_month}` : "—"} />
               </div>
             ) : (
-              <div className="mt-6 overflow-hidden rounded-[24px] border border-[#e5d7c8] bg-[#fcf9f5]">
-                <div className="border-b border-[#e5d7c8] px-5 py-4 text-sm font-semibold text-[#6f5037]">
+              <div className="mt-6 overflow-hidden rounded-[24px] border border-white/10 bg-white/5">
+                <div className="border-b border-white/10 px-5 py-4 text-sm font-semibold text-slate-300">
                   Financing is not active on this account yet. You can submit the financing application below.
                 </div>
                 <iframe
@@ -374,8 +374,8 @@ export default function PortalPaymentsPage() {
         </div>
 
         <div className="space-y-6 xl:col-span-4">
-          <div className="rounded-[30px] border border-[#dccab7] bg-white p-7 shadow-[0_16px_40px_rgba(74,51,33,0.08)]">
-            <h3 className="font-serif text-2xl font-bold text-[#3b271b]">Account Summary</h3>
+          <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.9)_0%,rgba(15,23,42,0.72)_100%)] p-7 shadow-[0_20px_50px_rgba(2,6,23,0.3)]">
+            <h3 className="font-serif text-2xl font-bold text-white">Account Summary</h3>
             <div className="mt-5 space-y-3">
               <InfoTile label="Puppy" value={puppyNameFromData(puppy)} />
               <InfoTile label="Reservation Paid" value={reservationPaid !== null && reservationPaid !== undefined ? fmtMoney(reservationPaid) : "—"} />
@@ -384,8 +384,8 @@ export default function PortalPaymentsPage() {
             </div>
           </div>
 
-          <div className="rounded-[30px] border border-[#dccab7] bg-white p-7 shadow-[0_16px_40px_rgba(74,51,33,0.08)]">
-            <h3 className="font-serif text-2xl font-bold text-[#3b271b]">Financing & Delivery</h3>
+          <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.9)_0%,rgba(15,23,42,0.72)_100%)] p-7 shadow-[0_20px_50px_rgba(2,6,23,0.3)]">
+            <h3 className="font-serif text-2xl font-bold text-white">Financing & Delivery</h3>
             <div className="mt-5 space-y-3">
               <InfoTile label="Financing" value={buyer?.finance_enabled ? "Enabled" : "Not enabled"} />
               <InfoTile label="Monthly Amount" value={buyer?.finance_monthly_amount ? fmtMoney(buyer.finance_monthly_amount) : "—"} />
@@ -396,7 +396,7 @@ export default function PortalPaymentsPage() {
             </div>
           </div>
 
-          <div className="rounded-[30px] bg-[linear-gradient(145deg,#5f4330_0%,#7b5a3d_100%)] p-7 text-white shadow-[0_18px_44px_rgba(74,51,33,0.18)]">
+          <div className="rounded-[30px] border border-sky-400/20 bg-[linear-gradient(145deg,#0f172a_0%,#172554_100%)] p-7 text-white shadow-[0_24px_54px_rgba(2,6,23,0.34)]">
             <h3 className="font-serif text-2xl font-bold">Need clarification?</h3>
             <p className="mt-3 text-sm font-semibold leading-7 text-white/82">
               If something looks off, message support and we can review your account history together.
@@ -424,10 +424,10 @@ function PremiumStat({
   detail: string;
 }) {
   return (
-    <div className="rounded-[26px] border border-[#e2d4c6] bg-white p-5 shadow-[0_14px_30px_rgba(74,51,33,0.06)]">
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">{label}</div>
-      <div className="mt-3 font-serif text-3xl font-bold text-[#342116]">{value}</div>
-      <div className="mt-2 text-sm font-semibold leading-6 text-[#8b6b4d]">{detail}</div>
+    <div className="rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.9)_0%,rgba(15,23,42,0.72)_100%)] p-5 shadow-[0_20px_44px_rgba(2,6,23,0.26)]">
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{label}</div>
+      <div className="mt-3 font-serif text-3xl font-bold text-white">{value}</div>
+      <div className="mt-2 text-sm font-semibold leading-6 text-slate-300">{detail}</div>
     </div>
   );
 }
@@ -435,17 +435,17 @@ function PremiumStat({
 function InfoLine({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">{label}</div>
-      <div className="mt-1 text-sm font-semibold text-[#6f5037]">{value}</div>
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{label}</div>
+      <div className="mt-1 text-sm font-semibold text-slate-200">{value}</div>
     </div>
   );
 }
 
 function InfoTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4">
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">{label}</div>
-      <div className="mt-1 text-sm font-semibold text-[#342116]">{value}</div>
+    <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{label}</div>
+      <div className="mt-1 text-sm font-semibold text-white">{value}</div>
     </div>
   );
 }

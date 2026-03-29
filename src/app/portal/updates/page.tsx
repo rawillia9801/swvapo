@@ -281,20 +281,20 @@ export default function PortalUpdatesPage() {
   const familyName = buyer?.full_name || buyer?.name || "Your Family";
 
   if (loading) {
-    return <div className="py-20 text-center text-sm font-semibold text-[#8b6b4d]">Loading updates...</div>;
+    return <div className="py-20 text-center text-sm font-semibold text-slate-300">Loading updates...</div>;
   }
 
   if (!user) {
-    return <div className="py-20 text-center text-sm font-semibold text-[#8b6b4d]">Please sign in to view updates.</div>;
+    return <div className="py-20 text-center text-sm font-semibold text-slate-300">Please sign in to view updates.</div>;
   }
 
   return (
-    <div className="space-y-8 pb-14">
-      <section className="overflow-hidden rounded-[34px] border border-[#dccab7] bg-white shadow-[0_20px_50px_rgba(74,51,33,0.10)]">
+    <div className="space-y-6 pb-14">
+      <section className="overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(135deg,#0b1120_0%,#111827_45%,#172036_100%)] shadow-[0_30px_80px_rgba(2,6,23,0.42)]">
         <div className="grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr]">
-          <div className="relative overflow-hidden bg-[linear-gradient(145deg,#2f2118_0%,#6f5037_45%,#af7b4a_100%)] px-7 py-8 text-white md:px-9 md:py-10">
+          <div className="relative overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(96,165,250,0.18),transparent_24%),linear-gradient(145deg,#0b1120_0%,#172554_48%,#312e81_100%)] px-7 py-8 text-white md:px-9 md:py-10">
             <div className="absolute -left-8 top-0 h-36 w-36 rounded-full bg-white/10 blur-3xl" />
-            <div className="absolute bottom-0 right-0 h-48 w-48 rounded-full bg-[#f1d3ab]/20 blur-3xl" />
+            <div className="absolute bottom-0 right-0 h-48 w-48 rounded-full bg-sky-400/10 blur-3xl" />
 
             <div className="relative inline-flex items-center rounded-full border border-white/15 bg-white/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white/82">
               Updates
@@ -311,7 +311,7 @@ export default function PortalUpdatesPage() {
             <div className="relative mt-8 flex flex-wrap gap-3">
               <Link
                 href="/portal/mypuppy"
-                className="inline-flex items-center rounded-2xl bg-[linear-gradient(135deg,#f0c98f_0%,#d9a666_100%)] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-[#24180f] shadow-[0_14px_28px_rgba(33,22,15,0.18)] transition hover:translate-y-[-1px]"
+                className="inline-flex items-center rounded-2xl bg-[linear-gradient(135deg,#60a5fa_0%,#7c3aed_100%)] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-white shadow-[0_18px_32px_rgba(59,130,246,0.26)] transition hover:translate-y-[-1px]"
               >
                 Open My Puppy
               </Link>
@@ -324,7 +324,7 @@ export default function PortalUpdatesPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 bg-[linear-gradient(180deg,#fffdfa_0%,#faf4ed_100%)] p-7 md:grid-cols-2 md:p-8">
+          <div className="grid grid-cols-1 gap-4 bg-[linear-gradient(180deg,rgba(15,23,42,0.72)_0%,rgba(15,23,42,0.44)_100%)] p-7 md:grid-cols-2 md:p-8">
             <PremiumStat label="Breeder Updates" value={String(breederUpdateCount)} detail="Published timeline entries" />
             <PremiumStat label="Health Records" value={String(healthUpdateCount)} detail="Visible wellness notes" />
             <PremiumStat label="Photo Moments" value={String(photoUpdateCount)} detail="Timeline posts with photos" />
@@ -337,17 +337,17 @@ export default function PortalUpdatesPage() {
         </div>
       </section>
 
-      {statusText ? <div className="text-sm font-semibold text-[#8b6b4d]">{statusText}</div> : null}
+      {statusText ? <div className="text-sm font-semibold text-slate-300">{statusText}</div> : null}
 
       <section className="grid grid-cols-1 gap-8 xl:grid-cols-12">
         <div className="space-y-8 xl:col-span-8">
-          <div className="rounded-[30px] border border-[#dccab7] bg-white p-7 shadow-[0_16px_40px_rgba(74,51,33,0.08)]">
+          <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.9)_0%,rgba(15,23,42,0.72)_100%)] p-7 shadow-[0_20px_50px_rgba(2,6,23,0.3)]">
             <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <div>
-                <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#9c7b58]">
+                <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
                   Timeline
                 </div>
-                <h2 className="mt-3 font-serif text-3xl font-bold text-[#3b271b]">
+                <h2 className="mt-3 font-serif text-3xl font-bold text-white">
                   Published updates and wellness notes
                 </h2>
               </div>
@@ -356,25 +356,25 @@ export default function PortalUpdatesPage() {
             <div className="mt-6 space-y-4">
               {timeline.length ? (
                 timeline.map((item) => (
-                  <div key={item.id} className="rounded-[24px] border border-[#e5d7c8] bg-[#fcf9f5] p-5">
+                  <div key={item.id} className="rounded-[24px] border border-white/10 bg-white/5 p-5">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <span className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${item.accent}`}>
                         {item.badge}
                       </span>
-                      <div className="text-xs font-semibold text-[#8b6b4d]">{fmtDate(item.date)}</div>
+                      <div className="text-xs font-semibold text-slate-400">{fmtDate(item.date)}</div>
                     </div>
 
-                    <div className="mt-4 text-xl font-black text-[#342116]">{item.title}</div>
-                    <div className="mt-2 text-sm font-semibold leading-7 text-[#6f5037]">{item.summary}</div>
+                    <div className="mt-4 text-xl font-black text-white">{item.title}</div>
+                    <div className="mt-2 text-sm font-semibold leading-7 text-slate-300">{item.summary}</div>
 
                     <div className="mt-4 flex flex-wrap gap-2">
                       {item.detail ? (
-                        <span className="rounded-full border border-[#dccab7] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#7f5f42]">
+                        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">
                           {item.detail}
                         </span>
                       ) : null}
                       {item.hasPhoto ? (
-                        <span className="rounded-full border border-[#dccab7] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#7f5f42]">
+                        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">
                           Photo update
                         </span>
                       ) : null}
@@ -382,7 +382,7 @@ export default function PortalUpdatesPage() {
                   </div>
                 ))
               ) : (
-                <div className="rounded-[24px] border border-dashed border-[#e5d7c8] bg-[#fcf8f3] py-14 text-center text-sm font-semibold italic text-[#9e8164]">
+                <div className="rounded-[24px] border border-dashed border-white/10 bg-white/4 py-14 text-center text-sm font-semibold italic text-slate-400">
                   No published updates have been posted yet.
                 </div>
               )}
@@ -391,19 +391,19 @@ export default function PortalUpdatesPage() {
         </div>
 
         <div className="space-y-6 xl:col-span-4">
-          <div className="rounded-[30px] border border-[#dccab7] bg-white p-7 shadow-[0_16px_40px_rgba(74,51,33,0.08)]">
-            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#9c7b58]">
+          <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.9)_0%,rgba(15,23,42,0.72)_100%)] p-7 shadow-[0_20px_50px_rgba(2,6,23,0.3)]">
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
               Current Spotlight
             </div>
-            <h3 className="mt-3 font-serif text-2xl font-bold text-[#3b271b]">
+            <h3 className="mt-3 font-serif text-2xl font-bold text-white">
               {featuredUpdate?.title || "Awaiting the next update"}
             </h3>
-            <p className="mt-3 text-sm font-semibold leading-7 text-[#8b6b4d]">
+            <p className="mt-3 text-sm font-semibold leading-7 text-slate-300">
               {featuredUpdate?.summary || "As new breeder notes and health records are published, the latest one will be highlighted here for quick viewing."}
             </p>
 
             {featuredUpdate ? (
-              <div className="mt-5 rounded-[22px] bg-[linear-gradient(135deg,#8f6945_0%,#6f5037_100%)] p-5 text-white">
+              <div className="mt-5 rounded-[22px] bg-[linear-gradient(135deg,#0f172a_0%,#1d4ed8_100%)] p-5 text-white">
                 <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/70">
                   Latest posted
                 </div>
@@ -413,8 +413,8 @@ export default function PortalUpdatesPage() {
             ) : null}
           </div>
 
-          <div className="rounded-[30px] border border-[#dccab7] bg-white p-7 shadow-[0_16px_40px_rgba(74,51,33,0.08)]">
-            <h3 className="font-serif text-2xl font-bold text-[#3b271b]">What you will see here</h3>
+          <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.9)_0%,rgba(15,23,42,0.72)_100%)] p-7 shadow-[0_20px_50px_rgba(2,6,23,0.3)]">
+            <h3 className="font-serif text-2xl font-bold text-white">What you will see here</h3>
             <div className="mt-5 space-y-3">
               <FeatureCard
                 title="Breeder Milestones"
@@ -446,19 +446,19 @@ function PremiumStat({
   detail: string;
 }) {
   return (
-    <div className="rounded-[26px] border border-[#e2d4c6] bg-white p-5 shadow-[0_14px_30px_rgba(74,51,33,0.06)]">
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">{label}</div>
-      <div className="mt-3 font-serif text-3xl font-bold text-[#342116]">{value}</div>
-      <div className="mt-2 text-sm font-semibold leading-6 text-[#8b6b4d]">{detail}</div>
+    <div className="rounded-[26px] border border-white/10 bg-white/5 p-5 shadow-[0_20px_44px_rgba(2,6,23,0.26)]">
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{label}</div>
+      <div className="mt-3 font-serif text-3xl font-bold text-white">{value}</div>
+      <div className="mt-2 text-sm font-semibold leading-6 text-slate-300">{detail}</div>
     </div>
   );
 }
 
 function FeatureCard({ title, desc }: { title: string; desc: string }) {
   return (
-    <div className="rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4">
-      <div className="text-sm font-black text-[#342116]">{title}</div>
-      <div className="mt-1 text-[12px] font-semibold leading-6 text-[#8d6f52]">{desc}</div>
+    <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
+      <div className="text-sm font-black text-white">{title}</div>
+      <div className="mt-1 text-[12px] font-semibold leading-6 text-slate-300">{desc}</div>
     </div>
   );
 }

@@ -681,19 +681,19 @@ const row = data[0] as unknown as Record<string, unknown>;
 
   return (
     <div className="space-y-6 pb-8">
-      <section className="overflow-hidden rounded-[32px] border border-[#d8cab7] bg-[linear-gradient(135deg,#fffdf9_0%,#fff8ef_42%,#ffffff_100%)] px-6 py-6 shadow-[0_24px_80px_rgba(36,24,15,0.12)] sm:px-8 sm:py-8">
+      <section className="overflow-hidden rounded-[32px] border border-white/10 bg-[linear-gradient(135deg,#0b1120_0%,#111827_45%,#172036_100%)] px-6 py-6 shadow-[0_30px_80px_rgba(2,6,23,0.42)] sm:px-8 sm:py-8">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#e6d6bf] bg-white/90 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-[#8d6f52] shadow-sm">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-sky-200 shadow-sm">
               <Truck className="h-4 w-4" />
               Transporation
             </div>
 
-            <h1 className="mt-4 font-serif text-3xl leading-tight text-[#22170f] sm:text-5xl">
+            <h1 className="mt-4 font-serif text-3xl leading-tight text-white sm:text-5xl">
               Pickup / Meet / Delivery Request
             </h1>
 
-            <p className="mt-3 max-w-4xl text-sm font-medium leading-6 text-[#6f5a45] sm:text-[15px]">
+            <p className="mt-3 max-w-4xl text-sm font-medium leading-6 text-slate-300 sm:text-[15px]">
               Use this page to request pickup at our location, a public meet-up,
               a drop-off arrangement, or transportation planning for your puppy.
             </p>
@@ -702,7 +702,7 @@ const row = data[0] as unknown as Record<string, unknown>;
           <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={refreshAll}
-              className="inline-flex items-center gap-2 rounded-[16px] border border-[#e5d9ca] bg-white px-4 py-3 text-sm font-semibold text-[#3f3125] shadow-[0_10px_25px_rgba(58,43,26,0.08)] transition hover:bg-[#fffaf3]"
+              className="inline-flex items-center gap-2 rounded-[16px] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-100 shadow-[0_16px_28px_rgba(2,6,23,0.18)] transition hover:bg-white/10"
             >
               <RefreshCw className="h-4 w-4" />
               Refresh
@@ -710,7 +710,7 @@ const row = data[0] as unknown as Record<string, unknown>;
 
             <button
               onClick={() => window.print()}
-              className="inline-flex items-center gap-2 rounded-[16px] bg-[#1a244a] px-4 py-3 text-sm font-semibold text-white shadow-[0_16px_32px_rgba(26,36,74,0.24)] transition hover:bg-[#202d5d]"
+              className="inline-flex items-center gap-2 rounded-[16px] bg-[linear-gradient(135deg,#60a5fa_0%,#7c3aed_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_18px_32px_rgba(59,130,246,0.26)] transition hover:brightness-110"
             >
               <Printer className="h-4 w-4" />
               Print
@@ -718,7 +718,7 @@ const row = data[0] as unknown as Record<string, unknown>;
           </div>
         </div>
 
-        <div className="mt-6 rounded-[26px] border border-[#bce5d2] bg-[linear-gradient(180deg,#eefbf5_0%,#e9f9f2_100%)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+        <div className="mt-6 rounded-[26px] border border-emerald-400/20 bg-emerald-400/10 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
           <div className="flex items-start gap-4">
             <div className="mt-0.5 flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-600 text-white">
               <ShieldCheck className="h-5 w-5" />

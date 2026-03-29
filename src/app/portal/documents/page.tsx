@@ -301,18 +301,18 @@ export default function PortalDocumentsPage() {
   );
 
   if (loading) {
-    return <div className="py-20 text-center text-sm font-semibold text-[#8b6b4d]">Loading forms and documents...</div>;
+    return <div className="py-20 text-center text-sm font-semibold text-slate-300">Loading forms and documents...</div>;
   }
 
   if (!user) {
-    return <div className="py-20 text-center text-sm font-semibold text-[#8b6b4d]">Please sign in to view documents.</div>;
+    return <div className="py-20 text-center text-sm font-semibold text-slate-300">Please sign in to view documents.</div>;
   }
 
   return (
-    <div className="space-y-8 pb-14">
-      <section className="overflow-hidden rounded-[34px] border border-[#dccab7] bg-white shadow-[0_20px_50px_rgba(74,51,33,0.10)]">
+    <div className="space-y-6 pb-14">
+      <section className="overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(135deg,#0b1120_0%,#111827_45%,#172036_100%)] shadow-[0_30px_80px_rgba(2,6,23,0.42)]">
         <div className="grid grid-cols-1 xl:grid-cols-[1.08fr_0.92fr]">
-          <div className="relative overflow-hidden bg-[linear-gradient(145deg,#312319_0%,#6f5037_45%,#b27f4f_100%)] px-7 py-8 text-white md:px-9 md:py-10">
+          <div className="relative overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(96,165,250,0.18),transparent_24%),linear-gradient(145deg,#0b1120_0%,#172554_48%,#312e81_100%)] px-7 py-8 text-white md:px-9 md:py-10">
             <div className="absolute -left-6 top-0 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
             <div className="absolute bottom-0 right-0 h-52 w-52 rounded-full bg-[#f1d3ab]/20 blur-3xl" />
 
@@ -331,7 +331,7 @@ export default function PortalDocumentsPage() {
             <div className="relative mt-8 flex flex-wrap gap-3">
               <Link
                 href="/portal/application"
-                className="inline-flex items-center rounded-2xl bg-[linear-gradient(135deg,#f0c98f_0%,#d9a666_100%)] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-[#24180f] shadow-[0_14px_28px_rgba(33,22,15,0.18)] transition hover:translate-y-[-1px]"
+                className="inline-flex items-center rounded-2xl bg-[linear-gradient(135deg,#60a5fa_0%,#7c3aed_100%)] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-white shadow-[0_18px_32px_rgba(59,130,246,0.26)] transition hover:translate-y-[-1px]"
               >
                 View Application
               </Link>
@@ -344,7 +344,7 @@ export default function PortalDocumentsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 bg-[linear-gradient(180deg,#fffdfa_0%,#faf4ed_100%)] p-7 md:grid-cols-2 md:p-8">
+          <div className="grid grid-cols-1 gap-4 bg-[linear-gradient(180deg,rgba(15,23,42,0.72)_0%,rgba(15,23,42,0.44)_100%)] p-7 md:grid-cols-2 md:p-8">
             <PremiumStat label="Forms" value={String(forms.length)} detail="Saved portal submissions" />
             <PremiumStat label="Submitted" value={String(submittedForms)} detail="Forms turned in" />
             <PremiumStat label="Signed" value={String(signedForms)} detail="Signature records on file" />
@@ -353,17 +353,17 @@ export default function PortalDocumentsPage() {
         </div>
       </section>
 
-      {statusText ? <div className="text-sm font-semibold text-[#8b6b4d]">{statusText}</div> : null}
+      {statusText ? <div className="text-sm font-semibold text-slate-300">{statusText}</div> : null}
 
       <section className="grid grid-cols-1 gap-8 xl:grid-cols-12">
         <div className="space-y-8 xl:col-span-8">
-          <div className="rounded-[30px] border border-[#dccab7] bg-white p-7 shadow-[0_16px_40px_rgba(74,51,33,0.08)]">
+          <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.9)_0%,rgba(15,23,42,0.72)_100%)] p-7 shadow-[0_20px_50px_rgba(2,6,23,0.3)]">
             <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <div>
-                <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#9c7b58]">
+                <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
                   Forms
                 </div>
-                <h2 className="mt-3 font-serif text-3xl font-bold text-[#3b271b]">
+                <h2 className="mt-3 font-serif text-3xl font-bold text-white">
                   Portal submissions and signature history
                 </h2>
               </div>
@@ -372,17 +372,17 @@ export default function PortalDocumentsPage() {
             <div className="mt-6 space-y-4">
               {recentForms.length ? (
                 recentForms.map((form) => (
-                  <div key={form.id} className="rounded-[24px] border border-[#e5d7c8] bg-[#fcf9f5] p-5">
+                  <div key={form.id} className="rounded-[24px] border border-white/10 bg-white/5 p-5">
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <span className="rounded-full border border-[#dccab7] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#7f5f42]">
+                      <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">
                         {toLabel(form.status)}
                       </span>
-                      <div className="text-xs font-semibold text-[#8b6b4d]">
+                      <div className="text-xs font-semibold text-slate-400">
                         {fmtDate(form.updated_at || form.created_at || "")}
                       </div>
                     </div>
 
-                    <div className="mt-4 text-xl font-black text-[#342116]">
+                    <div className="mt-4 text-xl font-black text-white">
                       {form.form_title || toLabel(form.form_key)}
                     </div>
 
@@ -394,51 +394,51 @@ export default function PortalDocumentsPage() {
                     </div>
 
                     {form.signed_name ? (
-                      <div className="mt-4 rounded-[18px] border border-[#e2d2c0] bg-white px-4 py-3 text-sm font-semibold text-[#6f5037]">
+                      <div className="mt-4 rounded-[18px] border border-white/10 bg-slate-950/35 px-4 py-3 text-sm font-semibold text-slate-200">
                         Signed by {form.signed_name}
                       </div>
                     ) : null}
                   </div>
                 ))
               ) : (
-                <div className="rounded-[24px] border border-dashed border-[#e5d7c8] bg-[#fcf8f3] py-14 text-center text-sm font-semibold italic text-[#9e8164]">
+                <div className="rounded-[24px] border border-dashed border-white/10 bg-white/4 py-14 text-center text-sm font-semibold italic text-slate-400">
                   No saved form submissions were found yet.
                 </div>
               )}
             </div>
           </div>
 
-          <div className="rounded-[30px] border border-[#dccab7] bg-white p-7 shadow-[0_16px_40px_rgba(74,51,33,0.08)]">
-            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#9c7b58]">
+          <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.9)_0%,rgba(15,23,42,0.72)_100%)] p-7 shadow-[0_20px_50px_rgba(2,6,23,0.3)]">
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
               Shared Records
             </div>
-            <h2 className="mt-3 font-serif text-3xl font-bold text-[#3b271b]">
+            <h2 className="mt-3 font-serif text-3xl font-bold text-white">
               Portal documents
             </h2>
 
             <div className="mt-6 space-y-4">
               {documents.length ? (
                 documents.map((doc) => (
-                  <div key={doc.id} className="rounded-[24px] border border-[#e5d7c8] bg-[#fcf9f5] p-5">
+                  <div key={doc.id} className="rounded-[24px] border border-white/10 bg-white/5 p-5">
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="text-lg font-black text-[#342116]">{doc.title || "Portal Document"}</div>
-                      <span className="rounded-full border border-[#dccab7] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#7f5f42]">
+                      <div className="text-lg font-black text-white">{doc.title || "Portal Document"}</div>
+                      <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">
                         {toLabel(doc.category || doc.status || doc.source_table || "document")}
                       </span>
                     </div>
 
                     {doc.description ? (
-                      <div className="mt-2 text-sm font-semibold leading-7 text-[#6f5037]">{doc.description}</div>
+                      <div className="mt-2 text-sm font-semibold leading-7 text-slate-300">{doc.description}</div>
                     ) : null}
 
-                    <div className="mt-4 flex flex-wrap items-center gap-3 text-xs font-semibold text-[#8b6b4d]">
+                    <div className="mt-4 flex flex-wrap items-center gap-3 text-xs font-semibold text-slate-400">
                       <span>{doc.created_at ? fmtDate(doc.created_at) : "Date unavailable"}</span>
                       {doc.file_name ? <span>{doc.file_name}</span> : null}
                     </div>
                   </div>
                 ))
               ) : (
-                <div className="rounded-[24px] border border-dashed border-[#e5d7c8] bg-[#fcf8f3] py-14 text-center text-sm font-semibold italic text-[#9e8164]">
+                <div className="rounded-[24px] border border-dashed border-white/10 bg-white/4 py-14 text-center text-sm font-semibold italic text-slate-400">
                   No portal documents are available yet.
                 </div>
               )}
@@ -447,8 +447,8 @@ export default function PortalDocumentsPage() {
         </div>
 
         <div className="space-y-6 xl:col-span-4">
-          <div className="rounded-[30px] border border-[#dccab7] bg-white p-7 shadow-[0_16px_40px_rgba(74,51,33,0.08)]">
-            <h3 className="font-serif text-2xl font-bold text-[#3b271b]">Account Snapshot</h3>
+          <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.9)_0%,rgba(15,23,42,0.72)_100%)] p-7 shadow-[0_20px_50px_rgba(2,6,23,0.3)]">
+            <h3 className="font-serif text-2xl font-bold text-white">Account Snapshot</h3>
             <div className="mt-5 space-y-3">
               <InfoTile label="Family" value={buyer?.full_name || buyer?.name || "Portal Family"} />
               <InfoTile label="Application Status" value={toLabel(application?.status || "pending")} />
@@ -457,8 +457,8 @@ export default function PortalDocumentsPage() {
             </div>
           </div>
 
-          <div className="rounded-[30px] border border-[#dccab7] bg-white p-7 shadow-[0_16px_40px_rgba(74,51,33,0.08)]">
-            <h3 className="font-serif text-2xl font-bold text-[#3b271b]">What belongs here</h3>
+          <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.9)_0%,rgba(15,23,42,0.72)_100%)] p-7 shadow-[0_20px_50px_rgba(2,6,23,0.3)]">
+            <h3 className="font-serif text-2xl font-bold text-white">What belongs here</h3>
             <div className="mt-5 space-y-3">
               <FeatureCard title="Signed Agreements" desc="Versioned forms, signature dates, and status history stay together in one place." />
               <FeatureCard title="Shared Records" desc="Client-facing files from your portal can appear here as they are prepared and published." />
@@ -481,10 +481,10 @@ function PremiumStat({
   detail: string;
 }) {
   return (
-    <div className="rounded-[26px] border border-[#e2d4c6] bg-white p-5 shadow-[0_14px_30px_rgba(74,51,33,0.06)]">
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">{label}</div>
-      <div className="mt-3 font-serif text-3xl font-bold text-[#342116]">{value}</div>
-      <div className="mt-2 text-sm font-semibold leading-6 text-[#8b6b4d]">{detail}</div>
+    <div className="rounded-[26px] border border-white/10 bg-white/5 p-5 shadow-[0_20px_44px_rgba(2,6,23,0.26)]">
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{label}</div>
+      <div className="mt-3 font-serif text-3xl font-bold text-white">{value}</div>
+      <div className="mt-2 text-sm font-semibold leading-6 text-slate-300">{detail}</div>
     </div>
   );
 }
@@ -492,26 +492,26 @@ function PremiumStat({
 function InfoLine({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">{label}</div>
-      <div className="mt-1 text-sm font-semibold text-[#6f5037]">{value}</div>
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{label}</div>
+      <div className="mt-1 text-sm font-semibold text-slate-200">{value}</div>
     </div>
   );
 }
 
 function InfoTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4">
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">{label}</div>
-      <div className="mt-1 text-sm font-semibold text-[#342116]">{value}</div>
+    <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{label}</div>
+      <div className="mt-1 text-sm font-semibold text-white">{value}</div>
     </div>
   );
 }
 
 function FeatureCard({ title, desc }: { title: string; desc: string }) {
   return (
-    <div className="rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4">
-      <div className="text-sm font-black text-[#342116]">{title}</div>
-      <div className="mt-1 text-[12px] font-semibold leading-6 text-[#8d6f52]">{desc}</div>
+    <div className="rounded-[22px] border border-white/10 bg-white/5 p-4">
+      <div className="text-sm font-black text-white">{title}</div>
+      <div className="mt-1 text-[12px] font-semibold leading-6 text-slate-300">{desc}</div>
     </div>
   );
 }
