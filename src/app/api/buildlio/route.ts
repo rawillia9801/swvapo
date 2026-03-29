@@ -2442,6 +2442,19 @@ async function saveConversation(params: {
   let activeThreadId = threadId || null;
 
   if (!activeThreadId) {
+    const { data: existingThread } = await admin
+      .from("chichi_threads")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("source", "portal")
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<{ id: string }>();
+
+    activeThreadId = existingThread?.id || null;
+  }
+
+  if (!activeThreadId) {
     const { data: newThread, error: threadError } = await admin
       .from("chichi_threads")
       .insert({
@@ -2499,12 +2512,105 @@ async function saveConversation(params: {
   return activeThreadId;
 }
 
+async function loadSavedConversation(
+  admin: SupabaseClient,
+  userId: string,
+  threadId?: string | null
+): Promise<ChatMessage[]> {
+  let activeThreadId = threadId || null;
+
+  if (!activeThreadId) {
+    const { data: latestThread } = await admin
+      .from("chichi_threads")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("source", "portal")
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<{ id: string }>();
+
+    activeThreadId = latestThread?.id || null;
+  }
+
+  if (!activeThreadId) return [];
+
+  const { data, error } = await admin
+    .from("chichi_messages")
+    .select("sender,content")
+    .eq("thread_id", activeThreadId)
+    .order("created_at", { ascending: true })
+    .limit(40);
+
+  if (error || !data) return [];
+
+  return data
+    .filter((row) => row.sender === "user" || row.sender === "assistant")
+    .map((row) => ({
+      role: row.sender === "user" ? "user" : "assistant",
+      content: String(row.content || ""),
+    }));
+}
+
+async function loadSharedPublicHistory(
+  admin: SupabaseClient,
+  email: string | null | undefined
+): Promise<ChatMessage[]> {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  if (!normalizedEmail) return [];
+
+  const { data: lead } = await admin
+    .from("crm_leads")
+    .select("thread_id,updated_at")
+    .eq("email", normalizedEmail)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ thread_id: string | null }>();
+
+  if (!lead?.thread_id) return [];
+
+  const { data, error } = await admin
+    .from("chichi_public_messages")
+    .select("sender,content")
+    .eq("thread_id", lead.thread_id)
+    .order("created_at", { ascending: true })
+    .limit(20);
+
+  if (error || !data) return [];
+
+  return data
+    .filter((row) => row.sender === "visitor" || row.sender === "assistant")
+    .map((row) => ({
+      role: row.sender === "visitor" ? "user" : "assistant",
+      content: String(row.content || ""),
+    }));
+}
+
+function mergeConversationHistory(...sources: ChatMessage[][]): ChatMessage[] {
+  const merged: ChatMessage[] = [];
+  const seen = new Set<string>();
+
+  for (const source of sources) {
+    for (const message of source) {
+      const role = message.role === "assistant" ? "assistant" : "user";
+      const content = String(message.content || "").trim();
+      if (!content) continue;
+
+      const key = `${role}:${content}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push({ role, content });
+    }
+  }
+
+  return merged.slice(-40);
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as RequestBody;
-    const messages = Array.isArray(body.messages) ? body.messages : [];
+    const inputMessages = Array.isArray(body.messages) ? body.messages : [];
     const lastUserMessage =
-      [...messages].reverse().find((message) => message.role === "user")?.content?.trim() || "";
+      [...inputMessages].reverse().find((message) => message.role === "user")?.content?.trim() || "";
 
     if (!lastUserMessage) {
       return jsonError("Please enter a message for ChiChi.", 400);
@@ -2520,6 +2626,13 @@ export async function POST(req: Request) {
     }
 
     const admin = createServiceSupabase();
+    const savedMessages = await loadSavedConversation(admin, user.id, body.threadId);
+    const sharedPublicMessages = await loadSharedPublicHistory(admin, user.email);
+    const messages = mergeConversationHistory(
+      sharedPublicMessages,
+      savedMessages,
+      inputMessages
+    );
     const buyer = await getBuyerContext(admin, user.id);
     const puppy = await getPuppyContext(admin, buyer);
 

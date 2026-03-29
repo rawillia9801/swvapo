@@ -95,6 +95,17 @@ type QuickAction = {
   icon: React.ReactNode;
 };
 
+const DEFAULT_CHICHI_MESSAGE: ChatMessage = {
+  id: makeId("assistant"),
+  role: "assistant",
+  text: "Hi, I'm your personal ChiChi Assistant. Ask me about your account, payments, messages, documents, puppy updates, or general Chihuahua questions anytime.",
+  createdAt: formatTime(),
+};
+
+function getChiChiStorageKey(userId: string | undefined, suffix: string) {
+  return userId ? `chichi:${userId}:${suffix}` : null;
+}
+
 function makeId(prefix = "msg") {
   return `${prefix}-${Math.random().toString(36).slice(2)}-${Date.now()}`;
 }
@@ -164,14 +175,7 @@ export default function PortalLayout({
     canWriteCore?: boolean;
   } | null>(null);
 
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: makeId("assistant"),
-      role: "assistant",
-      text: "Hi, I'm your personal ChiChi Assistant. Ask me about your account, payments, messages, documents, puppy updates, or general Chihuahua questions anytime.",
-      createdAt: formatTime(),
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([DEFAULT_CHICHI_MESSAGE]);
 
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -209,6 +213,62 @@ export default function PortalLayout({
   useEffect(() => {
     setIsDrawerOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setThreadId(null);
+      setAdminAuth(null);
+      setMessages([DEFAULT_CHICHI_MESSAGE]);
+      return;
+    }
+
+    try {
+      const savedThreadId = localStorage.getItem(getChiChiStorageKey(user.id, "thread") || "");
+      const savedAdminAuth = localStorage.getItem(getChiChiStorageKey(user.id, "admin") || "");
+      const savedMessages = localStorage.getItem(getChiChiStorageKey(user.id, "messages") || "");
+
+      if (savedThreadId) setThreadId(savedThreadId);
+
+      if (savedAdminAuth) {
+        setAdminAuth(JSON.parse(savedAdminAuth));
+      }
+
+      if (savedMessages) {
+        const parsed = JSON.parse(savedMessages) as ChatMessage[];
+        if (Array.isArray(parsed) && parsed.length) {
+          setMessages(parsed);
+        }
+      }
+    } catch (error) {
+      console.error("Could not restore ChiChi history:", error);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    try {
+      const threadKey = getChiChiStorageKey(user.id, "thread");
+      const messagesKey = getChiChiStorageKey(user.id, "messages");
+      const adminKey = getChiChiStorageKey(user.id, "admin");
+
+      if (threadKey) {
+        if (threadId) localStorage.setItem(threadKey, threadId);
+        else localStorage.removeItem(threadKey);
+      }
+
+      if (messagesKey) {
+        localStorage.setItem(messagesKey, JSON.stringify(messages));
+      }
+
+      if (adminKey) {
+        if (adminAuth) localStorage.setItem(adminKey, JSON.stringify(adminAuth));
+        else localStorage.removeItem(adminKey);
+      }
+    } catch (error) {
+      console.error("Could not persist ChiChi history:", error);
+    }
+  }, [adminAuth, messages, threadId, user?.id]);
 
   useEffect(() => {
     if (isChiChiOpen) {
@@ -434,7 +494,7 @@ export default function PortalLayout({
           ? "Help and Support"
           : "Portal");
 
-  const hasAdminUi = isPortalAdminEmail(user?.email);
+  const hasAdminUi = isPortalAdminEmail(user?.email) || !!adminAuth?.canWriteCore;
 
   const coreActions: QuickAction[] = [
     {
@@ -871,6 +931,15 @@ export default function PortalLayout({
                         >
                           Help and Support
                         </Link>
+                        {hasAdminUi ? (
+                          <Link
+                            href="/admin/portal"
+                            onClick={() => setIsUserMenuOpen(false)}
+                            className="block rounded-[1rem] border border-[#eadfce] bg-[#fff7ef] px-4 py-3 text-sm font-semibold transition hover:bg-white"
+                          >
+                            Open Admin Portal
+                          </Link>
+                        ) : null}
                         <button
                           type="button"
                           onClick={() => {

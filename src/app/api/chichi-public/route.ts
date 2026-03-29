@@ -682,6 +682,102 @@ async function loadThreadHistory(
     }));
 }
 
+async function resolveKnownLeadEmail(
+  admin: SupabaseClient,
+  visitorId: string,
+  explicitEmail: string | null
+): Promise<string | null> {
+  if (explicitEmail) return explicitEmail.toLowerCase();
+
+  const { data: existingLead } = await admin
+    .from("crm_leads")
+    .select("email")
+    .eq("visitor_id", visitorId)
+    .not("email", "is", null)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ email: string | null }>();
+
+  return existingLead?.email ? String(existingLead.email).trim().toLowerCase() : null;
+}
+
+async function loadLinkedPortalHistory(
+  admin: SupabaseClient,
+  email: string | null
+): Promise<{ role: ChatRole; content: string }[]> {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  if (!normalizedEmail) return [];
+
+  const [buyerRes, appRes] = await Promise.all([
+    admin
+      .from("buyers")
+      .select("user_id")
+      .or(`email.ilike.${normalizedEmail},buyer_email.ilike.${normalizedEmail}`)
+      .not("user_id", "is", null)
+      .limit(1)
+      .maybeSingle<{ user_id: string | null }>(),
+    admin
+      .from("puppy_applications")
+      .select("user_id")
+      .or(`email.ilike.${normalizedEmail},applicant_email.ilike.${normalizedEmail}`)
+      .not("user_id", "is", null)
+      .limit(1)
+      .maybeSingle<{ user_id: string | null }>(),
+  ]);
+
+  const userId = buyerRes.data?.user_id || appRes.data?.user_id || null;
+  if (!userId) return [];
+
+  const { data: thread } = await admin
+    .from("chichi_threads")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("source", "portal")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ id: string }>();
+
+  if (!thread?.id) return [];
+
+  const { data, error } = await admin
+    .from("chichi_messages")
+    .select("sender,content")
+    .eq("thread_id", thread.id)
+    .order("created_at", { ascending: true })
+    .limit(20);
+
+  if (error || !data) return [];
+
+  return data
+    .filter((row) => row.sender === "user" || row.sender === "assistant")
+    .map((row) => ({
+      role: row.sender === "user" ? "user" : "assistant",
+      content: String(row.content || ""),
+    }));
+}
+
+function mergeHistory(
+  ...sources: Array<{ role: ChatRole; content: string }[]>
+): { role: ChatRole; content: string }[] {
+  const merged: { role: ChatRole; content: string }[] = [];
+  const seen = new Set<string>();
+
+  for (const source of sources) {
+    for (const message of source) {
+      const role = message.role === "assistant" ? "assistant" : "user";
+      const content = String(message.content || "").trim();
+      if (!content) continue;
+
+      const key = `${role}:${content}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push({ role, content });
+    }
+  }
+
+  return merged.slice(-30);
+}
+
 async function insertMessage(
   admin: SupabaseClient,
   params: {
@@ -947,6 +1043,7 @@ export async function POST(req: Request) {
     const visitor = await findOrCreateVisitor(admin, req, body);
     const thread = await findOrCreateThread(admin, visitor.id, body);
     const analysis = analyzeLead(message);
+    const linkedEmail = await resolveKnownLeadEmail(admin, visitor.id, analysis.email);
 
     await insertMessage(admin, {
       threadId: thread.id,
@@ -964,6 +1061,9 @@ export async function POST(req: Request) {
       body.history && body.history.length > 0
         ? body.history
         : await loadThreadHistory(admin, thread.id);
+
+    const linkedPortalHistory = await loadLinkedPortalHistory(admin, linkedEmail);
+    conversationHistory = mergeHistory(linkedPortalHistory, conversationHistory);
 
     const lastInHistory = conversationHistory[conversationHistory.length - 1];
     if (!lastInHistory || lastInHistory.role !== "user" || lastInHistory.content !== message) {
