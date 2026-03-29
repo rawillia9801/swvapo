@@ -85,6 +85,24 @@ type PickupRow = {
   user_id?: string | null;
 };
 
+type AdminDigestRow = {
+  id: number;
+  digest_date: string;
+  summary: string;
+  stats?: {
+    threadCount?: number;
+    newLeads?: number;
+    warmLeads?: number;
+    hotLeads?: number;
+    sharedContacts?: number;
+    openFollowUps?: number;
+    topTopics?: string[];
+    recentBusinessMemory?: string[];
+  } | null;
+  priorities?: string[] | null;
+  generated_at?: string | null;
+};
+
 type AdminOverviewData = {
   buyerCount: number;
   applicationCount: number;
@@ -105,6 +123,7 @@ type AdminOverviewData = {
   recentMessages: MessageRow[];
   recentForms: FormRow[];
   recentPickups: PickupRow[];
+  latestDigest: AdminDigestRow | null;
 };
 
 type NavItem = {
@@ -135,6 +154,7 @@ function emptyData(): AdminOverviewData {
     recentMessages: [],
     recentForms: [],
     recentPickups: [],
+    latestDigest: null,
   };
 }
 
@@ -309,6 +329,42 @@ export default function AdminPortalPage() {
               <KpiCard title="Transportation" value={String(data.pickupCount)} helper={`${data.pendingPickupCount} pending requests`} icon={<MapPinned className="h-5 w-5" />} />
             </section>
 
+            <section className="mt-6 rounded-[30px] border border-fuchsia-400/20 bg-[linear-gradient(135deg,rgba(25,18,48,0.94),rgba(11,21,42,0.94))] p-6 shadow-[0_24px_90px_rgba(0,0,0,0.28)] md:p-7">
+              <SectionHeader eyebrow="ChiChi Daily Brief" title="Daily admin update" linkHref="/admin/portal/assistant" linkLabel="Open ChiChi Admin" inverted />
+              {data.latestDigest ? (
+                <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.9fr)]">
+                  <div className="rounded-[24px] border border-white/10 bg-black/10 p-5">
+                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-fuchsia-200">
+                      {fmtDate(data.latestDigest.digest_date)} brief
+                    </div>
+                    <div className="mt-3 text-base leading-8 text-white">
+                      {data.latestDigest.summary}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <MiniStat label="Chats" value={String(data.latestDigest.stats?.threadCount || 0)} />
+                    <MiniStat label="New Leads" value={String(data.latestDigest.stats?.newLeads || 0)} />
+                    <MiniStat label="Warm / Hot" value={`${data.latestDigest.stats?.warmLeads || 0} / ${data.latestDigest.stats?.hotLeads || 0}`} />
+                    <MiniStat label="Open Followups" value={String(data.latestDigest.stats?.openFollowUps || 0)} />
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-5">
+                  <EmptyState text="No ChiChi daily brief has been generated yet." />
+                </div>
+              )}
+
+              {data.latestDigest?.priorities?.length ? (
+                <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {data.latestDigest.priorities.map((item) => (
+                    <div key={item} className="rounded-[22px] border border-white/10 bg-white/5 px-4 py-4 text-sm leading-7 text-slate-200">
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </section>
+
             <section className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-12">
               <div className="xl:col-span-7 rounded-[30px] border border-white/10 bg-white/5 p-6 shadow-[0_20px_90px_rgba(0,0,0,0.25)] md:p-7">
                 <SectionHeader eyebrow="Admin Priorities" title="What needs attention" linkHref="/admin/portal/users" linkLabel="Open Users" />
@@ -438,7 +494,7 @@ export default function AdminPortalPage() {
 async function loadOverviewData(): Promise<AdminOverviewData> {
   const nextData = emptyData();
 
-  const [buyersRes, appsRes, puppiesRes, messagesRes, formsRes, pickupsRes, paymentsRes] = await Promise.all([
+  const [buyersRes, appsRes, puppiesRes, messagesRes, formsRes, pickupsRes, paymentsRes, digestRes] = await Promise.all([
     sb.from("buyers").select("id,created_at,full_name,name,email,buyer_email,phone,status,user_id").order("created_at", { ascending: false }).limit(8),
     sb.from("puppy_applications").select("id,created_at,full_name,email,applicant_email,status,assigned_puppy_id,user_id").order("created_at", { ascending: false }).limit(8),
     sb.from("puppies").select("id,created_at,call_name,puppy_name,name,status,buyer_id,owner_email").order("created_at", { ascending: false }).limit(8),
@@ -446,6 +502,7 @@ async function loadOverviewData(): Promise<AdminOverviewData> {
     sb.from("portal_form_submissions").select("id,created_at,form_key,form_title,status,user_email,signed_name,submitted_at").order("created_at", { ascending: false }).limit(8),
     sb.from("portal_pickup_requests").select("id,created_at,request_date,request_type,location_text,status,user_id").order("created_at", { ascending: false }).limit(8),
     sb.from("buyer_payments").select("id,amount").limit(500),
+    sb.from("chichi_admin_digests").select("id,digest_date,summary,stats,priorities,generated_at").order("digest_date", { ascending: false }).limit(1).maybeSingle(),
   ]);
 
   const buyers = (buyersRes.data || []) as BuyerRow[];
@@ -455,6 +512,7 @@ async function loadOverviewData(): Promise<AdminOverviewData> {
   const forms = (formsRes.data || []) as FormRow[];
   const pickups = (pickupsRes.data || []) as PickupRow[];
   const payments = (paymentsRes.data || []) as Array<{ amount?: number | null }>;
+  const latestDigest = (digestRes.data as AdminDigestRow | null) || null;
 
   nextData.recentBuyers = buyers;
   nextData.recentApplications = applications;
@@ -462,6 +520,7 @@ async function loadOverviewData(): Promise<AdminOverviewData> {
   nextData.recentMessages = messages;
   nextData.recentForms = forms;
   nextData.recentPickups = pickups;
+  nextData.latestDigest = latestDigest;
 
   nextData.buyerCount = await getCount("buyers");
   nextData.applicationCount = await getCount("puppy_applications");

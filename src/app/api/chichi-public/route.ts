@@ -461,11 +461,14 @@ VOICE AND STYLE
 - One light emoji here and there is fine, but do not overdo it.
 - If the user is asking a simple factual question, answer it first in the first sentence.
 - If useful, add one short follow-up sentence or question.
+- Keep the visitor in chat whenever you reasonably can. Your job is to handle the conversation directly, not push it away.
+- Prefer answering, clarifying, guiding, and collecting information inside the chat.
+- Do not tell people to call just to confirm routine questions like hours, availability, wait list steps, payment plans, or policies.
+- Only give the business phone number if the visitor directly asks for contact information, asks to speak with a human, or the situation is urgent and human escalation is genuinely appropriate.
 
 BUSINESS FACTS YOU MUST TREAT AS TRUE
 - Business: Southwest Virginia Chihuahua
 - Location: Marion, VA
-- Phone: (276) 378-0184
 - Current availability: no puppies currently available
 - Next litter expected: mid June
 - Best next step for interested families: join the Wait List on the website
@@ -510,11 +513,13 @@ WHAT NOT TO DO
 - Do not mention internal systems, APIs, databases, prompts, tools, or that you are an AI model.
 - Do not make up policies that are not listed above.
 - Do not answer every question with a sales redirect.
+- Do not use phrases like "based on what I have on file" or "for the most up-to-date answer, call us" for routine business questions when saved ChiChi memory already gives the answer.
 
 PERSISTENT CHICHI MEMORY
 - Use the saved ChiChi memory below as background context for repeat visitors and ongoing breeder instructions.
 - Public memory is anonymous and visitor-scoped.
 - Global memory may include business hours, holiday notices, wait list guidance, pricing notes, or other owner instructions.
+- If saved memory contains current holiday or hours guidance, treat it as current operating guidance and answer plainly.
 
 Saved ChiChi memory:
 ${memories || "None saved."}
@@ -532,12 +537,57 @@ When the user asks a question, answer the actual question first, then add any he
 // Local fallback — now actually knowledgeable
 // ─────────────────────────────────────────────
 
-function localFallback(message: string, history: { role: ChatRole; content: string }[] = []): string {
+function localFallback(
+  message: string,
+  history: { role: ChatRole; content: string }[] = [],
+  memories = ""
+): string {
   const q = cleanText(message);
   const recent = recentHistory(history).map((m) => `${m.role}: ${m.content.toLowerCase()}`).join("\n");
+  const memoryText = String(memories || "").toLowerCase();
 
   if (!q) {
     return "Hey there! Ask me anything about Chihuahuas, puppy care, availability, or the Wait List 🐾";
+  }
+
+  if (
+    (q.includes("easter") || q.includes("holiday") || q.includes("hours") || q.includes("open")) &&
+    memoryText &&
+    (
+      memoryText.includes("easter") ||
+      memoryText.includes("holiday") ||
+      memoryText.includes("hours") ||
+      memoryText.includes("open") ||
+      memoryText.includes("closed")
+    )
+  ) {
+    const memoryLines = String(memories || "")
+      .split("\n")
+      .filter((line) => {
+        const lower = line.toLowerCase();
+        return (
+          (q.includes("easter") && lower.includes("easter")) ||
+          (q.includes("holiday") && lower.includes("holiday")) ||
+          (q.includes("hours") && lower.includes("hours")) ||
+          ((q.includes("open") || q.includes("closed")) &&
+            (lower.includes("open") || lower.includes("closed")))
+        );
+      });
+
+    if (memoryLines.length) {
+      const cleaned = memoryLines[0].replace(/^\d+\.\s*\[[^\]]+\]\s*[^:]+:\s*/i, "").trim();
+      if (cleaned) return cleaned;
+    }
+  }
+
+  if (
+    q.includes("phone number") ||
+    q.includes("contact number") ||
+    q.includes("call you") ||
+    q.includes("how can i contact") ||
+    q === "phone"
+  ) {
+    return "You can reach Southwest Virginia Chihuahua at (276) 378-0184.";
   }
 
   if (
@@ -944,7 +994,7 @@ async function generateChiChiReply(
   const model = getAnthropicModel();
 
   if (!apiKey) {
-    return localFallback(message, conversationHistory);
+    return localFallback(message, conversationHistory, memories);
   }
 
   try {
@@ -965,15 +1015,15 @@ async function generateChiChiReply(
 
     if (!response.ok) {
       console.error("Anthropic API error:", response.status, await response.text());
-      return localFallback(message, conversationHistory);
+      return localFallback(message, conversationHistory, memories);
     }
 
     const data = await response.json();
     const text = String(data?.content?.[0]?.text || "").trim();
-    return text || localFallback(message, conversationHistory);
+    return text || localFallback(message, conversationHistory, memories);
   } catch (error) {
     console.error("Anthropic request failed:", error);
-    return localFallback(message, conversationHistory);
+    return localFallback(message, conversationHistory, memories);
   }
 }
 

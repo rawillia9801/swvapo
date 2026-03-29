@@ -643,7 +643,7 @@ function extractAdminMemoryCommand(message: string): MemoryCommand | null {
       action: "save",
       scope: "global",
       content: content || text,
-      subject: "Owner instruction",
+      subject: null,
     };
   }
 
