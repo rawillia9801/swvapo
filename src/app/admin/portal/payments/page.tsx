@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { sb, fmtMoney, fmtDate } from "@/lib/utils";
+import { getPortalAdminEmails, isPortalAdminEmail } from "@/lib/portal-admin";
 
 type BuyerRow = {
   id: number;
@@ -486,6 +488,32 @@ export default function AdminPortalPaymentsPage() {
 
   if (!user) {
     return <AdminPaymentsLogin />;
+  }
+
+  if (!isPortalAdminEmail(user.email)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-brand-50 px-6 text-brand-900">
+        <div className="w-full max-w-[760px] rounded-[28px] border border-brand-200 bg-white p-8 shadow-paper">
+          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-rose-600">
+            Admin Access Restricted
+          </div>
+          <h1 className="mt-4 font-serif text-4xl font-bold text-brand-900">
+            This payments page is limited to the approved owner accounts.
+          </h1>
+          <p className="mt-4 text-sm font-semibold leading-7 text-brand-500">
+            Allowed emails: {getPortalAdminEmails().join(" • ")}
+          </p>
+          <div className="mt-6">
+            <Link
+              href="/portal"
+              className="inline-flex items-center rounded-[18px] border border-brand-200 bg-white px-5 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-brand-700 transition hover:bg-brand-50"
+            >
+              Return to Buyer Portal
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

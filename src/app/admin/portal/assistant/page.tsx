@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { sb } from "@/lib/utils";
+import { getPortalAdminEmails, isPortalAdminEmail } from "@/lib/portal-admin";
 
 type ChatMessage = {
   id: string;
@@ -194,6 +195,40 @@ export default function AdminPortalAssistantPage() {
     return <AdminAssistantLogin />;
   }
 
+  if (!isPortalAdminEmail(user.email)) {
+    return (
+      <div className="min-h-screen bg-brand-50 text-brand-900">
+        <main className="min-h-screen bg-texturePaper">
+          <div className="mx-auto flex min-h-screen w-full max-w-[1100px] items-center justify-center px-6 py-10">
+            <div className="w-full max-w-[760px] rounded-[32px] border border-brand-200 bg-white/90 p-8 shadow-paper md:p-10">
+              <div className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-[10px] font-black uppercase tracking-[0.22em] text-rose-700">
+                Admin Access Restricted
+              </div>
+              <h1 className="mt-5 font-serif text-4xl font-bold leading-[0.96] text-brand-900">
+                This admin console is limited to approved owner accounts.
+              </h1>
+              <p className="mt-4 text-sm font-semibold leading-7 text-brand-500 md:text-base">
+                Sign in with one of the approved owner email addresses to access buyer,
+                puppy, payment, forms, and portal administration.
+              </p>
+              <div className="mt-5 rounded-[24px] border border-brand-200 bg-brand-50 p-5 text-sm font-semibold leading-7 text-brand-700">
+                Allowed emails: {getPortalAdminEmails().join(" • ")}
+              </div>
+              <div className="mt-6">
+                <Link
+                  href="/portal"
+                  className="inline-flex items-center gap-2 rounded-[18px] border border-brand-200 bg-white px-5 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-brand-700 transition hover:bg-brand-50"
+                >
+                  Return to Buyer Portal
+                </Link>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-brand-50 text-brand-900">
       <main className="min-h-screen bg-texturePaper">
@@ -217,13 +252,12 @@ export default function AdminPortalAssistantPage() {
                   </h1>
 
                   <p className="mt-3 max-w-3xl text-sm font-semibold leading-7 text-brand-500 md:text-base">
-                    Type natural admin commands to create buyers and puppies, log or edit payments,
-                    and add puppy weights without leaving the portal.
+                    Type natural admin commands to manage buyers, puppies, payments, portal
+                    updates, forms, and account records without leaving the portal.
                   </p>
                   <p className="mt-2 max-w-3xl text-xs font-semibold leading-6 text-brand-400 md:text-sm">
-                    This admin UI is always available to signed-in staff. If a command is refused,
-                    that means the server-side Core admin permission list still needs your account
-                    added.
+                    This console is restricted to the approved owner accounts for Southwest
+                    Virginia Chihuahua.
                   </p>
                 </div>
 

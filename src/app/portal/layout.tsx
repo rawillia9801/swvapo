@@ -27,6 +27,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { sb } from "@/lib/utils";
+import { isPortalAdminEmail } from "@/lib/portal-admin";
 
 type PortalUser = {
   id?: string;
@@ -433,7 +434,7 @@ export default function PortalLayout({
           ? "Help and Support"
           : "Portal");
 
-  const hasAdminUi = !!user?.id;
+  const hasAdminUi = isPortalAdminEmail(user?.email);
 
   const coreActions: QuickAction[] = [
     {

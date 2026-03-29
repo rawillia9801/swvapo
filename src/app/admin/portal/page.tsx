@@ -1,140 +1,182 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { sb, T, fmtMoney, fmtDate, buildPuppyPhotoUrl } from "@/lib/utils";
+import {
+  ArrowRight,
+  Banknote,
+  BellDot,
+  CreditCard,
+  Dog,
+  FileCheck2,
+  Files,
+  LayoutDashboard,
+  MapPinned,
+  MessageSquareText,
+  PawPrint,
+  ShieldCheck,
+  Users,
+} from "lucide-react";
+import { fmtDate, fmtMoney, sb } from "@/lib/utils";
+import { getPortalAdminEmails, isPortalAdminEmail } from "@/lib/portal-admin";
 
-type AdminTab =
-  | "overview"
-  | "families"
-  | "applications"
-  | "puppies"
-  | "messages"
-  | "documents"
-  | "financials"
-  | "resources"
-  | "settings";
-
-type DashboardStats = {
-  buyersCount: number;
-  applicationsCount: number;
-  pendingApplicationsCount: number;
-  puppiesCount: number;
-  assignedPuppiesCount: number;
-  messagesCount: number;
-  documentsCount: number;
-  revenuePotential: number;
+type BuyerRow = {
+  id: number;
+  created_at?: string | null;
+  full_name?: string | null;
+  name?: string | null;
+  email?: string | null;
+  buyer_email?: string | null;
+  phone?: string | null;
+  status?: string | null;
+  user_id?: string | null;
 };
 
-type DashboardData = {
-  stats: DashboardStats;
-  recentApplications: any[];
-  recentBuyers: any[];
-  recentMessages: any[];
-  recentPuppies: any[];
+type ApplicationRow = {
+  id: number;
+  created_at: string;
+  full_name?: string | null;
+  email?: string | null;
+  applicant_email?: string | null;
+  status?: string | null;
+  assigned_puppy_id?: number | null;
+  user_id?: string | null;
 };
 
-type AdminTabItem = {
-  id: AdminTab;
+type PuppyRow = {
+  id: number;
+  created_at?: string | null;
+  call_name?: string | null;
+  puppy_name?: string | null;
+  name?: string | null;
+  status?: string | null;
+  buyer_id?: number | null;
+  owner_email?: string | null;
+};
+
+type MessageRow = {
+  id: string;
+  created_at: string;
+  subject?: string | null;
+  user_email?: string | null;
+  sender?: string | null;
+  status?: string | null;
+  read_by_admin?: boolean | null;
+};
+
+type FormRow = {
+  id: number;
+  created_at: string;
+  form_key: string;
+  form_title?: string | null;
+  status: string;
+  user_email?: string | null;
+  signed_name?: string | null;
+  submitted_at?: string | null;
+};
+
+type PickupRow = {
+  id: number;
+  created_at?: string | null;
+  request_date?: string | null;
+  request_type?: string | null;
+  location_text?: string | null;
+  status?: string | null;
+  user_id?: string | null;
+};
+
+type AdminOverviewData = {
+  buyerCount: number;
+  applicationCount: number;
+  pendingApplicationCount: number;
+  puppyCount: number;
+  paymentCount: number;
+  messageCount: number;
+  unreadMessageCount: number;
+  formCount: number;
+  submittedFormCount: number;
+  pickupCount: number;
+  pendingPickupCount: number;
+  totalRevenue: number;
+  uniquePortalUsers: number;
+  recentBuyers: BuyerRow[];
+  recentApplications: ApplicationRow[];
+  recentPuppies: PuppyRow[];
+  recentMessages: MessageRow[];
+  recentForms: FormRow[];
+  recentPickups: PickupRow[];
+};
+
+type NavItem = {
+  href: string;
   label: string;
-  icon: string;
-  desc: string;
+  icon: React.ReactNode;
+  helper: string;
 };
 
-const ADMIN_TABS: AdminTabItem[] = [
-  {
-    id: "overview",
-    label: "Overview",
-    icon: "✨",
-    desc: "Main admin dashboard and portal snapshot",
-  },
-  {
-    id: "families",
-    label: "Families",
-    icon: "👨‍👩‍👧",
-    desc: "Buyers, families, and linked accounts",
-  },
-  {
-    id: "applications",
-    label: "Applications",
-    icon: "📝",
-    desc: "Review submitted applications and statuses",
-  },
-  {
-    id: "puppies",
-    label: "Puppies",
-    icon: "🐾",
-    desc: "Assignments, matches, statuses, and pupdates",
-  },
-  {
-    id: "messages",
-    label: "Messages",
-    icon: "💬",
-    desc: "Portal communication and breeder replies",
-  },
-  {
-    id: "documents",
-    label: "Documents",
-    icon: "📄",
-    desc: "Contracts, files, uploads, and portal paperwork",
-  },
-  {
-    id: "financials",
-    label: "Financials",
-    icon: "💳",
-    desc: "Prices, payment tracking, and balances",
-  },
-  {
-    id: "resources",
-    label: "Resources",
-    icon: "📚",
-    desc: "Portal resource center and educational content",
-  },
-  {
-    id: "settings",
-    label: "Settings",
-    icon: "⚙️",
-    desc: "Portal behavior, labels, and admin preferences",
-  },
-];
+function emptyData(): AdminOverviewData {
+  return {
+    buyerCount: 0,
+    applicationCount: 0,
+    pendingApplicationCount: 0,
+    puppyCount: 0,
+    paymentCount: 0,
+    messageCount: 0,
+    unreadMessageCount: 0,
+    formCount: 0,
+    submittedFormCount: 0,
+    pickupCount: 0,
+    pendingPickupCount: 0,
+    totalRevenue: 0,
+    uniquePortalUsers: 0,
+    recentBuyers: [],
+    recentApplications: [],
+    recentPuppies: [],
+    recentMessages: [],
+    recentForms: [],
+    recentPickups: [],
+  };
+}
 
-function statusPill(statusRaw: any) {
-  const raw = String(statusRaw || "").trim();
-  const s = raw.toLowerCase();
+function normalizeEmail(value: string | null | undefined) {
+  return String(value || "").trim().toLowerCase();
+}
 
-  let cls = "bg-stone-100 text-stone-700 border border-stone-200";
-  let label = raw || "Pending";
+function statusTone(statusRaw: string | null | undefined) {
+  const status = String(statusRaw || "pending").trim().toLowerCase();
 
-  if (
-    ["approved", "complete", "completed", "matched", "active", "reserved"].some((x) =>
-      s.includes(x)
-    )
-  ) {
-    cls = "bg-emerald-50 text-emerald-700 border border-emerald-200";
-  } else if (
-    ["pending", "review", "processing", "await", "in progress", "submitted"].some((x) =>
-      s.includes(x)
-    )
-  ) {
-    cls = "bg-amber-50 text-amber-700 border border-amber-200";
-  } else if (["denied", "rejected", "cancel"].some((x) => s.includes(x))) {
-    cls = "bg-rose-50 text-rose-700 border border-rose-200";
+  if (["approved", "active", "matched", "submitted", "complete", "completed", "paid", "read"].some((item) => status.includes(item))) {
+    return "border-emerald-400/30 bg-emerald-500/10 text-emerald-200";
   }
 
-  return { cls, label };
+  if (["deny", "declined", "cancel", "rejected"].some((item) => status.includes(item))) {
+    return "border-rose-400/30 bg-rose-500/10 text-rose-200";
+  }
+
+  return "border-amber-400/30 bg-amber-500/10 text-amber-100";
+}
+
+function firstValue(...values: Array<string | null | undefined>) {
+  for (const value of values) {
+    const trimmed = String(value || "").trim();
+    if (trimmed) return trimmed;
+  }
+  return "";
+}
+
+function puppyName(row: PuppyRow) {
+  return firstValue(row.call_name, row.puppy_name, row.name, `Puppy #${row.id}`);
 }
 
 export default function AdminPortalPage() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{ id: string; email?: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<AdminTab>("overview");
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [search, setSearch] = useState("");
+  const [data, setData] = useState<AdminOverviewData>(emptyData);
 
   useEffect(() => {
     let mounted = true;
 
-    const init = async () => {
+    async function bootstrap() {
       try {
         const {
           data: { session },
@@ -145,15 +187,16 @@ export default function AdminPortalPage() {
         const currentUser = session?.user ?? null;
         setUser(currentUser);
 
-        if (currentUser) {
-          await loadDashboard();
+        if (currentUser && isPortalAdminEmail(currentUser.email)) {
+          const nextData = await loadOverviewData();
+          if (mounted) setData(nextData);
         }
       } finally {
         if (mounted) setLoading(false);
       }
-    };
+    }
 
-    init();
+    void bootstrap();
 
     const { data: authListener } = sb.auth.onAuthStateChange(async (_event, session) => {
       if (!mounted) return;
@@ -161,10 +204,10 @@ export default function AdminPortalPage() {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
 
-      if (currentUser) {
-        await loadDashboard();
+      if (currentUser && isPortalAdminEmail(currentUser.email)) {
+        setData(await loadOverviewData());
       } else {
-        setData(null);
+        setData(emptyData());
       }
 
       setLoading(false);
@@ -176,1035 +219,405 @@ export default function AdminPortalPage() {
     };
   }, []);
 
-  async function getCount(
-    tableName: string,
-    build?: (query: any) => any
-  ): Promise<number> {
-    try {
-      let q = sb.from(tableName).select("*", { count: "exact", head: true });
-      if (build) q = build(q);
-      const res = await q;
-      return res.error ? 0 : res.count || 0;
-    } catch {
-      return 0;
-    }
-  }
-
-  async function loadDashboard() {
-    const emptyStats: DashboardStats = {
-      buyersCount: 0,
-      applicationsCount: 0,
-      pendingApplicationsCount: 0,
-      puppiesCount: 0,
-      assignedPuppiesCount: 0,
-      messagesCount: 0,
-      documentsCount: 0,
-      revenuePotential: 0,
-    };
-
-    let stats = { ...emptyStats };
-    let recentApplications: any[] = [];
-    let recentBuyers: any[] = [];
-    let recentMessages: any[] = [];
-    let recentPuppies: any[] = [];
-
-    try {
-      stats.buyersCount = await getCount("buyers");
-
-      stats.applicationsCount = await getCount(T.applications);
-
-      stats.pendingApplicationsCount = await getCount(T.applications, (q) =>
-        q.or(
-          "status.ilike.%pending%,status.ilike.%review%,application_status.ilike.%pending%,application_status.ilike.%review%,application_status.ilike.%submitted%"
-        )
-      );
-
-      stats.puppiesCount = await getCount("puppies");
-
-      stats.assignedPuppiesCount = await getCount("puppies", (q) =>
-        q.or(
-          "status.ilike.%reserved%,status.ilike.%matched%,status.ilike.%active%,assignment_status.ilike.%matched%,assignment_status.ilike.%assigned%"
-        )
-      );
-
-      stats.messagesCount = await getCount(T.messages);
-
-      for (const tableName of ["documents", "portal_documents", "buyer_documents"]) {
-        const count = await getCount(tableName);
-        if (count > 0) {
-          stats.documentsCount = count;
-          break;
-        }
-      }
-
-      try {
-        const puppyRevenueRes = await sb
-          .from("puppies")
-          .select("price,total_price,adoption_fee")
-          .limit(500);
-
-        if (!puppyRevenueRes.error) {
-          stats.revenuePotential = (puppyRevenueRes.data || []).reduce((sum: number, row: any) => {
-            const value =
-              Number(row?.price || 0) ||
-              Number(row?.total_price || 0) ||
-              Number(row?.adoption_fee || 0) ||
-              0;
-            return sum + value;
-          }, 0);
-        }
-      } catch {
-        stats.revenuePotential = 0;
-      }
-
-      try {
-        const appsRes = await sb
-          .from(T.applications)
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(6);
-
-        if (!appsRes.error) recentApplications = appsRes.data || [];
-      } catch {
-        recentApplications = [];
-      }
-
-      try {
-        const buyersRes = await sb
-          .from("buyers")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(6);
-
-        if (!buyersRes.error) recentBuyers = buyersRes.data || [];
-      } catch {
-        recentBuyers = [];
-      }
-
-      try {
-        const messagesRes = await sb
-          .from(T.messages)
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(6);
-
-        if (!messagesRes.error) recentMessages = messagesRes.data || [];
-      } catch {
-        recentMessages = [];
-      }
-
-      try {
-        const puppiesRes = await sb
-          .from("puppies")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(6);
-
-        if (!puppiesRes.error) recentPuppies = puppiesRes.data || [];
-      } catch {
-        recentPuppies = [];
-      }
-    } catch {
-      // keep fallback values
-    }
-
-    setData({
-      stats,
-      recentApplications,
-      recentBuyers,
-      recentMessages,
-      recentPuppies,
-    });
-  }
-
-  const filteredTabs = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return ADMIN_TABS;
-    return ADMIN_TABS.filter(
-      (tab) =>
-        tab.label.toLowerCase().includes(q) ||
-        tab.desc.toLowerCase().includes(q)
-    );
-  }, [search]);
-
-  const activeTabMeta =
-    ADMIN_TABS.find((tab) => tab.id === activeTab) || ADMIN_TABS[0];
+  const navItems: NavItem[] = useMemo(
+    () => [
+      { href: "/admin/portal", label: "Overview", icon: <LayoutDashboard className="h-4 w-4" />, helper: "Portal command center" },
+      { href: "/admin/portal/users", label: "Users", icon: <Users className="h-4 w-4" />, helper: "Profiles, linked buyers, approvals" },
+      { href: "/admin/portal/applications", label: "Applications", icon: <FileCheck2 className="h-4 w-4" />, helper: "Review, approve, deny, assign" },
+      { href: "/admin/portal#puppies", label: "Puppies", icon: <Dog className="h-4 w-4" />, helper: "Assignments, statuses, pupdates" },
+      { href: "/admin/portal/payments", label: "Payments", icon: <CreditCard className="h-4 w-4" />, helper: "Balances, plans, payment updates" },
+      { href: "/admin/portal/messages", label: "Messages", icon: <MessageSquareText className="h-4 w-4" />, helper: "Client communication inbox" },
+      { href: "/admin/portal#forms", label: "Forms & Uploads", icon: <Files className="h-4 w-4" />, helper: "Submitted forms and document flow" },
+      { href: "/admin/portal#transportation", label: "Transportation", icon: <MapPinned className="h-4 w-4" />, helper: "Pickup, delivery, requests" },
+      { href: "/admin/portal/assistant", label: "ChiChi Admin", icon: <PawPrint className="h-4 w-4" />, helper: "Natural-language admin changes" },
+    ],
+    []
+  );
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-brand-50 text-brand-700 italic">
-        Loading admin portal...
-      </div>
-    );
+    return <div className="flex min-h-screen items-center justify-center bg-[#08111f] text-sm font-semibold text-slate-300">Loading admin portal...</div>;
   }
 
   if (!user) {
-    return <AdminLoginPrompt />;
+    return <AdminPortalLoginPrompt />;
   }
 
-  const stats = data?.stats || {
-    buyersCount: 0,
-    applicationsCount: 0,
-    pendingApplicationsCount: 0,
-    puppiesCount: 0,
-    assignedPuppiesCount: 0,
-    messagesCount: 0,
-    documentsCount: 0,
-    revenuePotential: 0,
-  };
+  if (!isPortalAdminEmail(user.email)) {
+    return <AdminAccessRestricted />;
+  }
 
   return (
-    <div className="min-h-screen bg-brand-50 text-brand-900">
-      <main className="relative flex min-h-screen bg-texturePaper">
-        <aside className="hidden xl:flex xl:w-[320px] shrink-0 border-r border-brand-200/70 bg-white/65 backdrop-blur-sm">
-          <div className="flex h-screen w-full flex-col px-5 py-6">
-            <div className="rounded-[28px] border border-brand-200 bg-gradient-to-br from-[#fff8f2] via-[#fffdfb] to-white p-5 shadow-paper">
-              <div className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-white/80 px-3 py-2">
-                <span className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-                  Admin Portal
-                </span>
+    <div className="min-h-screen bg-[#07101c] text-white">
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.18),transparent_30%),radial-gradient(circle_at_top_right,rgba(244,114,182,0.12),transparent_28%),linear-gradient(180deg,#07101c_0%,#0b1526_52%,#07101c_100%)]">
+        <div className="mx-auto grid min-h-screen w-full max-w-[1820px] grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)]">
+          <aside className="border-b border-white/8 bg-[#08111f]/90 px-5 py-6 backdrop-blur xl:min-h-screen xl:border-b-0 xl:border-r">
+            <div className="rounded-[28px] border border-white/10 bg-white/5 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-black uppercase tracking-[0.24em] text-sky-200">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Owner Admin
               </div>
-
-              <h1 className="mt-5 font-serif text-3xl font-bold leading-[0.98] text-brand-900">
-                Portal Control Center
-              </h1>
-
-              <p className="mt-3 text-sm font-semibold leading-7 text-brand-500">
-                Manage families, applications, puppies, communication, documents,
-                and the overall portal experience from one dashboard.
-              </p>
+              <h1 className="mt-5 text-3xl font-semibold tracking-tight text-white">Southwest Virginia Chihuahua</h1>
+              <p className="mt-3 text-sm leading-7 text-slate-300">Full owner controls for buyers, puppies, payments, forms, messages, transportation, and portal approvals.</p>
             </div>
 
-            <div className="mt-5">
-              <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-                Search Areas
-              </label>
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Applications, puppies, messages..."
-                className="w-full rounded-2xl border border-brand-200 bg-white px-4 py-3 text-sm text-brand-900 outline-none transition focus:border-brand-400"
-              />
-            </div>
+            <nav className="mt-5 space-y-2">
+              {navItems.map((item) => (
+                <Link key={item.label} href={item.href} className="group flex items-start gap-3 rounded-[22px] border border-white/8 bg-white/5 px-4 py-4 transition hover:border-sky-400/30 hover:bg-white/10">
+                  <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-[#0d1a2e] text-sky-200">{item.icon}</div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-white">{item.label}</div>
+                    <div className="mt-1 text-xs leading-5 text-slate-400">{item.helper}</div>
+                  </div>
+                </Link>
+              ))}
+            </nav>
 
-            <div className="mt-5 flex-1 space-y-2 overflow-y-auto pr-1">
-              {filteredTabs.map((tab) => {
-                const active = tab.id === activeTab;
-
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`w-full rounded-[22px] border px-4 py-4 text-left transition ${
-                      active
-                        ? "border-brand-300 bg-gradient-to-r from-[#fff5ea] via-white to-[#fffaf4] shadow-paper"
-                        : "border-transparent bg-white/60 hover:border-brand-200 hover:bg-white"
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-brand-200 bg-white text-lg">
-                        {tab.icon}
-                      </div>
-
-                      <div className="min-w-0">
-                        <div className="text-sm font-black text-brand-900">
-                          {tab.label}
-                        </div>
-                        <div className="mt-1 text-[12px] font-semibold leading-6 text-brand-500">
-                          {tab.desc}
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="mt-5 rounded-[24px] border border-brand-200 bg-[#6b4d33] p-5 text-white shadow-luxury">
-              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-[#f4d7b3]">
-                Quick Links
-              </div>
-
-              <div className="mt-4 space-y-3">
-                <SidebarMiniLink href="/portal" label="Open Buyer Portal" />
-                <SidebarMiniLink href="/admin" label="Main Admin" />
-                <SidebarMiniLink href="/admin/portal" label="Refresh Admin View" />
-                <SidebarMiniLink href="/admin/portal/assistant" label="Open ChiChi Console" />
+            <div className="mt-5 rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-5">
+              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">Approved Owner Emails</div>
+              <div className="mt-3 space-y-2 text-sm font-semibold text-white">
+                {getPortalAdminEmails().map((email) => (
+                  <div key={email} className="rounded-2xl border border-white/10 bg-black/10 px-3 py-2">{email}</div>
+                ))}
               </div>
             </div>
-          </div>
-        </aside>
+          </aside>
 
-        <section className="min-w-0 flex-1">
-          <div className="mx-auto flex w-full max-w-[1700px] flex-col px-4 py-4 md:px-8 md:py-6 lg:px-10 lg:py-8">
-            <header className="rounded-[32px] border border-brand-200 bg-gradient-to-br from-[#fff8f1] via-[#fffefc] to-white p-6 shadow-paper md:p-8">
+          <section className="min-w-0 px-4 py-4 md:px-8 md:py-7 xl:px-10">
+            <header className="rounded-[34px] border border-white/10 bg-[linear-gradient(135deg,rgba(14,24,42,0.96),rgba(16,30,52,0.9),rgba(10,18,31,0.96))] p-6 shadow-[0_30px_120px_rgba(0,0,0,0.4)] md:p-8">
               <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
                 <div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-white/80 px-4 py-2 shadow-sm">
-                    <span className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-                      Southwest Virginia Chihuahua
-                    </span>
-                    <span className="h-1 w-1 rounded-full bg-brand-300" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-                      Admin UI
-                    </span>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-sky-400/20 bg-sky-400/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.24em] text-sky-100">
+                    <BellDot className="h-3.5 w-3.5" />
+                    Admin Command Center
                   </div>
-
-                  <h2 className="mt-5 font-serif text-4xl font-bold leading-[0.96] text-brand-900 md:text-5xl">
-                    {activeTabMeta.label}
-                  </h2>
-
-                  <p className="mt-3 max-w-3xl text-sm font-semibold leading-7 text-brand-500 md:text-base">
-                    {activeTabMeta.desc}. This page is set up as the admin shell so
-                    each area can now be built out cleanly one section at a time.
-                  </p>
+                  <h2 className="mt-5 text-4xl font-semibold tracking-tight text-white md:text-5xl">Portal operations at a glance</h2>
+                  <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-300 md:text-base">Review submitted items, manage users, approve or deny applications, update payments, and keep the full client experience organized from one owner-only workspace.</p>
                 </div>
-
-                <div className="flex flex-col items-stretch gap-3 xl:items-end">
-                  <Link
-                    href="/admin/portal/assistant"
-                    className="inline-flex items-center justify-center rounded-[18px] border border-brand-200 bg-white px-5 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-brand-700 transition hover:bg-brand-50"
-                  >
-                    Open ChiChi Console
-                  </Link>
-
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:w-[520px]">
-                    <KpiPill label="Families" value={String(stats.buyersCount)} />
-                    <KpiPill
-                      label="Applications"
-                      value={String(stats.applicationsCount)}
-                    />
-                    <KpiPill label="Puppies" value={String(stats.puppiesCount)} />
-                    <KpiPill label="Messages" value={String(stats.messagesCount)} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-6 xl:hidden">
-                <div className="no-scrollbar flex gap-3 overflow-x-auto pb-1">
-                  {ADMIN_TABS.map((tab) => {
-                    const active = tab.id === activeTab;
-                    return (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`shrink-0 rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] transition ${
-                          active
-                            ? "border-brand-300 bg-brand-800 text-white"
-                            : "border-brand-200 bg-white text-brand-600"
-                        }`}
-                      >
-                        {tab.icon} {tab.label}
-                      </button>
-                    );
-                  })}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:w-[520px]">
+                  <MiniStat label="Users" value={String(data.uniquePortalUsers)} />
+                  <MiniStat label="Pending Apps" value={String(data.pendingApplicationCount)} />
+                  <MiniStat label="Unread Msgs" value={String(data.unreadMessageCount)} />
+                  <MiniStat label="Submitted Forms" value={String(data.submittedFormCount)} />
                 </div>
               </div>
             </header>
 
-            <div className="mt-6">
-              {activeTab === "overview" ? (
-                <OverviewPanel data={data} />
-              ) : (
-                <PlaceholderTabPanel tab={activeTabMeta} stats={stats} />
-              )}
-            </div>
-          </div>
-        </section>
+            <section className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
+              <KpiCard title="Portal Users" value={String(data.uniquePortalUsers)} helper={`${data.buyerCount} buyers • ${data.applicationCount} applications`} icon={<Users className="h-5 w-5" />} />
+              <KpiCard title="Puppy Revenue" value={data.totalRevenue ? fmtMoney(data.totalRevenue) : "—"} helper={`${data.paymentCount} payment record(s) tracked`} icon={<Banknote className="h-5 w-5" />} />
+              <KpiCard title="Forms & Uploads" value={String(data.formCount)} helper={`${data.submittedFormCount} submitted for review`} icon={<Files className="h-5 w-5" />} />
+              <KpiCard title="Transportation" value={String(data.pickupCount)} helper={`${data.pendingPickupCount} pending requests`} icon={<MapPinned className="h-5 w-5" />} />
+            </section>
+
+            <section className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-12">
+              <div className="xl:col-span-7 rounded-[30px] border border-white/10 bg-white/5 p-6 shadow-[0_20px_90px_rgba(0,0,0,0.25)] md:p-7">
+                <SectionHeader eyebrow="Admin Priorities" title="What needs attention" linkHref="/admin/portal/users" linkLabel="Open Users" />
+                <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <ActionCard title="Users" description="Review linked accounts, update buyer details, and approve or deny from one place." href="/admin/portal/users" />
+                  <ActionCard title="Applications" description="Approve, deny, assign puppies, and keep notes on incoming applicants." href="/admin/portal/applications" />
+                  <ActionCard title="Payments" description="Adjust pricing, deposits, balances, finance plans, and customer-facing totals." href="/admin/portal/payments" />
+                  <ActionCard title="Messages" description="Open the portal inbox, monitor unread threads, and reply quickly." href="/admin/portal/messages" />
+                </div>
+              </div>
+
+              <div className="xl:col-span-5 rounded-[30px] border border-sky-400/15 bg-[linear-gradient(180deg,rgba(14,25,45,0.95),rgba(9,18,33,0.92))] p-6 shadow-[0_24px_90px_rgba(0,0,0,0.32)] md:p-7">
+                <SectionHeader eyebrow="Direct Controls" title="Owner tools" linkHref="/admin/portal/assistant" linkLabel="Open ChiChi Admin" inverted />
+                <div className="mt-5 space-y-3">
+                  <DarkListRow label="Buyers and users" value="Add, edit, review, link, and update profiles" />
+                  <DarkListRow label="Puppies and pupdates" value="Manage records, statuses, weights, events, and breeder notes" />
+                  <DarkListRow label="Payments and financing" value="Update balances, payment plans, dates, APR, and due details" />
+                  <DarkListRow label="Forms and uploads" value="View submitted items and process approvals where needed" />
+                </div>
+              </div>
+            </section>
+
+            <section className="mt-6 grid grid-cols-1 gap-6 2xl:grid-cols-2">
+              <DataPanel
+                title="Recent applications"
+                eyebrow="Approvals"
+                actionHref="/admin/portal/applications"
+                actionLabel="Review applications"
+                rows={data.recentApplications.map((row) => ({
+                  key: `app-${row.id}`,
+                  title: firstValue(row.full_name, row.email, row.applicant_email, `Application #${row.id}`),
+                  subtitle: firstValue(row.email, row.applicant_email, "No email on file"),
+                  meta: `Submitted ${fmtDate(row.created_at)}`,
+                  status: row.status || "submitted",
+                }))}
+              />
+
+              <DataPanel
+                title="Recent messages"
+                eyebrow="Inbox"
+                actionHref="/admin/portal/messages"
+                actionLabel="Open messages"
+                rows={data.recentMessages.map((row) => ({
+                  key: `msg-${row.id}`,
+                  title: firstValue(row.subject, row.sender, "Portal message"),
+                  subtitle: firstValue(row.user_email, "No linked email"),
+                  meta: `Received ${fmtDate(row.created_at)}`,
+                  status: row.status || (row.read_by_admin ? "read" : "new"),
+                }))}
+              />
+            </section>
+
+            <section id="puppies" className="mt-6 grid grid-cols-1 gap-6 2xl:grid-cols-2">
+              <DataPanel
+                title="Recent puppies"
+                eyebrow="Puppies"
+                actionHref="/admin/portal/assistant"
+                actionLabel="Open ChiChi Admin"
+                rows={data.recentPuppies.map((row) => ({
+                  key: `puppy-${row.id}`,
+                  title: puppyName(row),
+                  subtitle: firstValue(row.owner_email, row.status, "No owner email"),
+                  meta: `Added ${fmtDate(row.created_at)}`,
+                  status: row.status || "active",
+                }))}
+              />
+
+              <DataPanel
+                title="Recent buyers"
+                eyebrow="Users"
+                actionHref="/admin/portal/users"
+                actionLabel="Open users"
+                rows={data.recentBuyers.map((row) => ({
+                  key: `buyer-${row.id}`,
+                  title: firstValue(row.full_name, row.name, row.email, `Buyer #${row.id}`),
+                  subtitle: firstValue(row.email, row.buyer_email, row.phone, "No email on file"),
+                  meta: `Added ${fmtDate(row.created_at)}`,
+                  status: row.status || "active",
+                }))}
+              />
+            </section>
+
+            <section id="forms" className="mt-6 grid grid-cols-1 gap-6 2xl:grid-cols-2">
+              <DataPanel
+                title="Submitted forms"
+                eyebrow="Forms & uploads"
+                actionHref="/admin/portal/users"
+                actionLabel="Open users"
+                rows={data.recentForms.map((row) => ({
+                  key: `form-${row.id}`,
+                  title: firstValue(row.form_title, row.form_key, `Form #${row.id}`),
+                  subtitle: firstValue(row.user_email, row.signed_name, "No linked email"),
+                  meta: `Created ${fmtDate(row.submitted_at || row.created_at)}`,
+                  status: row.status,
+                }))}
+              />
+
+              <div id="transportation" className="rounded-[30px] border border-white/10 bg-white/5 p-6 shadow-[0_20px_90px_rgba(0,0,0,0.22)] md:p-7">
+                <SectionHeader eyebrow="Transportation" title="Pickup and delivery queue" linkHref="/portal/transportation" linkLabel="Open buyer page" />
+                <div className="mt-5 space-y-3">
+                  {data.recentPickups.length ? (
+                    data.recentPickups.map((row) => (
+                      <div key={row.id} className="rounded-[22px] border border-white/8 bg-[#0d1729]/70 p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-semibold text-white">{firstValue(row.request_type, "Transportation request")}</div>
+                            <div className="mt-1 text-xs leading-5 text-slate-400">{firstValue(row.location_text, "No location submitted")}</div>
+                          </div>
+                          <span className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${statusTone(row.status)}`}>{row.status || "pending"}</span>
+                        </div>
+                        <div className="mt-3 text-xs font-semibold text-slate-400">Request date {fmtDate(row.request_date || row.created_at)}</div>
+                      </div>
+                    ))
+                  ) : (
+                    <EmptyState text="No transportation requests have been submitted yet." />
+                  )}
+                </div>
+              </div>
+            </section>
+          </section>
+        </div>
       </main>
     </div>
   );
 }
 
-function OverviewPanel({ data }: { data: DashboardData | null }) {
-  const stats = data?.stats;
+async function loadOverviewData(): Promise<AdminOverviewData> {
+  const nextData = emptyData();
 
+  const [buyersRes, appsRes, puppiesRes, messagesRes, formsRes, pickupsRes, paymentsRes] = await Promise.all([
+    sb.from("buyers").select("id,created_at,full_name,name,email,buyer_email,phone,status,user_id").order("created_at", { ascending: false }).limit(8),
+    sb.from("puppy_applications").select("id,created_at,full_name,email,applicant_email,status,assigned_puppy_id,user_id").order("created_at", { ascending: false }).limit(8),
+    sb.from("puppies").select("id,created_at,call_name,puppy_name,name,status,buyer_id,owner_email").order("created_at", { ascending: false }).limit(8),
+    sb.from("portal_messages").select("id,created_at,subject,user_email,sender,status,read_by_admin").order("created_at", { ascending: false }).limit(8),
+    sb.from("portal_form_submissions").select("id,created_at,form_key,form_title,status,user_email,signed_name,submitted_at").order("created_at", { ascending: false }).limit(8),
+    sb.from("portal_pickup_requests").select("id,created_at,request_date,request_type,location_text,status,user_id").order("created_at", { ascending: false }).limit(8),
+    sb.from("buyer_payments").select("id,amount").limit(500),
+  ]);
+
+  const buyers = (buyersRes.data || []) as BuyerRow[];
+  const applications = (appsRes.data || []) as ApplicationRow[];
+  const puppies = (puppiesRes.data || []) as PuppyRow[];
+  const messages = (messagesRes.data || []) as MessageRow[];
+  const forms = (formsRes.data || []) as FormRow[];
+  const pickups = (pickupsRes.data || []) as PickupRow[];
+  const payments = (paymentsRes.data || []) as Array<{ amount?: number | null }>;
+
+  nextData.recentBuyers = buyers;
+  nextData.recentApplications = applications;
+  nextData.recentPuppies = puppies;
+  nextData.recentMessages = messages;
+  nextData.recentForms = forms;
+  nextData.recentPickups = pickups;
+
+  nextData.buyerCount = await getCount("buyers");
+  nextData.applicationCount = await getCount("puppy_applications");
+  nextData.pendingApplicationCount = await getCount("puppy_applications", (query) => query.in("status", ["submitted", "pending review", "on hold", "waitlist"]));
+  nextData.puppyCount = await getCount("puppies");
+  nextData.messageCount = await getCount("portal_messages");
+  nextData.unreadMessageCount = await getCount("portal_messages", (query) => query.eq("read_by_admin", false));
+  nextData.formCount = await getCount("portal_form_submissions");
+  nextData.submittedFormCount = await getCount("portal_form_submissions", (query) => query.in("status", ["submitted", "pending", "under review"]));
+  nextData.pickupCount = await getCount("portal_pickup_requests");
+  nextData.pendingPickupCount = await getCount("portal_pickup_requests", (query) => query.in("status", ["pending", "approved"]));
+  nextData.paymentCount = await getCount("buyer_payments");
+  nextData.totalRevenue = payments.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+
+  const userKeys = new Set<string>();
+  for (const buyer of buyers) {
+    const email = normalizeEmail(firstValue(buyer.email, buyer.buyer_email));
+    const key = email || String(buyer.user_id || "").trim();
+    if (key) userKeys.add(key);
+  }
+  for (const application of applications) {
+    const email = normalizeEmail(firstValue(application.email, application.applicant_email));
+    const key = email || String(application.user_id || "").trim();
+    if (key) userKeys.add(key);
+  }
+  nextData.uniquePortalUsers = userKeys.size;
+
+  return nextData;
+}
+
+async function getCount(
+  tableName: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  mutate?: (query: any) => any
+) {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let query: any = sb.from(tableName).select("*", { count: "exact", head: true });
+    if (mutate) query = mutate(query);
+    const result = await query;
+    return result.count || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="space-y-6">
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          icon="👨‍👩‍👧"
-          label="Families"
-          value={String(stats?.buyersCount || 0)}
-          sub="Portal-linked buyer records"
-        />
-        <StatCard
-          icon="📝"
-          label="Pending Applications"
-          value={String(stats?.pendingApplicationsCount || 0)}
-          sub="Need review or next action"
-        />
-        <StatCard
-          icon="🐾"
-          label="Assigned Puppies"
-          value={String(stats?.assignedPuppiesCount || 0)}
-          sub="Matched or reserved puppies"
-        />
-        <StatCard
-          icon="💰"
-          label="Revenue Potential"
-          value={stats?.revenuePotential ? fmtMoney(stats.revenuePotential) : "—"}
-          sub="Based on current puppy pricing"
-        />
-      </section>
-
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <div className="xl:col-span-8 card-luxury overflow-hidden">
-          <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr]">
-            <div className="p-7 md:p-8">
-              <div className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-100 px-3 py-1">
-                <span className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-700">
-                  Portal Health
-                </span>
-              </div>
-
-              <h3 className="mt-5 font-serif text-3xl font-bold leading-[1.02] text-brand-900 md:text-4xl">
-                A cleaner admin experience for managing the full portal.
-              </h3>
-
-              <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-brand-600 md:text-base">
-                This admin screen is designed as the command center for buyers,
-                applications, puppies, messages, documents, financials, and future
-                automation. Each section now has a dedicated tab so we can build the
-                internals without cluttering the whole system.
-              </p>
-
-              <div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <FeatureCard
-                  title="Portal-first structure"
-                  desc="Every major admin area now has a defined place so future pages stay organized."
-                />
-                <FeatureCard
-                  title="Faster visibility"
-                  desc="Counts, recent activity, and quick actions stay visible from the overview."
-                />
-                <FeatureCard
-                  title="Breeder-friendly flow"
-                  desc="Designed around the real workflow: inquiry, application, match, documents, payments, go-home."
-                />
-                <FeatureCard
-                  title="Build-ready tabs"
-                  desc="Each tab can now be expanded one by one without reworking the layout."
-                />
-              </div>
-            </div>
-
-            <div className="border-t border-brand-100 bg-gradient-to-br from-[#fff8f1] via-[#f8efe4] to-[#efe2d2] p-7 lg:border-l lg:border-t-0">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-                Quick Summary
-              </div>
-
-              <div className="mt-4 space-y-3">
-                <SummaryLine
-                  label="Families"
-                  value={`${stats?.buyersCount || 0} record(s)`}
-                />
-                <SummaryLine
-                  label="Applications"
-                  value={`${stats?.applicationsCount || 0} total`}
-                />
-                <SummaryLine
-                  label="Messages"
-                  value={`${stats?.messagesCount || 0} total`}
-                />
-                <SummaryLine
-                  label="Documents"
-                  value={`${stats?.documentsCount || 0} file(s)`}
-                />
-              </div>
-
-              <div className="mt-5 rounded-[24px] border border-brand-200 bg-white/70 p-4">
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-                  Next Build Step
-                </div>
-                <div className="mt-2 text-sm font-semibold leading-7 text-brand-800">
-                  Pick any tab and we can build that admin section in full next.
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="xl:col-span-4 card-luxury p-7 bg-gradient-to-br from-[#fffaf4] via-white to-[#fffdfb]">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-                Admin Shortcuts
-              </div>
-              <h4 className="mt-2 font-serif text-2xl font-bold text-brand-900">
-                Quick Access
-              </h4>
-            </div>
-          </div>
-
-          <div className="mt-5 space-y-3">
-            <QuickAdminLink
-              title="Families"
-              desc="View buyer records and linked portal accounts."
-            />
-            <QuickAdminLink
-              title="Applications"
-              desc="Review the newest submissions and statuses."
-            />
-            <QuickAdminLink
-              title="Puppies"
-              desc="Check assignments, matches, and profile readiness."
-            />
-            <QuickAdminLink
-              title="Documents"
-              desc="Open agreements, forms, and stored files."
-            />
-            <QuickAdminLink
-              title="Financials"
-              desc="Review prices, totals, and payment-related data."
-            />
-          </div>
-        </div>
-      </section>
-
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <div className="xl:col-span-6 card-luxury p-7">
-          <SectionHeader
-            eyebrow="Recent Activity"
-            title="Applications"
-            actionLabel="Build Applications Tab"
-          />
-
-          <div className="mt-5 space-y-3">
-            {data?.recentApplications?.length ? (
-              data.recentApplications.map((app: any) => {
-                const pill = statusPill(app?.status || app?.application_status);
-                return (
-                  <div
-                    key={app.id}
-                    className="rounded-[24px] border border-brand-200 bg-white/75 p-4 transition hover:bg-white"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-sm font-black text-brand-900">
-                          {app?.full_name ||
-                            app?.applicant_name ||
-                            app?.name ||
-                            app?.email ||
-                            "Applicant"}
-                        </div>
-                        <div className="mt-1 text-[12px] font-semibold text-brand-500">
-                          {app?.email || app?.applicant_email || "No email on file"}
-                        </div>
-                      </div>
-
-                      <span
-                        className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${pill.cls}`}
-                      >
-                        <span className="h-2 w-2 rounded-full bg-current opacity-70" />
-                        {pill.label}
-                      </span>
-                    </div>
-
-                    <div className="mt-3 text-[11px] font-semibold text-brand-400">
-                      Submitted {fmtDate(app?.created_at)}
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <EmptyCard text="No recent applications found." />
-            )}
-          </div>
-        </div>
-
-        <div className="xl:col-span-6 card-luxury p-7">
-          <SectionHeader
-            eyebrow="Recent Activity"
-            title="Families"
-            actionLabel="Build Families Tab"
-          />
-
-          <div className="mt-5 space-y-3">
-            {data?.recentBuyers?.length ? (
-              data.recentBuyers.map((buyer: any) => (
-                <div
-                  key={buyer.id}
-                  className="rounded-[24px] border border-brand-200 bg-white/75 p-4 transition hover:bg-white"
-                >
-                  <div className="text-sm font-black text-brand-900">
-                    {buyer?.full_name || buyer?.name || buyer?.email || "Buyer"}
-                  </div>
-                  <div className="mt-1 text-[12px] font-semibold text-brand-500">
-                    {buyer?.email || buyer?.buyer_email || "No email on file"}
-                  </div>
-                  <div className="mt-3 text-[11px] font-semibold text-brand-400">
-                    Added {fmtDate(buyer?.created_at)}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <EmptyCard text="No recent families found." />
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <div className="xl:col-span-7 card-luxury p-7">
-          <SectionHeader
-            eyebrow="Communication"
-            title="Recent Messages"
-            actionLabel="Build Messages Tab"
-          />
-
-          <div className="mt-5 space-y-3">
-            {data?.recentMessages?.length ? (
-              data.recentMessages.map((msg: any) => (
-                <div
-                  key={msg.id}
-                  className="rounded-[24px] border border-brand-200 bg-white/75 p-4 transition hover:bg-white"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-sm font-black text-brand-900">
-                        {msg?.sender_name ||
-                          msg?.sender ||
-                          msg?.from_name ||
-                          msg?.email ||
-                          "Portal Message"}
-                      </div>
-                      <div className="mt-1 text-[12px] font-semibold text-brand-500">
-                        {msg?.user_email || msg?.email || "No linked email"}
-                      </div>
-                    </div>
-
-                    <div className="shrink-0 text-[11px] font-semibold text-brand-400">
-                      {fmtDate(msg?.created_at || msg?.sent_at)}
-                    </div>
-                  </div>
-
-                  <div className="mt-3 line-clamp-2 text-sm font-semibold leading-7 text-brand-800">
-                    {msg?.message || msg?.content || msg?.body || msg?.text || "—"}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <EmptyCard text="No recent messages found." />
-            )}
-          </div>
-        </div>
-
-        <div className="xl:col-span-5 card-luxury p-7">
-          <SectionHeader
-            eyebrow="Puppies"
-            title="Recent Puppy Records"
-            actionLabel="Build Puppies Tab"
-          />
-
-          <div className="mt-5 space-y-4">
-            {data?.recentPuppies?.length ? (
-              data.recentPuppies.map((puppy: any) => {
-                const image =
-                  buildPuppyPhotoUrl(
-                    puppy?.image_url ||
-                      puppy?.image_path ||
-                      puppy?.photo_url ||
-                      puppy?.photo ||
-                      puppy?.image
-                  ) || "";
-
-                const pill = statusPill(
-                  puppy?.status || puppy?.assignment_status || "Pending"
-                );
-
-                return (
-                  <div
-                    key={puppy.id}
-                    className="flex gap-4 rounded-[24px] border border-brand-200 bg-white/75 p-4 transition hover:bg-white"
-                  >
-                    <div className="h-20 w-20 shrink-0 overflow-hidden rounded-[20px] border border-brand-200 bg-brand-100">
-                      {image ? (
-                        <img
-                          src={image}
-                          alt="Puppy"
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-2xl">
-                          🐾
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <div className="text-sm font-black text-brand-900">
-                            {puppy?.call_name ||
-                              puppy?.puppy_name ||
-                              puppy?.name ||
-                              "Unnamed Puppy"}
-                          </div>
-                          <div className="mt-1 text-[12px] font-semibold text-brand-500">
-                            {puppy?.sex || puppy?.gender || "Puppy"}{" "}
-                            {puppy?.color ? `• ${puppy.color}` : ""}
-                          </div>
-                        </div>
-
-                        <span
-                          className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${pill.cls}`}
-                        >
-                          <span className="h-2 w-2 rounded-full bg-current opacity-70" />
-                          {pill.label}
-                        </span>
-                      </div>
-
-                      <div className="mt-3 text-[11px] font-semibold text-brand-400">
-                        {puppy?.price || puppy?.total_price || puppy?.adoption_fee
-                          ? fmtMoney(
-                              puppy?.price ||
-                                puppy?.total_price ||
-                                puppy?.adoption_fee
-                            )
-                          : "No price"}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <EmptyCard text="No recent puppy records found." />
-            )}
-          </div>
-        </div>
-      </section>
+    <div className="rounded-[22px] border border-white/10 bg-white/5 px-4 py-4">
+      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{label}</div>
+      <div className="mt-2 text-2xl font-semibold tracking-tight text-white">{value}</div>
     </div>
   );
 }
 
-function PlaceholderTabPanel({
-  tab,
-  stats,
-}: {
-  tab: AdminTabItem;
-  stats: DashboardStats;
-}) {
-  const hints: Record<AdminTab, string[]> = {
-    overview: [],
-    families: [
-      "Search families and buyers",
-      "Link users to buyer records",
-      "Open profile, notes, and puppy assignment",
-      "View portal readiness and account status",
-    ],
-    applications: [
-      "Review all submissions",
-      "Approve, deny, or mark pending",
-      "Open full application details",
-      "Convert approved applicants into matched families",
-    ],
-    puppies: [
-      "View all puppies and statuses",
-      "Assign puppies to buyers",
-      "Post pupdates and milestone events",
-      "Manage profile images, pricing, and go-home readiness",
-    ],
-    messages: [
-      "View portal conversations",
-      "Reply from admin",
-      "Track unread or pending replies",
-      "Pin important threads or notices",
-    ],
-    documents: [
-      "Upload files and contracts",
-      "Link documents to buyers or puppies",
-      "Mark documents signed or pending",
-      "Organize by type and stage",
-    ],
-    financials: [
-      "View puppy pricing",
-      "Track deposits and balances",
-      "Show payment history and receipts",
-      "See what families still owe",
-    ],
-    resources: [
-      "Manage care guides and prep materials",
-      "Pin featured resources",
-      "Show role-based or stage-based content",
-      "Keep portal education organized",
-    ],
-    settings: [
-      "Portal labels and wording",
-      "Status options and defaults",
-      "Admin-only display preferences",
-      "Future automation and integrations",
-    ],
-  };
-
-  const topValue =
-    tab.id === "families"
-      ? String(stats.buyersCount)
-      : tab.id === "applications"
-        ? String(stats.applicationsCount)
-        : tab.id === "puppies"
-          ? String(stats.puppiesCount)
-          : tab.id === "messages"
-            ? String(stats.messagesCount)
-            : tab.id === "documents"
-              ? String(stats.documentsCount)
-              : tab.id === "financials"
-                ? stats.revenuePotential
-                  ? fmtMoney(stats.revenuePotential)
-                  : "—"
-                : "Ready";
-
+function KpiCard({ title, value, helper, icon }: { title: string; value: string; helper: string; icon: React.ReactNode }) {
   return (
-    <div className="space-y-6">
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <div className="xl:col-span-8 card-luxury overflow-hidden">
-          <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr]">
-            <div className="p-7 md:p-8">
-              <div className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-100 px-3 py-1">
-                <span className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-700">
-                  {tab.label}
-                </span>
-              </div>
-
-              <h3 className="mt-5 font-serif text-3xl font-bold leading-[1.02] text-brand-900 md:text-4xl">
-                {tab.label} admin area is ready for build-out.
-              </h3>
-
-              <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-brand-600 md:text-base">
-                This section has the layout foundation in place. We can now build
-                the actual tools, tables, forms, filters, and actions for this tab
-                without having to redesign the entire page again.
-              </p>
-
-              <div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {hints[tab.id].map((item) => (
-                  <div
-                    key={item}
-                    className="rounded-[22px] border border-brand-200 bg-white/75 p-4"
-                  >
-                    <div className="text-sm font-black text-brand-900">{item}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="border-t border-brand-100 bg-gradient-to-br from-[#fff8f1] via-[#f8efe4] to-[#efe2d2] p-7 lg:border-l lg:border-t-0">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-                Section Snapshot
-              </div>
-
-              <div className="mt-4 space-y-3">
-                <SummaryLine label="Area" value={tab.label} />
-                <SummaryLine label="Status" value="UI shell complete" />
-                <SummaryLine label="Primary Metric" value={topValue} />
-                <SummaryLine label="Next Step" value="Build internals" />
-              </div>
-
-              <div className="mt-5 rounded-[24px] border border-brand-200 bg-white/70 p-4">
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-                  Ready
-                </div>
-                <div className="mt-2 text-sm font-semibold leading-7 text-brand-800">
-                  This tab is intentionally staged so the next pass can focus only on
-                  the real functionality.
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="xl:col-span-4 card-luxury p-7">
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-            Build Queue
-          </div>
-          <h4 className="mt-2 font-serif text-2xl font-bold text-brand-900">
-            Suggested Contents
-          </h4>
-
-          <div className="mt-5 space-y-3">
-            {hints[tab.id].map((item) => (
-              <div
-                key={item}
-                className="rounded-[22px] border border-brand-200 bg-white/75 p-4"
-              >
-                <div className="text-sm font-black text-brand-900">{item}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function StatCard({
-  icon,
-  label,
-  value,
-  sub,
-}: {
-  icon: string;
-  label: string;
-  value: string;
-  sub: string;
-}) {
-  return (
-    <div className="card-luxury p-5 transition hover:-translate-y-1">
-      <div className="text-2xl">{icon}</div>
-      <div className="mt-3 text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-        {label}
+    <div className="rounded-[28px] border border-white/10 bg-white/6 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.18)]">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">{title}</div>
+        <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-sky-400/20 bg-sky-500/10 text-sky-200">{icon}</div>
       </div>
-      <div className="mt-1 break-words text-2xl font-black text-brand-900">
-        {value}
-      </div>
-      <div className="mt-1 text-[12px] font-semibold text-brand-400">{sub}</div>
+      <div className="mt-4 text-3xl font-semibold tracking-tight text-white">{value}</div>
+      <div className="mt-2 text-sm leading-6 text-slate-400">{helper}</div>
     </div>
   );
 }
 
-function KpiPill({ label, value }: { label: string; value: string }) {
+function SectionHeader({ eyebrow, title, linkHref, linkLabel, inverted = false }: { eyebrow: string; title: string; linkHref: string; linkLabel: string; inverted?: boolean }) {
   return (
-    <div className="rounded-[22px] border border-brand-200 bg-white/75 px-4 py-3 shadow-sm">
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-        {label}
-      </div>
-      <div className="mt-1 text-lg font-black text-brand-900">{value}</div>
-    </div>
-  );
-}
-
-function SummaryLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-start justify-between gap-4 rounded-2xl border border-brand-200 bg-white/75 px-4 py-3">
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-        {label}
-      </div>
-      <div className="text-right text-sm font-black text-brand-900">{value}</div>
-    </div>
-  );
-}
-
-function FeatureCard({ title, desc }: { title: string; desc: string }) {
-  return (
-    <div className="rounded-[22px] border border-brand-200 bg-white/75 p-4 shadow-sm">
-      <div className="text-sm font-black text-brand-900">{title}</div>
-      <div className="mt-1 text-[12px] font-semibold leading-6 text-brand-500">
-        {desc}
-      </div>
-    </div>
-  );
-}
-
-function QuickAdminLink({
-  title,
-  desc,
-}: {
-  title: string;
-  desc: string;
-}) {
-  return (
-    <div className="rounded-[22px] border border-brand-200 bg-white/75 p-4 transition hover:bg-white">
-      <div className="text-sm font-black text-brand-900">{title}</div>
-      <div className="mt-1 text-[12px] font-semibold leading-6 text-brand-500">
-        {desc}
-      </div>
-    </div>
-  );
-}
-
-function SectionHeader({
-  eyebrow,
-  title,
-  actionLabel,
-}: {
-  eyebrow: string;
-  title: string;
-  actionLabel: string;
-}) {
-  return (
-    <div className="flex items-end justify-between gap-4">
+    <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-          {eyebrow}
-        </div>
-        <h4 className="mt-2 font-serif text-2xl font-bold text-brand-900">
-          {title}
-        </h4>
+        <div className={`text-[10px] font-black uppercase tracking-[0.22em] ${inverted ? "text-slate-400" : "text-sky-200"}`}>{eyebrow}</div>
+        <h3 className="mt-2 text-2xl font-semibold tracking-tight text-white">{title}</h3>
       </div>
-
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-400">
-        {actionLabel}
-      </div>
+      <Link href={linkHref} className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] transition ${inverted ? "border-white/10 bg-white/5 text-white hover:bg-white/10" : "border-sky-400/20 bg-sky-500/10 text-sky-100 hover:bg-sky-500/20"}`}>
+        {linkLabel}
+        <ArrowRight className="h-3.5 w-3.5" />
+      </Link>
     </div>
   );
 }
 
-function EmptyCard({ text }: { text: string }) {
+function ActionCard({ title, description, href }: { title: string; description: string; href: string }) {
   return (
-    <div className="rounded-[24px] border border-dashed border-brand-200 bg-white/60 px-5 py-10 text-center text-sm italic text-brand-400">
-      {text}
-    </div>
-  );
-}
-
-function SidebarMiniLink({
-  href,
-  label,
-}: {
-  href: string;
-  label: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="block rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-black text-white transition hover:bg-white/15"
-    >
-      {label}
+    <Link href={href} className="rounded-[24px] border border-white/10 bg-[#0b1628]/75 p-5 transition hover:border-sky-400/30 hover:bg-[#0f1d35]">
+      <div className="text-lg font-semibold text-white">{title}</div>
+      <div className="mt-2 text-sm leading-7 text-slate-400">{description}</div>
+      <div className="mt-4 inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-sky-200">Open<ArrowRight className="h-3.5 w-3.5" /></div>
     </Link>
   );
 }
 
-function AdminLoginPrompt() {
+function DarkListRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-h-screen bg-[#f7f3ee] px-4 py-10 md:px-8">
-      <div className="mx-auto max-w-[960px]">
-        <div className="overflow-hidden rounded-[36px] border border-[#e7d9c8] bg-gradient-to-br from-[#fff8f1] via-[#fffdfb] to-white shadow-[0_30px_80px_rgba(88,63,37,0.12)]">
-          <div className="px-8 py-10 md:px-12 md:py-14">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#dcc6ad] bg-white/70 px-4 py-2 shadow-sm">
-              <span className="text-[10px] font-black uppercase tracking-[0.22em] text-[#a47946]">
-                Admin Access Required
-              </span>
+    <div className="rounded-[22px] border border-white/8 bg-black/10 px-4 py-3">
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{label}</div>
+      <div className="mt-1 text-sm leading-6 text-white">{value}</div>
+    </div>
+  );
+}
+
+function DataPanel({ title, eyebrow, actionHref, actionLabel, rows }: { title: string; eyebrow: string; actionHref: string; actionLabel: string; rows: Array<{ key: string; title: string; subtitle: string; meta: string; status: string }> }) {
+  return (
+    <div className="rounded-[30px] border border-white/10 bg-white/5 p-6 shadow-[0_20px_90px_rgba(0,0,0,0.22)] md:p-7">
+      <SectionHeader eyebrow={eyebrow} title={title} linkHref={actionHref} linkLabel={actionLabel} />
+      <div className="mt-5 space-y-3">
+        {rows.length ? rows.map((row) => (
+          <div key={row.key} className="rounded-[22px] border border-white/8 bg-[#0d1729]/70 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-white">{row.title}</div>
+                <div className="mt-1 text-xs leading-5 text-slate-400">{row.subtitle}</div>
+              </div>
+              <span className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${statusTone(row.status)}`}>{row.status}</span>
             </div>
-
-            <h1 className="mt-6 font-serif text-4xl font-bold leading-[0.98] text-[#3e2a1f] md:text-5xl">
-              Sign in to access the portal admin area.
-            </h1>
-
-            <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-[#7a5a3a] md:text-base">
-              This page is the internal portal management area for buyers,
-              applications, puppies, messages, documents, and future admin tools.
-            </p>
-
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link
-                href="/portal"
-                className="inline-flex items-center gap-2 rounded-[18px] bg-[#6b4d33] px-6 py-4 text-xs font-black uppercase tracking-[0.18em] text-white shadow-[0_14px_30px_rgba(88,63,37,0.18)] transition hover:bg-[#5b412c]"
-              >
-                Open Portal Login <span aria-hidden="true">→</span>
-              </Link>
-
-              <Link
-                href="/"
-                className="inline-flex items-center gap-2 rounded-[18px] border border-[#e4d3c2] bg-white px-6 py-4 text-xs font-black uppercase tracking-[0.18em] text-[#6b4d33] transition hover:bg-[#fffaf4]"
-              >
-                Back Home
-              </Link>
-            </div>
+            <div className="mt-3 text-xs font-semibold text-slate-500">{row.meta}</div>
           </div>
+        )) : <EmptyState text={`No ${title.toLowerCase()} found yet.`} />}
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({ text }: { text: string }) {
+  return <div className="rounded-[24px] border border-dashed border-white/12 bg-black/10 px-5 py-8 text-center text-sm font-semibold text-slate-400">{text}</div>;
+}
+
+function AdminPortalLoginPrompt() {
+  return (
+    <div className="min-h-screen bg-[#07101c] text-white">
+      <div className="mx-auto flex min-h-screen w-full max-w-[980px] items-center justify-center px-6 py-10">
+        <div className="w-full rounded-[34px] border border-white/10 bg-white/5 p-8 shadow-[0_30px_120px_rgba(0,0,0,0.38)] md:p-10">
+          <div className="inline-flex items-center gap-2 rounded-full border border-sky-400/20 bg-sky-500/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.22em] text-sky-100"><ShieldCheck className="h-3.5 w-3.5" />Admin Portal</div>
+          <h1 className="mt-5 text-4xl font-semibold tracking-tight text-white">Sign in to access owner controls.</h1>
+          <p className="mt-4 text-sm leading-7 text-slate-300 md:text-base">This area is reserved for the Southwest Virginia Chihuahua owner accounts.</p>
+          <div className="mt-6"><Link href="/portal" className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-white transition hover:bg-white/10">Go to Buyer Portal</Link></div>
         </div>
       </div>
     </div>
   );
 }
+
+function AdminAccessRestricted() {
+  return (
+    <div className="min-h-screen bg-[#07101c] text-white">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1040px] items-center justify-center px-6 py-10">
+        <div className="w-full rounded-[34px] border border-rose-400/20 bg-white/5 p-8 shadow-[0_30px_120px_rgba(0,0,0,0.38)] md:p-10">
+          <div className="inline-flex items-center rounded-full border border-rose-400/20 bg-rose-500/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.22em] text-rose-100">Access Restricted</div>
+          <h1 className="mt-5 text-4xl font-semibold tracking-tight text-white">This admin UI is limited to the approved owner email addresses.</h1>
+          <p className="mt-4 text-sm leading-7 text-slate-300 md:text-base">Sign in with one of the owner accounts below to manage buyers, payments, puppies, forms, messages, and portal approvals.</p>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">{getPortalAdminEmails().map((email) => <div key={email} className="rounded-[22px] border border-white/10 bg-black/10 px-4 py-3 text-sm font-semibold text-white">{email}</div>)}</div>
+          <div className="mt-6"><Link href="/portal" className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-white transition hover:bg-white/10">Return to Buyer Portal</Link></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+

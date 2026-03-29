@@ -1,6 +1,7 @@
 // FILE: app/api/buildlio/route.ts
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { isPortalAdminEmail } from "@/lib/portal-admin";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -520,6 +521,8 @@ function splitEnvList(...names: string[]): string[] {
 }
 
 function isCoreWriteAllowed(user: { id: string; email?: string | null }): boolean {
+  if (isPortalAdminEmail(user.email)) return true;
+
   const allowedIds = Array.from(
     new Set(
       splitEnvList(
