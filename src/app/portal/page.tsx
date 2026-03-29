@@ -587,48 +587,11 @@ export default function PortalPage() {
     (hasPuppy ? "Check My Puppy" : hasApp ? "Watch Messages" : "Portal updates");
 
   const recentMessages = data?.msgs?.slice(0, 3) || [];
-
-  const puppyCards = [
-    {
-      key: "primary",
-      title: hasPuppy ? puppyDisplayName : "Available Puppies",
-      meta: hasPuppy
-        ? `${data?.puppy?.sex || "Puppy"}${data?.puppy?.dob ? ` · DOB: ${fmtDate(data.puppy.dob)}` : ""}`
-        : "Browse current and upcoming matches",
-      href: hasPuppy ? "/portal/mypuppy" : "/portal/available-puppies",
-      image: puppyImage,
-      muted: false,
-    },
-    {
-      key: "secondary-1",
-      title: hasPuppy ? "Documents" : "Profile",
-      meta: hasPuppy ? "Contracts and records" : "Portal details stay here",
-      href: hasPuppy ? "/portal/documents" : "/portal/application",
-      image: "",
-      muted: true,
-    },
-    {
-      key: "secondary-2",
-      title: hasPuppy ? "Updates" : "Updates",
-      meta: `${data?.updates?.length || 0} posted`,
-      href: "/portal/updates",
-      image: "",
-      muted: true,
-    },
-    {
-      key: "secondary-3",
-      title: hasPuppy ? "Messages" : "Messages",
-      meta: `${recentMessages.length} recent`,
-      href: "/portal/messages",
-      image: "",
-      muted: true,
-    },
-  ];
-  void puppyCards;
+  const actionSteps = nextSteps(hasApp, hasPuppy);
 
   const overviewCards = [
     {
-      label: "Application Status",
+      label: "Application",
       value: data?.app?.status || data?.app?.application_status || "Not started",
       sub: data?.app?.created_at
         ? `Submitted ${fmtDate(data.app.created_at)}`
@@ -637,7 +600,7 @@ export default function PortalPage() {
       icon: "✓",
     },
     {
-      label: "Next Update",
+      label: "Latest Update",
       value: nextUpdateLabel,
       sub:
         recentUpdates[0]?.title ||
@@ -650,14 +613,14 @@ export default function PortalPage() {
       icon: "→",
     },
     {
-      label: "Balance Due",
+      label: "Balance",
       value: financialValue,
       sub: "Open payments for details",
       href: "/portal/payments",
       icon: "$",
     },
     {
-      label: hasPuppy ? "My Puppy" : "Available Puppies",
+      label: hasPuppy ? "Assigned Puppy" : "Available Puppies",
       value: hasPuppy ? puppyDisplayName : "Browse now",
       sub: hasPuppy ? "Full profile and updates" : "See current and future matches",
       href: hasPuppy ? "/portal/mypuppy" : "/portal/available-puppies",
@@ -702,6 +665,30 @@ export default function PortalPage() {
             date: "Portal timeline",
           },
         ];
+
+  const spotlightMetrics = [
+    {
+      label: "Messages",
+      value: `${recentMessages.length}`,
+      detail: recentMessages.length
+        ? "Recent conversations ready to review"
+        : "No unread conversation pressure",
+    },
+    {
+      label: "Documents",
+      value: `${data?.docCount || 0}`,
+      detail: data?.docCount
+        ? "Forms, contracts, and records in one place"
+        : "New files appear here automatically",
+    },
+    {
+      label: "Updates",
+      value: `${data?.updates?.length || 0}`,
+      detail: hasPuppy
+        ? "Milestones, breeder notes, and care updates"
+        : "Profile activity will appear here",
+    },
+  ];
   if (loading) {
     return (
       <div className="flex min-h-[70vh] items-center justify-center rounded-[28px] border border-[#dcc9b7] bg-white text-sm font-semibold text-[#7f6144] shadow-sm">
@@ -711,6 +698,30 @@ export default function PortalPage() {
   }
 
   if (!user) return <LoginComponent />;
+
+  return (
+    <PortalHomeDashboard
+      greetingName={greetingName}
+      puppyImage={puppyImage}
+      primaryHref={primaryHref}
+      primaryLabel={primaryLabel}
+      hasPuppy={hasPuppy}
+      hasApp={hasApp}
+      puppyDisplayName={puppyDisplayName}
+      puppyStatus={puppyStatus.label}
+      appStatus={appStatus.label}
+      nextUpdateLabel={nextUpdateLabel}
+      financialValue={financialValue}
+      overviewCards={overviewCards}
+      recentMessages={recentMessages}
+      timelineItems={timelineItems}
+      resourceTiles={resourceTiles}
+      actionSteps={actionSteps}
+      spotlightMetrics={spotlightMetrics}
+      docCount={data?.docCount || 0}
+      totalMessages={data?.msgs?.length || 0}
+    />
+  );
 
   return (
     <div className="space-y-5">
@@ -909,7 +920,7 @@ export default function PortalPage() {
 
             <div className="mt-6 space-y-4">
               <FinancialRow label="Balance Due" value={financialValue} />
-              <FinancialRow label="Documents" value={data?.docCount ? `${data.docCount}` : "—"} />
+              <FinancialRow label="Documents" value={`${data?.docCount || 0}`} />
               <FinancialRow label="Messages" value={`${data?.msgs?.length || 0}`} />
 
               <div className="rounded-[22px] border border-[#e5d7c8] bg-[#fcf9f5] p-4">
@@ -976,15 +987,417 @@ export default function PortalPage() {
   );
 }
 
-function FinancialRow({ label, value }: { label: string; value: string }) {
+function PortalHomeDashboard({
+  greetingName,
+  puppyImage,
+  primaryHref,
+  primaryLabel,
+  hasPuppy,
+  hasApp,
+  puppyDisplayName,
+  puppyStatus,
+  appStatus,
+  nextUpdateLabel,
+  financialValue,
+  overviewCards,
+  recentMessages,
+  timelineItems,
+  resourceTiles,
+  actionSteps,
+  spotlightMetrics,
+  docCount,
+  totalMessages,
+}: {
+  greetingName: string;
+  puppyImage: string;
+  primaryHref: string;
+  primaryLabel: string;
+  hasPuppy: boolean;
+  hasApp: boolean;
+  puppyDisplayName: string;
+  puppyStatus: string;
+  appStatus: string;
+  nextUpdateLabel: string;
+  financialValue: string;
+  overviewCards: Array<{ label: string; value: string; sub: string; href: string; accent?: string }>;
+  recentMessages: any[];
+  timelineItems: Array<{ id: string; title: string; date: string }>;
+  resourceTiles: Array<{ title: string; desc: string; href: string }>;
+  actionSteps: NextStep[];
+  spotlightMetrics: Array<{ label: string; value: string; detail: string }>;
+  docCount: number;
+  totalMessages: number;
+}) {
   return (
-    <div className="flex items-center justify-between gap-4">
-      <span className="text-[11px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
-        {label}
-      </span>
-      <span className="text-sm font-black text-[#342116]">{value}</span>
+    <div className="space-y-6">
+      <section className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(84,120,255,0.18),transparent_26%),radial-gradient(circle_at_85%_15%,rgba(96,211,255,0.16),transparent_28%),linear-gradient(135deg,#0b1120_0%,#121a31_48%,#1b2340_100%)] p-6 shadow-[0_32px_80px_rgba(3,8,23,0.48)] md:p-8">
+        <div className="absolute inset-y-0 right-0 hidden w-[34%] overflow-hidden lg:block">
+          <img
+            src={puppyImage}
+            alt={hasPuppy ? "Portal hero puppy" : "Portal welcome puppy"}
+            className="h-full w-full object-cover opacity-60"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(15,23,42,1)_0%,rgba(15,23,42,0.72)_35%,rgba(15,23,42,0.18)_100%)]" />
+        </div>
+
+        <div className="relative z-10 grid gap-8 xl:grid-cols-[minmax(0,1.3fr)_360px]">
+          <div className="max-w-4xl">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="inline-flex rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-100">
+                Private Client Dashboard
+              </span>
+              <span className="inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-slate-300">
+                Southwest Virginia Chihuahua
+              </span>
+            </div>
+
+            <h1 className="mt-6 max-w-3xl font-serif text-4xl font-bold leading-[1.02] text-white [font-family:var(--font-merriweather)] md:text-5xl xl:text-[56px]">
+              A premium portal for your puppy journey.
+            </h1>
+            <p className="mt-4 max-w-2xl text-[15px] leading-7 text-slate-300 md:text-base">
+              Your updates, documents, breeder communication, payment details, and puppy
+              profile all live here in one polished private experience for {greetingName}.
+            </p>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link
+                href={primaryHref}
+                className="inline-flex items-center rounded-2xl bg-[linear-gradient(135deg,#60a5fa_0%,#7c3aed_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_38px_rgba(96,165,250,0.28)] transition hover:-translate-y-0.5"
+              >
+                {primaryLabel}
+              </Link>
+              <Link
+                href="/portal/messages"
+                className="inline-flex items-center rounded-2xl border border-white/10 bg-white/6 px-5 py-3 text-sm font-semibold text-slate-100 transition hover:border-white/20 hover:bg-white/10"
+              >
+                Open Messages
+              </Link>
+            </div>
+
+            <div className="mt-8 grid gap-3 md:grid-cols-3">
+              {spotlightMetrics.map((metric) => (
+                <div
+                  key={metric.label}
+                  className="rounded-2xl border border-white/10 bg-white/6 px-4 py-4 backdrop-blur-sm"
+                >
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+                    {metric.label}
+                  </div>
+                  <div className="mt-2 text-3xl font-semibold text-white">{metric.value}</div>
+                  <div className="mt-2 text-sm leading-6 text-slate-300">{metric.detail}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="relative z-10">
+            <div className="rounded-[26px] border border-white/10 bg-slate-950/45 p-5 shadow-[0_18px_42px_rgba(2,6,23,0.45)] backdrop-blur-xl">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+                    Client Snapshot
+                  </div>
+                  <div className="mt-2 text-2xl font-semibold text-white">{greetingName}</div>
+                </div>
+                <span className="inline-flex rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-[11px] font-semibold text-emerald-200">
+                  {appStatus}
+                </span>
+              </div>
+
+              <div className="mt-5 space-y-3">
+                <GlassMetric
+                  label="Assigned Puppy"
+                  value={hasPuppy ? puppyDisplayName : "Waiting for match"}
+                />
+                <GlassMetric label="Portal Balance" value={financialValue} />
+                <GlassMetric label="Latest Activity" value={nextUpdateLabel} />
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+                  Experience Standard
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-300">
+                  Built for high-touch puppy placement with organized records, proactive
+                  updates, and a cleaner luxury client experience.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
+        {overviewCards.map((card) => (
+          <Link
+            key={card.label}
+            href={card.href}
+            className="group overflow-hidden rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.88)_0%,rgba(15,23,42,0.72)_100%)] p-5 shadow-[0_20px_44px_rgba(2,6,23,0.26)] transition hover:-translate-y-1 hover:border-sky-300/20"
+          >
+            <div
+              className={`h-1.5 w-full rounded-full bg-gradient-to-r ${
+                card.accent || "from-slate-400/20 to-slate-500/10"
+              }`}
+            />
+            <div className="mt-5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+              {card.label}
+            </div>
+            <div className="mt-3 break-words text-[28px] font-semibold leading-tight text-white">
+              {card.value}
+            </div>
+            <div className="mt-3 text-sm leading-6 text-slate-300">{card.sub}</div>
+            <div className="mt-5 text-[12px] font-semibold uppercase tracking-[0.2em] text-sky-300 transition group-hover:text-sky-200">
+              Open Panel
+            </div>
+          </Link>
+        ))}
+      </section>
+
+      <section className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.25fr)_390px]">
+        <div className="space-y-5">
+          <DashboardPanel
+            title="Puppy Command Center"
+            subtitle={
+              hasPuppy
+                ? "Your puppy profile, current status, and fastest next actions."
+                : "Portal setup and match readiness in one place."
+            }
+            actionHref={hasPuppy ? "/portal/mypuppy" : "/portal/available-puppies"}
+            actionLabel={hasPuppy ? "Open My Puppy" : "Browse Puppies"}
+          >
+            <div className="grid gap-5 lg:grid-cols-[340px_minmax(0,1fr)]">
+              <div className="relative min-h-[320px] overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/60">
+                <img
+                  src={puppyImage}
+                  alt={hasPuppy ? "My puppy preview" : "Available puppies preview"}
+                  className="absolute inset-0 h-full w-full object-cover opacity-80"
+                />
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.08)_0%,rgba(2,6,23,0.72)_65%,rgba(2,6,23,0.96)_100%)]" />
+                <div className="absolute inset-x-0 bottom-0 p-5">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-200/90">
+                    {hasPuppy ? "Assigned Puppy" : "Available Puppies"}
+                  </div>
+                  <div className="mt-2 font-serif text-3xl text-white [font-family:var(--font-merriweather)]">
+                    {hasPuppy ? puppyDisplayName : "Your next match starts here"}
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-200">
+                    {hasPuppy
+                      ? "Profile details, milestones, and breeder updates are organized in a single luxury experience."
+                      : "Explore available puppies, monitor updates, and stay ready for the right match."}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <InfoTile
+                    label="Application Status"
+                    value={appStatus}
+                    detail={hasApp ? "Your portal record is active." : "Start when you are ready."}
+                  />
+                  <InfoTile
+                    label="Puppy Status"
+                    value={puppyStatus}
+                    detail={
+                      hasPuppy
+                        ? "Current assignment is visible in My Puppy."
+                        : "Assignment appears once matched."
+                    }
+                  />
+                </div>
+
+                <div className="rounded-[24px] border border-white/10 bg-slate-950/45 p-5">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+                    Recommended Next Steps
+                  </div>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    {actionSteps.map((step) => (
+                      <Link
+                        key={step.title}
+                        href={step.href}
+                        className="rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:border-sky-300/20 hover:bg-white/8"
+                      >
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                          {step.title}
+                        </div>
+                        <div className="mt-2 text-sm leading-6 text-slate-200">{step.desc}</div>
+                        <div className="mt-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-sky-300">
+                          {step.cta}
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </DashboardPanel>
+
+          <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
+            <DashboardPanel
+              title="Recent Messages"
+              subtitle="Important communication stays visible and easy to scan."
+              actionHref="/portal/messages"
+              actionLabel="View All"
+            >
+              <div className="space-y-3">
+                {recentMessages.length ? (
+                  recentMessages.map((m: any) => (
+                    <div
+                      key={m.id}
+                      className="rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:border-sky-300/20 hover:bg-white/7"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                            {m.sender_name || m.sender || m.from_name || "Support Team"}
+                          </div>
+                          <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-100">
+                            {m.message || m.content || m.body || m.text || "-"}
+                          </p>
+                        </div>
+                        <span className="shrink-0 text-[11px] font-medium text-slate-400">
+                          {fmtDate(m.created_at || m.sent_at)}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <EmptyState
+                    title="No recent messages"
+                    desc="When breeder messages or account updates arrive, they will appear here automatically."
+                  />
+                )}
+              </div>
+            </DashboardPanel>
+
+            <DashboardPanel
+              title="Portal Activity"
+              subtitle="Updates, milestones, and client-visible timeline items."
+              actionHref="/portal/updates"
+              actionLabel="Open Updates"
+            >
+              <div className="space-y-3">
+                {timelineItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-2xl border border-white/10 bg-white/5 p-4"
+                  >
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                      {item.date}
+                    </div>
+                    <div className="mt-2 text-sm font-medium leading-6 text-slate-100">
+                      {item.title}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </DashboardPanel>
+          </div>
+        </div>
+
+        <div className="space-y-5">
+          <DashboardPanel
+            title="Financial Snapshot"
+            subtitle="A cleaner overview before opening full payments."
+            actionHref="/portal/payments"
+            actionLabel="Open Payments"
+          >
+            <div className="space-y-3">
+              <MetricRow label="Balance Due" value={financialValue} />
+              <MetricRow label="Documents Ready" value={`${docCount}`} />
+              <MetricRow label="Messages Logged" value={`${totalMessages}`} />
+            </div>
+            <div className="mt-5 rounded-2xl border border-emerald-400/15 bg-emerald-400/8 p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-200">
+                Buyer Transparency
+              </div>
+              <p className="mt-2 text-sm leading-6 text-slate-200">
+                Your payment history, financing details, and remaining balance stay visible
+                in the payments dashboard.
+              </p>
+            </div>
+          </DashboardPanel>
+
+          <DashboardPanel
+            title="Resource Library"
+            subtitle="Quick access to guidance, transportation, and portal essentials."
+            actionHref="/portal/resources"
+            actionLabel="Open Resources"
+          >
+            <div className="space-y-3">
+              {resourceTiles.map((tile) => (
+                <QuickLink key={tile.title} href={tile.href} title={tile.title} desc={tile.desc} />
+              ))}
+            </div>
+          </DashboardPanel>
+        </div>
+      </section>
     </div>
   );
+}
+
+function DashboardPanel({
+  title,
+  subtitle,
+  actionHref,
+  actionLabel,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  actionHref?: string;
+  actionLabel?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.82)_0%,rgba(15,23,42,0.66)_100%)] p-5 shadow-[0_20px_50px_rgba(2,6,23,0.3)] backdrop-blur-xl md:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+            {title}
+          </div>
+          {subtitle ? (
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">{subtitle}</p>
+          ) : null}
+        </div>
+        {actionHref && actionLabel ? (
+          <Link
+            href={actionHref}
+            className="inline-flex rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-200 transition hover:border-sky-300/20 hover:bg-white/10"
+          >
+            {actionLabel}
+          </Link>
+        ) : null}
+      </div>
+      <div className="mt-5">{children}</div>
+    </section>
+  );
+}
+
+function GlassMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+        {label}
+      </span>
+      <span className="text-sm font-semibold text-white">{value}</span>
+    </div>
+  );
+}
+
+function MetricRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+        {label}
+      </span>
+      <span className="text-sm font-semibold text-white">{value}</span>
+    </div>
+  );
+}
+
+function FinancialRow({ label, value }: { label: string; value: string }) {
+  return <MetricRow label={label} value={value} />;
 }
 
 function QuickLink({
@@ -999,13 +1412,42 @@ function QuickLink({
   return (
     <Link
       href={href}
-      className="block rounded-[8px] border border-[#e5d7c8] bg-[#fcf9f5] p-4 transition hover:bg-white"
+      className="block rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:border-sky-300/20 hover:bg-white/8"
     >
-      <div className="text-sm font-black text-[#342116]">{title}</div>
-      <div className="mt-1 text-[12px] font-semibold leading-6 text-[#8d6f52]">
+      <div className="text-sm font-semibold text-white">{title}</div>
+      <div className="mt-1 text-[13px] leading-6 text-slate-300">
         {desc}
       </div>
     </Link>
+  );
+}
+
+function InfoTile({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+        {label}
+      </div>
+      <div className="mt-2 text-xl font-semibold text-white">{value}</div>
+      <div className="mt-2 text-sm leading-6 text-slate-300">{detail}</div>
+    </div>
+  );
+}
+
+function EmptyState({ title, desc }: { title: string; desc: string }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-white/10 bg-white/4 px-5 py-10 text-center">
+      <div className="text-base font-semibold text-white">{title}</div>
+      <div className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-300">{desc}</div>
+    </div>
   );
 }
 
@@ -1458,3 +1900,4 @@ function InfoPill({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
