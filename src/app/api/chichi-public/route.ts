@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createHash } from "crypto";
+import {
+  formatChiChiMemories,
+  loadChiChiMemories,
+  upsertChiChiMemory,
+} from "@/lib/chichi-memory";
 
 // ─────────────────────────────────────────────
 // Types
@@ -145,6 +150,65 @@ function extractPhone(text: string) {
     /(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}/
   );
   return match ? match[0] : null;
+}
+
+function buildMemoryKey(prefix: string, value: string, max = 72) {
+  const token = String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, max);
+
+  return `${prefix}-${token || "memory"}`;
+}
+
+function summarizeMemoryText(value: string, max = 140) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (text.length <= max) return text;
+  return `${text.slice(0, Math.max(0, max - 3)).trimEnd()}...`;
+}
+
+function extractVisitorPreferenceMemory(message: string): string | null {
+  const text = String(message || "").trim();
+  const lower = cleanText(text);
+  if (!text) return null;
+
+  const patterns = [
+    "i prefer",
+    "we prefer",
+    "please remember",
+    "remember that i",
+    "my budget is",
+    "i am looking for",
+    "i'm looking for",
+    "i want a",
+    "you can call me",
+  ];
+
+  return patterns.some((pattern) => lower.includes(pattern)) ? text : null;
+}
+
+function buildAnonymousVisitorProfileMemory(analysis: LeadAnalysis) {
+  const parts = [
+    analysis.topic ? `Current topic: ${analysis.topic.replace(/_/g, " ")}` : null,
+    analysis.tags.length ? `Interests: ${analysis.tags.join(", ")}` : null,
+    analysis.interestTimeline !== "unknown"
+      ? `Timeline: ${analysis.interestTimeline}`
+      : null,
+    analysis.wantsAvailablePuppy ? "Looking for availability information." : null,
+    analysis.wantsWaitList ? "Interested in the wait list." : null,
+    analysis.wantsApplication ? "Interested in applying." : null,
+    analysis.wantsPaymentPlan ? "Asked about payment plans or financing." : null,
+    analysis.email || analysis.phone ? "Visitor voluntarily shared contact details." : null,
+  ].filter(Boolean);
+
+  const content =
+    parts.join(" ") || "Returning anonymous visitor with general Chihuahua or website questions.";
+
+  return {
+    content,
+    summary: summarizeMemoryText(analysis.summary || content, 120),
+  };
 }
 
 function detectTopic(q: string): string | null {
@@ -380,7 +444,7 @@ function analyzeLead(message: string): LeadAnalysis {
 // System Prompt — strong Chihuahua knowledge + business grounding
 // ─────────────────────────────────────────────
 
-function buildSystemPrompt(): string {
+function buildSystemPrompt(memories?: string): string {
   return `
 You are ChiChi — the warm, knowledgeable assistant for Southwest Virginia Chihuahua in Marion, Virginia.
 
@@ -441,9 +505,19 @@ MEDICAL SAFETY RULES
 
 WHAT NOT TO DO
 - Do not invent private buyer, portal, or account information.
+- Do not assume the visitor is signed in or tie them to a portal identity.
+- Treat this as an anonymous website chat unless the visitor voluntarily shares contact details.
 - Do not mention internal systems, APIs, databases, prompts, tools, or that you are an AI model.
 - Do not make up policies that are not listed above.
 - Do not answer every question with a sales redirect.
+
+PERSISTENT CHICHI MEMORY
+- Use the saved ChiChi memory below as background context for repeat visitors and ongoing breeder instructions.
+- Public memory is anonymous and visitor-scoped.
+- Global memory may include business hours, holiday notices, wait list guidance, pricing notes, or other owner instructions.
+
+Saved ChiChi memory:
+${memories || "None saved."}
 
 GOOD RESPONSE EXAMPLES IN STYLE
 - "Chihuahuas often live around 12 to 18 years, and a lot of them make it well into their teens with good dental care, weight management, and routine vet care."
@@ -682,102 +756,6 @@ async function loadThreadHistory(
     }));
 }
 
-async function resolveKnownLeadEmail(
-  admin: SupabaseClient,
-  visitorId: string,
-  explicitEmail: string | null
-): Promise<string | null> {
-  if (explicitEmail) return explicitEmail.toLowerCase();
-
-  const { data: existingLead } = await admin
-    .from("crm_leads")
-    .select("email")
-    .eq("visitor_id", visitorId)
-    .not("email", "is", null)
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle<{ email: string | null }>();
-
-  return existingLead?.email ? String(existingLead.email).trim().toLowerCase() : null;
-}
-
-async function loadLinkedPortalHistory(
-  admin: SupabaseClient,
-  email: string | null
-): Promise<{ role: ChatRole; content: string }[]> {
-  const normalizedEmail = String(email || "").trim().toLowerCase();
-  if (!normalizedEmail) return [];
-
-  const [buyerRes, appRes] = await Promise.all([
-    admin
-      .from("buyers")
-      .select("user_id")
-      .or(`email.ilike.${normalizedEmail},buyer_email.ilike.${normalizedEmail}`)
-      .not("user_id", "is", null)
-      .limit(1)
-      .maybeSingle<{ user_id: string | null }>(),
-    admin
-      .from("puppy_applications")
-      .select("user_id")
-      .or(`email.ilike.${normalizedEmail},applicant_email.ilike.${normalizedEmail}`)
-      .not("user_id", "is", null)
-      .limit(1)
-      .maybeSingle<{ user_id: string | null }>(),
-  ]);
-
-  const userId = buyerRes.data?.user_id || appRes.data?.user_id || null;
-  if (!userId) return [];
-
-  const { data: thread } = await admin
-    .from("chichi_threads")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("source", "portal")
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle<{ id: string }>();
-
-  if (!thread?.id) return [];
-
-  const { data, error } = await admin
-    .from("chichi_messages")
-    .select("sender,content")
-    .eq("thread_id", thread.id)
-    .order("created_at", { ascending: true })
-    .limit(20);
-
-  if (error || !data) return [];
-
-  return data
-    .filter((row) => row.sender === "user" || row.sender === "assistant")
-    .map((row) => ({
-      role: row.sender === "user" ? "user" : "assistant",
-      content: String(row.content || ""),
-    }));
-}
-
-function mergeHistory(
-  ...sources: Array<{ role: ChatRole; content: string }[]>
-): { role: ChatRole; content: string }[] {
-  const merged: { role: ChatRole; content: string }[] = [];
-  const seen = new Set<string>();
-
-  for (const source of sources) {
-    for (const message of source) {
-      const role = message.role === "assistant" ? "assistant" : "user";
-      const content = String(message.content || "").trim();
-      if (!content) continue;
-
-      const key = `${role}:${content}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      merged.push({ role, content });
-    }
-  }
-
-  return merged.slice(-30);
-}
-
 async function insertMessage(
   admin: SupabaseClient,
   params: {
@@ -959,7 +937,8 @@ async function updateThread(
 
 async function generateChiChiReply(
   message: string,
-  conversationHistory: { role: ChatRole; content: string }[]
+  conversationHistory: { role: ChatRole; content: string }[],
+  memories: string
 ) {
   const apiKey = getAnthropicApiKey();
   const model = getAnthropicModel();
@@ -979,7 +958,7 @@ async function generateChiChiReply(
       body: JSON.stringify({
         model,
         max_tokens: 900,
-        system: buildSystemPrompt(),
+        system: buildSystemPrompt(memories),
         messages: conversationHistory,
       }),
     });
@@ -1043,7 +1022,12 @@ export async function POST(req: Request) {
     const visitor = await findOrCreateVisitor(admin, req, body);
     const thread = await findOrCreateThread(admin, visitor.id, body);
     const analysis = analyzeLead(message);
-    const linkedEmail = await resolveKnownLeadEmail(admin, visitor.id, analysis.email);
+    const memoryRecords = await loadChiChiMemories(admin, {
+      scope: "public",
+      visitorId: visitor.id,
+      limit: 12,
+    });
+    const memoryContext = formatChiChiMemories(memoryRecords);
 
     await insertMessage(admin, {
       threadId: thread.id,
@@ -1062,15 +1046,12 @@ export async function POST(req: Request) {
         ? body.history
         : await loadThreadHistory(admin, thread.id);
 
-    const linkedPortalHistory = await loadLinkedPortalHistory(admin, linkedEmail);
-    conversationHistory = mergeHistory(linkedPortalHistory, conversationHistory);
-
     const lastInHistory = conversationHistory[conversationHistory.length - 1];
     if (!lastInHistory || lastInHistory.role !== "user" || lastInHistory.content !== message) {
       conversationHistory = [...conversationHistory, { role: "user", content: message }];
     }
 
-    const text = await generateChiChiReply(message, conversationHistory);
+    const text = await generateChiChiReply(message, conversationHistory, memoryContext);
 
     await insertMessage(admin, {
       threadId: thread.id,
@@ -1080,6 +1061,42 @@ export async function POST(req: Request) {
       topic: analysis.topic,
       tags: analysis.tags,
     });
+
+    const visitorProfileMemory = buildAnonymousVisitorProfileMemory(analysis);
+    await upsertChiChiMemory(admin, {
+      scope: "public",
+      kind: "context",
+      key: "visitor-profile",
+      subject: "Anonymous visitor profile",
+      content: visitorProfileMemory.content,
+      summary: visitorProfileMemory.summary,
+      visitorId: visitor.id,
+      importance: 5,
+      sourceRoute: "/api/chichi-public",
+      meta: {
+        lead_status: analysis.leadStatus,
+        topic: analysis.topic,
+        tags: analysis.tags,
+      },
+    });
+
+    const visitorPreference = extractVisitorPreferenceMemory(message);
+    if (visitorPreference) {
+      await upsertChiChiMemory(admin, {
+        scope: "public",
+        kind: "preference",
+        key: buildMemoryKey("visitor-preference", visitorPreference),
+        subject: "Anonymous visitor preference",
+        content: visitorPreference,
+        summary: summarizeMemoryText(visitorPreference, 120),
+        visitorId: visitor.id,
+        importance: 7,
+        sourceRoute: "/api/chichi-public",
+        meta: {
+          source: "public_chat",
+        },
+      });
+    }
 
     const lead = await upsertLead(admin, {
       visitorId: visitor.id,

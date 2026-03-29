@@ -1,6 +1,12 @@
 // FILE: app/api/buildlio/route.ts
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import {
+  deactivateChiChiMemory,
+  formatChiChiMemories,
+  loadChiChiMemories,
+  upsertChiChiMemory,
+} from "@/lib/chichi-memory";
 import { isPortalAdminEmail } from "@/lib/portal-admin";
 
 type ChatMessage = {
@@ -20,6 +26,11 @@ type AdminAuthContext = {
   email: string | null;
   canWriteCore: boolean;
 };
+
+type MemoryCommand =
+  | { action: "save"; scope: "global" | "portal"; content: string; subject?: string | null }
+  | { action: "delete"; scope: "global" | "portal"; query: string }
+  | { action: "list"; scope: "global" | "portal" };
 
 type BuyerRecord = {
   id: number;
@@ -518,6 +529,145 @@ function splitEnvList(...names: string[]): string[] {
     .flatMap((name) => String(getOptionalEnv(name) || "").split(","))
     .map((value) => value.trim())
     .filter(Boolean);
+}
+
+function buildMemoryKey(prefix: string, value: string, max = 72) {
+  const token = String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, max);
+
+  return `${prefix}-${token || "memory"}`;
+}
+
+function summarizeMemoryText(value: string, max = 140) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (text.length <= max) return text;
+  return `${text.slice(0, Math.max(0, max - 3)).trimEnd()}...`;
+}
+
+function inferGlobalMemoryKind(text: string): "instruction" | "business" {
+  const lower = String(text || "").toLowerCase();
+
+  if (
+    /\bhours?\b/.test(lower) ||
+    /\bopen\b/.test(lower) ||
+    /\bclosed\b/.test(lower) ||
+    /\beaster\b/.test(lower) ||
+    /\bchristmas\b/.test(lower) ||
+    /\bthanksgiving\b/.test(lower) ||
+    /\bholiday\b/.test(lower) ||
+    /\bwait list\b/.test(lower) ||
+    /\bpricing\b/.test(lower) ||
+    /\bprice\b/.test(lower) ||
+    /\bpayment plan\b/.test(lower) ||
+    /\bfinancing\b/.test(lower) ||
+    /\bpolicy\b/.test(lower) ||
+    /\bpickup\b/.test(lower) ||
+    /\bdelivery\b/.test(lower) ||
+    /\btransport/.test(lower)
+  ) {
+    return "business";
+  }
+
+  return "instruction";
+}
+
+function inferGlobalMemorySubject(text: string): string {
+  const lower = String(text || "").toLowerCase();
+
+  if (/\bhours?\b/.test(lower) || /\bopen\b/.test(lower) || /\bclosed\b/.test(lower)) {
+    return "Business hours";
+  }
+  if (/\beaster\b/.test(lower) || /\bchristmas\b/.test(lower) || /\bholiday\b/.test(lower)) {
+    return "Holiday schedule";
+  }
+  if (/\bwait list\b/.test(lower)) {
+    return "Wait list guidance";
+  }
+  if (
+    /\bpricing\b/.test(lower) ||
+    /\bprice\b/.test(lower) ||
+    /\bpayment plan\b/.test(lower) ||
+    /\bfinancing\b/.test(lower)
+  ) {
+    return "Pricing and financing";
+  }
+  if (/\bpolicy\b/.test(lower)) {
+    return "Business policy";
+  }
+  if (/\bpickup\b/.test(lower) || /\bdelivery\b/.test(lower) || /\btransport/.test(lower)) {
+    return "Transportation guidance";
+  }
+
+  return "Owner instruction";
+}
+
+function extractAdminMemoryCommand(message: string): MemoryCommand | null {
+  const text = String(message || "").trim();
+
+  if (!text) return null;
+
+  if (/^(show|list)\s+(memory|memories|instructions)/i.test(text)) {
+    return { action: "list", scope: "global" };
+  }
+
+  if (/^(forget|remove|delete)\s+(memory|instruction)/i.test(text)) {
+    const query = text.replace(/^(forget|remove|delete)\s+(memory|instruction)\s*/i, "").trim();
+    if (query) return { action: "delete", scope: "global", query };
+  }
+
+  if (
+    /^(remember|save|store)\b/i.test(text) ||
+    /^(update|set)\s+hours?\b/i.test(text) ||
+    /\bfrom now on\b/i.test(text) ||
+    /\balways\b/i.test(text) ||
+    /\bif someone asks\b/i.test(text) ||
+    /\bhours?\b/i.test(text) ||
+    /\bopen\b/i.test(text) ||
+    /\bclosed\b/i.test(text) ||
+    /\bbusiness hours\b/i.test(text) ||
+    /\bholiday\b/i.test(text) ||
+    /\beaster\b/i.test(text) ||
+    /\bwait list\b/i.test(text) ||
+    /\bpricing\b/i.test(text) ||
+    /\bpolicy\b/i.test(text)
+  ) {
+    const content = text
+      .replace(/^(remember|save|store)(\s+that)?\s*/i, "")
+      .replace(/^for chichi[:,]?\s*/i, "")
+      .trim();
+
+    return {
+      action: "save",
+      scope: "global",
+      content: content || text,
+      subject: "Owner instruction",
+    };
+  }
+
+  return null;
+}
+
+function extractPortalPreferenceMemory(message: string): string | null {
+  const text = String(message || "").trim();
+  const lower = text.toLowerCase();
+
+  if (!text) return null;
+
+  const patterns = [
+    "i prefer",
+    "my preferred",
+    "please remember",
+    "remember that i",
+    "you can call me",
+    "my phone number is",
+    "my email is",
+    "we prefer",
+  ];
+
+  return patterns.some((pattern) => lower.includes(pattern)) ? text : null;
 }
 
 function isCoreWriteAllowed(user: { id: string; email?: string | null }): boolean {
@@ -1059,7 +1209,7 @@ function buildContextSummary(params: {
 
 function buildSystemPrompt(
   summary: ReturnType<typeof buildContextSummary>,
-  options?: { isAdmin?: boolean; canWriteCore?: boolean }
+  options?: { isAdmin?: boolean; canWriteCore?: boolean; memories?: string }
 ) {
   if (options?.isAdmin) {
     return `
@@ -1073,9 +1223,14 @@ Your role:
 - If the admin asks what commands are available, mention add, edit, and delete coverage for buyers, puppies, puppy events, payments, and puppy weights.
 - If an admin request is missing details, ask for the exact missing fields only.
 - If a request is ambiguous because multiple buyers, puppies, or payments could match, say that plainly and ask for one clarifying detail.
+- Persistent ChiChi memory contains ongoing breeder or owner instructions. Use it for business rules, hours, pricing, website notices, and recurring guidance unless the admin clearly replaces it.
+- Database account data remains the source of truth for buyer, puppy, payment, and portal records.
 
 Current signed-in account context:
 ${JSON.stringify(summary, null, 2)}
+
+Persistent ChiChi memory:
+${options.memories || "None saved."}
 
 Admin write access:
 ${options.canWriteCore ? "enabled" : "disabled"}
@@ -1107,9 +1262,13 @@ Important answer rules:
 - If asked about forms or documents, use recent_forms and recent_documents.
 - If asked about pickup or delivery, use latest_pickup_request and pickup summary.
 - If the user asks something outside their account data, answer generally but clearly separate general guidance from account-specific facts.
+- Persistent ChiChi memory may contain saved buyer preferences or recurring breeder guidance. Use it when helpful, but do not let it override actual account records.
 
 Current account context:
 ${JSON.stringify(summary, null, 2)}
+
+Persistent ChiChi memory:
+${options?.memories || "None saved."}
 `.trim();
 }
 
@@ -2551,40 +2710,6 @@ async function loadSavedConversation(
     }));
 }
 
-async function loadSharedPublicHistory(
-  admin: SupabaseClient,
-  email: string | null | undefined
-): Promise<ChatMessage[]> {
-  const normalizedEmail = String(email || "").trim().toLowerCase();
-  if (!normalizedEmail) return [];
-
-  const { data: lead } = await admin
-    .from("crm_leads")
-    .select("thread_id,updated_at")
-    .eq("email", normalizedEmail)
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle<{ thread_id: string | null }>();
-
-  if (!lead?.thread_id) return [];
-
-  const { data, error } = await admin
-    .from("chichi_public_messages")
-    .select("sender,content")
-    .eq("thread_id", lead.thread_id)
-    .order("created_at", { ascending: true })
-    .limit(20);
-
-  if (error || !data) return [];
-
-  return data
-    .filter((row) => row.sender === "visitor" || row.sender === "assistant")
-    .map((row) => ({
-      role: row.sender === "visitor" ? "user" : "assistant",
-      content: String(row.content || ""),
-    }));
-}
-
 function mergeConversationHistory(...sources: ChatMessage[][]): ChatMessage[] {
   const merged: ChatMessage[] = [];
   const seen = new Set<string>();
@@ -2627,12 +2752,7 @@ export async function POST(req: Request) {
 
     const admin = createServiceSupabase();
     const savedMessages = await loadSavedConversation(admin, user.id, body.threadId);
-    const sharedPublicMessages = await loadSharedPublicHistory(admin, user.email);
-    const messages = mergeConversationHistory(
-      sharedPublicMessages,
-      savedMessages,
-      inputMessages
-    );
+    const messages = mergeConversationHistory(savedMessages, inputMessages);
     const buyer = await getBuyerContext(admin, user.id);
     const puppy = await getPuppyContext(admin, buyer);
 
@@ -2670,14 +2790,67 @@ export async function POST(req: Request) {
       email: user.email || null,
       canWriteCore,
     };
+    const memoryRecords = await loadChiChiMemories(admin, {
+      scope: "portal",
+      userId: user.id,
+      buyerId: buyer?.id ?? null,
+      puppyId: puppy?.id ?? null,
+      limit: canWriteCore ? 18 : 12,
+    });
+    const memoryContext = formatChiChiMemories(memoryRecords);
+    const memoryCommand = canWriteCore ? extractAdminMemoryCommand(lastUserMessage) : null;
     const recentUserMessages = messages
       .filter((message) => message.role === "user")
       .slice(-6)
       .map((message) => message.content);
-
-    const intent = await extractActionIntent(lastUserMessage, recentUserMessages);
+    const intent: ActionIntent = memoryCommand
+      ? { action: "answer_only" }
+      : await extractActionIntent(lastUserMessage, recentUserMessages);
 
     let text = "";
+
+    if (memoryCommand) {
+      if (memoryCommand.action === "list") {
+        const globalMemories = await loadChiChiMemories(admin, {
+          scope: "global",
+          limit: 20,
+        });
+        text = globalMemories.length
+          ? `Here are the saved ChiChi memories I have right now:\n\n${formatChiChiMemories(globalMemories)}`
+          : "I do not have any saved ChiChi memories yet.";
+      } else if (memoryCommand.action === "delete") {
+        const deleted = await deactivateChiChiMemory(admin, {
+          scope: memoryCommand.scope,
+          query: memoryCommand.query,
+        });
+        text = deleted
+          ? `I removed ${deleted} ChiChi memor${deleted === 1 ? "y" : "ies"} matching "${memoryCommand.query}".`
+          : `I could not find an active ChiChi memory matching "${memoryCommand.query}".`;
+      } else if (memoryCommand.action === "save") {
+        const content = String(memoryCommand.content || "").trim();
+        const subject = memoryCommand.subject || inferGlobalMemorySubject(content);
+        const memoryKind = inferGlobalMemoryKind(content);
+        const savedMemory = await upsertChiChiMemory(admin, {
+          scope: memoryCommand.scope,
+          kind: memoryKind,
+          key: buildMemoryKey(memoryCommand.scope, `${subject} ${content}`),
+          subject,
+          content,
+          summary: summarizeMemoryText(content, 120),
+          userId: user.id,
+          importance: memoryKind === "business" ? 9 : 7,
+          sourceRoute: "/api/buildlio",
+          meta: {
+            saved_by: user.email || user.id,
+            source: "admin_chat",
+          },
+        });
+
+        text = savedMemory
+          ? `Saved to ChiChi memory under "${subject}". I will carry that forward in future portal and website replies.`
+          : "I could not save that ChiChi memory right now.";
+      }
+    }
 
     if (intent.action !== "answer_only") {
       if (!canWriteCore) {
@@ -2725,6 +2898,7 @@ export async function POST(req: Request) {
       const system = buildSystemPrompt(summary, {
         isAdmin: canWriteCore,
         canWriteCore,
+        memories: memoryContext,
       });
 
       const anthropicResponse = await fetch(ANTHROPIC_URL, {
@@ -2757,6 +2931,29 @@ export async function POST(req: Request) {
       if (!text) {
         return jsonError("ChiChi could not generate a response.", 502);
       }
+    }
+
+    const portalPreferenceMemory = !canWriteCore
+      ? extractPortalPreferenceMemory(lastUserMessage)
+      : null;
+
+    if (portalPreferenceMemory) {
+      await upsertChiChiMemory(admin, {
+        scope: "portal",
+        kind: "preference",
+        key: buildMemoryKey("portal-preference", portalPreferenceMemory),
+        subject: "Buyer preference",
+        content: portalPreferenceMemory,
+        summary: summarizeMemoryText(portalPreferenceMemory, 120),
+        userId: user.id,
+        buyerId: buyer?.id ?? null,
+        puppyId: puppy?.id ?? null,
+        importance: 7,
+        sourceRoute: "/api/buildlio",
+        meta: {
+          source: "portal_chat",
+        },
+      });
     }
 
     const savedThreadId = await saveConversation({

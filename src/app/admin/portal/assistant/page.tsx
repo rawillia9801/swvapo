@@ -28,6 +28,9 @@ const STARTER_MESSAGES = [
   "Log a payment of 500 for Jane Doe on 2026-03-28 by cash",
   "Edit Jane Doe's payment on 2026-03-28 to status cleared and note paid in person",
   "Add a puppy weight for Bella of 24 oz on 2026-03-28",
+  "Remember that we are open on Easter Sunday from 1 PM to 4 PM",
+  "Show memories",
+  "Forget memory easter",
   "Delete puppies Test and Daisy",
 ];
 
@@ -60,7 +63,7 @@ export default function AdminPortalAssistantPage() {
       id: makeId("assistant"),
       role: "assistant",
       text:
-        "Use plain-language admin commands here. I can add buyers, add puppies, log or edit payments, add puppy events, and record puppy weights.",
+        "Use plain-language admin commands here. I can manage buyers, puppies, payments, events, weights, and now save ongoing ChiChi memory for business rules like hours, holiday notes, pricing guidance, and breeder instructions.",
       createdAt: formatTime(),
     },
   ]);
@@ -331,6 +334,7 @@ export default function AdminPortalAssistantPage() {
                     <p>`add`, `edit`, and `delete payment` commands</p>
                     <p>`add`, `edit`, and `delete puppy weight` commands</p>
                     <p>`add`, `edit`, and `delete puppy event` commands</p>
+                    <p>`remember`, `show memories`, and `forget memory ...` commands</p>
                     <p>multi-delete works when you name more than one puppy or buyer</p>
                   </div>
                 </div>
@@ -344,6 +348,10 @@ export default function AdminPortalAssistantPage() {
                     </h2>
                     <p className="mt-1 text-sm font-semibold text-brand-500">
                       Natural language works best. Include names, amounts, and dates when you can.
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-brand-400">
+                      For persistent ChiChi memory, try commands like “Remember that we are
+                      closed on Christmas Day” or “Show memories”.
                     </p>
                   </div>
                   <span className="rounded-full border border-brand-200 bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-brand-600">
