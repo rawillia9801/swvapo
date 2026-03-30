@@ -49,6 +49,55 @@ export type AdminPortalAccount = {
   forms: AdminFormRecord[];
 };
 
+export type AdminDigestBrief = {
+  id: number;
+  digest_date: string;
+  summary: string;
+  priorities?: string[] | null;
+  stats?: Record<string, unknown> | null;
+};
+
+export type AdminPublicConversationSummary = {
+  id: string;
+  title: string;
+  preview: string;
+  updatedAt: string | null;
+  leadStatus: string;
+  followUpNeeded: boolean;
+  tags: string[];
+};
+
+export type AdminBuyerConversationSummary = {
+  key: string;
+  email: string;
+  preview: string;
+  updatedAt: string | null;
+  unreadCount: number;
+  subject: string;
+};
+
+export type AdminOverviewStats = {
+  buyers: number;
+  applications: number;
+  payments: number;
+  documents: number;
+  paymentPlans: number;
+  users: number;
+  unreadBuyerMessages: number;
+  visitors24h: number;
+  returningVisitors24h: number;
+  publicThreads24h: number;
+  publicMessages24h: number;
+  openFollowUps: number;
+  hotLeads: number;
+  warmLeads: number;
+  sharedContacts: number;
+  totalRevenue: number;
+  latestDigest: AdminDigestBrief | null;
+  publicConversationSummaries: AdminPublicConversationSummary[];
+  buyerConversationSummaries: AdminBuyerConversationSummary[];
+};
+
 export async function fetchAdminAccounts(accessToken: string): Promise<AdminPortalAccount[]> {
   if (!accessToken) return [];
 
@@ -67,6 +116,27 @@ export async function fetchAdminAccounts(accessToken: string): Promise<AdminPort
     return Array.isArray(payload.accounts) ? payload.accounts : [];
   } catch {
     return [];
+  }
+}
+
+export async function fetchAdminOverview(accessToken: string): Promise<AdminOverviewStats | null> {
+  if (!accessToken) return null;
+
+  try {
+    const response = await fetch("/api/admin/portal/overview", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = (await response.json()) as { overview?: AdminOverviewStats };
+    return payload.overview || null;
+  } catch {
+    return null;
   }
 }
 

@@ -14,50 +14,42 @@ import {
   AdminPageShell,
   AdminPanel,
   AdminRestrictedState,
+  adminStatusBadge,
 } from "@/components/admin/luxury-admin-shell";
-import { fetchAdminAccounts } from "@/lib/admin-portal";
+import { fetchAdminOverview, type AdminOverviewStats } from "@/lib/admin-portal";
 import { fmtDate, fmtMoney, sb } from "@/lib/utils";
 import { isPortalAdminEmail } from "@/lib/portal-admin";
 
-type DigestRow = {
-  id: number;
-  digest_date: string;
-  summary: string;
-  priorities?: string[] | null;
-};
-
-type OverviewStats = {
-  buyers: number;
-  applications: number;
-  payments: number;
-  messages: number;
-  unreadMessages: number;
-  forms: number;
-  documents: number;
-  users: number;
-  totalRevenue: number;
-  latestDigest: DigestRow | null;
-};
-
-function emptyStats(): OverviewStats {
+function emptyStats(): AdminOverviewStats {
   return {
     buyers: 0,
     applications: 0,
     payments: 0,
-    messages: 0,
-    unreadMessages: 0,
-    forms: 0,
     documents: 0,
+    paymentPlans: 0,
     users: 0,
+    unreadBuyerMessages: 0,
+    visitors24h: 0,
+    returningVisitors24h: 0,
+    publicThreads24h: 0,
+    publicMessages24h: 0,
+    openFollowUps: 0,
+    hotLeads: 0,
+    warmLeads: 0,
+    sharedContacts: 0,
     totalRevenue: 0,
     latestDigest: null,
+    publicConversationSummaries: [],
+    buyerConversationSummaries: [],
   };
 }
 
 export default function AdminPortalPage() {
   const [user, setUser] = useState<User | null>(null);
+  const [accessToken, setAccessToken] = useState("");
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState<OverviewStats>(emptyStats);
+  const [refreshing, setRefreshing] = useState(false);
+  const [stats, setStats] = useState<AdminOverviewStats>(emptyStats);
 
   useEffect(() => {
     let mounted = true;
@@ -71,10 +63,11 @@ export default function AdminPortalPage() {
         if (!mounted) return;
         const currentUser = session?.user ?? null;
         setUser(currentUser);
+        setAccessToken(session?.access_token || "");
 
         if (currentUser && isPortalAdminEmail(currentUser.email)) {
-          const nextStats = await loadStats(session?.access_token || "");
-          if (mounted) setStats(nextStats);
+          const nextStats = await fetchAdminOverview(session?.access_token || "");
+          if (mounted) setStats(nextStats || emptyStats());
         }
       } finally {
         if (mounted) setLoading(false);
@@ -85,11 +78,14 @@ export default function AdminPortalPage() {
 
     const { data: authListener } = sb.auth.onAuthStateChange(async (_event, session) => {
       if (!mounted) return;
+
       const currentUser = session?.user ?? null;
       setUser(currentUser);
+      setAccessToken(session?.access_token || "");
 
       if (currentUser && isPortalAdminEmail(currentUser.email)) {
-        setStats(await loadStats(session?.access_token || ""));
+        const nextStats = await fetchAdminOverview(session?.access_token || "");
+        setStats(nextStats || emptyStats());
       } else {
         setStats(emptyStats());
       }
@@ -102,6 +98,17 @@ export default function AdminPortalPage() {
       authListener.subscription.unsubscribe();
     };
   }, []);
+
+  async function handleRefresh() {
+    if (!accessToken) return;
+    setRefreshing(true);
+    try {
+      const nextStats = await fetchAdminOverview(accessToken);
+      setStats(nextStats || emptyStats());
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   if (loading) {
     return <div className="py-20 text-center text-sm font-semibold text-[#7b5f46]">Loading admin overview...</div>;
@@ -130,88 +137,272 @@ export default function AdminPortalPage() {
       <div className="space-y-6 pb-12">
         <AdminPageHero
           eyebrow="Overview"
-          title="A cleaner admin command center built around the actual tabs you use."
-          description="Use this overview to jump into buyers, applications, payments, documents, and messages without mixing those workflows together on the same page."
+          title="Run the portal from one clear owner dashboard."
+          description="Review buyer volume, application flow, payments, document volume, and ChiChi activity without turning the overview into a wall of tab shortcuts."
           actions={
             <>
               <AdminHeroPrimaryAction href="/admin/portal/users">Open Buyers</AdminHeroPrimaryAction>
-              <AdminHeroSecondaryAction href="/admin/portal/messages">Open Messages</AdminHeroSecondaryAction>
+              <AdminHeroSecondaryAction href="/admin/portal/assistant">Open ChiChi Admin</AdminHeroSecondaryAction>
             </>
           }
           aside={
             <div className="space-y-4">
-              <AdminInfoTile label="Portal Users" value={String(stats.users)} detail="Signed-up portal accounts tracked through the owner admin route." />
-              <AdminInfoTile label="Recorded Revenue" value={stats.totalRevenue ? fmtMoney(stats.totalRevenue) : "-"} detail="Buyer payment totals currently recorded in buyer_payments." />
+              <AdminInfoTile
+                label="Portal Users"
+                value={String(stats.users)}
+                detail="Signed-up portal accounts currently recognized by the owner admin routes."
+              />
+              <AdminInfoTile
+                label="Recorded Revenue"
+                value={stats.totalRevenue ? fmtMoney(stats.totalRevenue) : "-"}
+                detail="Recorded payment total from buyer payment history."
+              />
             </div>
           }
         />
 
         <AdminMetricGrid>
-          <AdminMetricCard label="Buyers" value={String(stats.buyers)} detail="Buyer records managed in the Buyers tab." />
-          <AdminMetricCard label="Applications" value={String(stats.applications)} detail="Submitted portal applications waiting for review or follow-up." accent="from-[#ece3d5] via-[#d7c1a3] to-[#b18d62]" />
-          <AdminMetricCard label="Payments" value={String(stats.payments)} detail="Payment records tracked in buyer_payments." accent="from-[#dce9d6] via-[#b6cfaa] to-[#7e9c6f]" />
-          <AdminMetricCard label="Documents" value={String(stats.forms + stats.documents)} detail="Combined forms and shared portal documents." accent="from-[#f0dcc1] via-[#ddb68c] to-[#c98743]" />
+          <AdminMetricCard label="Total Buyers" value={String(stats.buyers)} detail="Buyer records currently in the system." />
+          <AdminMetricCard
+            label="Applications"
+            value={String(stats.applications)}
+            detail="Submitted application records awaiting review or follow-up."
+            accent="from-[#ece3d5] via-[#d7c1a3] to-[#b18d62]"
+          />
+          <AdminMetricCard
+            label="Payments"
+            value={String(stats.payments)}
+            detail="Recorded buyer payment entries across all accounts."
+            accent="from-[#dce9d6] via-[#b6cfaa] to-[#7e9c6f]"
+          />
+          <AdminMetricCard
+            label="Documents"
+            value={String(stats.documents)}
+            detail="Combined portal forms and shared document records."
+            accent="from-[#e6def0] via-[#c8b6e3] to-[#8b6fbc]"
+          />
+          <AdminMetricCard
+            label="Puppy Payment Plans"
+            value={String(stats.paymentPlans)}
+            detail="Buyer accounts currently marked with financing enabled."
+            accent="from-[#f0dcc1] via-[#ddb68c] to-[#c98743]"
+          />
         </AdminMetricGrid>
 
         <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-          <div className="xl:col-span-7 space-y-6">
-            <AdminPanel
-              title="Primary Admin Tabs"
-              subtitle="Each tab now has a cleaner purpose so buyer records, money, messages, and documents stay organized."
-            >
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <QuickLinkCard title="Buyers" detail="Buyer records only: contact details, notes, and linked portal status." href="/admin/portal/users" />
-                <QuickLinkCard title="Applications" detail="Application review, assignment, approval, and denial flow." href="/admin/portal/applications" />
-                <QuickLinkCard title="Payments" detail="Financial settings, finance plans, and grouped payment history by buyer." href="/admin/portal/payments" />
-                <QuickLinkCard title="Documents" detail="Grouped forms and files by buyer, not a flat pile of records." href="/admin/portal/documents" />
-                <QuickLinkCard title="Messages" detail="Grouped buyer inbox cards with one thread per buyer." href="/admin/portal/messages" />
-                <QuickLinkCard title="ChiChi Admin" detail="Natural-language admin changes and operational memory." href="/admin/portal/assistant" />
-              </div>
-            </AdminPanel>
-
-            <AdminPanel
-              title="Live Admin Snapshot"
-              subtitle="A compact pulse of the most useful operational counts."
-            >
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <AdminInfoTile label="Unread Messages" value={String(stats.unreadMessages)} detail="Buyer replies still unread by admin." />
-                <AdminInfoTile label="Form Submissions" value={String(stats.forms)} detail="Portal form submissions stored under portal_form_submissions." />
-                <AdminInfoTile label="Shared Documents" value={String(stats.documents)} detail="Portal files stored under portal_documents." />
-              </div>
-            </AdminPanel>
-          </div>
-
-          <div className="xl:col-span-5 space-y-6">
+          <div className="space-y-6 xl:col-span-7">
             <AdminPanel
               title="ChiChi Daily Brief"
-              subtitle="Your current admin digest and next priorities."
+              subtitle="Track public visitor traffic, returning visitors, follow-up needs, and the latest conversation summaries from ChiChi."
+              action={
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleRefresh()}
+                    disabled={refreshing}
+                    className="inline-flex items-center rounded-2xl border border-[#e4d2be] bg-white px-4 py-2 text-sm font-semibold text-[#5d4330] shadow-[0_10px_24px_rgba(106,76,45,0.08)] transition hover:border-[#d4b48b] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {refreshing ? "Refreshing..." : "Refresh Brief"}
+                  </button>
+                  <Link
+                    href="/admin/portal/assistant"
+                    className="inline-flex items-center rounded-2xl bg-[linear-gradient(135deg,#d3a056_0%,#b5752f_100%)] px-4 py-2 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(181,117,47,0.22)] transition hover:-translate-y-0.5 hover:brightness-105"
+                  >
+                    Open ChiChi Admin
+                  </Link>
+                  <Link
+                    href="/admin/portal/messages"
+                    className="inline-flex items-center rounded-2xl border border-[#e4d2be] bg-white px-4 py-2 text-sm font-semibold text-[#5d4330] shadow-[0_10px_24px_rgba(106,76,45,0.08)] transition hover:border-[#d4b48b]"
+                  >
+                    Open Buyer Messages
+                  </Link>
+                </div>
+              }
             >
               {stats.latestDigest ? (
-                <div className="space-y-4">
+                <div className="space-y-5">
                   <AdminInfoTile
                     label="Latest Brief"
                     value={fmtDate(stats.latestDigest.digest_date)}
                     detail={stats.latestDigest.summary}
                   />
+
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    <AdminInfoTile
+                      label="Visitors (24h)"
+                      value={String(stats.visitors24h)}
+                      detail="Website visitors seen by ChiChi in the last day."
+                    />
+                    <AdminInfoTile
+                      label="Returning Visitors"
+                      value={String(stats.returningVisitors24h)}
+                      detail="Visitors marked as returning during the last 24 hours."
+                    />
+                    <AdminInfoTile
+                      label="Public Chats (24h)"
+                      value={String(stats.publicThreads24h)}
+                      detail="Public ChiChi conversation threads active in the last day."
+                    />
+                    <AdminInfoTile
+                      label="Public Messages (24h)"
+                      value={String(stats.publicMessages24h)}
+                      detail="Total public ChiChi messages saved in the last day."
+                    />
+                    <AdminInfoTile
+                      label="Hot Leads"
+                      value={String(stats.hotLeads)}
+                      detail="Public conversations currently marked hot."
+                    />
+                    <AdminInfoTile
+                      label="Open Follow-Ups"
+                      value={String(stats.openFollowUps)}
+                      detail="Open or scheduled follow-up tasks still needing review."
+                    />
+                  </div>
+
                   {stats.latestDigest.priorities?.length ? (
-                    <div className="space-y-3">
-                      {stats.latestDigest.priorities.map((item) => (
-                        <div
-                          key={item}
-                          className="rounded-[22px] border border-[#ead9c7] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] p-4 text-sm leading-6 text-[#73583f]"
-                        >
-                          {item}
-                        </div>
-                      ))}
+                    <div className="rounded-[28px] border border-[#ead8c4] bg-[#fffaf5] p-5">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a47946]">
+                        Priority List
+                      </div>
+                      <div className="mt-4 space-y-3">
+                        {stats.latestDigest.priorities.map((item, index) => (
+                          <div key={`${index}-${item}`} className="flex items-start gap-3 rounded-[20px] border border-[#ead9c7] bg-white px-4 py-4">
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#fff1df] text-[11px] font-semibold text-[#a66f2f]">
+                              {index + 1}
+                            </div>
+                            <div className="text-sm leading-6 text-[#644b35]">{item}</div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ) : null}
+
+                  <div className="rounded-[28px] border border-[#ead8c4] bg-white p-5 shadow-[0_12px_36px_rgba(106,76,45,0.05)]">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a47946]">
+                          Public Conversation Summaries
+                        </div>
+                        <div className="mt-2 text-sm leading-6 text-[#73583f]">
+                          The most recent ChiChi conversations and what they were about.
+                        </div>
+                      </div>
+                      <span
+                        className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(
+                          stats.hotLeads > 0 ? "active" : "pending"
+                        )}`}
+                      >
+                        {stats.hotLeads > 0 ? "Needs Attention" : "Stable"}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 space-y-3">
+                      {stats.publicConversationSummaries.length ? (
+                        stats.publicConversationSummaries.map((item) => (
+                          <ConversationSummaryRow
+                            key={item.id}
+                            title={item.title}
+                            preview={item.preview}
+                            meta={[
+                              item.updatedAt ? fmtDate(item.updatedAt) : "Time unavailable",
+                              item.followUpNeeded ? "Follow-up needed" : "No follow-up flagged",
+                              item.tags.length ? item.tags.join(", ") : null,
+                            ]}
+                            status={item.leadStatus}
+                          />
+                        ))
+                      ) : (
+                        <AdminEmptyState
+                          title="No public conversation summaries yet"
+                          description="ChiChi has not recorded any recent public thread summaries yet."
+                        />
+                      )}
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <AdminEmptyState
                   title="No daily brief yet"
-                  description="Run the ChiChi digest automation to populate the daily owner brief."
+                  description="Run the ChiChi digest automation and the owner brief will appear here with visitor counts, returning visitors, conversation summaries, and follow-up priorities."
                 />
               )}
+            </AdminPanel>
+          </div>
+
+          <div className="space-y-6 xl:col-span-5">
+            <AdminPanel
+              title="Buyer Message Summary"
+              subtitle="Latest buyer-facing message threads with unread counts and the newest preview."
+              action={
+                <Link
+                  href="/admin/portal/messages"
+                  className="inline-flex items-center rounded-2xl border border-[#e4d2be] bg-white px-4 py-2 text-sm font-semibold text-[#5d4330] shadow-[0_10px_24px_rgba(106,76,45,0.08)] transition hover:border-[#d4b48b]"
+                >
+                  Open Messages
+                </Link>
+              }
+            >
+              <div className="grid gap-4 md:grid-cols-2">
+                <AdminInfoTile
+                  label="Unread Buyer Messages"
+                  value={String(stats.unreadBuyerMessages)}
+                  detail="Buyer replies that still need an admin read."
+                />
+                <AdminInfoTile
+                  label="Shared Contacts"
+                  value={String(stats.sharedContacts)}
+                  detail="Public leads who shared email or phone in the last day."
+                />
+              </div>
+
+              <div className="mt-5 space-y-3">
+                {stats.buyerConversationSummaries.length ? (
+                  stats.buyerConversationSummaries.map((item) => (
+                    <BuyerConversationRow
+                      key={item.key}
+                      title={item.subject}
+                      email={item.email || "No email on file"}
+                      preview={item.preview}
+                      updatedAt={item.updatedAt}
+                      unreadCount={item.unreadCount}
+                    />
+                  ))
+                ) : (
+                  <AdminEmptyState
+                    title="No buyer message threads yet"
+                    description="Buyer portal messages will appear here once a buyer starts a conversation."
+                  />
+                )}
+              </div>
+            </AdminPanel>
+
+            <AdminPanel
+              title="Operational Snapshot"
+              subtitle="A smaller pulse of the activity that usually matters first."
+            >
+              <div className="grid gap-4 md:grid-cols-2">
+                <AdminInfoTile
+                  label="Warm Leads"
+                  value={String(stats.warmLeads)}
+                  detail="Public conversations currently tagged warm."
+                />
+                <AdminInfoTile
+                  label="Payment Plans"
+                  value={String(stats.paymentPlans)}
+                  detail="Buyer accounts marked with financing enabled."
+                />
+                <AdminInfoTile
+                  label="Portal Users"
+                  value={String(stats.users)}
+                  detail="Total signed-up portal accounts."
+                />
+                <AdminInfoTile
+                  label="Documents"
+                  value={String(stats.documents)}
+                  detail="Forms and portal documents combined."
+                />
+              </div>
             </AdminPanel>
           </div>
         </section>
@@ -220,86 +411,73 @@ export default function AdminPortalPage() {
   );
 }
 
-async function loadStats(accessToken: string) {
-  const [users, paymentsRes, digestRes] = await Promise.all([
-    fetchAdminAccounts(accessToken),
-    sb.from("buyer_payments").select("amount,status"),
-    sb
-      .from("chichi_admin_digests")
-      .select("id,digest_date,summary,priorities")
-      .order("digest_date", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-  ]);
-
-  const [buyers, applications, messages, forms, documents, unreadMessages] = await Promise.all([
-    getCount("buyers"),
-    getCount("puppy_applications"),
-    getCount("portal_messages"),
-    getCount("portal_form_submissions"),
-    getCount("portal_documents"),
-    getUnreadMessageCount(),
-  ]);
-
-  const paymentRows = (paymentsRes.data || []) as Array<{ amount?: number | null; status?: string | null }>;
-  const totalRevenue = paymentRows.reduce((sum, row) => {
-    const status = String(row.status || "").toLowerCase();
-    if (["failed", "void", "canceled", "cancelled"].includes(status)) return sum;
-    return sum + Number(row.amount || 0);
-  }, 0);
-
-  return {
-    buyers,
-    applications,
-    payments: paymentRows.length,
-    messages,
-    unreadMessages,
-    forms,
-    documents,
-    users: users.length,
-    totalRevenue,
-    latestDigest: (digestRes.data as DigestRow | null) || null,
-  };
-}
-
-async function getCount(tableName: string) {
-  try {
-    const result = await sb.from(tableName).select("*", { count: "exact", head: true });
-    return result.count || 0;
-  } catch {
-    return 0;
-  }
-}
-
-async function getUnreadMessageCount() {
-  try {
-    const result = await sb
-      .from("portal_messages")
-      .select("*", { count: "exact", head: true })
-      .eq("read_by_admin", false);
-    return result.count || 0;
-  } catch {
-    return 0;
-  }
-}
-
-function QuickLinkCard({
+function ConversationSummaryRow({
   title,
-  detail,
-  href,
+  preview,
+  meta,
+  status,
 }: {
   title: string;
-  detail: string;
-  href: string;
+  preview: string;
+  meta: Array<string | null>;
+  status: string;
 }) {
   return (
-    <Link
-      href={href}
-      className="rounded-[24px] border border-[#ead9c7] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] p-5 shadow-[0_10px_24px_rgba(106,76,45,0.05)] transition hover:-translate-y-1 hover:border-[#d8b48b]"
-    >
-      <div className="text-lg font-semibold text-[#2f2218]">{title}</div>
-      <div className="mt-2 text-sm leading-6 text-[#73583f]">{detail}</div>
-      <div className="mt-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#b8772f]">Open Tab</div>
-    </Link>
+    <div className="rounded-[24px] border border-[#ead9c7] bg-[#fffaf5] p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-[#2f2218]">{title}</div>
+          <div className="mt-2 text-sm leading-6 text-[#73583f]">{preview}</div>
+        </div>
+        <span
+          className={`shrink-0 inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(
+            status
+          )}`}
+        >
+          {status || "visitor"}
+        </span>
+      </div>
+      <div className="mt-3 text-xs font-semibold text-[#9c7a57]">
+        {meta.filter(Boolean).join(" - ")}
+      </div>
+    </div>
+  );
+}
+
+function BuyerConversationRow({
+  title,
+  email,
+  preview,
+  updatedAt,
+  unreadCount,
+}: {
+  title: string;
+  email: string;
+  preview: string;
+  updatedAt: string | null;
+  unreadCount: number;
+}) {
+  return (
+    <div className="rounded-[24px] border border-[#ead9c7] bg-[#fffaf5] p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-[#2f2218]">{title}</div>
+          <div className="mt-1 text-xs font-semibold text-[#9c7a57]">{email}</div>
+        </div>
+        <span
+          className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${
+            unreadCount > 0
+              ? "border-amber-200 bg-amber-50 text-amber-700"
+              : "border-emerald-200 bg-emerald-50 text-emerald-700"
+          }`}
+        >
+          {unreadCount > 0 ? `${unreadCount} unread` : "up to date"}
+        </span>
+      </div>
+      <div className="mt-3 text-sm leading-6 text-[#73583f]">{preview}</div>
+      <div className="mt-3 text-xs font-semibold text-[#9c7a57]">
+        {updatedAt ? `Updated ${fmtDate(updatedAt)}` : "Time unavailable"}
+      </div>
+    </div>
   );
 }
