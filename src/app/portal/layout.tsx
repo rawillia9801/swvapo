@@ -388,7 +388,7 @@ export default function PortalLayout({
             .eq("puppy_id", puppyId)
             .gte("event_date", thirtyDaysAgo),
           sb
-            .from("puppy_health")
+            .from("puppy_health_records")
             .select("id", { count: "exact", head: true })
             .eq("puppy_id", puppyId)
             .eq("is_visible_to_buyer", true)
@@ -592,8 +592,8 @@ export default function PortalLayout({
     return [
       "group flex items-center gap-3 rounded-2xl px-4 py-3 transition-all duration-200 ease-out",
       active
-        ? "bg-[linear-gradient(135deg,rgba(96,165,250,0.18),rgba(168,85,247,0.16))] text-white shadow-[0_14px_32px_rgba(15,23,42,0.22)] ring-1 ring-white/10"
-        : "text-[#94a3b8] hover:bg-white/6 hover:text-white",
+        ? "bg-white text-[#2f2218] shadow-[0_18px_34px_rgba(106,76,45,0.12)] ring-1 ring-[#ead8c4]"
+        : "text-[#775a41] hover:bg-white/70 hover:text-[#2f2218]",
     ].join(" ");
   }
 
@@ -602,8 +602,8 @@ export default function PortalLayout({
     return [
       "flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-200",
       active
-        ? "bg-white/10 text-[#c4b5fd]"
-        : "bg-white/[0.03] text-[#94a3b8] group-hover:bg-white/[0.06] group-hover:text-white",
+        ? "bg-[linear-gradient(135deg,#f2d39f_0%,#d39a52_100%)] text-[#3a2919] shadow-[0_10px_22px_rgba(181,117,47,0.18)]"
+        : "bg-[#f7efe5] text-[#9a7754] group-hover:bg-white group-hover:text-[#2f2218]",
     ].join(" ");
   }
 
@@ -702,33 +702,33 @@ export default function PortalLayout({
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#17213b_0%,#0b1020_42%,#070b16_100%)] text-white">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#fff9f2_0%,#f7efe4_44%,#efe4d6_100%)] text-[#2f2218]">
       {/* Mobile Header */}
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0b1020]/90 backdrop-blur-xl text-white shadow-[0_10px_30px_rgba(0,0,0,0.25)] md:hidden">
+      <header className="sticky top-0 z-40 border-b border-[#ead8c4] bg-[#fffaf5]/95 backdrop-blur-xl text-[#2f2218] shadow-[0_10px_30px_rgba(106,76,45,0.08)] md:hidden">
         <div className="flex h-16 items-center justify-between px-4">
           <button
             onClick={() => setIsDrawerOpen(true)}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#ead8c4] bg-white text-[#5f4731] transition hover:bg-[#fff8f0]"
             aria-label="Open portal menu"
           >
             <Menu className="h-5 w-5" />
           </button>
 
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[linear-gradient(135deg,#60a5fa_0%,#8b5cf6_100%)] text-white shadow-[0_12px_26px_rgba(96,165,250,0.25)]">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[linear-gradient(135deg,#d3a056_0%,#b5752f_100%)] text-white shadow-[0_12px_26px_rgba(181,117,47,0.25)]">
               <Dog className="h-5 w-5" />
             </div>
             <div className="leading-tight">
-                <div className="text-[9px] font-black uppercase tracking-[0.2em] text-[#93c5fd]">
+                <div className="text-[9px] font-black uppercase tracking-[0.2em] text-[#a47946]">
                   Private Client Access
                 </div>
-                <div className="font-serif text-[20px] leading-none text-white tracking-wide">
+                <div className="font-serif text-[20px] leading-none text-[#2f2218] tracking-wide">
                   My Puppy Portal
               </div>
             </div>
           </div>
 
-          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/10 text-sm font-semibold tracking-wider text-white">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[#ead8c4] bg-white text-sm font-semibold tracking-wider text-[#5f4731]">
             {userInitial}
           </div>
         </div>
@@ -748,17 +748,17 @@ export default function PortalLayout({
           isDrawerOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex h-full flex-col rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.96)_0%,rgba(11,16,32,0.96)_100%)] px-5 py-6 shadow-[0_24px_80px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+        <div className="flex h-full flex-col rounded-[2rem] border border-[#ead8c4] bg-[linear-gradient(180deg,#fffdf9_0%,#f6eee4_100%)] px-5 py-6 shadow-[0_24px_80px_rgba(106,76,45,0.18)] backdrop-blur-xl">
           <div className="flex items-start justify-between gap-3 px-1">
             <div className="flex items-center gap-3.5">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#60a5fa_0%,#8b5cf6_100%)] text-white shadow-[0_16px_30px_rgba(96,165,250,0.24)]">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#d3a056_0%,#b5752f_100%)] text-white shadow-[0_16px_30px_rgba(181,117,47,0.24)]">
                 <Dog className="h-6 w-6" />
               </div>
               <div className="leading-tight">
-                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-[#93c5fd]">
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-[#a47946]">
                   Private Client Access
                 </div>
-                <div className="font-serif text-[22px] leading-none text-white tracking-wide">
+                <div className="font-serif text-[22px] leading-none text-[#2f2218] tracking-wide">
                   Puppy Portal
                 </div>
               </div>
@@ -766,7 +766,7 @@ export default function PortalLayout({
 
             <button
               onClick={() => setIsDrawerOpen(false)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/5 text-white/70 transition hover:bg-white/10 hover:text-white"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[#ead8c4] bg-white text-[#7f6144] transition hover:bg-[#fff8f0] hover:text-[#2f2218]"
               aria-label="Close portal menu"
             >
               <X className="h-5 w-5" />
@@ -782,16 +782,16 @@ export default function PortalLayout({
             ))}
           </nav>
 
-          <div className="mt-6 border-t border-white/10 pt-6">
+          <div className="mt-6 border-t border-[#ead8c4] pt-6">
             <button
               onClick={handleSignOut}
-              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3.5 text-[15px] font-medium text-white transition-all hover:bg-white/10 hover:shadow-md"
+              className="w-full rounded-2xl border border-[#ead8c4] bg-white px-4 py-3.5 text-[15px] font-medium text-[#5f4731] transition-all hover:bg-[#fff8f0] hover:shadow-md"
             >
               Sign out
             </button>
-            <div className="mt-4 px-2 text-center text-xs text-[#A89F96]">
+            <div className="mt-4 px-2 text-center text-xs text-[#9c7a57]">
               Signed in as <br />
-              <span className="font-medium text-white/90">{user?.email || "â€”"}</span>
+              <span className="font-medium text-[#2f2218]">{user?.email || "â€”"}</span>
             </div>
           </div>
         </div>
@@ -800,17 +800,17 @@ export default function PortalLayout({
       {/* Desktop Layout */}
       <div className="flex min-h-screen bg-transparent">
         {/* Desktop Sidebar */}
-        <aside className="hidden w-[248px] shrink-0 p-4 md:block">
-          <div className="sticky top-4 flex h-[calc(100vh-32px)] flex-col rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.94)_0%,rgba(11,16,32,0.96)_100%)] text-white shadow-[0_30px_80px_rgba(2,6,23,0.45)] backdrop-blur-2xl">
-            <div className="flex items-center gap-3 border-b border-white/10 px-5 py-5">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#60a5fa_0%,#8b5cf6_100%)] text-white shadow-[0_18px_34px_rgba(96,165,250,0.22)]">
+        <aside className="hidden w-[260px] shrink-0 p-4 md:block">
+          <div className="sticky top-4 flex h-[calc(100vh-32px)] flex-col rounded-[28px] border border-[#ead8c4] bg-[linear-gradient(180deg,#fffdf9_0%,#f5ede3_100%)] text-[#2f2218] shadow-[0_30px_80px_rgba(106,76,45,0.16)] backdrop-blur-2xl">
+            <div className="flex items-center gap-3 border-b border-[#ead8c4] px-5 py-5">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#d3a056_0%,#b5752f_100%)] text-white shadow-[0_18px_34px_rgba(181,117,47,0.22)]">
                 <Dog className="h-[22px] w-[22px]" />
               </div>
               <div className="leading-tight">
-                <div className="font-serif text-[15px] font-bold text-white [font-family:var(--font-merriweather)]">
+                <div className="font-serif text-[15px] font-bold text-[#2f2218] [font-family:var(--font-merriweather)]">
                   Puppy Portal
                 </div>
-                <div className="text-[11px] font-normal text-[#93c5fd]">Southwest Virginia Chihuahua</div>
+                <div className="text-[11px] font-normal text-[#9a7754]">Southwest Virginia Chihuahua</div>
               </div>
             </div>
 
@@ -830,10 +830,10 @@ export default function PortalLayout({
               ))}
             </nav>
 
-            <div className="mt-auto border-t border-white/10 px-5 py-5">
+            <div className="mt-auto border-t border-[#ead8c4] px-5 py-5">
               <Link
                 href="/portal/help"
-                className="flex items-center gap-3 rounded-2xl bg-white/[0.03] px-4 py-3 text-[13px] text-[#94a3b8] transition hover:bg-white/[0.06] hover:text-white"
+                className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 text-[13px] text-[#775a41] transition hover:bg-[#fff8f0] hover:text-[#2f2218]"
               >
                 <Bell className="h-4 w-4" />
                 <span>Help &amp; Support</span>
@@ -844,14 +844,14 @@ export default function PortalLayout({
 
         {/* Main Content Area */}
         <main className="min-w-0 flex-1 p-4 md:pl-0">
-          <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06)_0%,rgba(255,255,255,0.02)_100%)] shadow-[0_30px_80px_rgba(2,6,23,0.26)] backdrop-blur-xl">
-          <div className="h-[76px] border-b border-white/10 bg-[linear-gradient(90deg,rgba(15,23,42,0.82)_0%,rgba(30,41,59,0.66)_100%)] text-white">
+          <div className="overflow-hidden rounded-[28px] border border-[#ead8c4] bg-[linear-gradient(180deg,rgba(255,255,255,0.84)_0%,rgba(255,251,246,0.92)_100%)] shadow-[0_30px_80px_rgba(106,76,45,0.10)] backdrop-blur-xl">
+          <div className="h-[76px] border-b border-[#ead8c4] bg-[linear-gradient(90deg,#fffdf9_0%,#f8f0e6_100%)] text-[#2f2218]">
             <div className="flex h-full w-full items-center justify-between gap-4 px-5 md:px-6 lg:px-8 xl:px-10">
               <div className="min-w-0">
-                <div className="text-[11px] font-black uppercase tracking-[0.22em] text-[#93c5fd]">
+                <div className="text-[11px] font-black uppercase tracking-[0.22em] text-[#a47946]">
                   Southwest Virginia Chihuahua
                 </div>
-                <div className="mt-1 font-serif text-[28px] font-normal leading-none tracking-[0.01em] text-white [font-family:var(--font-merriweather)]">
+                <div className="mt-1 font-serif text-[28px] font-normal leading-none tracking-[0.01em] text-[#2f2218] [font-family:var(--font-merriweather)]">
                   {pageTitle}
                 </div>
               </div>
@@ -859,14 +859,14 @@ export default function PortalLayout({
               <div className="flex items-center gap-2">
                 <Link
                   href="/portal/updates"
-                  className="relative hidden h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] text-[#cbd5e1] transition hover:bg-white/[0.08] hover:text-white sm:inline-flex"
+                  className="relative hidden h-11 w-11 items-center justify-center rounded-2xl border border-[#ead8c4] bg-white text-[#7f6144] transition hover:bg-[#fff8f0] hover:text-[#2f2218] sm:inline-flex"
                   aria-label="Updates"
                 >
                   <CalendarDays className="h-4.5 w-4.5" />
                 </Link>
                 <Link
                   href="/portal/notifications"
-                  className="relative hidden h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] text-[#cbd5e1] transition hover:bg-white/[0.08] hover:text-white sm:inline-flex"
+                  className="relative hidden h-11 w-11 items-center justify-center rounded-2xl border border-[#ead8c4] bg-white text-[#7f6144] transition hover:bg-[#fff8f0] hover:text-[#2f2218] sm:inline-flex"
                   aria-label="Notifications"
                 >
                   <Bell className="h-4 w-4" />
@@ -878,7 +878,7 @@ export default function PortalLayout({
                 </Link>
                 <Link
                   href="/portal/messages"
-                  className="relative hidden h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] text-[#cbd5e1] transition hover:bg-white/[0.08] hover:text-white sm:inline-flex"
+                  className="relative hidden h-11 w-11 items-center justify-center rounded-2xl border border-[#ead8c4] bg-white text-[#7f6144] transition hover:bg-[#fff8f0] hover:text-[#2f2218] sm:inline-flex"
                   aria-label="Messages"
                 >
                   <Mail className="h-4 w-4" />
@@ -891,13 +891,13 @@ export default function PortalLayout({
                   <button
                     type="button"
                     onClick={() => setIsUserMenuOpen((value) => !value)}
-                    className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] py-1 pl-1 pr-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition hover:bg-white/[0.08]"
+                    className="flex items-center gap-2 rounded-full border border-[#ead8c4] bg-white py-1 pl-1 pr-2 shadow-[0_10px_22px_rgba(106,76,45,0.08)] transition hover:bg-[#fff8f0]"
                     aria-label="Open profile menu"
                   >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[linear-gradient(135deg,#f59e0b_0%,#fb7185_100%)] text-sm font-black text-white">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[linear-gradient(135deg,#d3a056_0%,#b5752f_100%)] text-sm font-black text-white">
                       {userInitial}
                     </div>
-                    <ChevronDown className="h-4 w-4 text-[#cbd5e1]" />
+                    <ChevronDown className="h-4 w-4 text-[#8f7257]" />
                   </button>
 
                   {isUserMenuOpen ? (
@@ -958,7 +958,7 @@ export default function PortalLayout({
             </div>
           </div>
 
-          <div className="min-h-[calc(100vh-76px)] w-full bg-[radial-gradient(circle_at_top_right,rgba(96,165,250,0.08),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(168,85,247,0.08),transparent_22%)] px-5 py-5 md:px-6 md:py-6 lg:px-8 xl:px-10">
+          <div className="min-h-[calc(100vh-76px)] w-full bg-[radial-gradient(circle_at_top_right,rgba(212,168,108,0.10),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(226,206,180,0.18),transparent_24%)] px-5 py-5 md:px-6 md:py-6 lg:px-8 xl:px-10">
             {children}
           </div>
           </div>
