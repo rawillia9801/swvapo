@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useMemo, useState } from "react";
 import { fmtDate, sb } from "@/lib/utils";
@@ -17,8 +17,6 @@ import {
   PortalEmptyState,
   PortalErrorState,
   PortalField,
-  PortalHeroPrimaryAction,
-  PortalHeroSecondaryAction,
   PortalInfoTile,
   PortalLoadingState,
   PortalMetricCard,
@@ -254,7 +252,6 @@ export default function PortalTransportationPage() {
         eyebrow="Transportation"
         title="Sign in to plan pickup or transportation."
         description="Pickup, meet-up, delivery, and transportation requests stay here once you are signed in."
-        actions={<PortalHeroPrimaryAction href="/portal">Open My Puppy Portal</PortalHeroPrimaryAction>}
       />
     );
   }
@@ -270,7 +267,7 @@ export default function PortalTransportationPage() {
     puppy?.status ? formatRequestStatus(puppy.status) : null,
   ]
     .filter(Boolean)
-    .join(" · ");
+    .join(" • ");
 
   const selectedAvailability = !selectedDate
     ? {
@@ -433,12 +430,6 @@ export default function PortalTransportationPage() {
         eyebrow="Transportation"
         title="Plan pickup, meet-up, delivery, or transportation with less confusion."
         description="Use one page to review your latest request, understand pricing, choose an available date, and submit the next transportation step for your puppy."
-        actions={
-          <>
-            <PortalHeroPrimaryAction href="/portal/messages">Open Messages</PortalHeroPrimaryAction>
-            <PortalHeroSecondaryAction href="/portal/mypuppy">Open My Puppy</PortalHeroSecondaryAction>
-          </>
-        }
         aside={
           <div className="grid gap-4">
             <PortalInfoTile
@@ -502,10 +493,10 @@ export default function PortalTransportationPage() {
             action={
               <div className="flex items-center gap-2">
                 <PortalSecondaryButton onClick={() => setMonth(firstOfMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1)))}>
-                  ←
+                  Prev
                 </PortalSecondaryButton>
                 <PortalSecondaryButton onClick={() => setMonth(firstOfMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1)))}>
-                  →
+                  Next
                 </PortalSecondaryButton>
               </div>
             }
@@ -622,7 +613,7 @@ export default function PortalTransportationPage() {
                   onChange={(event) => setRequestType(event.target.value as PickupRequestType)}
                   required
                 >
-                  <option value="">Select…</option>
+                  <option value="">Select...</option>
                   <option value="pickup">Pickup (at our location)</option>
                   <option value="meet">Meet-up (public location)</option>
                   <option value="dropoff">Drop-off (to your area)</option>

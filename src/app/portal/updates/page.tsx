@@ -14,11 +14,8 @@ import {
 } from "@/lib/portal-data";
 import { usePortalSession } from "@/hooks/use-portal-session";
 import {
-  PortalActionLink,
   PortalEmptyState,
   PortalErrorState,
-  PortalHeroPrimaryAction,
-  PortalHeroSecondaryAction,
   PortalInfoTile,
   PortalLoadingState,
   PortalMetricCard,
@@ -137,7 +134,6 @@ export default function PortalUpdatesPage() {
         eyebrow="Pupdates"
         title="Sign in to follow your puppy updates."
         description="Breeder notes, milestone records, and visible wellness updates appear here once you are signed in."
-        actions={<PortalHeroPrimaryAction href="/portal">Open My Puppy Portal</PortalHeroPrimaryAction>}
       />
     );
   }
@@ -165,12 +161,6 @@ export default function PortalUpdatesPage() {
         eyebrow="Pupdates"
         title={`Track ${puppyName}'s timeline in one feed.`}
         description={`${displayName} can review breeder notes, visible wellness entries, milestone dates, and photo moments here without piecing updates together across tabs.`}
-        actions={
-          <>
-            <PortalHeroPrimaryAction href="/portal/mypuppy">Open My Puppy</PortalHeroPrimaryAction>
-            <PortalHeroSecondaryAction href="/portal/messages">Open Messages</PortalHeroSecondaryAction>
-          </>
-        }
         aside={
           <div className="grid gap-4">
             <PortalInfoTile
@@ -289,55 +279,6 @@ export default function PortalUpdatesPage() {
             )}
           </PortalPanel>
 
-          <PortalPanel
-            title="What to open next"
-            subtitle="Move directly from the update feed to the next relevant page."
-          >
-            <div className="grid gap-4">
-              <PortalActionLink
-                href="/portal/mypuppy"
-                eyebrow="My Puppy"
-                title="Open the full profile"
-                detail="View photos, profile details, milestones, and growth information in one place."
-              />
-              <PortalActionLink
-                href="/portal/messages"
-                eyebrow="Messages"
-                title="Ask about an update"
-                detail="Use Messages if you want more context on a breeder note, milestone date, or wellness detail."
-              />
-              <PortalActionLink
-                href="/portal/resources"
-                eyebrow="Resources"
-                title="Open the care library"
-                detail="Review Chihuahua guidance and support material that stays useful after go-home day."
-              />
-            </div>
-          </PortalPanel>
-
-          <PortalPanel
-            title="At a Glance"
-            subtitle="The short operational summary for this update stream."
-          >
-            <div className="space-y-4">
-              <PortalInfoTile
-                label="Published Notes"
-                value={String(events.length)}
-                detail="Milestone and breeder note entries."
-              />
-              <PortalInfoTile
-                label="Visible Wellness"
-                value={String(health.length)}
-                detail="Health records visible in the buyer portal."
-                tone={health.length ? "success" : "neutral"}
-              />
-              <PortalInfoTile
-                label="Photo Updates"
-                value={String(photoUpdates)}
-                detail="Entries that included a photo moment."
-              />
-            </div>
-          </PortalPanel>
         </div>
       </section>
     </div>

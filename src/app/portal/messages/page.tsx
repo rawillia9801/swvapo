@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Mail, RefreshCcw, ShieldCheck } from "lucide-react";
+import { RefreshCcw } from "lucide-react";
 import { fmtDate, sb } from "@/lib/utils";
 import { findPortalMessagesForUser, type PortalMessage } from "@/lib/portal-data";
 import { usePortalSession } from "@/hooks/use-portal-session";
@@ -10,8 +10,6 @@ import {
   PortalEmptyState,
   PortalErrorState,
   PortalField,
-  PortalHeroPrimaryAction,
-  PortalHeroSecondaryAction,
   PortalInfoTile,
   PortalInput,
   PortalLoadingState,
@@ -166,7 +164,6 @@ export default function PortalMessagesPage() {
         eyebrow="Messages"
         title="Sign in to view your conversation history."
         description="Breeder replies, support questions, and account-specific notes stay here once you are signed in."
-        actions={<PortalHeroPrimaryAction href="/portal">Open My Puppy Portal</PortalHeroPrimaryAction>}
       />
     );
   }
@@ -181,12 +178,6 @@ export default function PortalMessagesPage() {
         eyebrow="Messages"
         title="Keep every account conversation in one place."
         description="Questions, breeder replies, scheduling notes, and account follow-up remain inside the portal so the full conversation stays easy to review."
-        actions={
-          <>
-            <PortalHeroPrimaryAction href="/portal/mypuppy">Open My Puppy</PortalHeroPrimaryAction>
-            <PortalHeroSecondaryAction href="/portal/documents">Open Documents</PortalHeroSecondaryAction>
-          </>
-        }
         aside={
           <div className="grid gap-4">
             <PortalInfoTile
@@ -273,23 +264,6 @@ export default function PortalMessagesPage() {
             </form>
           </PortalPanel>
 
-          <PortalPanel
-            title="Conversation Rules"
-            subtitle="This page stays useful when it is easy to scan and easy to trust."
-          >
-            <div className="space-y-4">
-              <SupportRow
-                icon={<Mail className="h-4 w-4" />}
-                title="Everything stays together"
-                detail="Questions, breeder replies, and follow-up notes remain tied to the same account."
-              />
-              <SupportRow
-                icon={<ShieldCheck className="h-4 w-4" />}
-                title="Readable later"
-                detail="The full message trail stays easy to revisit when you need to confirm what was said."
-              />
-            </div>
-          </PortalPanel>
         </div>
 
         <PortalPanel
@@ -360,28 +334,6 @@ export default function PortalMessagesPage() {
           )}
         </PortalPanel>
       </section>
-    </div>
-  );
-}
-
-function SupportRow({
-  icon,
-  title,
-  detail,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  detail: string;
-}) {
-  return (
-    <div className="flex items-start gap-3 rounded-[22px] border border-[var(--portal-border)] bg-white px-4 py-4 shadow-[0_10px_22px_rgba(23,35,56,0.05)]">
-      <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
-        {icon}
-      </div>
-      <div>
-        <div className="text-sm font-semibold text-[var(--portal-text)]">{title}</div>
-        <div className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
-      </div>
     </div>
   );
 }

@@ -6,14 +6,10 @@ import {
   Compass,
   HeartPulse,
   House,
-  MessageSquareText,
   ShieldCheck,
   Stethoscope,
 } from "lucide-react";
 import {
-  PortalActionLink,
-  PortalHeroPrimaryAction,
-  PortalHeroSecondaryAction,
   PortalInfoTile,
   PortalMetricCard,
   PortalMetricGrid,
@@ -80,7 +76,7 @@ const knowledgeModules: KnowledgeModule[] = [
   {
     title: "Operating Guidance",
     description:
-      "Use portal messages for anything that should be answered in the context of your specific puppy, account, or records.",
+      "Keep this page for general guidance and use the matching record pages when details depend on your specific account.",
     icon: <ShieldCheck className="h-5 w-5" />,
   },
 ];
@@ -89,8 +85,8 @@ const quickReference = [
   "Keep meals steady and predictable during transition.",
   "Watch for appetite changes, chills, weakness, or unusual sleepiness.",
   "Use calm handling and avoid elevated surfaces or rough play.",
-  "Recheck portal updates, documents, and messages before travel day.",
-  "Use portal messages for account-specific questions instead of guessing.",
+  "Recheck your travel plan and wellness dates before go-home day.",
+  "Keep your own account records current so breeder guidance stays accurate.",
 ];
 
 export default function PortalResourcesPage() {
@@ -100,12 +96,6 @@ export default function PortalResourcesPage() {
         eyebrow="Resources"
         title="Reference library"
         description="Open Chihuahua care guidance, transportation references, and related Southwest Virginia Chihuahua resources in one place."
-        actions={
-          <>
-            <PortalHeroPrimaryAction href="/portal/messages">Ask a Question</PortalHeroPrimaryAction>
-            <PortalHeroSecondaryAction href="/portal/mypuppy">Open My Puppy</PortalHeroSecondaryAction>
-          </>
-        }
         aside={
           <div className="space-y-4">
             <PortalInfoTile
@@ -114,9 +104,9 @@ export default function PortalResourcesPage() {
               detail="Use this page throughout the full buyer lifecycle, not only during pickup week."
             />
             <PortalInfoTile
-              label="Support route"
-              value="Messages"
-              detail="Use portal messages whenever a question depends on your puppy, account, or breeder notes."
+              label="Reference depth"
+              value="General guidance"
+              detail="Breed education, home setup, and repeat-reference material are grouped here."
             />
           </div>
         }
@@ -141,9 +131,9 @@ export default function PortalResourcesPage() {
           accent="from-[#e8f4fb] via-[#d4e7f5] to-[#9dbddb]"
         />
         <PortalMetricCard
-          label="Account Help"
-          value="Portal Messages"
-          detail="Use messages for anything tied to your own records."
+          label="Coverage"
+          value="Care and prep"
+          detail="Reference material for transition, routine care, and travel preparation."
           accent="from-[#eef2f8] via-[#dbe4ef] to-[#a9bbd1]"
         />
       </PortalMetricGrid>
@@ -221,7 +211,7 @@ export default function PortalResourcesPage() {
         <div className="space-y-6">
           <PortalPanel
             title="Use this page for"
-            subtitle="Keep the portal focused: general guidance lives here, account-specific guidance stays attached to your records."
+            subtitle="This page stays focused on general knowledge instead of duplicating account history or breeder records."
           >
             <div className="space-y-4">
               <PortalInfoTile
@@ -230,9 +220,9 @@ export default function PortalResourcesPage() {
                 detail="Use this page for Chihuahua care, home prep, and supporting references."
               />
               <PortalInfoTile
-                label="Account-specific questions"
-                value="Messages"
-                detail="Use Messages if the answer depends on your puppy, breeder notes, or an active portal record."
+                label="Reference use"
+                value="Repeatable guidance"
+                detail="This library is for information you may revisit more than once before and after go-home."
               />
               <PortalInfoTile
                 label="Medical urgency"
@@ -262,40 +252,20 @@ export default function PortalResourcesPage() {
           </PortalPanel>
 
           <PortalPanel
-            title="Need account help?"
-            subtitle="Use your portal records, not a generic contact form, when the question depends on your own puppy journey."
+            title="When to use this page"
+            subtitle="Keep general guidance separate from account-specific records."
           >
             <div className="space-y-4">
-              <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-[16px] bg-white text-[var(--portal-accent-strong)]">
-                    <MessageSquareText className="h-4 w-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-sm font-semibold text-[var(--portal-text)]">
-                      Use Messages for account-specific questions
-                    </div>
-                    <div className="mt-2 text-sm leading-7 text-[var(--portal-text-soft)]">
-                      Feeding questions, breeder notes, medication details, documents, and transportation updates are easier to track when they stay inside your portal history.
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                <PortalActionLink
-                  href="/portal/messages"
-                  eyebrow="Support"
-                  title="Open Messages"
-                  detail="Use account-linked messaging for puppy-specific questions."
-                />
-                <PortalActionLink
-                  href="/portal/documents"
-                  eyebrow="Records"
-                  title="Open Documents"
-                  detail="Review signed forms, portal files, and account documents."
-                />
-              </div>
+              <PortalInfoTile
+                label="Use Resources for"
+                value="General Chihuahua guidance"
+                detail="Breed education, home setup, and repeat reference material belong here."
+              />
+              <PortalInfoTile
+                label="Use account records for"
+                value="Personal portal details"
+                detail="Personal breeder notes, documents, payments, and transportation details stay on their dedicated pages."
+              />
             </div>
           </PortalPanel>
         </div>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -90,7 +90,7 @@ const navDefinitions: NavDefinition[] = [
 const defaultChiChiMessage: PortalChatMessage = {
   id: makeId("assistant"),
   role: "assistant",
-  text: "I can review this account’s puppy updates, documents, payments, messages, transportation details, and next steps using the records tied to your portal.",
+  text: "I can check the records tied to this portal, answer account questions directly, and help you find the next step without sending you in circles.",
   createdAt: formatTime(),
 };
 

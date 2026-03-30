@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { FileCheck2, FolderOpen, PenSquare } from "lucide-react";
 import { fmtDate } from "@/lib/utils";
 import {
   countAttachments,
@@ -17,8 +16,6 @@ import { usePortalSession } from "@/hooks/use-portal-session";
 import {
   PortalEmptyState,
   PortalErrorState,
-  PortalHeroPrimaryAction,
-  PortalHeroSecondaryAction,
   PortalInfoTile,
   PortalListCard,
   PortalLoadingState,
@@ -146,7 +143,6 @@ export default function PortalDocumentsPage() {
         eyebrow="Documents"
         title="Sign in to review your forms and records."
         description="Forms, signatures, uploaded files, and shared documents appear here once you are signed in."
-        actions={<PortalHeroPrimaryAction href="/portal">Open My Puppy Portal</PortalHeroPrimaryAction>}
       />
     );
   }
@@ -188,12 +184,6 @@ export default function PortalDocumentsPage() {
         eyebrow="Documents"
         title="Review forms, signatures, and shared records without the clutter."
         description={`Everything filed for ${state.puppyName} is organized here so contracts, uploads, and submitted forms stay easy to scan.`}
-        actions={
-          <>
-            <PortalHeroPrimaryAction href="/portal/application">Open Application</PortalHeroPrimaryAction>
-            <PortalHeroSecondaryAction href="/portal/messages">Open Messages</PortalHeroSecondaryAction>
-          </>
-        }
         aside={
           <div className="grid gap-4">
             <PortalInfoTile
@@ -339,85 +329,8 @@ export default function PortalDocumentsPage() {
             )}
           </PortalPanel>
 
-          <PortalPanel
-            title="Document Center"
-            subtitle="Open the next page that is most likely to matter after this one."
-          >
-            <div className="grid gap-4">
-              <ActionCard
-                icon={<PenSquare className="h-4 w-4" />}
-                title="Application"
-                detail="Continue or review the buyer application connected to this account."
-                href="/portal/application"
-              />
-              <ActionCard
-                icon={<FileCheck2 className="h-4 w-4" />}
-                title="Payments"
-                detail="Cross-check documents with the payment record and account balance."
-                href="/portal/payments"
-              />
-              <ActionCard
-                icon={<FolderOpen className="h-4 w-4" />}
-                title="Messages"
-                detail="Use Messages if you need clarification about a form, file, or contract detail."
-                href="/portal/messages"
-              />
-            </div>
-          </PortalPanel>
-
-          <PortalPanel
-            title="At a Glance"
-            subtitle="Quick operational totals without turning the page into a spreadsheet."
-          >
-            <div className="space-y-4">
-              <PortalInfoTile
-                label="Draft Forms"
-                value={String(summary.drafts.length)}
-                detail="Saved but not yet submitted."
-                tone={summary.drafts.length ? "warning" : "neutral"}
-              />
-              <PortalInfoTile
-                label="Signed Items"
-                value={String(summary.signed.length)}
-                detail="Forms with signatures already on file."
-                tone={summary.signed.length ? "success" : "neutral"}
-              />
-              <PortalInfoTile
-                label="Portal Files"
-                value={String(summary.publishedDocuments.length)}
-                detail="Visible records and shared documents posted to your account."
-              />
-            </div>
-          </PortalPanel>
         </div>
       </section>
     </div>
-  );
-}
-
-function ActionCard({
-  href,
-  icon,
-  title,
-  detail,
-}: {
-  href: string;
-  icon: React.ReactNode;
-  title: string;
-  detail: string;
-}) {
-  return (
-    <a
-      href={href}
-      className="flex items-start gap-3 rounded-[22px] border border-[var(--portal-border)] bg-white px-4 py-4 shadow-[0_10px_22px_rgba(23,35,56,0.05)] transition hover:-translate-y-0.5 hover:border-[var(--portal-border-strong)]"
-    >
-      <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <div className="text-sm font-semibold text-[var(--portal-text)]">{title}</div>
-        <div className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
-      </div>
-    </a>
   );
 }

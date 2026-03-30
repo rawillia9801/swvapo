@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { BadgeDollarSign, CalendarClock, ShieldCheck } from "lucide-react";
 import { fmtDate, fmtMoney } from "@/lib/utils";
 import {
   findBuyerPayments,
@@ -16,8 +15,6 @@ import { usePortalSession } from "@/hooks/use-portal-session";
 import {
   PortalEmptyState,
   PortalErrorState,
-  PortalHeroPrimaryAction,
-  PortalHeroSecondaryAction,
   PortalInfoTile,
   PortalLoadingState,
   PortalMetricCard,
@@ -172,7 +169,6 @@ export default function PortalPaymentsPage() {
         eyebrow="Payments"
         title="Sign in to review your payment record."
         description="Recorded payments, financing details, due dates, and balance information appear here once you are signed in."
-        actions={<PortalHeroPrimaryAction href="/portal">Open My Puppy Portal</PortalHeroPrimaryAction>}
       />
     );
   }
@@ -186,9 +182,6 @@ export default function PortalPaymentsPage() {
   const latestPayment = payments[0] || null;
   const depositAmount = buyer?.deposit_amount ?? puppy?.deposit ?? null;
   const nextDueDate = buyer?.finance_next_due_date ? fmtDate(buyer.finance_next_due_date) : "No due date";
-  const deliverySummary = [buyer?.delivery_option, buyer?.delivery_location]
-    .filter(Boolean)
-    .join(" · ");
   const paidInFull =
     summary.remaining !== null && summary.remaining !== undefined && summary.remaining <= 0;
 
@@ -198,12 +191,6 @@ export default function PortalPaymentsPage() {
         eyebrow="Payments"
         title="Track your payment record with clarity."
         description="Review the recorded balance, posted payments, financing details, and the next financial step tied to your puppy account."
-        actions={
-          <>
-            <PortalHeroPrimaryAction href="/portal/messages">Open Messages</PortalHeroPrimaryAction>
-            <PortalHeroSecondaryAction href="/portal/documents">Open Documents</PortalHeroSecondaryAction>
-          </>
-        }
         aside={
           <div className="rounded-[30px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96)_0%,rgba(243,248,253,0.95)_100%)] p-5 shadow-[0_18px_40px_rgba(23,35,56,0.08)]">
             <div className="flex items-center justify-between gap-3">
@@ -288,14 +275,16 @@ export default function PortalPaymentsPage() {
                 tone={latestPayment ? "success" : "neutral"}
               />
               <PortalInfoTile
-                label="My Puppy"
-                value={puppyName}
-                detail="The puppy currently linked to this account."
+                label="Financing"
+                value={buyer?.finance_enabled ? "Active plan" : "No plan active"}
+                detail={buyer?.finance_enabled ? "Financing details are posted below." : "A financing application can be started if needed."}
+                tone={buyer?.finance_enabled ? "warning" : "neutral"}
               />
               <PortalInfoTile
-                label="Transportation"
-                value={deliverySummary || "Not scheduled"}
-                detail="Pickup, delivery, or travel details stored on the buyer account."
+                label="Balance State"
+                value={paidInFull ? "Paid in Full" : summary.remaining ? "Balance Open" : "No balance posted"}
+                detail={paidInFull ? "No remaining amount is currently due." : "The current balance is based on the posted payment record."}
+                tone={paidInFull ? "success" : "neutral"}
               />
             </div>
           </PortalPanel>
@@ -391,60 +380,8 @@ export default function PortalPaymentsPage() {
             </div>
           </PortalPanel>
 
-          <PortalPanel
-            title="Open Next"
-            subtitle="The next page buyers usually open after Payments."
-          >
-            <div className="space-y-3">
-              <ActionCard
-                icon={<ShieldCheck className="h-4 w-4" />}
-                href="/portal/documents"
-                title="Documents"
-                detail="Review contracts, forms, and account records linked to payment steps."
-              />
-              <ActionCard
-                icon={<BadgeDollarSign className="h-4 w-4" />}
-                href="/portal/messages"
-                title="Messages"
-                detail="Ask questions about the balance, a posted payment, or a financing detail."
-              />
-              <ActionCard
-                icon={<CalendarClock className="h-4 w-4" />}
-                href="/portal/transportation"
-                title="Transportation"
-                detail="Check whether pickup or delivery details are already reflected on the account."
-              />
-            </div>
-          </PortalPanel>
         </div>
       </section>
     </div>
-  );
-}
-
-function ActionCard({
-  href,
-  icon,
-  title,
-  detail,
-}: {
-  href: string;
-  icon: React.ReactNode;
-  title: string;
-  detail: string;
-}) {
-  return (
-    <a
-      href={href}
-      className="flex items-start gap-3 rounded-[22px] border border-[var(--portal-border)] bg-white px-4 py-4 shadow-[0_10px_22px_rgba(23,35,56,0.05)] transition hover:-translate-y-0.5 hover:border-[var(--portal-border-strong)]"
-    >
-      <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <div className="text-sm font-semibold text-[var(--portal-text)]">{title}</div>
-        <div className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
-      </div>
-    </a>
   );
 }

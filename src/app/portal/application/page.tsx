@@ -1,14 +1,6 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import {
-  ClipboardCheck,
-  HeartHandshake,
-  Home,
-  PawPrint,
-  ShieldCheck,
-} from "lucide-react";
 import {
   loadPortalContext,
   parseCityState,
@@ -25,7 +17,6 @@ import {
   PortalErrorState,
   PortalField,
   PortalHeroPrimaryAction,
-  PortalHeroSecondaryAction,
   PortalInfoTile,
   PortalInput,
   PortalLoadingState,
@@ -374,48 +365,6 @@ function buildForm(
   };
 }
 
-function nextStepCopy(status: string | null | undefined, hasPuppy: boolean) {
-  const normalized = String(status || "").trim().toLowerCase();
-
-  if (hasPuppy || normalized.includes("matched")) {
-    return {
-      title: "Your account is matched.",
-      detail:
-        "Keep this page current so breeder communication, forms, and go-home planning continue smoothly.",
-    };
-  }
-
-  if (normalized.includes("approved")) {
-    return {
-      title: "Your application is approved.",
-      detail:
-        "The next steps usually involve puppy matching, breeder updates, and payment or document follow-up.",
-    };
-  }
-
-  if (normalized.includes("denied") || normalized.includes("declined")) {
-    return {
-      title: "Your application needs follow-up.",
-      detail:
-        "Review any breeder notes below and use Messages if you want clarification or next-step guidance.",
-    };
-  }
-
-  if (normalized.includes("submitted")) {
-    return {
-      title: "Your application is under review.",
-      detail:
-        "You can still keep your details current while the breeder reviews your information.",
-    };
-  }
-
-  return {
-    title: "Start with a clean application.",
-    detail:
-      "Use this page to keep your buyer details, preferences, and readiness information organized in one place.",
-  };
-}
-
 export default function PortalApplicationPage() {
   const { user, loading: sessionLoading } = usePortalSession();
   const [buyer, setBuyer] = useState<PortalBuyer | null>(null);
@@ -489,7 +438,6 @@ export default function PortalApplicationPage() {
   const displayName = portalDisplayName(user, buyer, application);
   const puppyName = portalPuppyName(puppy);
   const statusLabel = record?.status || application?.status || "Not submitted";
-  const nextStep = nextStepCopy(statusLabel, Boolean(puppy));
   const preferredPuppyLabel = puppy
     ? puppyName
     : record?.assigned_puppy_id
@@ -673,12 +621,6 @@ export default function PortalApplicationPage() {
         eyebrow="Application"
         title="Manage your buyer application from one record."
         description="Review contact details, puppy preferences, household information, declarations, and signature in one place."
-        actions={
-          <>
-            <PortalHeroPrimaryAction href="/portal/messages">Message Support</PortalHeroPrimaryAction>
-            <PortalHeroSecondaryAction href="/portal/profile">Open Profile</PortalHeroSecondaryAction>
-          </>
-        }
         aside={
           <div className="rounded-[30px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,var(--portal-surface-strong)_0%,var(--portal-surface-muted)_100%)] p-5 shadow-[0_18px_42px_rgba(31,48,79,0.08)]">
             <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--portal-text-muted)]">
@@ -1135,35 +1077,6 @@ export default function PortalApplicationPage() {
             </div>
           </PortalPanel>
 
-          <PortalPanel title="What happens next" subtitle={nextStep.detail}>
-            <div className="space-y-3">
-              <NextStepCard
-                icon={<ClipboardCheck className="h-4 w-4" />}
-                title={nextStep.title}
-                detail="This page stays editable so your record can stay current."
-              />
-              <NextStepCard
-                icon={<ShieldCheck className="h-4 w-4" />}
-                title="Breeder review"
-                detail="The breeder can review your preferences, household details, and declarations from one organized record."
-              />
-              <NextStepCard
-                icon={<PawPrint className="h-4 w-4" />}
-                title={puppy ? "Matched puppy account" : "Future puppy match"}
-                detail={
-                  puppy
-                    ? `${puppyName} is already linked to this portal account.`
-                    : "Once a puppy is matched, the rest of the portal becomes even more useful."
-                }
-              />
-              <NextStepCard
-                icon={<HeartHandshake className="h-4 w-4" />}
-                title="Questions are welcome"
-                detail="If something needs clarification, use portal messages instead of guessing."
-              />
-            </div>
-          </PortalPanel>
-
           {record?.admin_notes ? (
             <PortalPanel
               title="Breeder Notes"
@@ -1174,26 +1087,6 @@ export default function PortalApplicationPage() {
               </div>
             </PortalPanel>
           ) : null}
-
-          <PortalPanel
-            title="Helpful links"
-            subtitle="Use the adjacent pages that most often support application review."
-          >
-            <div className="space-y-3">
-              <QuickLinkCard
-                href="/portal/messages"
-                icon={<HeartHandshake className="h-4 w-4" />}
-                title="Ask a question"
-                detail="Use Messages if you want help with the application or next steps."
-              />
-              <QuickLinkCard
-                href="/portal/profile"
-                icon={<Home className="h-4 w-4" />}
-                title="Update profile details"
-                detail="Keep your account contact details aligned with your application."
-              />
-            </div>
-          </PortalPanel>
         </div>
       </section>
     </div>
@@ -1219,54 +1112,5 @@ function DeclarationCard({
       />
       <span className="text-sm leading-6 text-[var(--portal-text-soft)]">{label}</span>
     </label>
-  );
-}
-
-function NextStepCard({
-  icon,
-  title,
-  detail,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  detail: string;
-}) {
-  return (
-    <div className="flex items-start gap-3 rounded-[22px] border border-[var(--portal-border)] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(31,48,79,0.05)]">
-      <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
-        {icon}
-      </div>
-      <div>
-        <div className="text-sm font-semibold text-[var(--portal-text)]">{title}</div>
-        <div className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
-      </div>
-    </div>
-  );
-}
-
-function QuickLinkCard({
-  href,
-  icon,
-  title,
-  detail,
-}: {
-  href: string;
-  icon: React.ReactNode;
-  title: string;
-  detail: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="flex items-start gap-3 rounded-[22px] border border-[var(--portal-border)] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(31,48,79,0.05)] transition hover:-translate-y-0.5 hover:border-[var(--portal-border-strong)] hover:bg-[var(--portal-surface-muted)]"
-    >
-      <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
-        {icon}
-      </div>
-      <div>
-        <div className="text-sm font-semibold text-[var(--portal-text)]">{title}</div>
-        <div className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
-      </div>
-    </Link>
   );
 }

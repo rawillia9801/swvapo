@@ -17,11 +17,9 @@ import {
 } from "@/lib/portal-data";
 import { usePortalSession } from "@/hooks/use-portal-session";
 import {
-  PortalActionLink,
   PortalEmptyState,
   PortalErrorState,
   PortalHeroPrimaryAction,
-  PortalHeroSecondaryAction,
   PortalInfoTile,
   PortalListCard,
   PortalLoadingState,
@@ -237,7 +235,6 @@ export default function PortalMyPuppyPage() {
         eyebrow="My Puppy"
         title="Sign in to view your puppy profile."
         description="Your puppy profile, breeder notes, timeline, wellness records, and growth details appear here once you are signed in."
-        actions={<PortalHeroPrimaryAction href="/portal">Open My Puppy Portal</PortalHeroPrimaryAction>}
       />
     );
   }
@@ -318,12 +315,6 @@ export default function PortalMyPuppyPage() {
         eyebrow="My Puppy"
         title={`${puppyName}`}
         description="Review the full puppy profile, photo moments, breeder notes, wellness record, and growth details in one page."
-        actions={
-          <>
-            <PortalHeroPrimaryAction href="/portal/updates">Open Pupdates</PortalHeroPrimaryAction>
-            <PortalHeroSecondaryAction href="/portal/messages">Open Messages</PortalHeroSecondaryAction>
-          </>
-        }
         aside={
           <div className="overflow-hidden rounded-[30px] border border-[var(--portal-border)] bg-[var(--portal-surface-strong)] shadow-[0_20px_44px_rgba(23,35,56,0.08)]">
             <div className="relative aspect-[4/5] overflow-hidden">
@@ -456,32 +447,6 @@ export default function PortalMyPuppyPage() {
                 value={nextCare?.next_due_date ? fmtDate(nextCare.next_due_date) : "Not scheduled"}
                 detail={nextCare?.title || "A visible due date will appear here once it is on file."}
                 tone={nextCare?.next_due_date ? "warning" : "neutral"}
-              />
-            </div>
-          </PortalPanel>
-
-          <PortalPanel
-            title="What to open next"
-            subtitle="Move directly from the puppy profile to the next relevant page."
-          >
-            <div className="grid gap-4">
-              <PortalActionLink
-                href="/portal/updates"
-                eyebrow="Pupdates"
-                title="Open the full update feed"
-                detail="Review breeder notes, milestone posts, and wellness entries in one timeline."
-              />
-              <PortalActionLink
-                href="/portal/documents"
-                eyebrow="Documents"
-                title="Review records and forms"
-                detail="Open signatures, submissions, and any shared portal documents."
-              />
-              <PortalActionLink
-                href="/portal/resources"
-                eyebrow="Resources"
-                title="Open the care library"
-                detail="Review Chihuahua guidance and support material that stays useful after homecoming."
               />
             </div>
           </PortalPanel>

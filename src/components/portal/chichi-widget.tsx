@@ -113,7 +113,7 @@ export function PortalChiChiWidget({
                         ChiChi
                       </div>
                       <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
-                        Account-aware AI agent for your portal records, puppy updates, files, payments, and next steps.
+                        Autonomous account agent with direct access to your portal records, puppy updates, documents, payments, and next steps.
                       </div>
                     </div>
                     <button
@@ -219,14 +219,14 @@ export function PortalChiChiWidget({
                     onChange={(event) => onDraftChange(event.target.value)}
                     onKeyDown={handleTextareaKeyDown}
                     rows={3}
-                    placeholder="Ask about updates, milestones, documents, payments, messages, transportation, or what happens next."
+                    placeholder="Ask ChiChi to check updates, find documents, review payments, explain a milestone, or tell you the next step."
                     className="min-h-[98px] w-full resize-none rounded-[18px] border-0 bg-transparent px-3 py-3 text-sm leading-6 text-[var(--portal-text)] outline-none placeholder:text-[var(--portal-text-muted)]"
                     disabled={isSending}
                   />
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-[11px] leading-5 text-[var(--portal-text-muted)]">
-                    ChiChi answers from the records tied to this portal and says plainly when something is not on file.
+                    ChiChi answers from the records on this account and says plainly when something is not on file.
                   </div>
                   <button
                     type="submit"
