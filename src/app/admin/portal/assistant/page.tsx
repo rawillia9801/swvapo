@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { Activity, Bot, RefreshCcw, ShieldCheck, Sparkles } from "lucide-react";
 import { sb } from "@/lib/utils";
 import { getPortalAdminEmails, isPortalAdminEmail } from "@/lib/portal-admin";
 
@@ -22,27 +23,21 @@ type ChiChiResponse = {
   };
 };
 
-const STARTER_MESSAGES = [
-  "Add buyer Jane Doe with email jane@example.com and phone 276-555-0101",
-  "Add puppy Bella, female, cream long coat, born 2026-03-01, price 2800",
-  "Log a payment of 500 for Jane Doe on 2026-03-28 by cash",
-  "Edit Jane Doe's payment on 2026-03-28 to status cleared and note paid in person",
-  "Add a puppy weight for Bella of 24 oz on 2026-03-28",
-  "Remember that we are open on Easter Sunday from 1 PM to 4 PM",
-  "Show memories",
-  "Forget memory easter",
-  "Delete puppies Test and Daisy",
-];
-
 function makeId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function formatTime() {
-  return new Date().toLocaleTimeString("en-US", {
+function formatTime(date = new Date()) {
+  return date.toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+function shortThreadId(value: string | null | undefined) {
+  const text = String(value || "").trim();
+  if (!text) return "No active thread";
+  return text.length > 18 ? `${text.slice(0, 18)}...` : text;
 }
 
 export default function AdminPortalAssistantPage() {
@@ -58,40 +53,30 @@ export default function AdminPortalAssistantPage() {
     email?: string | null;
     canWriteCore?: boolean;
   } | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: makeId("assistant"),
-      role: "assistant",
-      text:
-        "Use plain-language admin commands here. I can manage buyers, puppies, payments, events, weights, and now save ongoing ChiChi memory for business rules like hours, holiday notes, pricing guidance, and breeder instructions.",
-      createdAt: formatTime(),
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const endRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let mounted = true;
 
-    const init = async () => {
+    async function init() {
       try {
         const {
           data: { session },
         } = await sb.auth.getSession();
 
         if (!mounted) return;
-
         setUser(session?.user ?? null);
         setAccessToken(session?.access_token || "");
       } finally {
         if (mounted) setLoading(false);
       }
-    };
+    }
 
-    init();
+    void init();
 
     const { data: authListener } = sb.auth.onAuthStateChange(async (_event, session) => {
       if (!mounted) return;
-
       setUser(session?.user ?? null);
       setAccessToken(session?.access_token || "");
       setLoading(false);
@@ -116,8 +101,8 @@ export default function AdminPortalAssistantPage() {
     [messages]
   );
 
-  async function sendMessage(overrideText?: string) {
-    const text = String(overrideText ?? draft).trim();
+  async function sendMessage() {
+    const text = draft.trim();
     if (!text || sending) return;
 
     const userMessage: ChatMessage = {
@@ -128,12 +113,12 @@ export default function AdminPortalAssistantPage() {
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    if (!overrideText) setDraft("");
+    setDraft("");
     setSending(true);
     setStatusText("");
 
     try {
-      const res = await fetch("/api/buildlio", {
+      const response = await fetch("/api/buildlio", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -147,10 +132,10 @@ export default function AdminPortalAssistantPage() {
         }),
       });
 
-      const data = (await res.json()) as ChiChiResponse;
+      const data = (await response.json()) as ChiChiResponse;
       const reply =
         String(data?.text || "").trim() ||
-        "I ran into a problem while processing that admin command.";
+        "I ran into a problem while processing that request.";
 
       if (data?.threadId) setThreadId(data.threadId);
       if (data?.adminAuth) setAdminAuth(data.adminAuth);
@@ -171,13 +156,19 @@ export default function AdminPortalAssistantPage() {
         {
           id: makeId("assistant"),
           role: "assistant",
-          text: "I hit a connection problem while trying to complete that command.",
+          text: "I hit a connection problem while trying to complete that request.",
           createdAt: formatTime(),
         },
       ]);
     } finally {
       setSending(false);
     }
+  }
+
+  function handleResetSession() {
+    setThreadId(null);
+    setMessages([]);
+    setStatusText("");
   }
 
   async function handleSignOut() {
@@ -188,8 +179,15 @@ export default function AdminPortalAssistantPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-brand-50 italic text-brand-700">
-        Loading admin assistant...
+      <div className="min-h-screen bg-[linear-gradient(180deg,#eef3fb_0%,#f8fbff_100%)] text-[#22324a]">
+        <div className="mx-auto flex min-h-screen max-w-[1440px] items-center justify-center px-6 py-10">
+          <div className="rounded-[32px] border border-white/70 bg-white/80 px-8 py-6 shadow-[0_30px_80px_rgba(43,71,113,0.10)] backdrop-blur-xl">
+            <div className="flex items-center gap-3 text-sm font-semibold tracking-[0.14em] text-[#607089] uppercase">
+              <Bot className="h-4 w-4 text-[#5474d8]" />
+              Loading ChiChi
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -200,237 +198,259 @@ export default function AdminPortalAssistantPage() {
 
   if (!isPortalAdminEmail(user.email)) {
     return (
-      <div className="min-h-screen bg-brand-50 text-brand-900">
-        <main className="min-h-screen bg-texturePaper">
-          <div className="mx-auto flex min-h-screen w-full max-w-[1100px] items-center justify-center px-6 py-10">
-            <div className="w-full max-w-[760px] rounded-[32px] border border-brand-200 bg-white/90 p-8 shadow-paper md:p-10">
-              <div className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-[10px] font-black uppercase tracking-[0.22em] text-rose-700">
-                Admin Access Restricted
-              </div>
-              <h1 className="mt-5 font-serif text-4xl font-bold leading-[0.96] text-brand-900">
-                This admin console is limited to approved owner accounts.
-              </h1>
-              <p className="mt-4 text-sm font-semibold leading-7 text-brand-500 md:text-base">
-                Sign in with one of the approved owner email addresses to access buyer,
-                puppy, payment, forms, and portal administration.
-              </p>
-              <div className="mt-5 rounded-[24px] border border-brand-200 bg-brand-50 p-5 text-sm font-semibold leading-7 text-brand-700">
-                Allowed emails: {getPortalAdminEmails().join(" • ")}
-              </div>
-              <div className="mt-6">
-                <Link
-                  href="/portal"
-                  className="inline-flex items-center gap-2 rounded-[18px] border border-brand-200 bg-white px-5 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-brand-700 transition hover:bg-brand-50"
-                >
-                  Return to Buyer Portal
-                </Link>
-              </div>
-            </div>
-          </div>
-        </main>
-      </div>
+      <RestrictedOwnerConsole />
     );
   }
 
   return (
-    <div className="min-h-screen bg-brand-50 text-brand-900">
-      <main className="min-h-screen bg-texturePaper">
-        <div className="mx-auto w-full max-w-[1700px] px-4 py-6 md:px-8 md:py-8 lg:px-10 lg:py-10">
-          <div className="space-y-6">
-            <header className="rounded-[32px] border border-brand-200 bg-gradient-to-br from-[#fff8f1] via-[#fffefc] to-white p-6 shadow-paper md:p-8">
-              <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-                <div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-white/80 px-4 py-2 shadow-sm">
-                    <span className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-                      Admin Portal
-                    </span>
-                    <span className="h-1 w-1 rounded-full bg-brand-300" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-                      ChiChi Console
-                    </span>
-                  </div>
+    <div className="min-h-screen overflow-hidden bg-[linear-gradient(180deg,#edf2fa_0%,#f8fbff_40%,#eef4fb_100%)] text-[#1e2d42]">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute inset-x-0 top-0 h-[420px] bg-[radial-gradient(circle_at_top_left,rgba(104,136,255,0.18),transparent_36%),radial-gradient(circle_at_top_right,rgba(96,166,255,0.12),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.72),rgba(255,255,255,0))]" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(120,144,180,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(120,144,180,0.08)_1px,transparent_1px)] bg-[size:52px_52px] opacity-30" />
+      </div>
 
-                  <h1 className="mt-5 font-serif text-4xl font-bold leading-[0.96] text-brand-900 md:text-5xl">
-                    Admin Assistant
-                  </h1>
-
-                  <p className="mt-3 max-w-3xl text-sm font-semibold leading-7 text-brand-500 md:text-base">
-                    Type natural admin commands to manage buyers, puppies, payments, portal
-                    updates, forms, and account records without leaving the portal.
-                  </p>
-                  <p className="mt-2 max-w-3xl text-xs font-semibold leading-6 text-brand-400 md:text-sm">
-                    This console is restricted to the approved owner accounts for Southwest
-                    Virginia Chihuahua.
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap gap-3">
-                  <Link
-                    href="/admin/portal"
-                    className="inline-flex items-center gap-2 rounded-[18px] border border-brand-200 bg-white px-5 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-brand-700 transition hover:bg-brand-50"
-                  >
-                    Portal Admin
-                  </Link>
-                  <button
-                    onClick={handleSignOut}
-                    className="inline-flex items-center gap-2 rounded-[18px] border border-brand-200 bg-white px-5 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-brand-700 transition hover:bg-brand-50"
-                  >
-                    Sign Out
-                  </button>
-                </div>
+      <main className="relative mx-auto min-h-screen w-full max-w-[1820px] px-4 py-5 md:px-8 md:py-8 xl:px-10">
+        <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+          <aside className="space-y-6">
+            <section className="overflow-hidden rounded-[34px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(244,248,255,0.96)_100%)] p-6 shadow-[0_28px_90px_rgba(47,77,120,0.12)] backdrop-blur-2xl">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[#d9e4f5] bg-white/90 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#6981a8]">
+                <Sparkles className="h-3.5 w-3.5 text-[#5576dd]" />
+                ChiChi
               </div>
+              <h1 className="mt-5 text-[2.9rem] font-semibold tracking-[-0.06em] text-[#162334] md:text-[3.6rem]">
+                ChiChi
+              </h1>
+              <p className="mt-3 text-sm leading-7 text-[#617188]">
+                Run direct changes across buyers, puppies, payments, documents, updates, and portal records from one console.
+              </p>
 
-              {adminAuth ? (
-                <div className="mt-5 rounded-[20px] border border-brand-200 bg-white/80 p-4 text-xs font-semibold leading-6 text-brand-600">
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-                    Server Admin Status
-                  </div>
-                  <div className="mt-1">
-                    {adminAuth.canWriteCore ? "Write access enabled." : "Write access not enabled yet."}
-                  </div>
-                  <div className="break-all">{adminAuth.email || "No email returned"}</div>
-                  <div className="break-all text-brand-400">
-                    {adminAuth.userId || "No user id returned"}
-                  </div>
-                </div>
-              ) : null}
-            </header>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link
+                  href="/admin/portal"
+                  className="inline-flex items-center rounded-2xl border border-[#d7e0f0] bg-white px-4 py-3 text-sm font-semibold text-[#324763] shadow-[0_12px_30px_rgba(44,72,113,0.08)] transition hover:-translate-y-0.5 hover:border-[#adc2eb]"
+                >
+                  Admin Overview
+                </Link>
+                <button
+                  type="button"
+                  onClick={handleResetSession}
+                  className="inline-flex items-center gap-2 rounded-2xl border border-[#d7e0f0] bg-white px-4 py-3 text-sm font-semibold text-[#324763] shadow-[0_12px_30px_rgba(44,72,113,0.08)] transition hover:-translate-y-0.5 hover:border-[#adc2eb]"
+                >
+                  <RefreshCcw className="h-4 w-4" />
+                  New Session
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  className="inline-flex items-center rounded-2xl bg-[linear-gradient(135deg,#253956_0%,#3c5379_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_16px_34px_rgba(38,57,87,0.22)] transition hover:-translate-y-0.5 hover:brightness-105"
+                >
+                  Sign Out
+                </button>
+              </div>
+            </section>
+
+            <section className="space-y-4 rounded-[34px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(241,246,255,0.95)_100%)] p-6 shadow-[0_28px_90px_rgba(47,77,120,0.10)] backdrop-blur-2xl">
+              <ConsoleStat
+                icon={<ShieldCheck className="h-4 w-4" />}
+                label="Owner Session"
+                value={user.email || "Owner account"}
+                detail={adminAuth?.canWriteCore ? "Write access enabled" : "Awaiting write confirmation"}
+              />
+              <ConsoleStat
+                icon={<Activity className="h-4 w-4" />}
+                label="Console Status"
+                value={sending ? "Processing" : "Ready"}
+                detail={sending ? "ChiChi is processing the current request." : "Console is connected and ready."}
+              />
+              <ConsoleStat
+                icon={<Bot className="h-4 w-4" />}
+                label="Thread"
+                value={shortThreadId(threadId)}
+                detail={adminAuth?.userId ? `Server user ${shortThreadId(adminAuth.userId)}` : "No active server thread yet."}
+              />
+            </section>
 
             {statusText ? (
-              <div className="text-sm font-semibold text-brand-600">{statusText}</div>
+              <section className="rounded-[28px] border border-[#d7e0f0] bg-white/85 px-5 py-4 text-sm font-semibold text-[#4c607b] shadow-[0_16px_46px_rgba(47,77,120,0.08)] backdrop-blur-xl">
+                {statusText}
+              </section>
             ) : null}
+          </aside>
 
-            <section className="grid grid-cols-1 gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
-              <div className="space-y-6">
-                <div className="card-luxury p-6">
-                  <h2 className="font-serif text-2xl font-bold text-brand-900">
-                    Quick Commands
-                  </h2>
-                  <p className="mt-2 text-sm font-semibold leading-6 text-brand-500">
-                    Tap one to send it as-is, or use it as a starting point for your own wording.
-                  </p>
-
-                  <div className="mt-5 space-y-3">
-                    {STARTER_MESSAGES.map((sample) => (
-                      <button
-                        key={sample}
-                        type="button"
-                        onClick={() => void sendMessage(sample)}
-                        className="w-full rounded-2xl border border-brand-200 bg-white/85 p-4 text-left text-sm font-semibold leading-6 text-brand-800 transition hover:bg-white"
-                      >
-                        {sample}
-                      </button>
-                    ))}
+          <section className="overflow-hidden rounded-[36px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.88)_0%,rgba(243,247,255,0.96)_100%)] shadow-[0_36px_120px_rgba(47,77,120,0.14)] backdrop-blur-2xl">
+            <div className="border-b border-[#d9e3f3] px-6 py-6 md:px-8">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="inline-flex items-center rounded-full border border-[#dce5f5] bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-[#7187aa]">
+                    Conversation
+                  </div>
+                  <div className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-[#142236] md:text-4xl">
+                    Command Console
                   </div>
                 </div>
 
-                <div className="card-luxury p-6">
-                  <h2 className="font-serif text-2xl font-bold text-brand-900">
-                    Supported Actions
-                  </h2>
-                  <div className="mt-4 space-y-3 text-sm font-semibold leading-6 text-brand-600">
-                    <p>`add`, `edit`, and `delete buyer` commands</p>
-                    <p>`add`, `edit`, and `delete puppy` commands</p>
-                    <p>`add`, `edit`, and `delete payment` commands</p>
-                    <p>`add`, `edit`, and `delete puppy weight` commands</p>
-                    <p>`add`, `edit`, and `delete puppy event` commands</p>
-                    <p>`remember`, `show memories`, and `forget memory ...` commands</p>
-                    <p>multi-delete works when you name more than one puppy or buyer</p>
-                  </div>
-                </div>
+                <span
+                  className={`inline-flex w-fit items-center rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] ${
+                    sending
+                      ? "border-[#d8e4ff] bg-[#eef4ff] text-[#5571c8]"
+                      : "border-[#d7e8de] bg-[#effaf2] text-[#3e8b5d]"
+                  }`}
+                >
+                  {sending ? "Processing" : "Ready"}
+                </span>
               </div>
+            </div>
 
-              <div className="card-luxury flex min-h-[760px] flex-col p-6">
-                <div className="flex items-center justify-between gap-3 border-b border-brand-200 pb-4">
-                  <div>
-                    <h2 className="font-serif text-2xl font-bold text-brand-900">
-                      Conversation
-                    </h2>
-                    <p className="mt-1 text-sm font-semibold text-brand-500">
-                      Natural language works best. Include names, amounts, and dates when you can.
-                    </p>
-                    <p className="mt-1 text-xs font-semibold text-brand-400">
-                      For persistent ChiChi memory, try commands like “Remember that we are
-                      closed on Christmas Day” or “Show memories”.
-                    </p>
-                  </div>
-                  <span className="rounded-full border border-brand-200 bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-brand-600">
-                    {sending ? "Processing" : "Ready"}
-                  </span>
-                </div>
+            <div className="flex min-h-[760px] flex-col">
+              <div className="flex-1 overflow-y-auto px-5 py-6 md:px-8">
+                {messages.length ? (
+                  <div className="space-y-5">
+                    {messages.map((message) => {
+                      const isUser = message.role === "user";
 
-                <div className="flex-1 space-y-4 overflow-y-auto py-6">
-                  {messages.map((message) => {
-                    const isUser = message.role === "user";
-
-                    return (
-                      <div
-                        key={message.id}
-                        className={`flex ${isUser ? "justify-end" : "justify-start"}`}
-                      >
+                      return (
                         <div
-                          className={`max-w-[88%] rounded-3xl border px-5 py-4 shadow-paper ${
-                            isUser
-                              ? "border-brand-800 bg-brand-800 text-white"
-                              : "border-brand-200 bg-white text-brand-900"
-                          }`}
+                          key={message.id}
+                          className={`flex ${isUser ? "justify-end" : "justify-start"}`}
                         >
                           <div
-                            className={`mb-2 text-[10px] font-black uppercase tracking-[0.18em] ${
-                              isUser ? "text-white/70" : "text-brand-500"
+                            className={`max-w-[88%] rounded-[30px] border px-5 py-4 shadow-[0_18px_48px_rgba(47,77,120,0.08)] ${
+                              isUser
+                                ? "border-[#2d4673] bg-[linear-gradient(135deg,#263b61_0%,#35517f_100%)] text-white"
+                                : "border-[#d8e2f2] bg-[linear-gradient(180deg,#ffffff_0%,#f4f8ff_100%)] text-[#1f2d43]"
                             }`}
                           >
-                            {isUser ? "Admin" : "ChiChi"}
-                          </div>
-                          <div className="whitespace-pre-wrap text-sm font-semibold leading-6">
-                            {message.text}
-                          </div>
-                          <div
-                            className={`mt-3 text-[10px] font-semibold ${
-                              isUser ? "text-white/65" : "text-brand-400"
-                            }`}
-                          >
-                            {message.createdAt}
+                            <div
+                              className={`mb-2 text-[10px] font-semibold uppercase tracking-[0.24em] ${
+                                isUser ? "text-white/68" : "text-[#6d82a5]"
+                              }`}
+                            >
+                              {isUser ? "Owner" : "ChiChi"}
+                            </div>
+                            <div className="whitespace-pre-wrap text-sm font-medium leading-7 md:text-[15px]">
+                              {message.text}
+                            </div>
+                            <div
+                              className={`mt-3 text-[10px] font-semibold ${
+                                isUser ? "text-white/60" : "text-[#8da0bc]"
+                              }`}
+                            >
+                              {message.createdAt}
+                            </div>
                           </div>
                         </div>
+                      );
+                    })}
+                    <div ref={endRef} />
+                  </div>
+                ) : (
+                  <div className="flex min-h-[520px] items-center justify-center">
+                    <div className="max-w-[620px] rounded-[34px] border border-dashed border-[#d9e2f1] bg-[linear-gradient(180deg,rgba(255,255,255,0.9)_0%,rgba(244,248,255,0.96)_100%)] px-8 py-12 text-center shadow-[0_24px_80px_rgba(47,77,120,0.07)]">
+                      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[22px] border border-[#dbe5f5] bg-white text-[#5774da] shadow-[0_14px_36px_rgba(87,116,218,0.12)]">
+                        <Bot className="h-8 w-8" />
                       </div>
-                    );
-                  })}
-                  <div ref={endRef} />
-                </div>
+                      <div className="mt-6 text-2xl font-semibold tracking-[-0.04em] text-[#162334]">
+                        Start with what you want changed.
+                      </div>
+                      <div className="mt-3 text-sm leading-7 text-[#687a92]">
+                        Tell ChiChi exactly what to add, update, remove, approve, deny, or remember.
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
 
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    void sendMessage();
-                  }}
-                  className="border-t border-brand-200 pt-4"
-                >
-                  <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-                    Command
-                  </label>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void sendMessage();
+                }}
+                className="border-t border-[#d9e3f3] bg-[linear-gradient(180deg,rgba(252,254,255,0.92)_0%,rgba(244,248,255,0.98)_100%)] px-5 py-5 md:px-8"
+              >
+                <div className="rounded-[30px] border border-[#d5e0f1] bg-white/90 p-3 shadow-[0_18px_50px_rgba(47,77,120,0.08)]">
                   <textarea
                     value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    rows={4}
-                    placeholder="Example: Add buyer Jane Doe with email jane@example.com and phone 276-555-0101"
-                    className="w-full rounded-2xl border border-brand-200 bg-white px-4 py-3 text-sm text-brand-900 outline-none resize-none"
+                    onChange={(event) => setDraft(event.target.value)}
+                    rows={5}
+                    placeholder="Tell ChiChi exactly what to change..."
+                    className="min-h-[150px] w-full resize-none rounded-[22px] border border-[#e2eaf7] bg-[linear-gradient(180deg,#fbfdff_0%,#f5f9ff_100%)] px-4 py-4 text-sm text-[#142236] outline-none transition placeholder:text-[#8ca0bc] focus:border-[#a5bbeb] md:text-[15px]"
                   />
-                  <div className="mt-4 flex justify-end">
+
+                  <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="text-xs font-semibold text-[#7689a7]">
+                      {draft.trim() ? `${draft.trim().length} characters` : "No active draft"}
+                    </div>
+
                     <button
                       type="submit"
                       disabled={sending || !draft.trim()}
-                      className="inline-flex items-center gap-2 rounded-[18px] bg-brand-800 px-6 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-white transition hover:bg-brand-700 disabled:opacity-60"
+                      className="inline-flex items-center justify-center rounded-[20px] bg-[linear-gradient(135deg,#284068_0%,#3a5a8c_100%)] px-6 py-3 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(47,77,120,0.24)] transition hover:-translate-y-0.5 hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {sending ? "Running..." : "Send Command"}
+                      {sending ? "Running..." : "Send to ChiChi"}
                     </button>
                   </div>
-                </form>
-              </div>
-            </section>
-          </div>
+                </div>
+              </form>
+            </div>
+          </section>
         </div>
       </main>
+    </div>
+  );
+}
+
+function ConsoleStat({
+  icon,
+  label,
+  value,
+  detail,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-[26px] border border-[#dae4f4] bg-[linear-gradient(180deg,rgba(255,255,255,0.96)_0%,rgba(246,250,255,0.98)_100%)] p-4 shadow-[0_18px_46px_rgba(47,77,120,0.08)]">
+      <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#7087aa]">
+        <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[#d8e3f5] bg-white text-[#5977db]">
+          {icon}
+        </span>
+        {label}
+      </div>
+      <div className="mt-3 break-all text-base font-semibold text-[#172437]">{value}</div>
+      <div className="mt-2 text-sm leading-6 text-[#697b93]">{detail}</div>
+    </div>
+  );
+}
+
+function RestrictedOwnerConsole() {
+  return (
+    <div className="min-h-screen bg-[linear-gradient(180deg,#edf2fa_0%,#f8fbff_100%)] text-[#22324a]">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1100px] items-center justify-center px-6 py-10">
+        <div className="w-full max-w-[760px] rounded-[36px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(242,247,255,0.96)_100%)] p-8 shadow-[0_30px_120px_rgba(47,77,120,0.14)] backdrop-blur-2xl md:p-10">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[#f1d2d7] bg-[#fff5f7] px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#b8526a]">
+            Owner Access Only
+          </div>
+          <h1 className="mt-5 text-4xl font-semibold tracking-[-0.05em] text-[#142236] md:text-5xl">
+            This console is limited to approved owner accounts.
+          </h1>
+          <p className="mt-4 text-sm leading-7 text-[#657891] md:text-base">
+            Sign in with one of the approved owner email addresses to access ChiChi for portal administration.
+          </p>
+          <div className="mt-5 rounded-[26px] border border-[#d9e3f4] bg-white/85 p-5 text-sm font-medium leading-7 text-[#4f6179]">
+            Allowed emails: {getPortalAdminEmails().join(" - ")}
+          </div>
+          <div className="mt-6">
+            <Link
+              href="/portal"
+              className="inline-flex items-center rounded-2xl border border-[#d7e0f0] bg-white px-5 py-3 text-sm font-semibold text-[#324763] shadow-[0_12px_30px_rgba(44,72,113,0.08)] transition hover:-translate-y-0.5 hover:border-[#adc2eb]"
+            >
+              Return to Buyer Portal
+            </Link>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -439,8 +459,8 @@ function AdminAssistantLogin() {
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
 
-  const login = async (e: React.FormEvent) => {
-    e.preventDefault();
+  async function login(event: React.FormEvent) {
+    event.preventDefault();
 
     const { error } = await sb.auth.signInWithPassword({
       email,
@@ -448,44 +468,52 @@ function AdminAssistantLogin() {
     });
 
     if (error) alert(error.message);
-  };
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-brand-50 p-6">
-      <div className="card-luxury shine p-10 w-full max-w-md border border-white">
-        <h2 className="font-serif text-4xl font-bold text-center mb-8">Admin Sign In</h2>
-
-        <form onSubmit={login} className="space-y-5">
-          <div>
-            <label className="text-[10px] font-black uppercase text-brand-500 mb-1 block">
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-3 rounded-xl border border-brand-200"
-              required
-            />
+    <div className="min-h-screen bg-[linear-gradient(180deg,#edf2fa_0%,#f8fbff_100%)] p-6 text-[#1f2e43]">
+      <div className="mx-auto flex min-h-screen max-w-[1200px] items-center justify-center">
+        <div className="w-full max-w-[520px] rounded-[36px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(242,247,255,0.96)_100%)] p-8 shadow-[0_34px_110px_rgba(47,77,120,0.14)] backdrop-blur-2xl md:p-10">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[#d9e4f5] bg-white px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6981a8]">
+            <Bot className="h-3.5 w-3.5 text-[#5576dd]" />
+            ChiChi
           </div>
+          <h2 className="mt-5 text-4xl font-semibold tracking-[-0.05em] text-[#142236]">
+            Owner Sign In
+          </h2>
 
-          <div>
-            <label className="text-[10px] font-black uppercase text-brand-500 mb-1 block">
-              Password
-            </label>
-            <input
-              type="password"
-              value={pass}
-              onChange={(e) => setPass(e.target.value)}
-              className="w-full p-3 rounded-xl border border-brand-200"
-              required
-            />
-          </div>
+          <form onSubmit={login} className="mt-8 space-y-5">
+            <div>
+              <label className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.22em] text-[#7187aa]">
+                Email
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                className="w-full rounded-[20px] border border-[#d8e2f3] bg-[linear-gradient(180deg,#fbfdff_0%,#f5f9ff_100%)] px-4 py-3 text-sm text-[#142236] outline-none transition focus:border-[#a5bbeb]"
+                required
+              />
+            </div>
 
-          <button className="w-full bg-brand-800 text-white p-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lift">
-            Sign In
-          </button>
-        </form>
+            <div>
+              <label className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.22em] text-[#7187aa]">
+                Password
+              </label>
+              <input
+                type="password"
+                value={pass}
+                onChange={(event) => setPass(event.target.value)}
+                className="w-full rounded-[20px] border border-[#d8e2f3] bg-[linear-gradient(180deg,#fbfdff_0%,#f5f9ff_100%)] px-4 py-3 text-sm text-[#142236] outline-none transition focus:border-[#a5bbeb]"
+                required
+              />
+            </div>
+
+            <button className="inline-flex w-full items-center justify-center rounded-[20px] bg-[linear-gradient(135deg,#284068_0%,#3a5a8c_100%)] px-6 py-4 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(47,77,120,0.24)] transition hover:-translate-y-0.5 hover:brightness-105">
+              Sign In
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );
