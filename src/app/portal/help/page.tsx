@@ -1,26 +1,33 @@
 "use client";
 
-import Link from "next/link";
 import React from "react";
+import Link from "next/link";
+import {
+  PortalHeroPrimaryAction,
+  PortalHeroSecondaryAction,
+  PortalPanel,
+  PortalPageHero,
+  PortalInfoTile,
+} from "@/components/portal/luxury-shell";
 
 const helpCards = [
   {
-    title: "Can’t find a document?",
-    body: "Open the Documents tab first. If something should be there and is missing, send a portal message and we can post it for you.",
+    title: "Can't find a document?",
+    body: "Open Documents first. If something should be there and is missing, send a portal message and we can post it for you.",
     href: "/portal/documents",
     cta: "Open Documents",
   },
   {
     title: "Need payment help?",
-    body: "Review your Payments tab for history and remaining balance, then send a message if you need clarification on a charge or arrangement.",
+    body: "Review Payments for history and remaining balance, then send a message if you need clarification on a charge or arrangement.",
     href: "/portal/payments",
     cta: "Open Payments",
   },
   {
     title: "Waiting on updates?",
-    body: "Puppy milestones, health notes, and breeder updates appear in Updates and My Puppy as they are posted.",
+    body: "Puppy milestones, health notes, and breeder updates appear in Pupdates and My Puppy as they are posted.",
     href: "/portal/updates",
-    cta: "Open Updates",
+    cta: "Open Pupdates",
   },
   {
     title: "Need direct support?",
@@ -32,38 +39,53 @@ const helpCards = [
 
 export default function PortalHelpPage() {
   return (
-    <div className="space-y-8">
-      <section className="rounded-[2rem] border border-[#dccab7] bg-white p-7 shadow-[0_16px_40px_rgba(74,51,33,0.08)]">
-        <div className="text-[11px] font-black uppercase tracking-[0.22em] text-[#9c7b58]">Help and Support</div>
-        <h1 className="mt-3 font-serif text-4xl font-bold text-[#3b271b]">Portal Troubleshooting</h1>
-        <p className="mt-3 max-w-3xl text-sm font-semibold leading-7 text-[#8b6b4d]">
-          This page is your quick support hub for common customer questions. If you are unsure where something belongs, ChiChi can also guide you based on your account.
-        </p>
-      </section>
+    <div className="space-y-6 pb-14">
+      <PortalPageHero
+        eyebrow="Help and Support"
+        title="A simple troubleshooting hub for your portal."
+        description="Use this page when you are not sure where something lives, what a tab is for, or which support path is best for the question you have."
+        actions={
+          <>
+            <PortalHeroPrimaryAction href="/portal/messages">Open Messages</PortalHeroPrimaryAction>
+            <PortalHeroSecondaryAction href="/portal">Back to Overview</PortalHeroSecondaryAction>
+          </>
+        }
+        aside={
+          <div className="space-y-4">
+            <PortalInfoTile
+              label="Fastest Answer"
+              value="Ask in plain language"
+              detail='Try prompts like "Where do I see my balance?" or "Show me the latest puppy update."'
+            />
+            <PortalInfoTile
+              label="Best Support Path"
+              value="Portal Messages"
+              detail="Use Messages for account-specific questions that need breeder context."
+            />
+          </div>
+        }
+      />
 
-      <section className="grid gap-6 md:grid-cols-2">
-        {helpCards.map((card) => (
-          <Link
-            key={card.title}
-            href={card.href}
-            className="rounded-[2rem] border border-[#dccab7] bg-white p-7 shadow-[0_16px_40px_rgba(74,51,33,0.08)] transition hover:-translate-y-1 hover:shadow-[0_22px_44px_rgba(74,51,33,0.12)]"
-          >
-            <h2 className="font-serif text-2xl font-bold text-[#3b271b]">{card.title}</h2>
-            <p className="mt-3 text-sm font-semibold leading-7 text-[#6f5037]">{card.body}</p>
-            <div className="mt-5 text-[11px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
-              {card.cta}
-            </div>
-          </Link>
-        ))}
-      </section>
-
-      <section className="rounded-[2rem] bg-[linear-gradient(135deg,#8f6945_0%,#6f5037_100%)] p-7 text-white shadow-[0_20px_44px_rgba(74,51,33,0.18)]">
-        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/75">ChiChi Tip</div>
-        <h2 className="mt-2 font-serif text-2xl font-bold">Ask in Plain Language</h2>
-        <p className="mt-3 text-sm font-semibold leading-7 text-white/85">
-          Try prompts like “Where do I see my balance?”, “Do I have any unread messages?”, or “Show me the latest puppy update.”
-        </p>
-      </section>
+      <PortalPanel
+        title="Common Support Paths"
+        subtitle="These shortcuts are here to reduce guesswork and make it obvious where to go next."
+      >
+        <div className="grid gap-4 md:grid-cols-2">
+          {helpCards.map((card) => (
+            <Link
+              key={card.title}
+              href={card.href}
+              className="rounded-[24px] border border-[#eadccf] bg-white px-5 py-5 shadow-[0_10px_24px_rgba(96,67,38,0.05)] transition hover:-translate-y-0.5 hover:border-[#d7b58e]"
+            >
+              <div className="text-lg font-semibold text-[#2f2218]">{card.title}</div>
+              <div className="mt-3 text-sm leading-7 text-[#72553c]">{card.body}</div>
+              <div className="mt-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#b67831]">
+                {card.cta}
+              </div>
+            </Link>
+          ))}
+        </div>
+      </PortalPanel>
     </div>
   );
 }

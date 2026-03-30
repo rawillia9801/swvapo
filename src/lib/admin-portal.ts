@@ -1,10 +1,10 @@
 export type AdminBuyerRecord = {
   id: number;
   user_id?: string | null;
+  puppy_id?: number | null;
   full_name?: string | null;
   name?: string | null;
   email?: string | null;
-  buyer_email?: string | null;
   phone?: string | null;
   status?: string | null;
   notes?: string | null;

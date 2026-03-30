@@ -1,209 +1,184 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import type { User } from "@supabase/supabase-js";
-import { sb } from "@/lib/utils";
+import React, { useEffect, useState } from "react";
+import { Mail, RefreshCcw, ShieldCheck } from "lucide-react";
+import { fmtDate, sb } from "@/lib/utils";
+import { findPortalMessagesForUser, type PortalMessage } from "@/lib/portal-data";
+import { usePortalSession } from "@/hooks/use-portal-session";
 import {
+  PortalButton,
   PortalEmptyState,
+  PortalErrorState,
+  PortalField,
   PortalHeroPrimaryAction,
   PortalHeroSecondaryAction,
   PortalInfoTile,
+  PortalInput,
+  PortalLoadingState,
   PortalMetricCard,
   PortalMetricGrid,
   PortalPageHero,
   PortalPanel,
+  PortalSecondaryButton,
+  PortalStatusBadge,
+  PortalTextarea,
 } from "@/components/portal/luxury-shell";
 
-type PortalMessage = {
-  id: string;
-  created_at: string;
-  user_id: string;
-  user_email: string;
-  subject: string | null;
-  message: string;
-  status: string;
-  read_by_admin: boolean;
-  read_by_user: boolean;
-  sender: "user" | "admin";
-};
+function groupMessagesByDate(messages: PortalMessage[]) {
+  const sorted = [...messages].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
+
+  const groups: Array<{ key: string; items: PortalMessage[] }> = [];
+
+  sorted.forEach((message) => {
+    const key = new Date(message.created_at).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+    const last = groups[groups.length - 1];
+    if (!last || last.key !== key) {
+      groups.push({ key, items: [message] });
+      return;
+    }
+    last.items.push(message);
+  });
+
+  return groups;
+}
 
 export default function PortalMessagesPage() {
-  const [user, setUser] = useState<User | null>(null);
+  const { user, loading: sessionLoading } = usePortalSession();
   const [messages, setMessages] = useState<PortalMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [subject, setSubject] = useState("");
-  const [message, setMessage] = useState("");
+  const [errorText, setErrorText] = useState("");
   const [statusText, setStatusText] = useState("");
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
 
   useEffect(() => {
-    let mounted = true;
+    let active = true;
 
-    const init = async () => {
-      try {
-        const {
-          data: { session },
-        } = await sb.auth.getSession();
-        if (!mounted) return;
-        const currentUser = session?.user ?? null;
-        setUser(currentUser);
-        if (currentUser) await loadMessages(currentUser);
-      } finally {
-        if (mounted) setLoading(false);
+    async function loadPage() {
+      if (!user) {
+        setMessages([]);
+        setLoading(false);
+        return;
       }
-    };
 
-    void init();
+      setLoading(true);
+      setErrorText("");
 
-    const { data: authListener } = sb.auth.onAuthStateChange(async (_event, session) => {
-      const currentUser = session?.user ?? null;
-      if (!mounted) return;
-      setUser(currentUser);
-      if (currentUser) await loadMessages(currentUser);
-      else setMessages([]);
-      setLoading(false);
-    });
+      try {
+        const portalMessages = await findPortalMessagesForUser(user, 100);
+        if (!active) return;
+        setMessages(portalMessages);
+      } catch (error) {
+        console.error("Could not load portal messages:", error);
+        if (!active) return;
+        setErrorText(
+          "We could not load your message history right now. Please refresh or try again in a moment."
+        );
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
 
-    const onStorage = async (event: StorageEvent) => {
-      if (!String(event.key || "").includes("supabase")) return;
-      const {
-        data: { session },
-      } = await sb.auth.getSession();
-      const currentUser = session?.user ?? null;
-      if (!mounted) return;
-      setUser(currentUser);
-      if (currentUser) await loadMessages(currentUser);
-      else setMessages([]);
-    };
-
-    window.addEventListener("storage", onStorage);
+    void loadPage();
 
     return () => {
-      mounted = false;
-      authListener.subscription.unsubscribe();
-      window.removeEventListener("storage", onStorage);
+      active = false;
     };
-  }, []);
+  }, [user]);
 
-  async function loadMessages(currentUser: User) {
-    const email = String(currentUser.email || "").trim().toLowerCase();
-    const uid = currentUser.id;
+  async function refreshMessages() {
+    if (!user) return;
+    setStatusText("");
+    setErrorText("");
 
     try {
-      let loadedMessages: PortalMessage[] = [];
-
-      if (uid) {
-        const byUserId = await sb
-          .from("portal_messages")
-          .select("*")
-          .eq("user_id", uid)
-          .order("created_at", { ascending: false });
-
-        if (!byUserId.error && byUserId.data?.length) {
-          loadedMessages = byUserId.data as PortalMessage[];
-        }
-      }
-
-      if (!loadedMessages.length && email) {
-        const byUserEmail = await sb
-          .from("portal_messages")
-          .select("*")
-          .ilike("user_email", email)
-          .order("created_at", { ascending: false });
-
-        if (!byUserEmail.error && byUserEmail.data?.length) {
-          loadedMessages = byUserEmail.data as PortalMessage[];
-        }
-      }
-
-      setMessages(loadedMessages);
+      const portalMessages = await findPortalMessagesForUser(user, 100);
+      setMessages(portalMessages);
     } catch (error) {
-      console.error("loadMessages failed:", error);
-      setMessages([]);
+      console.error("Could not refresh portal messages:", error);
+      setErrorText(
+        "We could not refresh your conversation right now. Please try again in a moment."
+      );
     }
   }
 
-  async function handleSendMessage(e: React.FormEvent) {
-    e.preventDefault();
-    if (!user) return;
-    if (!message.trim()) {
-      setStatusText("Please enter a message.");
-      return;
-    }
+  async function handleSend(event: React.FormEvent) {
+    event.preventDefault();
+    if (!user || !body.trim()) return;
 
     setSending(true);
     setStatusText("");
+    setErrorText("");
 
     const payload = {
       user_id: user.id,
-      user_email: String(user.email || "").trim(),
+      user_email: String(user.email || "").trim() || null,
       subject: subject.trim() || null,
-      message: message.trim(),
+      message: body.trim(),
       status: "open",
       read_by_admin: false,
       read_by_user: true,
       sender: "user",
     };
 
-    const { error } = await sb.from("portal_messages").insert(payload);
+    try {
+      const { error } = await sb.from("portal_messages").insert(payload);
+      if (error) throw error;
 
-    if (error) {
-      setStatusText(error.message || "Unable to send message.");
+      setSubject("");
+      setBody("");
+      setStatusText("Message sent.");
+      await refreshMessages();
+    } catch (error) {
+      console.error("Could not send message:", error);
+      setErrorText(
+        error instanceof Error ? error.message : "We could not send your message right now."
+      );
+    } finally {
       setSending(false);
-      return;
     }
-
-    setSubject("");
-    setMessage("");
-    setStatusText("Message sent.");
-    await loadMessages(user);
-    setSending(false);
   }
 
-  async function handleRefresh() {
-    if (!user) return;
-    setStatusText("");
-    await loadMessages(user);
-  }
-
-  const groupedMessages = useMemo(() => {
-    const sorted = [...messages].sort(
-      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-    );
-
-    const groups: { key: string; items: PortalMessage[] }[] = [];
-    for (const entry of sorted) {
-      const key = new Date(entry.created_at).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
-      const last = groups[groups.length - 1];
-      if (!last || last.key !== key) groups.push({ key, items: [entry] });
-      else last.items.push(entry);
-    }
-
-    return groups;
-  }, [messages]);
-
-  const adminMessages = messages.filter((entry) => entry.sender === "admin").length;
-  const userMessages = messages.filter((entry) => entry.sender === "user").length;
-  const unreadByUser = messages.filter((entry) => entry.sender === "admin" && !entry.read_by_user).length;
-
-  if (loading) {
-    return <div className="py-20 text-center text-sm font-semibold text-[#7b5f46]">Loading messages...</div>;
+  if (sessionLoading || loading) {
+    return <PortalLoadingState label="Loading messages..." />;
   }
 
   if (!user) {
-    return <MessagesLogin />;
+    return (
+      <PortalPageHero
+        eyebrow="Messages"
+        title="Sign in to open your conversation history."
+        description="Portal messages keep breeder replies, questions, and support details organized in one private conversation."
+        actions={<PortalHeroPrimaryAction href="/portal">Open Portal Access</PortalHeroPrimaryAction>}
+      />
+    );
   }
+
+  if (errorText && !messages.length) {
+    return <PortalErrorState title="Messages are unavailable" description={errorText} />;
+  }
+
+  const groupedMessages = groupMessagesByDate(messages);
+  const unreadBreederMessages = messages.filter(
+    (message) => message.sender === "admin" && !message.read_by_user
+  ).length;
+  const breederMessages = messages.filter((message) => message.sender === "admin").length;
+  const yourMessages = messages.filter((message) => message.sender === "user").length;
+  const lastReply = messages[0]?.created_at || null;
 
   return (
     <div className="space-y-6 pb-14">
       <PortalPageHero
         eyebrow="Messages"
         title="A private conversation space for your puppy journey."
-        description="Use Messages for questions, breeder updates, logistics, and ongoing support before go-home day and afterward."
+        description="Keep breeder updates, account questions, scheduling notes, and support in one clean conversation instead of digging through texts and emails."
         actions={
           <>
             <PortalHeroPrimaryAction href="/portal/mypuppy">Open My Puppy</PortalHeroPrimaryAction>
@@ -215,82 +190,101 @@ export default function PortalMessagesPage() {
             <PortalInfoTile
               label="Portal Email"
               value={user.email || "No email on file"}
-              detail="Messages sent here stay connected to your portal account."
+              detail="Your messages stay connected to this portal login."
             />
             <PortalInfoTile
               label="Unread From Breeder"
-              value={String(unreadByUser)}
-              detail="New breeder replies you may want to review."
+              value={String(unreadBreederMessages)}
+              detail="Breeder replies still waiting for review."
+              tone={unreadBreederMessages ? "warning" : "neutral"}
             />
           </div>
         }
       />
 
+      {statusText ? (
+        <div className="rounded-[20px] border border-[#d5e7d0] bg-[#f5fbf2] px-4 py-3 text-sm font-semibold text-[#456640]">
+          {statusText}
+        </div>
+      ) : null}
+
+      {errorText && messages.length ? (
+        <div className="rounded-[20px] border border-[#efd2cc] bg-[#fff6f4] px-4 py-3 text-sm font-semibold text-[#8f4b42]">
+          {errorText}
+        </div>
+      ) : null}
+
       <PortalMetricGrid>
-        <PortalMetricCard label="Total Messages" value={String(messages.length)} detail="Every saved portal message in this conversation." />
-        <PortalMetricCard label="From Breeder" value={String(adminMessages)} detail="Messages sent from Southwest Virginia Chihuahua." accent="from-[#dce9d6] via-[#b6cfaa] to-[#7e9c6f]" />
-        <PortalMetricCard label="From You" value={String(userMessages)} detail="Messages you have sent through the portal." accent="from-[#ece3d5] via-[#d7c1a3] to-[#b18d62]" />
-        <PortalMetricCard label="Unread" value={String(unreadByUser)} detail="Breeder replies still marked unread on your side." accent="from-[#f0dcc1] via-[#ddb68c] to-[#c98743]" />
+        <PortalMetricCard
+          label="Conversation Count"
+          value={String(messages.length)}
+          detail="Every saved portal message in this conversation."
+        />
+        <PortalMetricCard
+          label="From Breeder"
+          value={String(breederMessages)}
+          detail="Messages sent from Southwest Virginia Chihuahua."
+          accent="from-[#dce9d6] via-[#b6cfaa] to-[#7e9c6f]"
+        />
+        <PortalMetricCard
+          label="From You"
+          value={String(yourMessages)}
+          detail="Messages you have sent through the portal."
+          accent="from-[#ece3d5] via-[#d7c1a3] to-[#b18d62]"
+        />
+        <PortalMetricCard
+          label="Latest Reply"
+          value={lastReply ? fmtDate(lastReply) : "No replies yet"}
+          detail="The newest entry in your portal conversation."
+          accent="from-[#f0dcc1] via-[#ddb68c] to-[#c98743]"
+        />
       </PortalMetricGrid>
 
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
         <div className="space-y-6">
-          <PortalPanel title="Send a Message" subtitle="Use this form whenever you need an update, want to confirm details, or need help with your account.">
-            <form onSubmit={handleSendMessage} className="space-y-4">
-              <div>
-                <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.2em] text-[#a47946]">
-                  Subject
-                </label>
-                <input
-                  type="text"
+          <PortalPanel
+            title="Send a Message"
+            subtitle="Use the portal first when you need an update, want to confirm a detail, or need help with your account."
+          >
+            <form onSubmit={handleSend} className="space-y-4">
+              <PortalField label="Subject">
+                <PortalInput
                   value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
+                  onChange={(event) => setSubject(event.target.value)}
                   placeholder="Optional subject"
-                  className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
                 />
-              </div>
+              </PortalField>
 
-              <div>
-                <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.2em] text-[#a47946]">
-                  Message
-                </label>
-                <textarea
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  rows={8}
+              <PortalField label="Message">
+                <PortalTextarea
+                  value={body}
+                  onChange={(event) => setBody(event.target.value)}
                   placeholder="Write your message here..."
-                  className="w-full resize-none rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+                  rows={8}
                   required
                 />
-              </div>
+              </PortalField>
 
-              {statusText ? (
-                <div className="rounded-[18px] border border-[#ead9c7] bg-[#fff9f2] px-4 py-3 text-sm text-[#7a5a3a]">
-                  {statusText}
-                </div>
-              ) : null}
-
-              <button
-                type="submit"
-                disabled={sending}
-                className="w-full rounded-[18px] bg-[#6b4d33] px-5 py-4 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-[0_14px_30px_rgba(88,63,37,0.18)] transition hover:bg-[#5b412c] disabled:opacity-60"
-              >
+              <PortalButton type="submit" disabled={sending || !body.trim()} className="w-full">
                 {sending ? "Sending..." : "Send Message"}
-              </button>
+              </PortalButton>
             </form>
           </PortalPanel>
 
-          <PortalPanel title="Conversation Tips" subtitle="A simple rhythm helps these conversations stay efficient and easy to track.">
-            <div className="space-y-4">
-              <PortalInfoTile
-                label="Use clear subjects"
-                value="Keep topics easy to spot"
-                detail="A short subject helps when you return to earlier messages later."
+          <PortalPanel
+            title="Why use portal messages"
+            subtitle="This is meant to keep communication simple, searchable, and tied to your puppy account."
+          >
+            <div className="space-y-3">
+              <MessageTip
+                icon={<Mail className="h-4 w-4" />}
+                title="Keep everything in one place"
+                detail="Questions, breeder replies, and account details remain connected to your portal record."
               />
-              <PortalInfoTile
-                label="Ask here first"
-                value="Keep support organized"
-                detail="Using the portal keeps your puppy questions, updates, and breeder replies together."
+              <MessageTip
+                icon={<ShieldCheck className="h-4 w-4" />}
+                title="Reduce confusion"
+                detail="Using the portal helps keep the full conversation trail easy to follow later."
               />
             </div>
           </PortalPanel>
@@ -298,62 +292,50 @@ export default function PortalMessagesPage() {
 
         <PortalPanel
           title="Conversation"
-          subtitle="Your portal conversation history is collected here so you can follow updates without digging through texts or emails."
-          actionHref="#"
-          actionLabel="Refresh"
+          subtitle="Your message history is collected here so you can quickly review what was asked, answered, and still needs attention."
+          action={
+            <PortalSecondaryButton onClick={refreshMessages}>
+              <RefreshCcw className="mr-2 h-4 w-4" />
+              Refresh
+            </PortalSecondaryButton>
+          }
         >
-          <div className="mb-5">
-            <button
-              type="button"
-              onClick={handleRefresh}
-              className="inline-flex rounded-full border border-[#e5d2bc] bg-[#fff9f2] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#b8772f] transition hover:border-[#d8b48b]"
-            >
-              Refresh Conversation
-            </button>
-          </div>
-
-          {!messages.length ? (
-            <PortalEmptyState
-              title="No messages yet"
-              description="Send your first message here whenever you need an update, want to confirm a detail, or have a question about your puppy journey."
-            />
-          ) : (
+          {messages.length ? (
             <div className="space-y-8">
               {groupedMessages.map((group) => (
                 <div key={group.key}>
                   <div className="mb-4">
-                    <span className="inline-flex rounded-full border border-[#ead9c7] bg-[#fff9f2] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#a47946]">
-                      {group.key}
-                    </span>
+                    <PortalStatusBadge label={group.key} tone="neutral" />
                   </div>
 
                   <div className="space-y-4">
                     {group.items.map((entry) => {
-                      const isAdmin = entry.sender === "admin";
+                      const fromBreeder = entry.sender === "admin";
+                      const statusTone = fromBreeder
+                        ? entry.read_by_user
+                          ? "success"
+                          : "warning"
+                        : entry.read_by_admin
+                          ? "success"
+                          : "warning";
+
                       return (
                         <div
                           key={entry.id}
-                          className={`flex ${isAdmin ? "justify-start" : "justify-end"}`}
+                          className={`flex ${fromBreeder ? "justify-start" : "justify-end"}`}
                         >
                           <div
-                            className={[
-                              "max-w-[85%] rounded-[28px] border px-5 py-4 shadow-[0_10px_24px_rgba(106,76,45,0.05)]",
-                              isAdmin
-                                ? "border-[#ead9c7] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] text-[#2f2218]"
-                                : "border-[#d8c2a8] bg-[linear-gradient(180deg,#6b4d33_0%,#5a3f2d_100%)] text-white",
-                            ].join(" ")}
+                            className={`max-w-[85%] rounded-[28px] border px-5 py-4 shadow-[0_10px_24px_rgba(96,67,38,0.05)] ${
+                              fromBreeder
+                                ? "border-[#ead9c7] bg-white text-[#2f2218]"
+                                : "border-[#d8c2a8] bg-[linear-gradient(180deg,#6b4d33_0%,#5a3f2d_100%)] text-white"
+                            }`}
                           >
                             <div className="flex flex-wrap items-center justify-between gap-3">
-                              <div
-                                className={`text-[10px] font-semibold uppercase tracking-[0.18em] ${
-                                  isAdmin ? "text-[#a47946]" : "text-white/70"
-                                }`}
-                              >
-                                {isAdmin ? "Southwest Virginia Chihuahua" : "You"}
+                              <div className={`text-[10px] font-semibold uppercase tracking-[0.18em] ${fromBreeder ? "text-[#a47946]" : "text-white/70"}`}>
+                                {fromBreeder ? "Southwest Virginia Chihuahua" : "You"}
                               </div>
-                              <div
-                                className={`text-[10px] ${isAdmin ? "text-[#8d6f52]" : "text-white/60"}`}
-                              >
+                              <div className={`text-[10px] ${fromBreeder ? "text-[#8d6f52]" : "text-white/60"}`}>
                                 {new Date(entry.created_at).toLocaleString("en-US", {
                                   month: "short",
                                   day: "numeric",
@@ -364,44 +346,32 @@ export default function PortalMessagesPage() {
                             </div>
 
                             {entry.subject ? (
-                              <div className={`mt-2 text-sm font-semibold ${isAdmin ? "text-[#2f2218]" : "text-white"}`}>
+                              <div className={`mt-2 text-sm font-semibold ${fromBreeder ? "text-[#2f2218]" : "text-white"}`}>
                                 {entry.subject}
                               </div>
                             ) : null}
 
-                            <div className={`mt-3 whitespace-pre-wrap text-sm leading-7 ${isAdmin ? "text-[#73583f]" : "text-white/92"}`}>
+                            <div className={`mt-3 whitespace-pre-wrap text-sm leading-7 ${fromBreeder ? "text-[#72553c]" : "text-white/92"}`}>
                               {entry.message}
                             </div>
 
                             <div className="mt-4 flex flex-wrap gap-2">
-                              <span
-                                className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${
-                                  isAdmin
-                                    ? "border border-[#ead9c7] bg-white text-[#8d6f52]"
-                                    : "border border-white/15 bg-white/10 text-white"
-                                }`}
-                              >
-                                {entry.status || "open"}
-                              </span>
-                              <span
-                                className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${
-                                  isAdmin
+                              <PortalStatusBadge
+                                label={entry.status || "open"}
+                                tone={statusTone}
+                              />
+                              <PortalStatusBadge
+                                label={
+                                  fromBreeder
                                     ? entry.read_by_user
-                                      ? "border border-[#d5e3ce] bg-[#f6fbf2] text-[#6d8a5d]"
-                                      : "border border-[#f0deb7] bg-[#fff8e8] text-[#b37a2d]"
+                                      ? "Read by you"
+                                      : "Unread by you"
                                     : entry.read_by_admin
-                                      ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-                                      : "border border-amber-200 bg-amber-50 text-amber-700"
-                                }`}
-                              >
-                                {isAdmin
-                                  ? entry.read_by_user
-                                    ? "Read by you"
-                                    : "Unread by you"
-                                  : entry.read_by_admin
-                                    ? "Read by breeder"
-                                    : "Unread by breeder"}
-                              </span>
+                                      ? "Read by breeder"
+                                      : "Unread by breeder"
+                                }
+                                tone={statusTone}
+                              />
                             </div>
                           </div>
                         </div>
@@ -411,6 +381,11 @@ export default function PortalMessagesPage() {
                 </div>
               ))}
             </div>
+          ) : (
+            <PortalEmptyState
+              title="No messages yet"
+              description="Send your first portal message whenever you need an update, have a question, or want to confirm a detail."
+            />
           )}
         </PortalPanel>
       </section>
@@ -418,53 +393,24 @@ export default function PortalMessagesPage() {
   );
 }
 
-function MessagesLogin() {
-  const [email, setEmail] = useState("");
-  const [pass, setPass] = useState("");
-
-  const login = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const { error } = await sb.auth.signInWithPassword({ email, password: pass });
-    if (error) alert(error.message);
-  };
-
+function MessageTip({
+  icon,
+  title,
+  detail,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  detail: string;
+}) {
   return (
-    <div className="grid min-h-[80vh] grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-      <section className="overflow-hidden rounded-[36px] border border-[#e2d4c5] bg-[linear-gradient(135deg,#fff8f1_0%,#f8efe4_55%,#efe2d2_100%)] shadow-[0_26px_70px_rgba(88,63,37,0.10)]">
-        <div className="px-7 py-8 md:px-10 md:py-10 lg:px-14 lg:py-14">
-          <div className="inline-flex items-center gap-2 rounded-full border border-[#dcc6ad] bg-white/70 px-4 py-2 shadow-sm">
-            <span className="text-[10px] font-black uppercase tracking-[0.22em] text-[#a47946]">Portal Messages</span>
-          </div>
-          <div className="mt-10 max-w-3xl">
-            <h1 className="font-serif text-5xl font-bold leading-[0.95] text-[#3e2a1f] md:text-6xl">Welcome to your private conversation space.</h1>
-            <p className="mt-6 max-w-2xl text-[17px] font-semibold leading-8 text-[#7a5a3a]">
-              Sign in to review breeder updates and send questions through the portal instead of searching through email and text threads.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section className="overflow-hidden rounded-[36px] border border-[#ead9c7] bg-white shadow-[0_30px_80px_rgba(88,63,37,0.10)]">
-        <div className="px-7 py-8 md:px-10 md:py-10">
-          <div className="mb-8">
-            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#b08251]">Portal Messages Access</div>
-            <h2 className="mt-3 font-serif text-4xl font-bold leading-none text-[#3e2a1f]">Sign in</h2>
-            <p className="mt-3 text-sm font-semibold leading-7 text-[#8a6a49]">Enter your portal login to continue your conversation.</p>
-          </div>
-
-          <form onSubmit={login} className="space-y-5">
-            <div>
-              <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-[#a47946]">Email</label>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]" required />
-            </div>
-            <div>
-              <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-[#a47946]">Password</label>
-              <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]" required />
-            </div>
-            <button className="w-full rounded-[18px] bg-[#6b4d33] px-5 py-4 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-[0_14px_30px_rgba(88,63,37,0.18)] transition hover:bg-[#5b412c]">Sign In</button>
-          </form>
-        </div>
-      </section>
+    <div className="flex items-start gap-3 rounded-[22px] border border-[#eadccf] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(96,67,38,0.05)]">
+      <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-[#f8efe5] text-[#a17848]">
+        {icon}
+      </div>
+      <div>
+        <div className="text-sm font-semibold text-[#2f2218]">{title}</div>
+        <div className="mt-1 text-sm leading-6 text-[#72553c]">{detail}</div>
+      </div>
     </div>
   );
 }

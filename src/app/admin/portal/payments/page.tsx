@@ -22,10 +22,11 @@ import { isPortalAdminEmail } from "@/lib/portal-admin";
 type BuyerRow = {
   id: number;
   user_id?: string | null;
+  puppy_id?: number | null;
   full_name?: string | null;
   name?: string | null;
   email?: string | null;
-  buyer_email?: string | null;
+  phone?: string | null;
   finance_enabled?: boolean | null;
   finance_admin_fee?: boolean | null;
   finance_rate?: number | null;
@@ -52,6 +53,7 @@ type BuyerPayment = {
   id: string;
   created_at: string;
   buyer_id: number;
+  puppy_id?: number | null;
   payment_date: string;
   amount: number;
   payment_type: string | null;
@@ -83,6 +85,16 @@ type EditForm = {
   finance_next_due_date: string;
 };
 
+type PaymentEntryForm = {
+  payment_date: string;
+  amount: string;
+  payment_type: string;
+  method: string;
+  status: string;
+  reference_number: string;
+  note: string;
+};
+
 function firstValue(...values: Array<string | null | undefined>) {
   for (const value of values) {
     const trimmed = String(value || "").trim();
@@ -91,32 +103,55 @@ function firstValue(...values: Array<string | null | undefined>) {
   return "";
 }
 
-function moneyInputToNumber(value: string): number | null {
-  const cleaned = String(value || "").replace(/[^0-9.-]/g, "").trim();
-  if (!cleaned) return null;
-  const parsed = Number(cleaned);
-  return Number.isFinite(parsed) ? parsed : null;
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function toYesNo(value: boolean | null | undefined) {
   return value ? "yes" : "no";
 }
 
-function paymentCountsTowardBalance(status: string | null | undefined) {
-  const normalized = String(status || "").toLowerCase();
-  if (!normalized) return true;
-  return !["failed", "void", "canceled", "cancelled"].includes(normalized);
-}
-
 function puppyName(puppy: PuppyRow | null) {
   return firstValue(puppy?.call_name, puppy?.puppy_name, puppy?.name, "Pending Match");
 }
 
+function emptyPaymentEntry(): PaymentEntryForm {
+  return {
+    payment_date: todayIso(),
+    amount: "",
+    payment_type: "payment",
+    method: "",
+    status: "recorded",
+    reference_number: "",
+    note: "",
+  };
+}
+
+async function fetchPaymentAccounts(accessToken: string) {
+  if (!accessToken) return [] as BuyerAccount[];
+
+  const response = await fetch("/api/admin/portal/payments", {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    return [] as BuyerAccount[];
+  }
+
+  const payload = (await response.json()) as { accounts?: BuyerAccount[] };
+  return Array.isArray(payload.accounts) ? payload.accounts : [];
+}
+
 export default function AdminPortalPaymentsPage() {
   const [user, setUser] = useState<User | null>(null);
+  const [accessToken, setAccessToken] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loggingPayment, setLoggingPayment] = useState(false);
   const [statusText, setStatusText] = useState("");
+  const [paymentStatusText, setPaymentStatusText] = useState("");
   const [search, setSearch] = useState("");
   const [accounts, setAccounts] = useState<BuyerAccount[]>([]);
   const [selectedKey, setSelectedKey] = useState("");
@@ -132,6 +167,7 @@ export default function AdminPortalPaymentsPage() {
     finance_monthly_amount: "",
     finance_next_due_date: "",
   });
+  const [paymentForm, setPaymentForm] = useState<PaymentEntryForm>(emptyPaymentEntry);
 
   useEffect(() => {
     let mounted = true;
@@ -144,10 +180,13 @@ export default function AdminPortalPaymentsPage() {
 
         if (!mounted) return;
         const currentUser = session?.user ?? null;
+        const token = session?.access_token || "";
         setUser(currentUser);
+        setAccessToken(token);
 
         if (currentUser && isPortalAdminEmail(currentUser.email)) {
-          const nextAccounts = await loadAccounts();
+          const nextAccounts = await fetchPaymentAccounts(token);
+          if (!mounted) return;
           setAccounts(nextAccounts);
           setSelectedKey(nextAccounts[0]?.key || "");
         }
@@ -160,15 +199,17 @@ export default function AdminPortalPaymentsPage() {
 
     const { data: authListener } = sb.auth.onAuthStateChange(async (_event, session) => {
       if (!mounted) return;
+
       const currentUser = session?.user ?? null;
+      const token = session?.access_token || "";
       setUser(currentUser);
+      setAccessToken(token);
 
       if (currentUser && isPortalAdminEmail(currentUser.email)) {
-        const nextAccounts = await loadAccounts();
+        const nextAccounts = await fetchPaymentAccounts(token);
+        if (!mounted) return;
         setAccounts(nextAccounts);
-        setSelectedKey((prev) =>
-          nextAccounts.find((account) => account.key === prev)?.key || nextAccounts[0]?.key || ""
-        );
+        setSelectedKey((prev) => nextAccounts.find((account) => account.key === prev)?.key || nextAccounts[0]?.key || "");
       } else {
         setAccounts([]);
         setSelectedKey("");
@@ -183,76 +224,15 @@ export default function AdminPortalPaymentsPage() {
     };
   }, []);
 
-  async function loadAccounts() {
-    const [buyersRes, puppiesRes, paymentsRes] = await Promise.all([
-      sb
-        .from("buyers")
-        .select("id,user_id,full_name,name,email,buyer_email,finance_enabled,finance_admin_fee,finance_rate,finance_months,finance_monthly_amount,finance_next_due_date,finance_last_payment_date,status")
-        .order("created_at", { ascending: false }),
-      sb
-        .from("puppies")
-        .select("id,buyer_id,call_name,puppy_name,name,price,deposit,balance,status")
-        .order("created_at", { ascending: false }),
-      sb
-        .from("buyer_payments")
-        .select("id,created_at,buyer_id,payment_date,amount,payment_type,method,note,status,reference_number")
-        .order("payment_date", { ascending: false })
-        .order("created_at", { ascending: false }),
-    ]);
-
-    const buyers = (buyersRes.data || []) as BuyerRow[];
-    const puppies = (puppiesRes.data || []) as PuppyRow[];
-    const payments = (paymentsRes.data || []) as BuyerPayment[];
-
-    const puppyByBuyerId = new Map<number, PuppyRow>();
-    puppies.forEach((puppy) => {
-      const buyerId = Number(puppy.buyer_id || 0);
-      if (buyerId && !puppyByBuyerId.has(buyerId)) {
-        puppyByBuyerId.set(buyerId, puppy);
-      }
-    });
-
-    const paymentsByBuyerId = new Map<number, BuyerPayment[]>();
-    payments.forEach((payment) => {
-      const buyerId = Number(payment.buyer_id || 0);
-      if (!buyerId) return;
-      const group = paymentsByBuyerId.get(buyerId) || [];
-      group.push(payment);
-      paymentsByBuyerId.set(buyerId, group);
-    });
-
-    return buyers
-      .map((buyer) => {
-        const paymentGroup = paymentsByBuyerId.get(buyer.id) || [];
-        const totalPaid = paymentGroup
-          .filter((payment) => paymentCountsTowardBalance(payment.status))
-          .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-
-        return {
-          key: String(buyer.id),
-          buyer,
-          puppy: puppyByBuyerId.get(buyer.id) || null,
-          payments: paymentGroup,
-          totalPaid,
-          lastPaymentAt: paymentGroup[0]?.payment_date || paymentGroup[0]?.created_at || null,
-        };
-      })
-      .sort((a, b) =>
-        firstValue(a.buyer.full_name, a.buyer.name, a.buyer.email).localeCompare(
-          firstValue(b.buyer.full_name, b.buyer.name, b.buyer.email)
-        )
-      );
-  }
-
   const filteredAccounts = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return accounts;
+
     return accounts.filter((account) =>
       [
         account.buyer.full_name,
         account.buyer.name,
         account.buyer.email,
-        account.buyer.buyer_email,
         account.buyer.status,
         puppyName(account.puppy),
       ]
@@ -262,16 +242,14 @@ export default function AdminPortalPaymentsPage() {
     );
   }, [accounts, search]);
 
-  const selectedAccount = useMemo(
-    () =>
-      filteredAccounts.find((account) => account.key === selectedKey) ||
-      accounts.find((account) => account.key === selectedKey) ||
-      null,
-    [accounts, filteredAccounts, selectedKey]
-  );
+  const selectedAccount =
+    filteredAccounts.find((account) => account.key === selectedKey) ||
+    accounts.find((account) => account.key === selectedKey) ||
+    null;
 
   useEffect(() => {
     if (!selectedAccount) return;
+
     setForm({
       price:
         selectedAccount.puppy?.price !== null && selectedAccount.puppy?.price !== undefined
@@ -303,50 +281,85 @@ export default function AdminPortalPaymentsPage() {
           : "",
       finance_next_due_date: selectedAccount.buyer.finance_next_due_date || "",
     });
+    setPaymentForm(emptyPaymentEntry());
     setStatusText("");
+    setPaymentStatusText("");
   }, [selectedAccount]);
+
+  async function refreshAccounts(nextSelectedKey?: string) {
+    const nextAccounts = await fetchPaymentAccounts(accessToken);
+    setAccounts(nextAccounts);
+    setSelectedKey(nextSelectedKey || nextAccounts[0]?.key || "");
+  }
 
   async function handleSave() {
     if (!selectedAccount) return;
+
     setSaving(true);
     setStatusText("");
 
     try {
-      const buyerUpdate = {
-        finance_enabled: form.finance_enabled === "yes",
-        finance_admin_fee: form.finance_admin_fee === "yes",
-        finance_rate: moneyInputToNumber(form.finance_rate),
-        finance_months: moneyInputToNumber(form.finance_months),
-        finance_monthly_amount: moneyInputToNumber(form.finance_monthly_amount),
-        finance_next_due_date: form.finance_next_due_date || null,
-      };
+      const response = await fetch("/api/admin/portal/payments", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          buyer_id: selectedAccount.buyer.id,
+          puppy_id: selectedAccount.puppy?.id || null,
+          ...form,
+        }),
+      });
 
-      const buyerResult = await sb.from("buyers").update(buyerUpdate).eq("id", selectedAccount.buyer.id);
-      if (buyerResult.error) throw buyerResult.error;
-
-      if (selectedAccount.puppy?.id) {
-        const puppyResult = await sb
-          .from("puppies")
-          .update({
-            price: moneyInputToNumber(form.price),
-            deposit: moneyInputToNumber(form.deposit),
-            balance: moneyInputToNumber(form.balance),
-            status: form.puppy_status.trim() || null,
-          })
-          .eq("id", selectedAccount.puppy.id);
-
-        if (puppyResult.error) throw puppyResult.error;
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error || "Could not update payment settings.");
       }
 
-      const nextAccounts = await loadAccounts();
-      setAccounts(nextAccounts);
-      setSelectedKey(selectedAccount.key);
+      await refreshAccounts(selectedAccount.key);
       setStatusText("Payment settings updated.");
     } catch (error) {
       console.error(error);
       setStatusText("Could not update payment settings.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function logManualPayment() {
+    if (!selectedAccount) return;
+
+    setLoggingPayment(true);
+    setPaymentStatusText("");
+
+    try {
+      const response = await fetch("/api/admin/portal/payments", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          buyer_id: selectedAccount.buyer.id,
+          puppy_id: selectedAccount.puppy?.id || null,
+          ...paymentForm,
+        }),
+      });
+
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error || "Could not log the payment.");
+      }
+
+      setPaymentForm(emptyPaymentEntry());
+      await refreshAccounts(selectedAccount.key);
+      setPaymentStatusText("Payment recorded.");
+    } catch (error) {
+      console.error(error);
+      setPaymentStatusText("Could not log the payment.");
+    } finally {
+      setLoggingPayment(false);
     }
   }
 
@@ -377,12 +390,12 @@ export default function AdminPortalPaymentsPage() {
       <div className="space-y-6 pb-12">
         <AdminPageHero
           eyebrow="Payments"
-          title="Balances, financing, and payment history stay together in one payment-only workspace."
-          description="This tab is dedicated to the buyer’s financial record, so you are not sorting through applications or messages while making money-related updates."
+          title="Manual payments, finance settings, and balance control all live in one place."
+          description="This payment tab now reads from the real buyers, puppies, and buyer_payments tables. You can review balances, edit financing, and manually log payments without depending on the buyer portal."
           actions={
             <>
-              <AdminHeroPrimaryAction href="/admin/portal/messages">Open Messages</AdminHeroPrimaryAction>
-              <AdminHeroSecondaryAction href="/admin/portal/users">Open Buyers</AdminHeroSecondaryAction>
+              <AdminHeroPrimaryAction href="/admin/portal/users">Open Buyers</AdminHeroPrimaryAction>
+              <AdminHeroSecondaryAction href="/admin/portal/messages">Open Messages</AdminHeroSecondaryAction>
             </>
           }
           aside={
@@ -390,12 +403,12 @@ export default function AdminPortalPaymentsPage() {
               <AdminInfoTile
                 label="Buyer Accounts"
                 value={String(accounts.length)}
-                detail="Searchable buyer cards grouped for financial review."
+                detail="All buyer accounts available for financial review."
               />
               <AdminInfoTile
                 label="Finance Enabled"
                 value={String(accounts.filter((account) => account.buyer.finance_enabled).length)}
-                detail="Buyer accounts currently using a financing plan."
+                detail="Buyer records currently using a financing plan."
               />
             </div>
           }
@@ -405,7 +418,7 @@ export default function AdminPortalPaymentsPage() {
           <AdminMetricCard
             label="Buyer Accounts"
             value={String(accounts.length)}
-            detail="Buyers available to review in the payments tab."
+            detail="Buyers currently available in the payments workspace."
           />
           <AdminMetricCard
             label="Payment Records"
@@ -427,10 +440,10 @@ export default function AdminPortalPaymentsPage() {
           />
         </AdminMetricGrid>
 
-        <section className="grid grid-cols-1 gap-6 xl:grid-cols-[390px_minmax(0,1fr)]">
+        <section className="grid grid-cols-1 gap-6 xl:grid-cols-[400px_minmax(0,1fr)]">
           <AdminPanel
             title="Buyer Payment Cards"
-            subtitle="Search by buyer or puppy name. Each card keeps one buyer’s full payment picture together."
+            subtitle="Search by buyer or puppy name. Each card keeps one buyer’s payment picture together."
           >
             <input
               value={search}
@@ -447,7 +460,7 @@ export default function AdminPortalPaymentsPage() {
                     selected={selectedKey === account.key}
                     onClick={() => setSelectedKey(account.key)}
                     title={firstValue(account.buyer.full_name, account.buyer.name, account.buyer.email, `Buyer #${account.buyer.id}`)}
-                    subtitle={`${account.buyer.email || account.buyer.buyer_email || "No email"} • ${puppyName(account.puppy)}`}
+                    subtitle={`${account.buyer.email || "No email"} • ${puppyName(account.puppy)}`}
                     meta={`${fmtMoney(account.totalPaid)} paid • ${account.payments.length} payment${account.payments.length === 1 ? "" : "s"}`}
                     badge={
                       <span
@@ -462,7 +475,7 @@ export default function AdminPortalPaymentsPage() {
                 ))
               ) : (
                 <AdminEmptyState
-                  title="No buyer payments matched your search"
+                  title="No buyer payment records matched your search"
                   description="Try a different buyer name, email, or puppy name."
                 />
               )}
@@ -475,14 +488,11 @@ export default function AdminPortalPaymentsPage() {
                 title="Financial Snapshot"
                 subtitle="A clean read of the selected buyer’s current pricing, financing, and payment history."
               >
-                {statusText ? (
-                  <div className="mb-4 rounded-[18px] border border-[#ead9c7] bg-[#fff9f2] px-4 py-3 text-sm font-semibold text-[#7a5a3a]">
-                    {statusText}
-                  </div>
-                ) : null}
-
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  <AdminInfoTile label="Buyer" value={firstValue(selectedAccount.buyer.full_name, selectedAccount.buyer.name, selectedAccount.buyer.email, "Buyer")} />
+                  <AdminInfoTile
+                    label="Buyer"
+                    value={firstValue(selectedAccount.buyer.full_name, selectedAccount.buyer.name, selectedAccount.buyer.email, "Buyer")}
+                  />
                   <AdminInfoTile label="My Puppy" value={puppyName(selectedAccount.puppy)} />
                   <AdminInfoTile label="Total Paid" value={fmtMoney(selectedAccount.totalPaid)} />
                   <AdminInfoTile
@@ -496,8 +506,14 @@ export default function AdminPortalPaymentsPage() {
               <section className="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,1.05fr)_420px]">
                 <AdminPanel
                   title="Payment Settings"
-                  subtitle="This is where price, deposit, balance, and financing settings are edited."
+                  subtitle="Edit price, deposit, balance, puppy status, and financing details."
                 >
+                  {statusText ? (
+                    <div className="mb-4 rounded-[18px] border border-[#ead9c7] bg-[#fff9f2] px-4 py-3 text-sm font-semibold text-[#7a5a3a]">
+                      {statusText}
+                    </div>
+                  ) : null}
+
                   <div className="grid gap-4 md:grid-cols-2">
                     <PaymentField label="Price" value={form.price} onChange={(value) => setForm((prev) => ({ ...prev, price: value }))} />
                     <PaymentField label="Deposit" value={form.deposit} onChange={(value) => setForm((prev) => ({ ...prev, deposit: value }))} />
@@ -524,14 +540,52 @@ export default function AdminPortalPaymentsPage() {
                 </AdminPanel>
 
                 <AdminPanel
-                  title="Finance Snapshot"
-                  subtitle="Use this side panel to quickly confirm plan details before or after editing."
+                  title="Log Manual Payment"
+                  subtitle="Enter a payment directly so the buyer portal updates from the real payment history."
                 >
-                  <div className="space-y-4">
-                    <AdminInfoTile label="Financing" value={selectedAccount.buyer.finance_enabled ? "Enabled" : "Not enabled"} />
-                    <AdminInfoTile label="APR / Rate" value={selectedAccount.buyer.finance_rate !== null && selectedAccount.buyer.finance_rate !== undefined ? String(selectedAccount.buyer.finance_rate) : "-"} />
-                    <AdminInfoTile label="Monthly Amount" value={selectedAccount.buyer.finance_monthly_amount !== null && selectedAccount.buyer.finance_monthly_amount !== undefined ? fmtMoney(selectedAccount.buyer.finance_monthly_amount) : "-"} />
-                    <AdminInfoTile label="Next Due" value={selectedAccount.buyer.finance_next_due_date ? fmtDate(selectedAccount.buyer.finance_next_due_date) : "-"} />
+                  {paymentStatusText ? (
+                    <div className="mb-4 rounded-[18px] border border-[#ead9c7] bg-[#fff9f2] px-4 py-3 text-sm font-semibold text-[#7a5a3a]">
+                      {paymentStatusText}
+                    </div>
+                  ) : null}
+
+                  <div className="grid gap-4">
+                    <PaymentDateField label="Payment Date" value={paymentForm.payment_date} onChange={(value) => setPaymentForm((prev) => ({ ...prev, payment_date: value }))} />
+                    <PaymentField label="Amount" value={paymentForm.amount} onChange={(value) => setPaymentForm((prev) => ({ ...prev, amount: value }))} />
+                    <PaymentField label="Payment Type" value={paymentForm.payment_type} onChange={(value) => setPaymentForm((prev) => ({ ...prev, payment_type: value }))} />
+                    <PaymentField label="Method" value={paymentForm.method} onChange={(value) => setPaymentForm((prev) => ({ ...prev, method: value }))} />
+                    <PaymentField label="Status" value={paymentForm.status} onChange={(value) => setPaymentForm((prev) => ({ ...prev, status: value }))} />
+                    <PaymentField label="Reference Number" value={paymentForm.reference_number} onChange={(value) => setPaymentForm((prev) => ({ ...prev, reference_number: value }))} />
+                    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#a47946]">
+                      Note
+                      <textarea
+                        value={paymentForm.note}
+                        onChange={(e) => setPaymentForm((prev) => ({ ...prev, note: e.target.value }))}
+                        rows={5}
+                        className="mt-2 w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => void logManualPayment()}
+                      disabled={loggingPayment}
+                      className="rounded-2xl bg-[linear-gradient(135deg,#d3a056_0%,#b5752f_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(181,117,47,0.26)] transition hover:brightness-105 disabled:opacity-60"
+                    >
+                      {loggingPayment ? "Saving..." : "Record Payment"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentForm(emptyPaymentEntry());
+                        setPaymentStatusText("");
+                      }}
+                      className="rounded-2xl border border-[#e4d2be] bg-white px-5 py-3 text-sm font-semibold text-[#5d4330] shadow-[0_12px_28px_rgba(106,76,45,0.08)] transition hover:border-[#d4b48b]"
+                    >
+                      Reset
+                    </button>
                   </div>
                 </AdminPanel>
               </section>
@@ -564,6 +618,11 @@ export default function AdminPortalPaymentsPage() {
                             {payment.status || "recorded"}
                           </span>
                         </div>
+                        {payment.reference_number ? (
+                          <div className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-[#a47946]">
+                            Ref: {payment.reference_number}
+                          </div>
+                        ) : null}
                         {payment.note ? (
                           <div className="mt-3 text-sm leading-6 text-[#73583f]">{payment.note}</div>
                         ) : null}
@@ -579,10 +638,7 @@ export default function AdminPortalPaymentsPage() {
               </AdminPanel>
             </div>
           ) : (
-            <AdminPanel
-              title="Financial Snapshot"
-              subtitle="Choose a buyer card to begin."
-            >
+            <AdminPanel title="Financial Snapshot" subtitle="Choose a buyer card to begin.">
               <AdminEmptyState
                 title="No buyer selected"
                 description="Choose a buyer card from the left to review payment settings and history."

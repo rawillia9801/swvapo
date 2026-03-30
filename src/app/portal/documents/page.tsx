@@ -1,154 +1,33 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import type { User } from "@supabase/supabase-js";
-import { fmtDate, sb } from "@/lib/utils";
+import React, { useEffect, useState } from "react";
+import { FileCheck2, FolderOpen, PenSquare } from "lucide-react";
+import { fmtDate } from "@/lib/utils";
+import {
+  countAttachments,
+  findFormSubmissionsForUser,
+  findPortalDocumentsForUser,
+  loadPortalContext,
+  portalDisplayName,
+  portalPuppyName,
+  type PortalDocument,
+  type PortalFormSubmission,
+} from "@/lib/portal-data";
+import { usePortalSession } from "@/hooks/use-portal-session";
 import {
   PortalEmptyState,
+  PortalErrorState,
   PortalHeroPrimaryAction,
   PortalHeroSecondaryAction,
   PortalInfoTile,
   PortalListCard,
+  PortalLoadingState,
   PortalMetricCard,
   PortalMetricGrid,
   PortalPageHero,
   PortalPanel,
+  PortalStatusBadge,
 } from "@/components/portal/luxury-shell";
-
-type BuyerRow = {
-  id: number;
-  email: string | null;
-  full_name?: string | null;
-  name?: string | null;
-  user_id?: string | null;
-};
-
-type PuppyRow = {
-  id: number;
-  call_name: string | null;
-  puppy_name: string | null;
-  name: string | null;
-};
-
-type ApplicationRow = {
-  id: number;
-  created_at: string | null;
-  status: string | null;
-};
-
-type FormSubmission = {
-  id: number;
-  created_at: string | null;
-  updated_at: string | null;
-  form_key: string;
-  form_title: string | null;
-  version: string | null;
-  signed_name: string | null;
-  signed_date: string | null;
-  signed_at: string | null;
-  status: string;
-  submitted_at: string | null;
-  attachments: Record<string, unknown> | unknown[] | null;
-};
-
-type PortalDocument = {
-  id: string;
-  title: string;
-  description: string | null;
-  category: string | null;
-  status: string | null;
-  created_at: string | null;
-  source_table: string | null;
-  file_name: string | null;
-};
-
-async function findBuyerForUser(user: User): Promise<BuyerRow | null> {
-  const email = String(user.email || "").trim().toLowerCase();
-
-  if (user.id) {
-    const byUserId = await sb
-      .from("buyers")
-      .select("id,email,full_name,name,user_id")
-      .eq("user_id", user.id)
-      .limit(1)
-      .maybeSingle();
-    if (!byUserId.error && byUserId.data) return byUserId.data as BuyerRow;
-  }
-
-  if (!email) return null;
-
-  const byEmail = await sb
-    .from("buyers")
-    .select("id,email,full_name,name,user_id")
-    .ilike("email", email)
-    .limit(1)
-    .maybeSingle();
-
-  if (!byEmail.error && byEmail.data) return byEmail.data as BuyerRow;
-  return null;
-}
-
-async function findPuppyForBuyer(user: User, buyer: BuyerRow | null): Promise<PuppyRow | null> {
-  if (buyer?.id) {
-    const byBuyer = await sb
-      .from("puppies")
-      .select("id,call_name,puppy_name,name")
-      .eq("buyer_id", buyer.id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (!byBuyer.error && byBuyer.data) return byBuyer.data as PuppyRow;
-  }
-
-  const email = String(user.email || "").trim().toLowerCase();
-  if (!email) return null;
-
-  const byOwnerEmail = await sb
-    .from("puppies")
-    .select("id,call_name,puppy_name,name")
-    .ilike("owner_email", email)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (!byOwnerEmail.error && byOwnerEmail.data) return byOwnerEmail.data as PuppyRow;
-  return null;
-}
-
-async function findApplicationForUser(user: User): Promise<ApplicationRow | null> {
-  const email = String(user.email || "").trim().toLowerCase();
-
-  if (user.id) {
-    const byUserId = await sb
-      .from("puppy_applications")
-      .select("id,created_at,status")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (!byUserId.error && byUserId.data) return byUserId.data as ApplicationRow;
-  }
-
-  if (!email) return null;
-
-  const byEmail = await sb
-    .from("puppy_applications")
-    .select("id,created_at,status")
-    .ilike("email", email)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (!byEmail.error && byEmail.data) return byEmail.data as ApplicationRow;
-  return null;
-}
-
-function countAttachments(raw: FormSubmission["attachments"]) {
-  if (!raw) return 0;
-  if (Array.isArray(raw)) return raw.length;
-  if (typeof raw === "object") return Object.keys(raw).length;
-  return 0;
-}
 
 function toLabel(value: string | null | undefined) {
   const text = String(value || "").trim();
@@ -156,148 +35,104 @@ function toLabel(value: string | null | undefined) {
   return text.replace(/[_-]+/g, " ").replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
+function documentBadge(document: PortalDocument) {
+  return toLabel(document.category || document.status || document.source_table || "document");
+}
+
 export default function PortalDocumentsPage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [buyer, setBuyer] = useState<BuyerRow | null>(null);
-  const [puppy, setPuppy] = useState<PuppyRow | null>(null);
-  const [application, setApplication] = useState<ApplicationRow | null>(null);
-  const [forms, setForms] = useState<FormSubmission[]>([]);
+  const { user, loading: sessionLoading } = usePortalSession();
+  const [forms, setForms] = useState<PortalFormSubmission[]>([]);
   const [documents, setDocuments] = useState<PortalDocument[]>([]);
+  const [displayName, setDisplayName] = useState("Portal Family");
+  const [puppyName, setPuppyName] = useState("your puppy");
   const [loading, setLoading] = useState(true);
-  const [statusText, setStatusText] = useState("");
+  const [errorText, setErrorText] = useState("");
 
   useEffect(() => {
-    let mounted = true;
+    let active = true;
 
-    const init = async () => {
-      try {
-        const {
-          data: { session },
-        } = await sb.auth.getSession();
-        if (!mounted) return;
-        const currentUser = session?.user ?? null;
-        setUser(currentUser);
-        if (currentUser) await loadPortalDocuments(currentUser);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    void init();
-
-    const { data: authListener } = sb.auth.onAuthStateChange(async (_event, session) => {
-      const currentUser = session?.user ?? null;
-      if (!mounted) return;
-      setUser(currentUser);
-      if (currentUser) await loadPortalDocuments(currentUser);
-      else {
-        setBuyer(null);
-        setPuppy(null);
-        setApplication(null);
+    async function loadPage() {
+      if (!user) {
+        setLoading(false);
         setForms([]);
         setDocuments([]);
+        return;
       }
-      setLoading(false);
-    });
+
+      setLoading(true);
+      setErrorText("");
+
+      try {
+        const context = await loadPortalContext(user);
+        const [submissionRows, documentRows] = await Promise.all([
+          findFormSubmissionsForUser(user),
+          findPortalDocumentsForUser(user, context.buyer),
+        ]);
+
+        if (!active) return;
+        setDisplayName(portalDisplayName(user, context.buyer, context.application));
+        setPuppyName(portalPuppyName(context.puppy).toLowerCase());
+        setForms(submissionRows);
+        setDocuments(documentRows);
+      } catch (error) {
+        console.error("Could not load documents page:", error);
+        if (!active) return;
+        setErrorText(
+          "We could not load your forms and documents right now. Please refresh or try again in a moment."
+        );
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    void loadPage();
 
     return () => {
-      mounted = false;
-      authListener.subscription.unsubscribe();
+      active = false;
     };
-  }, []);
+  }, [user]);
 
-  async function loadPortalDocuments(currentUser: User) {
-    setStatusText("Loading forms and documents...");
-
-    const matchedBuyer = await findBuyerForUser(currentUser);
-    const matchedPuppy = await findPuppyForBuyer(currentUser, matchedBuyer);
-    const matchedApplication = await findApplicationForUser(currentUser);
-    const email = String(currentUser.email || "").trim().toLowerCase();
-
-    setBuyer(matchedBuyer);
-    setPuppy(matchedPuppy);
-    setApplication(matchedApplication);
-
-    const formsByUser = currentUser.id
-      ? sb
-          .from("portal_form_submissions")
-          .select("id,created_at,updated_at,form_key,form_title,version,signed_name,signed_date,signed_at,status,submitted_at,attachments")
-          .eq("user_id", currentUser.id)
-          .order("updated_at", { ascending: false })
-      : Promise.resolve({ data: [], error: null });
-
-    const docsByUser = currentUser.id
-      ? sb
-          .from("portal_documents")
-          .select("id,title,description,category,status,created_at,source_table,file_name")
-          .eq("user_id", currentUser.id)
-          .order("created_at", { ascending: false })
-      : Promise.resolve({ data: [], error: null });
-
-    const docsByBuyer = matchedBuyer?.id
-      ? sb
-          .from("portal_documents")
-          .select("id,title,description,category,status,created_at,source_table,file_name")
-          .eq("buyer_id", matchedBuyer.id)
-          .order("created_at", { ascending: false })
-      : Promise.resolve({ data: [], error: null });
-
-    const docsByEmail = email
-      ? sb
-          .from("portal_documents")
-          .select("id,title,description,category,status,created_at,source_table,file_name")
-          .ilike("email", email)
-          .order("created_at", { ascending: false })
-      : Promise.resolve({ data: [], error: null });
-
-    const [formsRes, userDocsRes, buyerDocsRes, emailDocsRes] = await Promise.all([
-      formsByUser,
-      docsByUser,
-      docsByBuyer,
-      docsByEmail,
-    ]);
-
-    const allDocs = [
-      ...(((userDocsRes.data as PortalDocument[]) || [])),
-      ...(((buyerDocsRes.data as PortalDocument[]) || [])),
-      ...(((emailDocsRes.data as PortalDocument[]) || [])),
-    ];
-
-    setForms((formsRes.data as FormSubmission[]) || []);
-    setDocuments(Array.from(new Map(allDocs.map((doc) => [String(doc.id), doc])).values()));
-    setStatusText("");
-  }
-
-  const draftForms = forms.filter((form) => String(form.status || "").toLowerCase() === "draft").length;
-  const signedForms = forms.filter((form) => !!form.signed_at || !!form.signed_date || String(form.status || "").toLowerCase().includes("signed")).length;
-  const submittedForms = forms.filter((form) => !!form.submitted_at).length;
-  const attachmentCount = forms.reduce((sum, form) => sum + countAttachments(form.attachments), 0);
-  const puppyName = puppy?.call_name || puppy?.puppy_name || puppy?.name || "your puppy";
-
-  const recentForms = useMemo(
-    () =>
-      [...forms].sort((a, b) => {
-        const aDate = new Date(a.updated_at || a.created_at || 0).getTime();
-        const bDate = new Date(b.updated_at || b.created_at || 0).getTime();
-        return bDate - aDate;
-      }),
-    [forms]
-  );
-
-  if (loading) {
-    return <div className="py-20 text-center text-sm font-semibold text-[#7b5f46]">Loading forms and documents...</div>;
+  if (sessionLoading || loading) {
+    return <PortalLoadingState label="Loading documents..." />;
   }
 
   if (!user) {
-    return <div className="py-20 text-center text-sm font-semibold text-[#7b5f46]">Please sign in to view documents.</div>;
+    return (
+      <PortalPageHero
+        eyebrow="Documents"
+        title="Sign in to view your records."
+        description="Forms, signatures, and shared documents live here once you are signed in."
+        actions={<PortalHeroPrimaryAction href="/portal">Open Portal Access</PortalHeroPrimaryAction>}
+      />
+    );
   }
+
+  if (errorText) {
+    return <PortalErrorState title="Documents are unavailable" description={errorText} />;
+  }
+
+  const draftForms = forms.filter((form) => String(form.status || "").toLowerCase() === "draft").length;
+  const submittedForms = forms.filter((form) => !!form.submitted_at).length;
+  const signedForms = forms.filter(
+    (form) =>
+      !!form.signed_at ||
+      !!form.signed_date ||
+      String(form.status || "").toLowerCase().includes("signed")
+  ).length;
+  const attachmentCount = forms.reduce((sum, form) => sum + countAttachments(form.attachments), 0);
+
+  const recentForms = [...forms].sort((a, b) => {
+    const aDate = new Date(a.updated_at || a.created_at || 0).getTime();
+    const bDate = new Date(b.updated_at || b.created_at || 0).getTime();
+    return bDate - aDate;
+  });
 
   return (
     <div className="space-y-6 pb-14">
       <PortalPageHero
-        eyebrow="Contracts & Docs"
-        title="Important records for your puppy journey, kept beautifully organized."
-        description={`Forms, agreements, submissions, and shared records stay here in one place so you can easily revisit them throughout your time with ${puppyName}.`}
+        eyebrow="Documents"
+        title="Your forms and records, kept organized."
+        description={`This page keeps agreements, signatures, submissions, and shared files easy to revisit throughout your journey with ${puppyName}.`}
         actions={
           <>
             <PortalHeroPrimaryAction href="/portal/application">Open Application</PortalHeroPrimaryAction>
@@ -307,96 +142,195 @@ export default function PortalDocumentsPage() {
         aside={
           <div className="space-y-4">
             <PortalInfoTile
-              label="Application Status"
-              value={toLabel(application?.status || "pending")}
-              detail={application?.created_at ? `Started ${fmtDate(application.created_at)}` : "Application progress appears here when available."}
+              label="Portal Family"
+              value={displayName}
+              detail="The account currently tied to these records."
             />
             <PortalInfoTile
               label="Shared Records"
               value={String(documents.length)}
-              detail="Client-facing records that have been attached or published to your portal."
+              detail="Client-facing records currently visible in the portal."
             />
           </div>
         }
       />
 
-      {statusText ? <div className="text-sm font-semibold text-[#7b5f46]">{statusText}</div> : null}
-
       <PortalMetricGrid>
-        <PortalMetricCard label="Saved Forms" value={String(forms.length)} detail="Portal form submissions tied to your account." />
-        <PortalMetricCard label="Submitted" value={String(submittedForms)} detail="Forms that have been formally submitted." accent="from-[#ece3d5] via-[#d7c1a3] to-[#b18d62]" />
-        <PortalMetricCard label="Signed" value={String(signedForms)} detail="Forms with signature history on file." accent="from-[#dce9d6] via-[#b6cfaa] to-[#7e9c6f]" />
-        <PortalMetricCard label="Attachments" value={String(attachmentCount)} detail="Files uploaded with your submissions." accent="from-[#f0dcc1] via-[#ddb68c] to-[#c98743]" />
+        <PortalMetricCard
+          label="Saved Forms"
+          value={String(forms.length)}
+          detail="Portal form submissions tied to your account."
+        />
+        <PortalMetricCard
+          label="Submitted"
+          value={String(submittedForms)}
+          detail="Forms formally submitted through the portal."
+          accent="from-[#ece3d5] via-[#d7c1a3] to-[#b18d62]"
+        />
+        <PortalMetricCard
+          label="Signed"
+          value={String(signedForms)}
+          detail="Forms with a signature date or signed status on file."
+          accent="from-[#dce9d6] via-[#b6cfaa] to-[#7e9c6f]"
+        />
+        <PortalMetricCard
+          label="Attachments"
+          value={String(attachmentCount)}
+          detail="Files uploaded with your portal submissions."
+          accent="from-[#f0dcc1] via-[#ddb68c] to-[#c98743]"
+        />
       </PortalMetricGrid>
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.1fr)_380px]">
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.15fr)_380px]">
         <div className="space-y-6">
-          <PortalPanel title="Forms & Signatures" subtitle="Versioned submissions, signature dates, and form status stay together so you always have a clean record of what has been completed.">
-            <div className="space-y-4">
-              {recentForms.length ? (
-                recentForms.map((form) => (
-                  <PortalListCard
+          <PortalPanel
+            title="Forms & Signatures"
+            subtitle="Versioned submissions, signature history, and form status stay together so your formal record is easy to follow."
+          >
+            {recentForms.length ? (
+              <div className="space-y-4">
+                {recentForms.map((form) => (
+                  <div
                     key={form.id}
-                    label={toLabel(form.status)}
-                    title={form.form_title || toLabel(form.form_key)}
-                    description={[
-                      `Version ${form.version || "v1"}`,
-                      form.submitted_at ? `Submitted ${fmtDate(form.submitted_at)}` : "Not submitted yet",
-                      form.signed_date ? `Signed ${fmtDate(form.signed_date)}` : form.signed_at ? `Signed ${fmtDate(form.signed_at)}` : "Not signed yet",
-                      `${countAttachments(form.attachments)} attachment${countAttachments(form.attachments) === 1 ? "" : "s"}`,
-                    ].join(" • ")}
-                    rightLabel={fmtDate(form.updated_at || form.created_at || "")}
-                  />
-                ))
-              ) : (
-                <PortalEmptyState
-                  title="No saved form submissions yet"
-                  description="When forms are saved, signed, or submitted in the portal, they will appear here automatically."
-                />
-              )}
-            </div>
+                    className="rounded-[24px] border border-[#ead9c7] bg-white p-5 shadow-[0_10px_24px_rgba(96,67,38,0.05)]"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <PortalStatusBadge label={toLabel(form.status)} tone={form.submitted_at ? "success" : "neutral"} />
+                          {form.signed_at || form.signed_date ? (
+                            <PortalStatusBadge label="Signed" tone="success" />
+                          ) : null}
+                        </div>
+                        <div className="mt-3 text-lg font-semibold text-[#2f2218]">
+                          {form.form_title || toLabel(form.form_key)}
+                        </div>
+                        <div className="mt-2 text-sm leading-7 text-[#72553c]">
+                          Version {form.version || "v1"} •{" "}
+                          {form.submitted_at
+                            ? `Submitted ${fmtDate(form.submitted_at)}`
+                            : "Not submitted yet"}{" "}
+                          • {countAttachments(form.attachments)} attachment{countAttachments(form.attachments) === 1 ? "" : "s"}
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-[11px] font-medium text-[#8a6a49]">
+                        {fmtDate(form.updated_at || form.created_at || "")}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <PortalEmptyState
+                title="No saved forms yet"
+                description="When forms are saved, signed, or submitted through the portal, they will appear here automatically."
+              />
+            )}
           </PortalPanel>
 
-          <PortalPanel title="Shared Records" subtitle="Client-facing documents tied to your account can be reviewed here whenever they are uploaded or published.">
-            <div className="space-y-4">
-              {documents.length ? (
-                documents.map((doc) => (
+          <PortalPanel
+            title="Shared Records"
+            subtitle="Client-facing files attached or published to your account remain accessible here instead of getting lost in email."
+          >
+            {documents.length ? (
+              <div className="space-y-4">
+                {documents.map((document) => (
                   <PortalListCard
-                    key={doc.id}
-                    label={toLabel(doc.category || doc.status || doc.source_table || "document")}
-                    title={doc.title || "Portal Document"}
-                    description={[doc.description || "No description added yet.", doc.file_name || "No file name listed"].join(" • ")}
-                    rightLabel={doc.created_at ? fmtDate(doc.created_at) : "Date unavailable"}
+                    key={document.id}
+                    label={documentBadge(document)}
+                    title={document.title || "Portal document"}
+                    description={[
+                      document.description || "No description added yet.",
+                      document.file_name || "No file name listed",
+                    ].join(" • ")}
+                    rightLabel={document.created_at ? fmtDate(document.created_at) : "Date unavailable"}
                   />
-                ))
-              ) : (
-                <PortalEmptyState
-                  title="No portal documents available yet"
-                  description="As contracts, supporting files, or shared records are attached to your account, they will appear here."
-                />
-              )}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <PortalEmptyState
+                title="No shared records yet"
+                description="When contracts, supporting files, or other portal documents are attached to your account, they will appear here."
+              />
+            )}
           </PortalPanel>
         </div>
 
         <div className="space-y-6">
-          <PortalPanel title="Account Snapshot" subtitle="A quick view of the document-related details families tend to check most often.">
+          <PortalPanel
+            title="Snapshot"
+            subtitle="A concise record summary without turning the page into a stack of repeated status cards."
+          >
             <div className="space-y-4">
-              <PortalInfoTile label="Family" value={buyer?.full_name || buyer?.name || "Portal Family"} detail="The account currently linked to this portal." />
-              <PortalInfoTile label="Draft Forms" value={String(draftForms)} detail="Saved forms that have not been submitted yet." />
-              <PortalInfoTile label="Signed Forms" value={String(signedForms)} detail="Forms with a signature date or signature status on file." />
-              <PortalInfoTile label="Portal Documents" value={String(documents.length)} detail="Shared records available to review here." />
+              <PortalInfoTile
+                label="Draft Forms"
+                value={String(draftForms)}
+                detail="Saved but not yet submitted."
+              />
+              <PortalInfoTile
+                label="Signed Forms"
+                value={String(signedForms)}
+                detail="Forms with signature history on file."
+              />
+              <PortalInfoTile
+                label="Portal Documents"
+                value={String(documents.length)}
+                detail="Shared records available for review."
+              />
+              <PortalInfoTile
+                label="Attachments"
+                value={String(attachmentCount)}
+                detail="Files submitted along with forms."
+              />
             </div>
           </PortalPanel>
 
-          <PortalPanel title="Why this page matters" subtitle="This page is meant to reduce back-and-forth and keep your formal records easy to find throughout the full relationship with your puppy.">
-            <div className="space-y-4">
-              <PortalInfoTile label="Before Go-Home" value="Forms stay organized" detail="Applications, contracts, acknowledgements, and supporting forms remain easy to review as your process moves forward." />
-              <PortalInfoTile label="After Go-Home" value="Records stay accessible" detail="Important paperwork and shared files remain available after your puppy is home so you are not searching through old emails later." />
+          <PortalPanel
+            title="How this page helps"
+            subtitle="The goal is a clear client record trail, not a cluttered file dump."
+          >
+            <div className="space-y-3">
+              <RecordTip
+                icon={<PenSquare className="h-4 w-4" />}
+                title="Before go-home day"
+                detail="Applications, forms, acknowledgements, and contracts remain easy to find while your process is active."
+              />
+              <RecordTip
+                icon={<FolderOpen className="h-4 w-4" />}
+                title="After go-home day"
+                detail="Important records stay accessible later when you need to revisit what was signed or shared."
+              />
+              <RecordTip
+                icon={<FileCheck2 className="h-4 w-4" />}
+                title="Need clarification?"
+                detail="Use Messages if a document status, requirement, or shared file needs explanation."
+              />
             </div>
           </PortalPanel>
         </div>
       </section>
+    </div>
+  );
+}
+
+function RecordTip({
+  icon,
+  title,
+  detail,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  detail: string;
+}) {
+  return (
+    <div className="flex items-start gap-3 rounded-[22px] border border-[#eadccf] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(96,67,38,0.05)]">
+      <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-[#f8efe5] text-[#a17848]">
+        {icon}
+      </div>
+      <div>
+        <div className="text-sm font-semibold text-[#2f2218]">{title}</div>
+        <div className="mt-1 text-sm leading-6 text-[#72553c]">{detail}</div>
+      </div>
     </div>
   );
 }

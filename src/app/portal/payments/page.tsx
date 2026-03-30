@@ -1,275 +1,144 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import type { User } from "@supabase/supabase-js";
-import { fmtDate, fmtMoney, sb } from "@/lib/utils";
+import React, { useEffect, useState } from "react";
+import { Receipt, ShieldCheck, Wallet } from "lucide-react";
+import { fmtDate, fmtMoney } from "@/lib/utils";
+import {
+  findBuyerPayments,
+  loadPortalContext,
+  paymentCountsTowardBalance,
+  portalPuppyName,
+  type PortalBuyer,
+  type PortalPayment,
+  type PortalPuppy,
+} from "@/lib/portal-data";
+import { usePortalSession } from "@/hooks/use-portal-session";
 import {
   PortalEmptyState,
+  PortalErrorState,
   PortalHeroPrimaryAction,
   PortalHeroSecondaryAction,
   PortalInfoTile,
+  PortalLoadingState,
   PortalMetricCard,
   PortalMetricGrid,
   PortalPageHero,
   PortalPanel,
+  PortalStatusBadge,
 } from "@/components/portal/luxury-shell";
 
-type BuyerRow = {
-  id: number;
-  email: string | null;
-  full_name?: string | null;
-  name?: string | null;
-  user_id?: string | null;
-  sale_price?: number | null;
-  deposit_amount?: number | null;
-  deposit_date?: string | null;
-  finance_enabled?: boolean | null;
-  finance_admin_fee?: boolean | null;
-  finance_rate?: number | null;
-  finance_months?: number | null;
-  finance_monthly_amount?: number | null;
-  finance_day_of_month?: number | null;
-  finance_next_due_date?: string | null;
-  finance_last_payment_date?: string | null;
-  delivery_option?: string | null;
-  delivery_date?: string | null;
-  delivery_location?: string | null;
-  delivery_fee?: number | null;
+const financingUrl =
+  "https://forms.zoho.com/southwestvirginiachihuahua/form/PuppyFinancingApplication";
+
+type PaymentPageState = {
+  buyer: PortalBuyer | null;
+  puppy: PortalPuppy | null;
+  payments: PortalPayment[];
 };
 
-type PuppyRow = {
-  id: number;
-  call_name: string | null;
-  puppy_name: string | null;
-  name: string | null;
-  price: number | null;
-  deposit: number | null;
-  balance: number | null;
-};
-
-type BuyerPayment = {
-  id: string;
-  created_at: string;
-  payment_date: string;
-  amount: number;
-  payment_type: string | null;
-  method: string | null;
-  note: string | null;
-  status: string | null;
-  reference_number: string | null;
-};
-
-const buyerSelect =
-  "id,email,full_name,name,user_id,sale_price,deposit_amount,deposit_date,finance_enabled,finance_admin_fee,finance_rate,finance_months,finance_monthly_amount,finance_day_of_month,finance_next_due_date,finance_last_payment_date,delivery_option,delivery_date,delivery_location,delivery_fee";
-
-async function findBuyerForUser(user: User): Promise<BuyerRow | null> {
-  const email = String(user.email || "").trim().toLowerCase();
-
-  if (user.id) {
-    const byUserId = await sb
-      .from("buyers")
-      .select(buyerSelect)
-      .eq("user_id", user.id)
-      .limit(1)
-      .maybeSingle();
-
-    if (!byUserId.error && byUserId.data) return byUserId.data as BuyerRow;
-  }
-
-  if (!email) return null;
-
-  const byEmail = await sb
-    .from("buyers")
-    .select(buyerSelect)
-    .ilike("email", email)
-    .limit(1)
-    .maybeSingle();
-
-  if (!byEmail.error && byEmail.data) return byEmail.data as BuyerRow;
-  return null;
+function emptyState(): PaymentPageState {
+  return {
+    buyer: null,
+    puppy: null,
+    payments: [],
+  };
 }
 
-async function findPuppyForBuyer(user: User, buyer: BuyerRow | null): Promise<PuppyRow | null> {
-  if (buyer?.id) {
-    const byBuyer = await sb
-      .from("puppies")
-      .select("id,call_name,puppy_name,name,price,deposit,balance")
-      .eq("buyer_id", buyer.id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (!byBuyer.error && byBuyer.data) return byBuyer.data as PuppyRow;
-  }
-
-  const email = String(user.email || "").trim().toLowerCase();
-  if (!email) return null;
-
-  const byOwnerEmail = await sb
-    .from("puppies")
-    .select("id,call_name,puppy_name,name,price,deposit,balance")
-    .ilike("owner_email", email)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (!byOwnerEmail.error && byOwnerEmail.data) return byOwnerEmail.data as PuppyRow;
-  return null;
-}
-
-function paymentCountsTowardBalance(status: string | null | undefined) {
+function paymentStatusTone(status: string | null | undefined) {
   const normalized = String(status || "").toLowerCase();
-  if (!normalized) return true;
-  return !["failed", "void", "canceled", "cancelled"].includes(normalized);
-}
-
-function puppyNameFromData(puppy: PuppyRow | null) {
-  return puppy?.call_name || puppy?.puppy_name || puppy?.name || "Pending Match";
-}
-
-function formatPaymentLabel(payment: BuyerPayment) {
-  return payment.payment_type || "Payment";
+  if (!normalized || normalized === "recorded" || normalized === "paid") return "success" as const;
+  if (["failed", "void", "cancelled", "canceled"].includes(normalized)) return "danger" as const;
+  return "warning" as const;
 }
 
 export default function PortalPaymentsPage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [buyer, setBuyer] = useState<BuyerRow | null>(null);
-  const [puppy, setPuppy] = useState<PuppyRow | null>(null);
-  const [payments, setPayments] = useState<BuyerPayment[]>([]);
+  const { user, loading: sessionLoading } = usePortalSession();
+  const [data, setData] = useState<PaymentPageState>(emptyState);
   const [loading, setLoading] = useState(true);
-  const [statusText, setStatusText] = useState("");
+  const [errorText, setErrorText] = useState("");
 
   useEffect(() => {
-    let mounted = true;
+    let active = true;
 
-    const init = async () => {
+    async function loadPage() {
+      if (!user) {
+        setData(emptyState());
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setErrorText("");
+
       try {
-        const {
-          data: { session },
-        } = await sb.auth.getSession();
+        const context = await loadPortalContext(user);
+        const payments = await findBuyerPayments(context.buyer?.id);
 
-        if (!mounted) return;
-        const currentUser = session?.user ?? null;
-        setUser(currentUser);
-        if (currentUser) {
-          await loadPaymentData(currentUser);
-        }
+        if (!active) return;
+        setData({
+          buyer: context.buyer,
+          puppy: context.puppy,
+          payments,
+        });
+      } catch (error) {
+        console.error("Could not load payments page:", error);
+        if (!active) return;
+        setErrorText(
+          "We could not load your payment history right now. Please refresh or try again in a moment."
+        );
       } finally {
-        if (mounted) setLoading(false);
+        if (active) setLoading(false);
       }
-    };
+    }
 
-    void init();
-
-    const { data: authListener } = sb.auth.onAuthStateChange(async (_event, session) => {
-      const currentUser = session?.user ?? null;
-      if (!mounted) return;
-
-      setUser(currentUser);
-      if (currentUser) {
-        await loadPaymentData(currentUser);
-      } else {
-        setBuyer(null);
-        setPuppy(null);
-        setPayments([]);
-      }
-
-      setLoading(false);
-    });
+    void loadPage();
 
     return () => {
-      mounted = false;
-      authListener.subscription.unsubscribe();
+      active = false;
     };
-  }, []);
+  }, [user]);
 
-  async function loadPaymentData(currentUser: User) {
-    setStatusText("Loading payment history...");
-
-    const matchedBuyer = await findBuyerForUser(currentUser);
-    const matchedPuppy = await findPuppyForBuyer(currentUser, matchedBuyer);
-
-    setBuyer(matchedBuyer);
-    setPuppy(matchedPuppy);
-
-    if (!matchedBuyer?.id) {
-      setPayments([]);
-      setStatusText("");
-      return;
-    }
-
-    const paymentsRes = await sb
-      .from("buyer_payments")
-      .select("id,created_at,payment_date,amount,payment_type,method,note,status,reference_number")
-      .eq("buyer_id", matchedBuyer.id)
-      .order("payment_date", { ascending: false })
-      .order("created_at", { ascending: false });
-
-    setPayments((paymentsRes.data as BuyerPayment[]) || []);
-    setStatusText("");
-  }
-
-  const totalPaid = useMemo(() => {
-    return payments
-      .filter((payment) => paymentCountsTowardBalance(payment.status))
-      .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-  }, [payments]);
-
-  const listedPrice = buyer?.sale_price ?? puppy?.price ?? null;
-  const reservationPaid = buyer?.deposit_amount ?? puppy?.deposit ?? null;
-  const latestPayment = payments[0] || null;
-  const paymentCount = payments.length;
-  const puppyName = puppyNameFromData(puppy);
-  const financingUrl =
-    "https://forms.zoho.com/southwestvirginiachihuahua/form/PuppyFinancingApplication";
-
-  const completionPercent = useMemo(() => {
-    if (listedPrice === null || listedPrice === undefined || Number(listedPrice) <= 0) return 0;
-    return Math.max(0, Math.min(100, Math.round((totalPaid / Number(listedPrice)) * 100)));
-  }, [listedPrice, totalPaid]);
-
-  const remainingBalance = useMemo(() => {
-    if (listedPrice !== null && listedPrice !== undefined) {
-      return Math.max(0, Number(listedPrice || 0) - totalPaid);
-    }
-    if (puppy?.balance !== null && puppy?.balance !== undefined) {
-      return Number(puppy.balance || 0);
-    }
-    return null;
-  }, [listedPrice, puppy, totalPaid]);
-
-  const scheduleLabel = buyer?.finance_enabled
-    ? buyer?.finance_next_due_date
-      ? `Next due ${fmtDate(buyer.finance_next_due_date)}`
-      : "Financing active"
-    : "No financing schedule";
-
-  const afterHomeMessage = buyer?.finance_enabled
-    ? "If your puppy is already home, your financing details and payment history will continue to stay organized here."
-    : "This page stays available before and after go-home day so your investment and account records remain easy to review.";
-
-  if (loading) {
-    return (
-      <div className="py-20 text-center text-sm font-semibold text-[#7b5f46]">
-        Loading financials...
-      </div>
-    );
+  if (sessionLoading || loading) {
+    return <PortalLoadingState label="Loading payments..." />;
   }
 
   if (!user) {
     return (
-      <div className="py-20 text-center text-sm font-semibold text-[#7b5f46]">
-        Please sign in to view payments.
-      </div>
+      <PortalPageHero
+        eyebrow="Payments"
+        title="Sign in to view your payment history."
+        description="Your recorded payments, financing details, and account balance stay here once you are signed in."
+        actions={<PortalHeroPrimaryAction href="/portal">Open Portal Access</PortalHeroPrimaryAction>}
+      />
     );
   }
+
+  if (errorText) {
+    return <PortalErrorState title="Payments are unavailable" description={errorText} />;
+  }
+
+  const { buyer, puppy, payments } = data;
+  const puppyName = portalPuppyName(puppy);
+  const price = buyer?.sale_price ?? puppy?.price ?? null;
+  const paid = payments
+    .filter((payment) => paymentCountsTowardBalance(payment.status))
+    .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+  const remaining =
+    price !== null && price !== undefined
+      ? Math.max(0, Number(price) - paid)
+      : puppy?.balance ?? null;
+  const percentPaid =
+    price && Number(price) > 0 ? Math.max(0, Math.min(100, Math.round((paid / Number(price)) * 100))) : 0;
+  const nextDueLabel = buyer?.finance_next_due_date ? fmtDate(buyer.finance_next_due_date) : "—";
+  const paymentCount = payments.length;
+  const latestPayment = payments[0] || null;
 
   return (
     <div className="space-y-6 pb-14">
       <PortalPageHero
         eyebrow="Payments"
-        title="A clear financial view of your puppy journey."
-        description="Track deposits, recorded payments, upcoming due dates, financing options, and delivery-related costs in one polished place before go-home day and afterward."
+        title="A calm financial record for your puppy journey."
+        description="Keep deposits, recorded payments, remaining balance, financing, and transportation-related costs in one clear place before homecoming and after your puppy is home."
         actions={
           <>
             <PortalHeroPrimaryAction href="/portal/messages">Message Support</PortalHeroPrimaryAction>
@@ -277,55 +146,49 @@ export default function PortalPaymentsPage() {
           </>
         }
         aside={
-          <div className="rounded-[30px] border border-[#ead9c7] bg-white/90 p-5 shadow-[0_16px_36px_rgba(106,76,45,0.08)]">
+          <div className="rounded-[30px] border border-[#eadccf] bg-white/90 p-5 shadow-[0_16px_36px_rgba(106,76,45,0.08)]">
             <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#a47946]">
-              Financial Snapshot
+              Payment Progress
             </div>
-            <div className="mt-3 text-3xl font-semibold text-[#2f2218]">
-              {completionPercent}%
-            </div>
-            <div className="mt-2 h-3 overflow-hidden rounded-full bg-[#f3e5d2]">
+            <div className="mt-3 text-3xl font-semibold text-[#2f2218]">{percentPaid}%</div>
+            <div className="mt-3 h-3 overflow-hidden rounded-full bg-[#f3e5d2]">
               <div
                 className="h-full rounded-full bg-[linear-gradient(90deg,#d8b178_0%,#c98d49_52%,#a96a2c_100%)] transition-all"
-                style={{ width: `${completionPercent}%` }}
+                style={{ width: `${percentPaid}%` }}
               />
             </div>
-            <div className="mt-4 space-y-3">
-              <PortalInfoTile
-                label="Current Schedule"
-                value={scheduleLabel}
-                detail={afterHomeMessage}
-              />
+            <div className="mt-4 text-sm leading-6 text-[#72553c]">
+              {buyer?.finance_enabled
+                ? "Your account has financing enabled and the active schedule is summarized below."
+                : "If you choose financing, those plan details will appear here once approved."}
             </div>
           </div>
         }
       />
 
-      {statusText ? <div className="text-sm font-semibold text-[#7b5f46]">{statusText}</div> : null}
-
       <PortalMetricGrid>
         <PortalMetricCard
           label="Total Price"
-          value={listedPrice !== null ? fmtMoney(listedPrice) : "—"}
-          detail="Your puppy purchase amount."
+          value={price !== null && price !== undefined ? fmtMoney(price) : "—"}
+          detail="Purchase amount currently listed on your account."
         />
         <PortalMetricCard
           label="Paid"
-          value={fmtMoney(totalPaid)}
-          detail="Payments recorded to your account so far."
+          value={fmtMoney(paid)}
+          detail={`${paymentCount} recorded payment${paymentCount === 1 ? "" : "s"} on file.`}
           accent="from-[#e7d5b5] via-[#d5b27a] to-[#b07b34]"
         />
         <PortalMetricCard
           label="Remaining"
-          value={remainingBalance !== null ? fmtMoney(remainingBalance) : "—"}
-          detail="Your current balance after recorded payments."
+          value={remaining !== null && remaining !== undefined ? fmtMoney(remaining) : "—"}
+          detail="Current balance after recorded payments."
           accent="from-[#f0dcc1] via-[#ddb68c] to-[#c98743]"
         />
         <PortalMetricCard
           label="Next Due"
-          value={buyer?.finance_next_due_date ? fmtDate(buyer.finance_next_due_date) : "—"}
-          detail={buyer?.finance_enabled ? "Based on your active financing plan." : "No active payment plan right now."}
-          accent="from-[#efe6d8] via-[#dcc3a0] to-[#b69367]"
+          value={nextDueLabel}
+          detail={buyer?.finance_enabled ? "Based on your active financing plan." : "No financing due date on file."}
+          accent="from-[#ece4d6] via-[#d7c2a5] to-[#b5936c]"
         />
       </PortalMetricGrid>
 
@@ -333,69 +196,75 @@ export default function PortalPaymentsPage() {
         <div className="space-y-6">
           <PortalPanel
             title="Payment History"
-            subtitle="Every recorded payment tied to your account will appear here automatically so your financial timeline stays easy to follow."
+            subtitle="Every recorded payment tied to your account appears here in date order so the financial timeline stays easy to review."
           >
-            <div className="space-y-4">
-              {payments.length ? (
-                payments.map((payment) => (
+            {payments.length ? (
+              <div className="space-y-4">
+                {payments.map((payment) => (
                   <div
                     key={payment.id}
-                    className="rounded-[24px] border border-[#ead9c7] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] p-5 shadow-[0_12px_30px_rgba(106,76,45,0.05)]"
+                    className="rounded-[24px] border border-[#ead9c7] bg-white p-5 shadow-[0_10px_24px_rgba(96,67,38,0.05)]"
                   >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a47946]">
-                          {formatPaymentLabel(payment)}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <PortalStatusBadge
+                            label={payment.payment_type || "Payment"}
+                            tone="neutral"
+                          />
+                          <PortalStatusBadge
+                            label={payment.status || "recorded"}
+                            tone={paymentStatusTone(payment.status)}
+                          />
                         </div>
-                        <div className="mt-2 text-lg font-semibold text-[#2f2218]">
+                        <div className="mt-3 text-lg font-semibold text-[#2f2218]">
                           {payment.payment_date ? fmtDate(payment.payment_date) : "Payment recorded"}
+                        </div>
+                        <div className="mt-2 text-sm leading-6 text-[#72553c]">
+                          {payment.note || "This payment was recorded on your account."}
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-xl font-semibold text-[#2f2218]">
+                        <div className="text-2xl font-semibold text-[#2f2218]">
                           {fmtMoney(payment.amount || 0)}
                         </div>
-                        <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8e6b47]">
-                          {payment.status || "Recorded"}
+                        <div className="mt-1 text-sm text-[#8d6f52]">
+                          {payment.method || "Method not listed"}
                         </div>
                       </div>
                     </div>
 
                     <div className="mt-4 grid gap-3 md:grid-cols-3">
-                      <PaymentMeta label="Method" value={payment.method || "Not listed"} />
-                      <PaymentMeta
-                        label="Reference"
-                        value={payment.reference_number || "Not listed"}
-                      />
-                      <PaymentMeta
+                      <MetaPill label="Reference" value={payment.reference_number || "—"} />
+                      <MetaPill
                         label="Recorded"
-                        value={payment.created_at ? fmtDate(payment.created_at) : "Not listed"}
+                        value={payment.created_at ? fmtDate(payment.created_at) : "—"}
                       />
+                      <MetaPill label="Puppy" value={puppyName} />
                     </div>
-
-                    {payment.note ? (
-                      <div className="mt-4 rounded-[18px] border border-[#ead9c7] bg-white px-4 py-3 text-sm leading-6 text-[#73583f]">
-                        {payment.note}
-                      </div>
-                    ) : null}
                   </div>
-                ))
-              ) : (
-                <PortalEmptyState
-                  title="No payments recorded yet"
-                  description="When deposits or payments are added to your account, they will appear here automatically."
-                />
-              )}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <PortalEmptyState
+                title="No payments recorded yet"
+                description="When deposits or additional payments are added to your account, they will appear here automatically."
+              />
+            )}
           </PortalPanel>
 
           <PortalPanel
-            title="Financing Options"
-            subtitle="Families who want to finance their puppy can apply here. Once financing is approved, the details stay visible in the portal before and after go-home day."
+            title="Financing"
+            subtitle="This section stays useful both for applying and for reviewing the live details of an approved plan."
           >
             {buyer?.finance_enabled ? (
               <div className="grid gap-4 md:grid-cols-2">
-                <PortalInfoTile label="Financing Status" value="Active" detail="Your account is approved for financing." />
+                <PortalInfoTile
+                  label="Financing Status"
+                  value="Active"
+                  detail="This account currently has financing enabled."
+                  tone="success"
+                />
                 <PortalInfoTile
                   label="APR"
                   value={
@@ -408,46 +277,33 @@ export default function PortalPaymentsPage() {
                 <PortalInfoTile
                   label="Monthly Amount"
                   value={
-                    buyer.finance_monthly_amount
+                    buyer.finance_monthly_amount !== null &&
+                    buyer.finance_monthly_amount !== undefined
                       ? fmtMoney(buyer.finance_monthly_amount)
                       : "—"
                   }
-                  detail="Your scheduled monthly payment."
+                  detail="Scheduled monthly payment."
                 />
                 <PortalInfoTile
                   label="Term Length"
                   value={buyer.finance_months ? `${buyer.finance_months} months` : "—"}
-                  detail="Current financing term."
+                  detail="Current plan length."
                 />
                 <PortalInfoTile
                   label="Next Due Date"
                   value={buyer.finance_next_due_date ? fmtDate(buyer.finance_next_due_date) : "—"}
-                  detail="The next scheduled due date on your account."
-                />
-                <PortalInfoTile
-                  label="Last Payment"
-                  value={
-                    buyer.finance_last_payment_date
-                      ? fmtDate(buyer.finance_last_payment_date)
-                      : "—"
-                  }
-                  detail="Most recent payment date on your financing schedule."
+                  detail="Next scheduled due date."
                 />
                 <PortalInfoTile
                   label="Admin Fee"
                   value={buyer.finance_admin_fee ? "Applied" : "Not applied"}
-                  detail="Administrative fee status for this plan."
-                />
-                <PortalInfoTile
-                  label="Draft Day"
-                  value={buyer.finance_day_of_month ? `Day ${buyer.finance_day_of_month}` : "—"}
-                  detail="The day of the month your payment schedule uses."
+                  detail="Administrative fee status on this plan."
                 />
               </div>
             ) : (
               <div className="overflow-hidden rounded-[26px] border border-[#ead9c7] bg-white shadow-[0_12px_30px_rgba(106,76,45,0.05)]">
-                <div className="border-b border-[#ead9c7] px-5 py-4 text-sm leading-6 text-[#73583f]">
-                  Financing is not active on this account yet. If you would like to be considered for puppy financing, complete the application below.
+                <div className="border-b border-[#ead9c7] px-5 py-4 text-sm leading-6 text-[#72553c]">
+                  Financing is not active on this account yet. If you would like to apply, the financing application is embedded below so the next step is straightforward.
                 </div>
                 <iframe
                   src={financingUrl}
@@ -462,77 +318,61 @@ export default function PortalPaymentsPage() {
         <div className="space-y-6">
           <PortalPanel
             title="Account Summary"
-            subtitle="A quick overview of the financial details most families reference often."
+            subtitle="A concise financial summary without repeating the same balance information in multiple oversized sections."
           >
             <div className="space-y-4">
               <PortalInfoTile
                 label="My Puppy"
                 value={puppyName}
-                detail="The puppy connected to this portal account."
+                detail="The puppy currently linked to this portal account."
               />
               <PortalInfoTile
                 label="Reservation Paid"
                 value={
-                  reservationPaid !== null && reservationPaid !== undefined
-                    ? fmtMoney(reservationPaid)
-                    : "—"
+                  buyer?.deposit_amount !== null && buyer?.deposit_amount !== undefined
+                    ? fmtMoney(buyer.deposit_amount)
+                    : puppy?.deposit !== null && puppy?.deposit !== undefined
+                      ? fmtMoney(puppy.deposit)
+                      : "—"
                 }
-                detail="Deposit or reservation amount on file."
+                detail="Deposit or reservation amount currently on file."
               />
               <PortalInfoTile
                 label="Latest Payment"
-                value={
-                  latestPayment?.payment_date ? fmtDate(latestPayment.payment_date) : "No payments yet"
-                }
-                detail="Most recent payment received on your account."
-              />
-              <PortalInfoTile
-                label="Payment Count"
-                value={String(paymentCount)}
-                detail="Number of recorded payments in your history."
-              />
-            </div>
-          </PortalPanel>
-
-          <PortalPanel
-            title="Delivery & Financing"
-            subtitle="These details stay visible so planning remains simple from reservation through go-home day and beyond."
-          >
-            <div className="space-y-4">
-              <PortalInfoTile
-                label="Financing"
-                value={buyer?.finance_enabled ? "Enabled" : "Not enabled"}
-                detail="Whether your account currently uses a financing plan."
-              />
-              <PortalInfoTile
-                label="Monthly Amount"
-                value={
-                  buyer?.finance_monthly_amount ? fmtMoney(buyer.finance_monthly_amount) : "—"
-                }
-                detail="Monthly payment amount if financing is active."
+                value={latestPayment?.payment_date ? fmtDate(latestPayment.payment_date) : "No payments yet"}
+                detail="Most recent payment date on your account."
               />
               <PortalInfoTile
                 label="Delivery Plan"
                 value={buyer?.delivery_option || buyer?.delivery_location || "Not scheduled"}
-                detail="Any recorded delivery or pickup plan tied to this account."
-              />
-              <PortalInfoTile
-                label="Delivery Fee"
-                value={buyer?.delivery_fee ? fmtMoney(buyer.delivery_fee) : "—"}
-                detail="Transportation or delivery fee on file, if any."
+                detail="Transportation or pickup planning connected to your account."
               />
             </div>
           </PortalPanel>
 
           <PortalPanel
-            title="Need support?"
-            subtitle="If anything looks off or you need clarification, message us and we can review your account history together."
+            title="Helpful Actions"
+            subtitle="Use these shortcuts if you need account help, transportation planning, or a cleaner record trail."
           >
-            <div className="flex flex-wrap gap-3">
-              <PortalHeroPrimaryAction href="/portal/messages">Open Messages</PortalHeroPrimaryAction>
-              <PortalHeroSecondaryAction href="/portal/transportation">
-                Review Transporation
-              </PortalHeroSecondaryAction>
+            <div className="space-y-3">
+              <ActionRow
+                icon={<Receipt className="h-4 w-4" />}
+                title="Review documents"
+                detail="Open your forms, signatures, and shared records."
+                href="/portal/documents"
+              />
+              <ActionRow
+                icon={<Wallet className="h-4 w-4" />}
+                title="Review transportation"
+                detail="See pickup, delivery, and transportation planning."
+                href="/portal/transportation"
+              />
+              <ActionRow
+                icon={<ShieldCheck className="h-4 w-4" />}
+                title="Message support"
+                detail="Ask questions if anything looks unclear on your account."
+                href="/portal/messages"
+              />
             </div>
           </PortalPanel>
         </div>
@@ -541,13 +381,40 @@ export default function PortalPaymentsPage() {
   );
 }
 
-function PaymentMeta({ label, value }: { label: string; value: string }) {
+function MetaPill({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[18px] border border-[#ead9c7] bg-white px-4 py-3">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a47946]">
+    <div className="rounded-[18px] border border-[#ead9c7] bg-[#fffaf4] px-4 py-3">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#a17848]">
         {label}
       </div>
       <div className="mt-2 text-sm font-semibold text-[#2f2218]">{value}</div>
     </div>
+  );
+}
+
+function ActionRow({
+  icon,
+  title,
+  detail,
+  href,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  detail: string;
+  href: string;
+}) {
+  return (
+    <a
+      href={href}
+      className="flex items-start gap-3 rounded-[22px] border border-[#eadccf] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(96,67,38,0.05)] transition hover:-translate-y-0.5 hover:border-[#d7b58e]"
+    >
+      <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-[#f8efe5] text-[#a17848]">
+        {icon}
+      </div>
+      <div>
+        <div className="text-sm font-semibold text-[#2f2218]">{title}</div>
+        <div className="mt-1 text-sm leading-6 text-[#72553c]">{detail}</div>
+      </div>
+    </a>
   );
 }

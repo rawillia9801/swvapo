@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { isPortalAdminEmail } from "@/lib/portal-admin";
+import {
+  createServiceSupabase,
+  firstValue,
+  listAllAuthUsers,
+  normalizeEmail,
+  verifyOwner,
+} from "@/lib/admin-api";
 
 type BuyerRow = {
   id: number;
@@ -8,7 +13,6 @@ type BuyerRow = {
   full_name?: string | null;
   name?: string | null;
   email?: string | null;
-  buyer_email?: string | null;
   phone?: string | null;
   status?: string | null;
   notes?: string | null;
@@ -53,85 +57,6 @@ type AccountRow = {
   forms: FormRow[];
 };
 
-function getEnv(name: string) {
-  const value = process.env[name];
-  if (!value) throw new Error(`Missing environment variable: ${name}`);
-  return value;
-}
-
-function createAnonSupabase() {
-  return createClient(getEnv("NEXT_PUBLIC_SUPABASE_URL"), getEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"), {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
-
-function createServiceSupabase() {
-  return createClient(getEnv("NEXT_PUBLIC_SUPABASE_URL"), getEnv("SUPABASE_SERVICE_ROLE_KEY"), {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
-
-function getBearerToken(req: Request) {
-  const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
-  if (authHeader?.startsWith("Bearer ")) {
-    return authHeader.slice("Bearer ".length).trim();
-  }
-  return null;
-}
-
-async function verifyOwner(req: Request) {
-  const accessToken = getBearerToken(req);
-  if (!accessToken) return null;
-
-  const anon = createAnonSupabase();
-  const { data, error } = await anon.auth.getUser(accessToken);
-  if (error || !data.user || !isPortalAdminEmail(data.user.email)) {
-    return null;
-  }
-
-  return data.user;
-}
-
-function normalizeEmail(value: string | null | undefined) {
-  return String(value || "").trim().toLowerCase();
-}
-
-function firstValue(...values: Array<string | null | undefined>) {
-  for (const value of values) {
-    const trimmed = String(value || "").trim();
-    if (trimmed) return trimmed;
-  }
-  return "";
-}
-
-async function listAllAuthUsers() {
-  const admin = createServiceSupabase();
-  const users: Array<{
-    id: string;
-    email?: string | null;
-    phone?: string | null;
-    created_at?: string | null;
-    last_sign_in_at?: string | null;
-    user_metadata?: Record<string, unknown> | null;
-  }> = [];
-
-  let page = 1;
-  const perPage = 200;
-
-  while (true) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
-    if (error) throw new Error(error.message);
-
-    const nextUsers = data?.users || [];
-    users.push(...nextUsers);
-
-    if (nextUsers.length < perPage) break;
-    page += 1;
-  }
-
-  return users;
-}
-
 export async function GET(req: Request) {
   try {
     const owner = await verifyOwner(req);
@@ -143,7 +68,7 @@ export async function GET(req: Request) {
     const authUsers = await listAllAuthUsers();
 
     const [buyersRes, applicationsRes, formsRes] = await Promise.all([
-      service.from("buyers").select("id,user_id,full_name,name,email,buyer_email,phone,status,notes,created_at"),
+      service.from("buyers").select("id,user_id,full_name,name,email,phone,status,notes,created_at"),
       service.from("puppy_applications").select("id,user_id,created_at,full_name,email,applicant_email,phone,status,admin_notes,assigned_puppy_id"),
       service.from("portal_form_submissions").select("id,user_id,created_at,user_email,form_key,form_title,status,signed_name,submitted_at"),
     ]);
@@ -156,7 +81,7 @@ export async function GET(req: Request) {
       const email = normalizeEmail(authUser.email);
       const matchingBuyer =
         buyers.find((buyer) => buyer.user_id === authUser.id) ||
-        buyers.find((buyer) => normalizeEmail(firstValue(buyer.email, buyer.buyer_email)) === email) ||
+        buyers.find((buyer) => normalizeEmail(buyer.email) === email) ||
         null;
       const matchingApplication =
         applications.find((application) => application.user_id === authUser.id) ||

@@ -1,38 +1,26 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import {
+  loadPortalContext,
+  parseCityState,
+  type PortalApplication,
+  type PortalBuyer,
+} from "@/lib/portal-data";
 import { sb } from "@/lib/utils";
-
-type SessionUser = {
-  id: string;
-  email?: string | null;
-  user_metadata?: {
-    full_name?: string | null;
-    name?: string | null;
-  };
-};
-
-type BuyerRow = {
-  id: number;
-  user_id?: string | null;
-  full_name?: string | null;
-  name?: string | null;
-  email?: string | null;
-  buyer_email?: string | null;
-  phone?: string | null;
-};
-
-type ApplicationRow = {
-  id: number;
-  user_id?: string | null;
-  full_name?: string | null;
-  email?: string | null;
-  applicant_email?: string | null;
-  phone?: string | null;
-  street_address?: string | null;
-  city_state?: string | null;
-  zip?: string | null;
-};
+import { usePortalSession } from "@/hooks/use-portal-session";
+import {
+  PortalButton,
+  PortalErrorState,
+  PortalField,
+  PortalHeroPrimaryAction,
+  PortalHeroSecondaryAction,
+  PortalInfoTile,
+  PortalInput,
+  PortalLoadingState,
+  PortalPageHero,
+  PortalPanel,
+} from "@/components/portal/luxury-shell";
 
 type ProfileForm = {
   fullName: string;
@@ -44,18 +32,8 @@ type ProfileForm = {
   zip: string;
 };
 
-function parseCityState(value: string) {
-  if (!value) return { city: "", state: "" };
-  const parts = value.split(",").map((part) => part.trim()).filter(Boolean);
-  if (parts.length >= 2) return { city: parts[0], state: parts[1] };
-  return { city: value, state: "" };
-}
-
-export default function PortalProfilePage() {
-  const [user, setUser] = useState<SessionUser | null>(null);
-  const [buyer, setBuyer] = useState<BuyerRow | null>(null);
-  const [application, setApplication] = useState<ApplicationRow | null>(null);
-  const [form, setForm] = useState<ProfileForm>({
+function emptyForm(): ProfileForm {
+  return {
     fullName: "",
     email: "",
     phone: "",
@@ -63,284 +41,318 @@ export default function PortalProfilePage() {
     city: "",
     state: "",
     zip: "",
-  });
+  };
+}
+
+export default function PortalProfilePage() {
+  const { user, loading: sessionLoading } = usePortalSession();
+  const [buyer, setBuyer] = useState<PortalBuyer | null>(null);
+  const [application, setApplication] = useState<PortalApplication | null>(null);
+  const [form, setForm] = useState<ProfileForm>(emptyForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [errorText, setErrorText] = useState("");
   const [statusText, setStatusText] = useState("");
 
   useEffect(() => {
-    let mounted = true;
+    let active = true;
 
-    const init = async () => {
-      try {
-        const {
-          data: { session },
-        } = await sb.auth.getSession();
-
-        if (!mounted) return;
-
-        const currentUser = (session?.user as SessionUser | null) ?? null;
-        setUser(currentUser);
-
-        if (currentUser) {
-          await loadProfile(currentUser);
-        }
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    void init();
-
-    const { data: authListener } = sb.auth.onAuthStateChange(async (_event, session) => {
-      const currentUser = (session?.user as SessionUser | null) ?? null;
-      if (!mounted) return;
-
-      setUser(currentUser);
-      if (currentUser) {
-        await loadProfile(currentUser);
-      } else {
+    async function loadPage() {
+      if (!user) {
+        setLoading(false);
         setBuyer(null);
         setApplication(null);
+        setForm(emptyForm());
+        return;
       }
-      setLoading(false);
-    });
+
+      setLoading(true);
+      setErrorText("");
+
+      try {
+        const context = await loadPortalContext(user);
+        if (!active) return;
+
+        const cityState = parseCityState(context.application?.city_state);
+        setBuyer(context.buyer);
+        setApplication(context.application);
+        setForm({
+          fullName:
+            context.buyer?.full_name ||
+            context.buyer?.name ||
+            context.application?.full_name ||
+            user.user_metadata?.full_name ||
+            user.user_metadata?.name ||
+            "",
+          email:
+            context.buyer?.email ||
+            context.application?.email ||
+            context.application?.applicant_email ||
+            user.email ||
+            "",
+          phone: context.buyer?.phone || context.application?.phone || "",
+          streetAddress: context.application?.street_address || "",
+          city: cityState.city,
+          state: cityState.state,
+          zip: context.application?.zip || "",
+        });
+      } catch (error) {
+        console.error("Could not load profile page:", error);
+        if (!active) return;
+        setErrorText(
+          "We could not load your profile right now. Please refresh or try again in a moment."
+        );
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    void loadPage();
 
     return () => {
-      mounted = false;
-      authListener.subscription.unsubscribe();
+      active = false;
     };
-  }, []);
-
-  async function loadProfile(currentUser: SessionUser) {
-    const email = String(currentUser.email || "").trim().toLowerCase();
-
-    const [buyerRes, appRes] = await Promise.all([
-      currentUser.id
-        ? sb
-            .from("buyers")
-            .select("id,user_id,full_name,name,email,buyer_email,phone")
-            .or(`user_id.eq.${currentUser.id},email.ilike.${email},buyer_email.ilike.${email}`)
-            .limit(1)
-            .maybeSingle()
-        : Promise.resolve({ data: null, error: null }),
-      currentUser.id
-        ? sb
-            .from("puppy_applications")
-            .select("id,user_id,full_name,email,applicant_email,phone,street_address,city_state,zip")
-            .or(`user_id.eq.${currentUser.id},email.ilike.${email},applicant_email.ilike.${email}`)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle()
-        : Promise.resolve({ data: null, error: null }),
-    ]);
-
-    const nextBuyer = (buyerRes.data as BuyerRow | null) ?? null;
-    const nextApp = (appRes.data as ApplicationRow | null) ?? null;
-    const cityState = parseCityState(nextApp?.city_state || "");
-
-    setBuyer(nextBuyer);
-    setApplication(nextApp);
-    setForm({
-      fullName:
-        nextBuyer?.full_name ||
-        nextBuyer?.name ||
-        nextApp?.full_name ||
-        currentUser.user_metadata?.full_name ||
-        currentUser.user_metadata?.name ||
-        "",
-      email: nextBuyer?.email || nextBuyer?.buyer_email || nextApp?.email || nextApp?.applicant_email || currentUser.email || "",
-      phone: nextBuyer?.phone || nextApp?.phone || "",
-      streetAddress: nextApp?.street_address || "",
-      city: cityState.city,
-      state: cityState.state,
-      zip: nextApp?.zip || "",
-    });
-  }
+  }, [user]);
 
   function updateField<K extends keyof ProfileForm>(key: K, value: ProfileForm[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSave(event: React.FormEvent) {
+    event.preventDefault();
     if (!user) return;
 
     setSaving(true);
+    setErrorText("");
     setStatusText("");
 
-    try {
-      const trimmedFullName = form.fullName.trim();
-      const trimmedEmail = form.email.trim();
-      const trimmedPhone = form.phone.trim();
-      const trimmedStreet = form.streetAddress.trim();
-      const trimmedCity = form.city.trim();
-      const trimmedState = form.state.trim();
-      const trimmedZip = form.zip.trim();
-      const cityState = `${trimmedCity}${trimmedCity && trimmedState ? ", " : ""}${trimmedState}`;
+    const nextEmail = form.email.trim();
+    const nextFullName = form.fullName.trim();
+    const nextPhone = form.phone.trim();
+    const nextStreet = form.streetAddress.trim();
+    const nextCity = form.city.trim();
+    const nextState = form.state.trim();
+    const nextZip = form.zip.trim();
+    const cityState = `${nextCity}${nextCity && nextState ? ", " : ""}${nextState}`;
 
-      if (trimmedFullName || trimmedEmail !== (user.email || "")) {
-        const { error: authError } = await sb.auth.updateUser({
-          email: trimmedEmail || undefined,
+    try {
+      if (nextFullName || nextEmail !== (user.email || "")) {
+        const { error } = await sb.auth.updateUser({
+          email: nextEmail || undefined,
           data: {
-            full_name: trimmedFullName || undefined,
-            name: trimmedFullName || undefined,
+            full_name: nextFullName || undefined,
+            name: nextFullName || undefined,
           },
         });
 
-        if (authError) throw authError;
+        if (error) throw error;
       }
 
       if (buyer?.id) {
-        const { error: buyerError } = await sb
+        const { error } = await sb
           .from("buyers")
           .update({
-            full_name: trimmedFullName || null,
-            name: trimmedFullName || null,
-            email: trimmedEmail || null,
-            buyer_email: trimmedEmail || null,
-            phone: trimmedPhone || null,
+            full_name: nextFullName || null,
+            name: nextFullName || null,
+            email: nextEmail || null,
+            phone: nextPhone || null,
           })
           .eq("id", buyer.id);
 
-        if (buyerError) throw buyerError;
+        if (error) throw error;
       }
 
       if (application?.id) {
-        const { error: appError } = await sb
+        const { error } = await sb
           .from("puppy_applications")
           .update({
-            full_name: trimmedFullName || null,
-            email: trimmedEmail || null,
-            applicant_email: trimmedEmail || null,
-            phone: trimmedPhone || null,
-            street_address: trimmedStreet || null,
+            full_name: nextFullName || null,
+            email: nextEmail || null,
+            applicant_email: nextEmail || null,
+            phone: nextPhone || null,
+            street_address: nextStreet || null,
             city_state: cityState || null,
-            zip: trimmedZip || null,
+            zip: nextZip || null,
           })
           .eq("id", application.id);
 
-        if (appError) throw appError;
+        if (error) throw error;
       }
 
       setStatusText(
-        trimmedEmail && trimmedEmail !== (user.email || "")
+        nextEmail && nextEmail !== (user.email || "")
           ? "Profile updated. If Supabase requires email confirmation, check your inbox to confirm the new email address."
           : "Profile updated."
       );
-
-      await loadProfile({
-        ...user,
-        email: trimmedEmail || user.email || null,
-        user_metadata: {
-          ...user.user_metadata,
-          full_name: trimmedFullName || null,
-          name: trimmedFullName || null,
-        },
-      });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to save profile.";
-      setStatusText(message);
+      console.error("Could not save profile:", error);
+      setErrorText(error instanceof Error ? error.message : "Unable to save your profile.");
     } finally {
       setSaving(false);
     }
   }
 
-  if (loading) {
-    return <div className="py-20 text-center text-sm font-semibold text-[#8b6b4d]">Loading profile...</div>;
+  if (sessionLoading || loading) {
+    return <PortalLoadingState label="Loading profile..." />;
   }
 
   if (!user) {
-    return <div className="py-20 text-center text-sm font-semibold text-[#8b6b4d]">Please sign in to view your profile.</div>;
+    return (
+      <PortalPageHero
+        eyebrow="Profile"
+        title="Sign in to manage your account."
+        description="Your account details, contact information, and linked application information stay here once you are signed in."
+        actions={<PortalHeroPrimaryAction href="/portal">Open Portal Access</PortalHeroPrimaryAction>}
+      />
+    );
+  }
+
+  if (errorText && !buyer && !application) {
+    return <PortalErrorState title="Profile is unavailable" description={errorText} />;
   }
 
   return (
-    <div className="space-y-8">
-      <section className="rounded-[2rem] border border-[#dccab7] bg-white p-7 shadow-[0_16px_40px_rgba(74,51,33,0.08)]">
-        <div className="max-w-3xl">
-          <div className="text-[11px] font-black uppercase tracking-[0.22em] text-[#9c7b58]">
-            Account
+    <div className="space-y-6 pb-14">
+      <PortalPageHero
+        eyebrow="Profile"
+        title="Keep your account details current."
+        description="Contact information, buyer details, and application fields stay aligned here so messages, reminders, and documents reach the right place."
+        actions={
+          <>
+            <PortalHeroPrimaryAction href="/portal/messages">Open Messages</PortalHeroPrimaryAction>
+            <PortalHeroSecondaryAction href="/portal/documents">Open Documents</PortalHeroSecondaryAction>
+          </>
+        }
+        aside={
+          <div className="space-y-4">
+            <PortalInfoTile
+              label="Portal Email"
+              value={form.email || user.email || "No email on file"}
+              detail="This is the address used for your portal account."
+            />
+            <PortalInfoTile
+              label="Linked Records"
+              value={String(Number(Boolean(buyer)) + Number(Boolean(application)))}
+              detail="Buyer and application records linked to this portal login."
+            />
           </div>
-          <h1 className="mt-3 font-serif text-4xl font-bold text-[#3b271b]">Profile Settings</h1>
-          <p className="mt-3 text-sm font-semibold leading-7 text-[#8b6b4d]">
-            Keep your contact information current so payment reminders, breeder messages, documents, and puppy updates always reach the right place.
-          </p>
+        }
+      />
+
+      {statusText ? (
+        <div className="rounded-[20px] border border-[#d5e7d0] bg-[#f5fbf2] px-4 py-3 text-sm font-semibold text-[#456640]">
+          {statusText}
         </div>
-      </section>
+      ) : null}
 
-      <section className="grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
-        <form
-          onSubmit={handleSave}
-          className="rounded-[2rem] border border-[#dccab7] bg-white p-7 shadow-[0_16px_40px_rgba(74,51,33,0.08)]"
+      {errorText && buyer && application ? (
+        <div className="rounded-[20px] border border-[#efd2cc] bg-[#fff6f4] px-4 py-3 text-sm font-semibold text-[#8f4b42]">
+          {errorText}
+        </div>
+      ) : null}
+
+      <section className="grid gap-6 xl:grid-cols-[1.15fr_380px]">
+        <PortalPanel
+          title="Profile Details"
+          subtitle="Update the account details that matter most for communication, records, and delivery of important breeder information."
         >
-          <div className="grid gap-5 md:grid-cols-2">
-            <Field label="Full Name" value={form.fullName} onChange={(value) => updateField("fullName", value)} />
-            <Field label="Email Address" type="email" value={form.email} onChange={(value) => updateField("email", value)} />
-            <Field label="Phone Number" value={form.phone} onChange={(value) => updateField("phone", value)} />
-            <Field label="Street Address" value={form.streetAddress} onChange={(value) => updateField("streetAddress", value)} />
-            <Field label="City" value={form.city} onChange={(value) => updateField("city", value)} />
-            <Field label="State" value={form.state} onChange={(value) => updateField("state", value)} />
-            <Field label="Zip Code" value={form.zip} onChange={(value) => updateField("zip", value)} />
-          </div>
+          <form onSubmit={handleSave} className="space-y-5">
+            <div className="grid gap-5 md:grid-cols-2">
+              <PortalField label="Full Name">
+                <PortalInput
+                  value={form.fullName}
+                  onChange={(event) => updateField("fullName", event.target.value)}
+                />
+              </PortalField>
 
-          <div className="mt-6 flex flex-wrap items-center gap-4">
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-[1rem] bg-[#6f5037] px-6 py-3 text-sm font-black uppercase tracking-[0.16em] text-white transition hover:bg-[#5d4330] disabled:opacity-60"
-            >
+              <PortalField label="Email Address">
+                <PortalInput
+                  type="email"
+                  value={form.email}
+                  onChange={(event) => updateField("email", event.target.value)}
+                />
+              </PortalField>
+
+              <PortalField label="Phone Number">
+                <PortalInput
+                  value={form.phone}
+                  onChange={(event) => updateField("phone", event.target.value)}
+                />
+              </PortalField>
+
+              <PortalField label="Street Address">
+                <PortalInput
+                  value={form.streetAddress}
+                  onChange={(event) => updateField("streetAddress", event.target.value)}
+                />
+              </PortalField>
+
+              <PortalField label="City">
+                <PortalInput
+                  value={form.city}
+                  onChange={(event) => updateField("city", event.target.value)}
+                />
+              </PortalField>
+
+              <PortalField label="State">
+                <PortalInput
+                  value={form.state}
+                  onChange={(event) => updateField("state", event.target.value)}
+                />
+              </PortalField>
+
+              <PortalField label="Zip Code">
+                <PortalInput
+                  value={form.zip}
+                  onChange={(event) => updateField("zip", event.target.value)}
+                />
+              </PortalField>
+            </div>
+
+            <PortalButton type="submit" disabled={saving}>
               {saving ? "Saving..." : "Save Profile"}
-            </button>
-            {statusText ? <div className="text-sm font-semibold text-[#8b6b4d]">{statusText}</div> : null}
-          </div>
-        </form>
+            </PortalButton>
+          </form>
+        </PortalPanel>
 
         <div className="space-y-6">
-          <aside className="rounded-[2rem] border border-[#dccab7] bg-white p-7 shadow-[0_16px_40px_rgba(74,51,33,0.08)]">
-            <h2 className="font-serif text-2xl font-bold text-[#3b271b]">What Updates Here</h2>
-            <div className="mt-4 space-y-3 text-sm font-semibold leading-7 text-[#6f5037]">
-              <p>Your portal contact details</p>
-              <p>Your buyer record when one exists</p>
-              <p>Your application contact fields when one exists</p>
-              <p>Your sign-in profile name, and your email when confirmation succeeds</p>
+          <PortalPanel
+            title="What updates here"
+            subtitle="The portal should make it obvious what this form affects."
+          >
+            <div className="space-y-4">
+              <PortalInfoTile
+                label="Portal Account"
+                value="Name and email"
+                detail="Your sign-in profile is updated here."
+              />
+              <PortalInfoTile
+                label="Buyer Record"
+                value={buyer ? "Linked" : "Not linked"}
+                detail="Buyer contact details are updated when a buyer record exists."
+              />
+              <PortalInfoTile
+                label="Application Record"
+                value={application ? "Linked" : "Not linked"}
+                detail="Application contact fields are updated when an application record exists."
+              />
             </div>
-          </aside>
+          </PortalPanel>
 
-          <aside className="rounded-[2rem] bg-[linear-gradient(135deg,#8f6945_0%,#6f5037_100%)] p-7 text-white shadow-[0_20px_44px_rgba(74,51,33,0.18)]">
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/75">Tip</div>
-            <h2 className="mt-2 font-serif text-2xl font-bold">Need Help Fast?</h2>
-            <p className="mt-3 text-sm font-semibold leading-7 text-white/85">
-              You can also ask ChiChi where to find messages, payments, documents, or puppy updates without leaving the page.
-            </p>
-          </aside>
+          <PortalPanel
+            title="Need help?"
+            subtitle="If you are unsure which information should be updated here, start with a message and we can guide you."
+          >
+            <div className="space-y-3">
+              <PortalInfoTile
+                label="Fastest path"
+                value="Ask ChiChi or message support"
+                detail="Use the portal if you want help locating messages, documents, payments, or puppy details."
+              />
+            </div>
+          </PortalPanel>
         </div>
       </section>
     </div>
-  );
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-  type = "text",
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  type?: string;
-}) {
-  return (
-    <label className="block">
-      <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
-        {label}
-      </div>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-[1rem] border border-[#e5d7c8] bg-[#fcf9f5] px-4 py-3 text-sm font-semibold text-[#342116] outline-none transition focus:border-[#c58f58] focus:bg-white"
-      />
-    </label>
   );
 }

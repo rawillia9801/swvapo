@@ -1,32 +1,41 @@
-﻿"use client";
+"use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import type { User } from "@supabase/supabase-js";
 import {
-  Home,
-  Dog,
-  CalendarDays,
-  FileText,
-  CreditCard,
-  CarFront,
-  MessageCircle,
-  Sparkles,
-  Menu,
-  X,
-  SendHorizonal,
-  PlusCircle,
-  CalendarPlus,
-  DollarSign,
-  FolderOpen,
-  MessagesSquare,
-  PawPrint,
-  ExternalLink,
   Bell,
-  Mail,
+  BookOpen,
+  CalendarDays,
+  CarFront,
   ChevronDown,
+  ClipboardList,
+  CreditCard,
+  ExternalLink,
+  FileText,
+  Home,
+  Mail,
+  Menu,
+  MessageCircle,
+  PawPrint,
+  ShieldCheck,
+  Sparkles,
+  UserCircle2,
+  X,
 } from "lucide-react";
 import { sb } from "@/lib/utils";
+import { PortalChiChiWidget, type PortalAdminAuth, type PortalChatMessage } from "@/components/portal/chichi-widget";
+import {
+  findHealthRecords,
+  findPortalMessagesForUser,
+  loadPortalContext,
+  portalDisplayName,
+  portalPuppyName,
+  type PortalApplication,
+  type PortalBuyer,
+  type PortalPuppy,
+} from "@/lib/portal-data";
 import { isPortalAdminEmail } from "@/lib/portal-admin";
 
 type PortalUser = {
@@ -38,23 +47,6 @@ type PortalUser = {
   };
 };
 
-type BuyerProfile = {
-  id?: number | null;
-  full_name?: string | null;
-  name?: string | null;
-  email?: string | null;
-  buyer_email?: string | null;
-  phone?: string | null;
-};
-
-type AppProfile = {
-  id?: number | null;
-  full_name?: string | null;
-  email?: string | null;
-  applicant_email?: string | null;
-  phone?: string | null;
-};
-
 type NavItem = {
   href: string;
   label: string;
@@ -62,49 +54,39 @@ type NavItem = {
   match?: (pathname: string) => boolean;
 };
 
-type ChatRole = "user" | "assistant";
-
-type ChatMessage = {
-  id: string;
-  role: ChatRole;
-  text: string;
-  createdAt: string;
-};
-
 type ChiChiResponse = {
   text?: string;
-  assistant?: string;
   threadId?: string | null;
   adminAuth?: {
     userId?: string | null;
     email?: string | null;
     canWriteCore?: boolean;
   };
-  context?: {
-    buyerName?: string | null;
-    puppyName?: string | null;
-  };
 };
 
-type ChiChiTab = "ask" | "actions";
+const navItems: NavItem[] = [
+  {
+    href: "/portal",
+    label: "Overview",
+    icon: <Home className="h-4 w-4" />,
+    match: (pathname) => pathname === "/portal",
+  },
+  { href: "/portal/application", label: "Application", icon: <ClipboardList className="h-4 w-4" /> },
+  { href: "/portal/mypuppy", label: "My Puppy", icon: <PawPrint className="h-4 w-4" /> },
+  { href: "/portal/updates", label: "Pupdates", icon: <CalendarDays className="h-4 w-4" /> },
+  { href: "/portal/documents", label: "Documents", icon: <FileText className="h-4 w-4" /> },
+  { href: "/portal/payments", label: "Payments", icon: <CreditCard className="h-4 w-4" /> },
+  { href: "/portal/messages", label: "Messages", icon: <MessageCircle className="h-4 w-4" /> },
+  { href: "/portal/transportation", label: "Transporation", icon: <CarFront className="h-4 w-4" /> },
+  { href: "/portal/resources", label: "Resources", icon: <BookOpen className="h-4 w-4" /> },
+];
 
-type QuickAction = {
-  key: string;
-  label: string;
-  prompt: string;
-  icon: React.ReactNode;
-};
-
-const DEFAULT_CHICHI_MESSAGE: ChatMessage = {
+const defaultChiChiMessage: PortalChatMessage = {
   id: makeId("assistant"),
   role: "assistant",
-  text: "Hi, I'm your personal ChiChi Assistant. Ask me about your account, payments, messages, documents, puppy updates, or general Chihuahua questions anytime.",
+  text: "Hi, I am ChiChi. I can help with your portal account, puppy journey, payments, documents, breeder messages, and Chihuahua questions.",
   createdAt: formatTime(),
 };
-
-function getChiChiStorageKey(userId: string | undefined, suffix: string) {
-  return userId ? `chichi:${userId}:${suffix}` : null;
-}
 
 function makeId(prefix = "msg") {
   return `${prefix}-${Math.random().toString(36).slice(2)}-${Date.now()}`;
@@ -117,33 +99,20 @@ function formatTime(date = new Date()) {
   });
 }
 
-function cleanAssistantText(text: string) {
-  return String(text || "")
-    .replace(/^#{1,6}\s*/gm, "")
-    .replace(/\*\*(.*?)\*\*/g, "$1")
-    .replace(/\*(.*?)\*/g, "$1")
-    .replace(/^>\s*/gm, "")
-    .replace(/^[-â€¢]\s+/gm, "â€¢ ")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+function getChiChiStorageKey(userId: string | undefined, suffix: string) {
+  return userId ? `chichi:${userId}:${suffix}` : null;
 }
 
-function renderChatText(text: string) {
-  const cleaned = cleanAssistantText(text);
-  const paragraphs = cleaned
-    .split(/\n{2,}/)
-    .map((p) => p.trim())
-    .filter(Boolean);
-
-  return (
-    <div className="space-y-3">
-      {paragraphs.map((paragraph, idx) => (
-        <p key={idx} className="whitespace-pre-wrap leading-relaxed tracking-wide">
-          {paragraph}
-        </p>
-      ))}
-    </div>
+function pageTitleFromPath(pathname: string) {
+  const direct = navItems.find((item) =>
+    item.match ? item.match(pathname) : pathname === item.href || pathname.startsWith(`${item.href}/`)
   );
+  if (direct) return direct.label;
+  if (pathname.startsWith("/portal/profile")) return "Profile";
+  if (pathname.startsWith("/portal/help")) return "Help and Support";
+  if (pathname.startsWith("/portal/notifications")) return "Notifications";
+  if (pathname.startsWith("/portal/available-puppies")) return "Available Puppies";
+  return "Portal";
 }
 
 export default function PortalLayout({
@@ -157,34 +126,26 @@ export default function PortalLayout({
   const [user, setUser] = useState<PortalUser | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
-  const [isChiChiOpen, setIsChiChiOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<ChiChiTab>("ask");
+  const [buyer, setBuyer] = useState<PortalBuyer | null>(null);
+  const [application, setApplication] = useState<PortalApplication | null>(null);
+  const [puppy, setPuppy] = useState<PortalPuppy | null>(null);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const [notificationCount, setNotificationCount] = useState(0);
+
   const [threadId, setThreadId] = useState<string | null>(null);
   const [chatDraft, setChatDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [buyerName, setBuyerName] = useState<string | null>(null);
-  const [puppyName, setPuppyName] = useState<string | null>(null);
-  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
-  const [notificationCount, setNotificationCount] = useState(0);
-  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const [profile, setProfile] = useState<BuyerProfile | AppProfile | null>(null);
-  const [adminAuth, setAdminAuth] = useState<{
-    userId?: string | null;
-    email?: string | null;
-    canWriteCore?: boolean;
-  } | null>(null);
+  const [adminAuth, setAdminAuth] = useState<PortalAdminAuth>(null);
+  const [messages, setMessages] = useState<PortalChatMessage[]>([defaultChiChiMessage]);
 
-  const [messages, setMessages] = useState<ChatMessage[]>([DEFAULT_CHICHI_MESSAGE]);
-
-  const chatEndRef = useRef<HTMLDivElement | null>(null);
-  const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let mounted = true;
 
-    const loadUser = async () => {
+    async function bootstrap() {
       const {
         data: { session },
       } = await sb.auth.getSession();
@@ -192,17 +153,15 @@ export default function PortalLayout({
       if (!mounted) return;
       setUser((session?.user as PortalUser) ?? null);
       setAccessToken(session?.access_token ?? null);
-    };
+    }
 
-    loadUser();
+    void bootstrap();
 
-    const { data: authListener } = sb.auth.onAuthStateChange(
-      async (_event, session) => {
-        if (!mounted) return;
-        setUser((session?.user as PortalUser) ?? null);
-        setAccessToken(session?.access_token ?? null);
-      }
-    );
+    const { data: authListener } = sb.auth.onAuthStateChange(async (_event, session) => {
+      if (!mounted) return;
+      setUser((session?.user as PortalUser) ?? null);
+      setAccessToken(session?.access_token ?? null);
+    });
 
     return () => {
       mounted = false;
@@ -212,13 +171,25 @@ export default function PortalLayout({
 
   useEffect(() => {
     setIsDrawerOpen(false);
+    setIsUserMenuOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    const onPointerDown = (event: MouseEvent) => {
+      if (!userMenuRef.current?.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, []);
 
   useEffect(() => {
     if (!user?.id) {
       setThreadId(null);
       setAdminAuth(null);
-      setMessages([DEFAULT_CHICHI_MESSAGE]);
+      setMessages([defaultChiChiMessage]);
       return;
     }
 
@@ -228,19 +199,13 @@ export default function PortalLayout({
       const savedMessages = localStorage.getItem(getChiChiStorageKey(user.id, "messages") || "");
 
       if (savedThreadId) setThreadId(savedThreadId);
-
-      if (savedAdminAuth) {
-        setAdminAuth(JSON.parse(savedAdminAuth));
-      }
-
+      if (savedAdminAuth) setAdminAuth(JSON.parse(savedAdminAuth));
       if (savedMessages) {
-        const parsed = JSON.parse(savedMessages) as ChatMessage[];
-        if (Array.isArray(parsed) && parsed.length) {
-          setMessages(parsed);
-        }
+        const parsed = JSON.parse(savedMessages) as PortalChatMessage[];
+        if (Array.isArray(parsed) && parsed.length) setMessages(parsed);
       }
     } catch (error) {
-      console.error("Could not restore ChiChi history:", error);
+      console.error("Could not restore ChiChi conversation:", error);
     }
   }, [user?.id]);
 
@@ -257,362 +222,84 @@ export default function PortalLayout({
         else localStorage.removeItem(threadKey);
       }
 
-      if (messagesKey) {
-        localStorage.setItem(messagesKey, JSON.stringify(messages));
-      }
+      if (messagesKey) localStorage.setItem(messagesKey, JSON.stringify(messages));
 
       if (adminKey) {
         if (adminAuth) localStorage.setItem(adminKey, JSON.stringify(adminAuth));
         else localStorage.removeItem(adminKey);
       }
     } catch (error) {
-      console.error("Could not persist ChiChi history:", error);
+      console.error("Could not persist ChiChi conversation:", error);
     }
   }, [adminAuth, messages, threadId, user?.id]);
 
   useEffect(() => {
-    if (isChiChiOpen) {
-      requestAnimationFrame(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-      });
-    }
-  }, [messages, isChiChiOpen, isSending]);
-
-  useEffect(() => {
     if (!user?.id && !user?.email) {
+      setBuyer(null);
+      setApplication(null);
+      setPuppy(null);
       setUnreadMessageCount(0);
       setNotificationCount(0);
-      setProfile(null);
       return;
     }
 
     let active = true;
 
-    const loadPortalChromeData = async () => {
-      const email = String(user?.email || "").trim().toLowerCase();
-      const uid = user?.id;
+    async function loadChromeData() {
+      try {
+        const currentUser = user as User;
+        const context = await loadPortalContext(currentUser);
+        const recentMessages = await findPortalMessagesForUser(currentUser, 30);
+        const health = await findHealthRecords(context.puppy?.id);
 
-      let unread = 0;
-      let notifications = 0;
-      let matchedBuyer: BuyerProfile | null = null;
-      let matchedApp: AppProfile | null = null;
-      let puppyId: number | null = null;
+        if (!active) return;
 
-      if (uid) {
-        const unreadByUser = await sb
-          .from("portal_messages")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", uid)
-          .eq("read_by_user", false);
+        setBuyer(context.buyer);
+        setApplication(context.application);
+        setPuppy(context.puppy);
 
-        if (!unreadByUser.error) unread = unreadByUser.count || 0;
+        const unread = recentMessages.filter(
+          (entry) => entry.sender === "admin" && !entry.read_by_user
+        ).length;
+
+        setUnreadMessageCount(unread);
+        setNotificationCount(unread + health.length);
+      } catch (error) {
+        console.error("Could not load portal shell data:", error);
+        if (!active) return;
+        setUnreadMessageCount(0);
+        setNotificationCount(0);
       }
+    }
 
-      if (!unread && email) {
-        const unreadByEmail = await sb
-          .from("portal_messages")
-          .select("id", { count: "exact", head: true })
-          .ilike("user_email", email)
-          .eq("read_by_user", false);
-
-        if (!unreadByEmail.error) unread = unreadByEmail.count || 0;
-      }
-
-      if (uid) {
-        const buyerByUser = await sb
-          .from("buyers")
-          .select("id,full_name,name,email,buyer_email,phone")
-          .eq("user_id", uid)
-          .limit(1)
-          .maybeSingle();
-
-        if (!buyerByUser.error && buyerByUser.data) matchedBuyer = buyerByUser.data as BuyerProfile;
-      }
-
-      if (!matchedBuyer && email) {
-        const buyerByEmail = await sb
-          .from("buyers")
-          .select("id,full_name,name,email,buyer_email,phone")
-          .or(`email.ilike.${email},buyer_email.ilike.${email}`)
-          .limit(1)
-          .maybeSingle();
-
-        if (!buyerByEmail.error && buyerByEmail.data) matchedBuyer = buyerByEmail.data as BuyerProfile;
-      }
-
-      if (uid) {
-        const appByUser = await sb
-          .from("puppy_applications")
-          .select("id,full_name,email,applicant_email,phone")
-          .eq("user_id", uid)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (!appByUser.error && appByUser.data) matchedApp = appByUser.data as AppProfile;
-      }
-
-      if (!matchedApp && email) {
-        const appByEmail = await sb
-          .from("puppy_applications")
-          .select("id,full_name,email,applicant_email,phone")
-          .or(`email.ilike.${email},applicant_email.ilike.${email}`)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (!appByEmail.error && appByEmail.data) matchedApp = appByEmail.data as AppProfile;
-      }
-
-      if (matchedBuyer?.id) {
-        const puppyRes = await sb
-          .from("puppies")
-          .select("id")
-          .eq("buyer_id", matchedBuyer.id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (!puppyRes.error && puppyRes.data?.id) puppyId = Number(puppyRes.data.id);
-      }
-
-      if (puppyId) {
-        const thirtyDaysAgo = new Date(Date.now() - 1000 * 60 * 60 * 24 * 30)
-          .toISOString()
-          .slice(0, 10);
-
-        const [eventCountRes, healthCountRes] = await Promise.all([
-          sb
-            .from("puppy_events")
-            .select("id", { count: "exact", head: true })
-            .eq("puppy_id", puppyId)
-            .gte("event_date", thirtyDaysAgo),
-          sb
-            .from("puppy_health_records")
-            .select("id", { count: "exact", head: true })
-            .eq("puppy_id", puppyId)
-            .eq("is_visible_to_buyer", true)
-            .gte("record_date", thirtyDaysAgo),
-        ]);
-
-        notifications += (eventCountRes.count || 0) + (healthCountRes.count || 0);
-      }
-
-      notifications += unread;
-
-      if (!active) return;
-      setUnreadMessageCount(unread);
-      setNotificationCount(notifications);
-      setProfile(matchedBuyer || matchedApp);
-    };
-
-    void loadPortalChromeData();
+    void loadChromeData();
 
     return () => {
       active = false;
     };
-  }, [user?.email, user?.id, pathname]);
+  }, [pathname, user]);
 
-  useEffect(() => {
-    const onPointerDown = (event: MouseEvent) => {
-      if (!userMenuRef.current?.contains(event.target as Node)) {
-        setIsUserMenuOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
-  }, []);
-
-  const nav: NavItem[] = useMemo(
-    () => [
-      {
-        href: "/portal",
-        label: "Overview",
-        icon: <Home className="h-[18px] w-[18px]" />,
-        match: (p) => p === "/portal",
-      },
-      {
-        href: "/portal/mypuppy",
-        label: "My Puppy",
-        icon: <Dog className="h-[18px] w-[18px]" />,
-      },
-      {
-        href: "/portal/updates",
-        label: "Pupdates",
-        icon: <CalendarDays className="h-[18px] w-[18px]" />,
-      },
-      {
-        href: "/portal/documents",
-        label: "Contracts & Docs",
-        icon: <FileText className="h-[18px] w-[18px]" />,
-      },
-      {
-        href: "/portal/payments",
-        label: "Payments",
-        icon: <CreditCard className="h-[18px] w-[18px]" />,
-      },
-      {
-        href: "/portal/transportation",
-        label: "Transporation",
-        icon: <CarFront className="h-[18px] w-[18px]" />,
-      },
-      {
-        href: "/portal/resources",
-        label: "Resources",
-        icon: <ExternalLink className="h-[18px] w-[18px]" />,
-      },
-      {
-        href: "/portal/messages",
-        label: "Messages",
-        icon: <MessageCircle className="h-[18px] w-[18px]" />,
-      },
-      {
-        href: "/portal/available-puppies",
-        label: "Available Puppies",
-        icon: <Sparkles className="h-[18px] w-[18px]" />,
-      },
-    ],
-    []
-  );
-
-  const displayName =
-    user?.user_metadata?.full_name ||
-    user?.user_metadata?.name ||
-    user?.email ||
-    "Portal User";
-
-  const userInitial = (displayName?.[0] || user?.email?.[0] || "U").toUpperCase();
-  const activeNavItem = nav.find((item) => isActive(item));
-  const pageTitle =
-    activeNavItem?.label ||
-    (pathname.startsWith("/portal/profile")
-      ? "Profile"
-      : pathname.startsWith("/portal/notifications")
-        ? "Notifications"
-        : pathname.startsWith("/portal/help")
-          ? "Help and Support"
-          : "Portal");
-
+  const displayName = portalDisplayName(user as User | null, buyer, application);
+  const displayEmail = user?.email || buyer?.email || application?.email || application?.applicant_email || "No email on file";
+  const displayPhone = buyer?.phone || application?.phone || "No phone on file";
+  const userInitial = (displayName?.[0] || displayEmail?.[0] || "U").toUpperCase();
   const hasAdminUi = isPortalAdminEmail(user?.email) || !!adminAuth?.canWriteCore;
-
-  const coreActions: QuickAction[] = [
-    {
-      key: "add-buyer",
-      label: "Add Buyer",
-      prompt: "Core action: add a new buyer record. I will provide the buyer details next.",
-      icon: <PlusCircle className="h-4 w-4" />,
-    },
-    {
-      key: "add-puppy",
-      label: "Add Puppy",
-      prompt: "Core action: add a new puppy record. I will provide the puppy details next.",
-      icon: <PlusCircle className="h-4 w-4" />,
-    },
-    {
-      key: "edit-puppy",
-      label: "Edit Puppy",
-      prompt:
-        "Core action: edit a puppy record. I will provide the puppy name and the fields to update next, such as microchip, registration number, litter name, sire, dam, description, notes, or weights.",
-      icon: <PawPrint className="h-4 w-4" />,
-    },
-    {
-      key: "delete-puppy",
-      label: "Delete Puppy",
-      prompt: "Core action: delete puppy records. I will provide the puppy name or names next.",
-      icon: <PawPrint className="h-4 w-4" />,
-    },
-    {
-      key: "add-event",
-      label: "Add Puppy Event",
-      prompt: "Core action: add a puppy event. I will provide the puppy name, date, title, and details next.",
-      icon: <CalendarPlus className="h-4 w-4" />,
-    },
-    {
-      key: "log-payment",
-      label: "Log Payment",
-      prompt: "Core action: log a buyer payment. I will provide the buyer, amount, date, and method next.",
-      icon: <DollarSign className="h-4 w-4" />,
-    },
-    {
-      key: "edit-payment",
-      label: "Edit Payment",
-      prompt: "Core action: edit a payment record. I will provide the buyer, payment date or reference, and the fields to update next.",
-      icon: <DollarSign className="h-4 w-4" />,
-    },
-    {
-      key: "delete-payment",
-      label: "Delete Payment",
-      prompt: "Core action: delete a payment record. I will provide the buyer and payment reference details next.",
-      icon: <DollarSign className="h-4 w-4" />,
-    },
-    {
-      key: "add-weight",
-      label: "Add Weight",
-      prompt: "Core action: add a puppy weight entry. I will provide the puppy, date, and weight next.",
-      icon: <PawPrint className="h-4 w-4" />,
-    },
-    {
-      key: "open-documents",
-      label: "Open Documents",
-      prompt: "Show me the documents for this account.",
-      icon: <FolderOpen className="h-4 w-4" />,
-    },
-    {
-      key: "open-messages",
-      label: "Open Messages",
-      prompt: "Show me recent messages for this account.",
-      icon: <MessagesSquare className="h-4 w-4" />,
-    },
-    {
-      key: "open-puppy",
-      label: "Open My Puppy",
-      prompt: "Show me my puppy summary.",
-      icon: <PawPrint className="h-4 w-4" />,
-    },
-  ];
+  const pageTitle = pageTitleFromPath(pathname);
+  const puppyName = portalPuppyName(puppy);
 
   async function handleSignOut() {
     await sb.auth.signOut();
     setUser(null);
     setAccessToken(null);
-    setIsDrawerOpen(false);
-    setIsChiChiOpen(false);
     router.push("/portal");
     router.refresh();
   }
 
-  function isActive(item: NavItem) {
-    if (item.match) return item.match(pathname);
-    return pathname === item.href || pathname.startsWith(`${item.href}/`);
-  }
-
-  function navClass(item: NavItem) {
-    const active = isActive(item);
-    return [
-      "group flex items-center gap-3 rounded-2xl px-4 py-3 transition-all duration-200 ease-out",
-      active
-        ? "bg-white text-[#2f2218] shadow-[0_18px_34px_rgba(106,76,45,0.12)] ring-1 ring-[#ead8c4]"
-        : "text-[#775a41] hover:bg-white/70 hover:text-[#2f2218]",
-    ].join(" ");
-  }
-
-  function iconWrapClass(item: NavItem) {
-    const active = isActive(item);
-    return [
-      "flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-200",
-      active
-        ? "bg-[linear-gradient(135deg,#f2d39f_0%,#d39a52_100%)] text-[#3a2919] shadow-[0_10px_22px_rgba(181,117,47,0.18)]"
-        : "bg-[#f7efe5] text-[#9a7754] group-hover:bg-white group-hover:text-[#2f2218]",
-    ].join(" ");
-  }
-
-  async function sendChiChiMessage(e?: React.FormEvent, overrideText?: string) {
-    e?.preventDefault();
+  async function handleSendChiChiMessage(overrideText?: string) {
     const text = (overrideText ?? chatDraft).trim();
     if (!text || isSending) return;
 
-    const userMessage: ChatMessage = {
+    const userMessage: PortalChatMessage = {
       id: makeId("user"),
       role: "user",
       text,
@@ -638,12 +325,7 @@ export default function PortalLayout({
     }
 
     try {
-      const routeMessages = [...messages, userMessage].map((m) => ({
-        role: m.role,
-        content: m.text,
-      }));
-
-      const res = await fetch("/api/buildlio", {
+      const response = await fetch("/api/buildlio", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -653,20 +335,20 @@ export default function PortalLayout({
           threadId,
           accessToken,
           max_tokens: 1200,
-          messages: routeMessages,
+          messages: [...messages, userMessage].map((message) => ({
+            role: message.role,
+            content: message.text,
+          })),
         }),
       });
 
-      const data = (await res.json()) as ChiChiResponse;
-
+      const data = (await response.json()) as ChiChiResponse;
       const reply =
-        data?.text?.trim() ||
+        data.text?.trim() ||
         "I ran into an issue while loading your portal information. Please try again.";
 
-      if (data?.threadId) setThreadId(data.threadId);
-      if (data?.context?.buyerName) setBuyerName(data.context.buyerName);
-      if (data?.context?.puppyName) setPuppyName(data.context.puppyName);
-      if (data?.adminAuth) setAdminAuth(data.adminAuth);
+      if (data.threadId) setThreadId(data.threadId);
+      if (data.adminAuth) setAdminAuth(data.adminAuth);
 
       setMessages((prev) => [
         ...prev,
@@ -678,573 +360,244 @@ export default function PortalLayout({
         },
       ]);
     } catch (error) {
-      console.error("ChiChi chat error:", error);
+      console.error("ChiChi portal error:", error);
       setMessages((prev) => [
         ...prev,
         {
           id: makeId("assistant"),
           role: "assistant",
-          text: "I ran into a connection problem while trying to answer that. Please try again.",
+          text: "I hit a connection problem while checking your portal records. Please try again in a moment.",
           createdAt: formatTime(),
         },
       ]);
     } finally {
       setIsSending(false);
-      requestAnimationFrame(() => chatInputRef.current?.focus());
     }
   }
 
-  function handleTextareaKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      void sendChiChiMessage();
-    }
+  function SidebarContent() {
+    return (
+      <div className="flex h-full flex-col gap-5">
+        <div className="rounded-[30px] border border-[#eadccf] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2ea_100%)] p-5 shadow-[0_20px_54px_rgba(99,69,39,0.09)]">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#d4a35d_0%,#b77a31_100%)] text-white shadow-[0_14px_28px_rgba(183,122,49,0.22)]">
+              <PawPrint className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-base font-semibold text-[#2f2218]">Puppy Portal</div>
+              <div className="text-xs text-[#8d6c4b]">Southwest Virginia Chihuahua</div>
+            </div>
+          </div>
+
+          <div className="mt-5 rounded-[24px] border border-[#eadccf] bg-white px-4 py-4 shadow-[0_12px_28px_rgba(99,69,39,0.05)]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#a17848]">Welcome</div>
+            <div className="mt-2 text-lg font-semibold text-[#2f2218]">{displayName}</div>
+            <div className="mt-1 text-sm leading-6 text-[#72553c]">
+              Your puppy journey, documents, payments, and breeder updates stay organized here.
+            </div>
+          </div>
+        </div>
+
+        <nav className="flex-1 space-y-2 rounded-[30px] border border-[#eadccf] bg-[linear-gradient(180deg,#fffdfb_0%,#f7efe6_100%)] p-4 shadow-[0_20px_54px_rgba(99,69,39,0.08)]">
+          {navItems.map((item) => {
+            const active = item.match ? item.match(pathname) : pathname === item.href || pathname.startsWith(`${item.href}/`);
+            return (
+              <Link key={item.href} href={item.href} className={navItemClass(active)}>
+                <span className={navIconClass(active)}>{item.icon}</span>
+                <span className="text-sm font-semibold">{item.label}</span>
+                {item.href === "/portal/messages" && unreadMessageCount > 0 ? (
+                  <span className="ml-auto inline-flex min-w-[22px] items-center justify-center rounded-full bg-[#cf6a43] px-2 py-1 text-[10px] font-semibold text-white">
+                    {unreadMessageCount}
+                  </span>
+                ) : null}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="rounded-[30px] border border-[#eadccf] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2ea_100%)] p-4 shadow-[0_18px_42px_rgba(99,69,39,0.08)]">
+          <div className="space-y-3">
+            <Link href="/portal/notifications" className="flex items-center justify-between rounded-2xl border border-[#eadccf] bg-white px-4 py-3 text-sm font-semibold text-[#2f2218] transition hover:border-[#d7b58e]">
+              <span className="flex items-center gap-3">
+                <Bell className="h-4 w-4 text-[#a17848]" />
+                Notifications
+              </span>
+              <span className="text-xs text-[#8d6c4b]">{notificationCount}</span>
+            </Link>
+            <Link href="/portal/profile" className="flex items-center justify-between rounded-2xl border border-[#eadccf] bg-white px-4 py-3 text-sm font-semibold text-[#2f2218] transition hover:border-[#d7b58e]">
+              <span className="flex items-center gap-3">
+                <UserCircle2 className="h-4 w-4 text-[#a17848]" />
+                Profile
+              </span>
+              <span className="text-xs text-[#8d6c4b]">Account</span>
+            </Link>
+            <Link href="/portal/help" className="flex items-center justify-between rounded-2xl border border-[#eadccf] bg-white px-4 py-3 text-sm font-semibold text-[#2f2218] transition hover:border-[#d7b58e]">
+              <span className="flex items-center gap-3">
+                <ShieldCheck className="h-4 w-4 text-[#a17848]" />
+                Help and Support
+              </span>
+              <span className="text-xs text-[#8d6c4b]">Open</span>
+            </Link>
+            <Link href="/portal/available-puppies" className="flex items-center justify-between rounded-2xl border border-[#eadccf] bg-white px-4 py-3 text-sm font-semibold text-[#2f2218] transition hover:border-[#d7b58e]">
+              <span className="flex items-center gap-3">
+                <Sparkles className="h-4 w-4 text-[#a17848]" />
+                Available Puppies
+              </span>
+              <ExternalLink className="h-4 w-4 text-[#8d6c4b]" />
+            </Link>
+          </div>
+
+          <div ref={userMenuRef} className="relative mt-4">
+            <button
+              type="button"
+              onClick={() => setIsUserMenuOpen((value) => !value)}
+              className="flex w-full items-center gap-3 rounded-[24px] border border-[#eadccf] bg-white px-3 py-3 shadow-[0_12px_28px_rgba(99,69,39,0.05)] transition hover:border-[#d7b58e]"
+            >
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[linear-gradient(135deg,#d4a35d_0%,#b77a31_100%)] text-sm font-black text-white">
+                {userInitial}
+              </div>
+              <div className="min-w-0 flex-1 text-left">
+                <div className="truncate text-sm font-semibold text-[#2f2218]">{displayName}</div>
+                <div className="truncate text-xs text-[#8d6c4b]">{displayEmail}</div>
+              </div>
+              <ChevronDown className="h-4 w-4 text-[#8d6c4b]" />
+            </button>
+
+            {isUserMenuOpen ? (
+              <div className="absolute bottom-[calc(100%+12px)] left-0 z-40 w-full rounded-[24px] border border-[#d8cab7] bg-[#fffaf4] p-3 shadow-[0_24px_48px_rgba(47,32,20,0.18)]">
+                <div className="rounded-[18px] border border-[#eadfce] bg-white px-4 py-3">
+                  <div className="text-sm font-semibold text-[#342116]">{displayName}</div>
+                  <div className="mt-1 text-xs text-[#8b6b4d]">{displayEmail}</div>
+                  <div className="mt-1 text-xs text-[#8b6b4d]">{displayPhone}</div>
+                </div>
+
+                <div className="mt-3 space-y-2">
+                  <Link href="/portal/profile" onClick={() => setIsUserMenuOpen(false)} className="block rounded-[16px] border border-[#eadfce] bg-white px-4 py-3 text-sm font-semibold text-[#4d392a] transition hover:bg-[#fff9f3]">
+                    View and Edit Profile
+                  </Link>
+                  {hasAdminUi ? (
+                    <Link href="/admin/portal" onClick={() => setIsUserMenuOpen(false)} className="block rounded-[16px] border border-[#eadfce] bg-[#fff7ef] px-4 py-3 text-sm font-semibold text-[#4d392a] transition hover:bg-white">
+                      Open Admin Portal
+                    </Link>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsUserMenuOpen(false);
+                      void handleSignOut();
+                    }}
+                    className="w-full rounded-[16px] border border-[#eadfce] bg-[#6f5037] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#5d4330]"
+                  >
+                    Sign Out
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#fff9f2_0%,#f7efe4_44%,#efe4d6_100%)] text-[#2f2218]">
-      {/* Mobile Header */}
-      <header className="sticky top-0 z-40 border-b border-[#ead8c4] bg-[#fffaf5]/95 backdrop-blur-xl text-[#2f2218] shadow-[0_10px_30px_rgba(106,76,45,0.08)] md:hidden">
-        <div className="flex h-16 items-center justify-between px-4">
-          <button
-            onClick={() => setIsDrawerOpen(true)}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#ead8c4] bg-white text-[#5f4731] transition hover:bg-[#fff8f0]"
-            aria-label="Open portal menu"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
-
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[linear-gradient(135deg,#d3a056_0%,#b5752f_100%)] text-white shadow-[0_12px_26px_rgba(181,117,47,0.25)]">
-              <Dog className="h-5 w-5" />
-            </div>
-            <div className="leading-tight">
-                <div className="text-[9px] font-black uppercase tracking-[0.2em] text-[#a47946]">
-                  Private Client Access
-                </div>
-                <div className="font-serif text-[20px] leading-none text-[#2f2218] tracking-wide">
-                  My Puppy Portal
-              </div>
-            </div>
-          </div>
-
-          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[#ead8c4] bg-white text-sm font-semibold tracking-wider text-[#5f4731]">
-            {userInitial}
-          </div>
-        </div>
-      </header>
-
-      {/* Mobile Drawer Overlay */}
-      {isDrawerOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-[#020617]/70 backdrop-blur-sm transition-opacity md:hidden"
-          onClick={() => setIsDrawerOpen(false)}
-        />
-      )}
-
-      {/* Mobile Drawer */}
-      <aside
-        className={`fixed inset-y-0 left-0 z-50 w-[86%] max-w-[320px] transform bg-transparent p-3 transition-transform duration-500 cubic-bezier(0.4, 0, 0.2, 1) md:hidden ${
-          isDrawerOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        <div className="flex h-full flex-col rounded-[2rem] border border-[#ead8c4] bg-[linear-gradient(180deg,#fffdf9_0%,#f6eee4_100%)] px-5 py-6 shadow-[0_24px_80px_rgba(106,76,45,0.18)] backdrop-blur-xl">
-          <div className="flex items-start justify-between gap-3 px-1">
-            <div className="flex items-center gap-3.5">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#d3a056_0%,#b5752f_100%)] text-white shadow-[0_16px_30px_rgba(181,117,47,0.24)]">
-                <Dog className="h-6 w-6" />
-              </div>
-              <div className="leading-tight">
-                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-[#a47946]">
-                  Private Client Access
-                </div>
-                <div className="font-serif text-[22px] leading-none text-[#2f2218] tracking-wide">
-                  Puppy Portal
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={() => setIsDrawerOpen(false)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[#ead8c4] bg-white text-[#7f6144] transition hover:bg-[#fff8f0] hover:text-[#2f2218]"
-              aria-label="Close portal menu"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-
-          <nav className="mt-8 flex-1 space-y-2">
-            {nav.map((item) => (
-              <Link key={item.href} href={item.href} className={navClass(item)}>
-                <span className={iconWrapClass(item)}>{item.icon}</span>
-                <span className="whitespace-nowrap text-[15px] font-medium leading-tight tracking-wide">{item.label}</span>
-              </Link>
-            ))}
-          </nav>
-
-          <div className="mt-6 border-t border-[#ead8c4] pt-6">
-            <button
-              onClick={handleSignOut}
-              className="w-full rounded-2xl border border-[#ead8c4] bg-white px-4 py-3.5 text-[15px] font-medium text-[#5f4731] transition-all hover:bg-[#fff8f0] hover:shadow-md"
-            >
-              Sign out
-            </button>
-            <div className="mt-4 px-2 text-center text-xs text-[#9c7a57]">
-              Signed in as <br />
-              <span className="font-medium text-[#2f2218]">{user?.email || "â€”"}</span>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      {/* Desktop Layout */}
-      <div className="flex min-h-screen bg-transparent">
-        {/* Desktop Sidebar */}
-        <aside className="hidden w-[260px] shrink-0 p-4 md:block">
-          <div className="sticky top-4 flex h-[calc(100vh-32px)] flex-col rounded-[28px] border border-[#ead8c4] bg-[linear-gradient(180deg,#fffdf9_0%,#f5ede3_100%)] text-[#2f2218] shadow-[0_30px_80px_rgba(106,76,45,0.16)] backdrop-blur-2xl">
-            <div className="flex items-center gap-3 border-b border-[#ead8c4] px-5 py-5">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#d3a056_0%,#b5752f_100%)] text-white shadow-[0_18px_34px_rgba(181,117,47,0.22)]">
-                <Dog className="h-[22px] w-[22px]" />
-              </div>
-              <div className="leading-tight">
-                <div className="font-serif text-[15px] font-bold text-[#2f2218] [font-family:var(--font-merriweather)]">
-                  Puppy Portal
-                </div>
-                <div className="text-[11px] font-normal text-[#9a7754]">Southwest Virginia Chihuahua</div>
-              </div>
-            </div>
-
-            <nav className="flex-1 space-y-1 px-4 py-4">
-              {nav.map((item) => (
-                <Link key={item.href} href={item.href} className={navClass(item)}>
-                  <span className={iconWrapClass(item)}>{item.icon}</span>
-                  <span className="whitespace-nowrap text-[14px] font-medium leading-tight tracking-[0.01em]">
-                    {item.label}
-                  </span>
-                  {item.href === "/portal/messages" && unreadMessageCount > 0 ? (
-                    <span className="ml-auto inline-flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#c0392b] px-1 text-[10px] font-black text-white">
-                      {unreadMessageCount > 9 ? "9+" : unreadMessageCount}
-                    </span>
-                  ) : null}
-                </Link>
-              ))}
-            </nav>
-
-            <div className="mt-auto border-t border-[#ead8c4] px-5 py-5">
-              <Link
-                href="/portal/help"
-                className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 text-[13px] text-[#775a41] transition hover:bg-[#fff8f0] hover:text-[#2f2218]"
-              >
-                <Bell className="h-4 w-4" />
-                <span>Help &amp; Support</span>
-              </Link>
-            </div>
-          </div>
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f7f0e7_0%,#f2e9df_100%)] text-[#2f2218]">
+      <div className="grid min-h-screen lg:grid-cols-[290px_minmax(0,1fr)]">
+        <aside className="hidden border-r border-[#eadccf] bg-[linear-gradient(180deg,#fbf7f2_0%,#f4eadf_100%)] px-5 py-5 lg:block">
+          <SidebarContent />
         </aside>
 
-        {/* Main Content Area */}
-        <main className="min-w-0 flex-1 p-4 md:pl-0">
-          <div className="overflow-hidden rounded-[28px] border border-[#ead8c4] bg-[linear-gradient(180deg,rgba(255,255,255,0.84)_0%,rgba(255,251,246,0.92)_100%)] shadow-[0_30px_80px_rgba(106,76,45,0.10)] backdrop-blur-xl">
-          <div className="h-[76px] border-b border-[#ead8c4] bg-[linear-gradient(90deg,#fffdf9_0%,#f8f0e6_100%)] text-[#2f2218]">
-            <div className="flex h-full w-full items-center justify-between gap-4 px-5 md:px-6 lg:px-8 xl:px-10">
-              <div className="min-w-0">
-                <div className="text-[11px] font-black uppercase tracking-[0.22em] text-[#a47946]">
+        <div className="min-w-0">
+          <header className="sticky top-0 z-30 border-b border-[#eadccf] bg-[rgba(249,243,236,0.92)] px-4 py-3 backdrop-blur md:px-6 lg:hidden">
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setIsDrawerOpen(true)}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#eadccf] bg-white text-[#4b3526] shadow-[0_10px_22px_rgba(99,69,39,0.06)]"
+                aria-label="Open portal navigation"
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+
+              <div className="min-w-0 flex-1 text-center">
+                <div className="truncate text-xs font-semibold uppercase tracking-[0.2em] text-[#a17848]">
                   Southwest Virginia Chihuahua
                 </div>
-                <div className="mt-1 font-serif text-[28px] font-normal leading-none tracking-[0.01em] text-[#2f2218] [font-family:var(--font-merriweather)]">
-                  {pageTitle}
-                </div>
+                <div className="truncate text-base font-semibold text-[#2f2218]">{pageTitle}</div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <Link
-                  href="/portal/updates"
-                  className="relative hidden h-11 w-11 items-center justify-center rounded-2xl border border-[#ead8c4] bg-white text-[#7f6144] transition hover:bg-[#fff8f0] hover:text-[#2f2218] sm:inline-flex"
-                  aria-label="Updates"
-                >
-                  <CalendarDays className="h-4.5 w-4.5" />
-                </Link>
-                <Link
-                  href="/portal/notifications"
-                  className="relative hidden h-11 w-11 items-center justify-center rounded-2xl border border-[#ead8c4] bg-white text-[#7f6144] transition hover:bg-[#fff8f0] hover:text-[#2f2218] sm:inline-flex"
-                  aria-label="Notifications"
-                >
-                  <Bell className="h-4 w-4" />
-                  {notificationCount > 0 ? (
-                    <span className="absolute -right-1 -top-1 inline-flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#d97540] px-1 text-[10px] font-black text-white">
-                      {notificationCount > 9 ? "9+" : notificationCount}
-                    </span>
-                  ) : null}
-                </Link>
-                <Link
-                  href="/portal/messages"
-                  className="relative hidden h-11 w-11 items-center justify-center rounded-2xl border border-[#ead8c4] bg-white text-[#7f6144] transition hover:bg-[#fff8f0] hover:text-[#2f2218] sm:inline-flex"
-                  aria-label="Messages"
-                >
-                  <Mail className="h-4 w-4" />
-                  {unreadMessageCount > 0 ? (
-                    <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-[#ef4444]" />
-                  ) : null}
-                </Link>
-
-                <div ref={userMenuRef} className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setIsUserMenuOpen((value) => !value)}
-                    className="flex items-center gap-2 rounded-full border border-[#ead8c4] bg-white py-1 pl-1 pr-2 shadow-[0_10px_22px_rgba(106,76,45,0.08)] transition hover:bg-[#fff8f0]"
-                    aria-label="Open profile menu"
-                  >
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[linear-gradient(135deg,#d3a056_0%,#b5752f_100%)] text-sm font-black text-white">
-                      {userInitial}
-                    </div>
-                    <ChevronDown className="h-4 w-4 text-[#8f7257]" />
-                  </button>
-
-                  {isUserMenuOpen ? (
-                    <div className="absolute right-0 top-[calc(100%+12px)] z-50 w-[270px] rounded-[1.5rem] border border-[#d8cab7] bg-[#fffaf4] p-3 text-[#4d392a] shadow-[0_24px_48px_rgba(47,32,20,0.18)]">
-                      <div className="rounded-[1.1rem] border border-[#eadfce] bg-white px-4 py-3">
-                        <div className="text-sm font-black text-[#342116]">{displayName}</div>
-                        <div className="mt-1 text-xs text-[#8b6b4d]">{user?.email || "No email on file"}</div>
-                        <div className="mt-1 text-xs text-[#8b6b4d]">{profile?.phone || "No phone on file"}</div>
-                      </div>
-
-                      <div className="mt-3 space-y-2">
-                        <Link
-                          href="/portal/profile"
-                          onClick={() => setIsUserMenuOpen(false)}
-                          className="block rounded-[1rem] border border-[#eadfce] bg-white px-4 py-3 text-sm font-semibold transition hover:bg-[#fff9f3]"
-                        >
-                          View and Edit Profile
-                        </Link>
-                        <Link
-                          href="/portal/notifications"
-                          onClick={() => setIsUserMenuOpen(false)}
-                          className="flex items-center justify-between rounded-[1rem] border border-[#eadfce] bg-white px-4 py-3 text-sm font-semibold transition hover:bg-[#fff9f3]"
-                        >
-                          <span>Notifications</span>
-                          <span className="text-xs text-[#8b6b4d]">{notificationCount}</span>
-                        </Link>
-                        <Link
-                          href="/portal/help"
-                          onClick={() => setIsUserMenuOpen(false)}
-                          className="block rounded-[1rem] border border-[#eadfce] bg-white px-4 py-3 text-sm font-semibold transition hover:bg-[#fff9f3]"
-                        >
-                          Help and Support
-                        </Link>
-                        {hasAdminUi ? (
-                          <Link
-                            href="/admin/portal"
-                            onClick={() => setIsUserMenuOpen(false)}
-                            className="block rounded-[1rem] border border-[#eadfce] bg-[#fff7ef] px-4 py-3 text-sm font-semibold transition hover:bg-white"
-                          >
-                            Open Admin Portal
-                          </Link>
-                        ) : null}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsUserMenuOpen(false);
-                            void handleSignOut();
-                          }}
-                          className="w-full rounded-[1rem] border border-[#eadfce] bg-[#6f5037] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#5d4330]"
-                        >
-                          Sign Out
-                        </button>
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="min-h-[calc(100vh-76px)] w-full bg-[radial-gradient(circle_at_top_right,rgba(212,168,108,0.10),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(226,206,180,0.18),transparent_24%)] px-5 py-5 md:px-6 md:py-6 lg:px-8 xl:px-10">
-            {children}
-          </div>
-          </div>
-        </main>
-      </div>
-
-      {/* Floating Chat Widget */}
-      <div className="pointer-events-none fixed inset-0 z-[9999]">
-        <div className="pointer-events-none absolute bottom-[94px] right-3 flex flex-col items-end gap-4 sm:bottom-[104px] sm:right-7">
-          {isChiChiOpen && (
-            <div className="pointer-events-auto flex h-[min(680px,calc(100vh-120px))] w-[calc(100vw-24px)] max-w-[380px] flex-col overflow-hidden rounded-[1.15rem] border border-[#e8d5c3] bg-[#fffaf6] shadow-[0_16px_56px_rgba(90,50,20,0.15),0_2px_8px_rgba(0,0,0,0.06)] animate-in slide-in-from-bottom-4 fade-in duration-300 sm:w-[380px]">
-              <div className="flex items-center gap-3 bg-[linear-gradient(135deg,#d97540,#b85e2a)] px-4 py-4 text-white">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-white/40 bg-[#f2c47e] text-[#6b3816] shadow-[0_2px_8px_rgba(0,0,0,0.2)]">
-                  <Dog className="h-5 w-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-extrabold">
-                    {hasAdminUi ? "ChiChi + Core" : "ChiChi"}
-                  </div>
-                  <div className="mt-0.5 flex items-center gap-2 text-xs text-white/85">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#6ddc8b]" />
-                    <span>{hasAdminUi ? "Online - admin ready" : "Online - ask me anything"}</span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsChiChiOpen(false)}
-                  className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
-                  aria-label="Close ChiChi Assistant"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <div className="border-b border-[#eadfce] bg-[#fffaf4] px-4 py-4">
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="rounded-[1rem] border border-[#eadfce] bg-white px-3 py-2.5 shadow-sm">
-                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-stone-400">
-                      Buyer
-                    </div>
-                    <div
-                      className="mt-1 truncate text-xs font-semibold text-stone-700"
-                      title={buyerName || displayName}
-                    >
-                      {buyerName || displayName}
-                    </div>
-                  </div>
-                  <div className="rounded-[1rem] border border-[#eadfce] bg-white px-3 py-2.5 shadow-sm">
-                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-stone-400">
-                      Puppy
-                    </div>
-                    <div
-                      className="mt-1 truncate text-xs font-semibold text-stone-700"
-                      title={puppyName || "Your Puppy"}
-                    >
-                      {puppyName || "Your Puppy"}
-                    </div>
-                  </div>
-                  <div className="rounded-[1rem] border border-[#eadfce] bg-white px-3 py-2.5 shadow-sm">
-                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-stone-400">
-                      Access
-                    </div>
-                    <div className="mt-1 truncate text-xs font-semibold text-stone-700">
-                      {hasAdminUi ? "Admin UI" : "Standard"}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-3 inline-flex rounded-2xl bg-[#f2ede7] p-1">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("ask")}
-                    className={`rounded-xl px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em] transition ${
-                      activeTab === "ask"
-                        ? "bg-white text-stone-900 shadow-sm"
-                        : "text-stone-500 hover:text-stone-700"
-                    }`}
-                  >
-                    Ask
-                  </button>
-                  {hasAdminUi && (
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("actions")}
-                      className={`rounded-xl px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em] transition ${
-                        activeTab === "actions"
-                          ? "bg-white text-stone-900 shadow-sm"
-                          : "text-stone-500 hover:text-stone-700"
-                      }`}
-                    >
-                      Core Console
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="border-b border-[#eadfce] bg-[#fffaf4] px-4 py-4">
-                {activeTab === "ask" || !hasAdminUi ? (
-                  <div className="rounded-[1.35rem] border border-[#dfcfbd] bg-white p-4 text-[15px] leading-7 text-[#6d5037]">
-                    <div className="font-semibold text-[#4d3b2b]">
-                      Hi, I&apos;m your personal ChiChi Assistant!
-                    </div>
-                    <div className="mt-1">
-                      Ask me about your account, documents, payments, messages, puppy updates, or general Chihuahua care and breed questions.
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {[
-                        { label: "My Puppy", prompt: "Show me my puppy summary." },
-                        { label: "Messages", prompt: "Show me recent messages for this account." },
-                        { label: "Documents", prompt: "What documents are available for me?" },
-                      ].map((item) => (
-                        <button
-                          key={item.label}
-                          type="button"
-                          onClick={() => void sendChiChiMessage(undefined, item.prompt)}
-                          className="rounded-full border border-[#dfcfbd] bg-[#fff9f3] px-3 py-2 text-[11px] font-bold text-[#6d5037] transition hover:border-[#d7bea2] hover:bg-white"
-                        >
-                          {item.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {adminAuth ? (
-                      <div className="rounded-[1.15rem] border border-[#dfcfbd] bg-white px-4 py-3 text-[11px] leading-5 text-[#6d5037]">
-                        <div className="font-black uppercase tracking-[0.16em] text-stone-500">
-                          Server Admin Status
-                        </div>
-                        <div className="mt-1">
-                          {adminAuth.canWriteCore ? "Write access enabled." : "Write access not enabled yet."}
-                        </div>
-                        <div className="mt-1 break-all">{adminAuth.email || "No email returned"}</div>
-                        <div className="break-all text-stone-400">
-                          {adminAuth.userId || "No user id returned"}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    <div className="grid grid-cols-2 gap-2">
-                      {coreActions.map((action) => (
-                        <button
-                          key={action.key}
-                          type="button"
-                          onClick={() => {
-                            setActiveTab("ask");
-                            void sendChiChiMessage(undefined, action.prompt);
-                          }}
-                          className="flex items-center gap-2 rounded-[1rem] border border-[#eadfce] bg-white px-3 py-3 text-left text-xs font-semibold text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#d7bea2] hover:bg-[#fff9f3]"
-                        >
-                          <span className="text-[#b85e2a]">{action.icon}</span>
-                          <span>{action.label}</span>
-                        </button>
-                      ))}
-                    </div>
-
-                    <Link
-                      href="/admin/portal/assistant"
-                      className="flex items-center justify-between rounded-[1rem] border border-[#d7bea2] bg-[#fff7ef] px-4 py-3 text-[11px] font-black uppercase tracking-[0.16em] text-[#6e5035] transition hover:bg-white"
-                    >
-                      <span>Open Full Admin Assistant</span>
-                      <span aria-hidden="true">{"->"}</span>
-                    </Link>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex-1 overflow-y-auto px-4 pb-2 pt-4">
-                <div className="flex flex-col gap-3">
-                  {messages.map((message) => {
-                    const isUser = message.role === "user";
-
-                    return (
-                      <div
-                        key={message.id}
-                        className={`flex max-w-[88%] items-end gap-2 ${
-                          isUser ? "ml-auto flex-row-reverse" : "mr-auto"
-                        } animate-in slide-in-from-bottom-2 fade-in duration-300`}
-                      >
-                        <div
-                          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
-                            isUser ? "bg-[#fdf1e8] text-[#b85e2a]" : "bg-[#f2c47e] text-[#6b3816]"
-                          }`}
-                        >
-                          {isUser ? userInitial : <Dog className="h-3.5 w-3.5" />}
-                        </div>
-                        <div className="min-w-0">
-                          <div
-                            className={[
-                              "rounded-2xl px-3.5 py-2.5 text-sm leading-6 shadow-sm",
-                              isUser
-                                ? "rounded-br-md bg-[#d97540] text-white"
-                                : "rounded-bl-md border border-[#e8d5c3] bg-[#fff8f2] text-[#2d1f12]",
-                            ].join(" ")}
-                          >
-                            {renderChatText(message.text)}
-                          </div>
-                          <div
-                            className={`mt-1 px-1 text-[10px] ${
-                              isUser ? "text-right text-[#7a5c42]" : "text-[#7a5c42]"
-                            }`}
-                          >
-                            {message.createdAt}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {isSending && (
-                    <div className="mr-auto flex max-w-[88%] items-end gap-2 animate-in fade-in">
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f2c47e] text-[#6b3816]">
-                        <Dog className="h-3.5 w-3.5" />
-                      </div>
-                      <div className="flex items-center gap-1 rounded-2xl rounded-bl-md border border-[#e8d5c3] bg-[#fff8f2] px-4 py-3">
-                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#d97540] [animation-delay:-0.3s]" />
-                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#d97540] [animation-delay:-0.15s]" />
-                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#d97540]" />
-                      </div>
-                    </div>
-                  )}
-
-                  <div ref={chatEndRef} />
-                </div>
-              </div>
-
-              <form
-                onSubmit={(e) => void sendChiChiMessage(e)}
-                className="border-t border-[#e8d5c3] bg-[#fffaf6] px-3.5 pb-3 pt-3"
+              <Link
+                href="/portal/messages"
+                className="relative inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#eadccf] bg-white text-[#4b3526] shadow-[0_10px_22px_rgba(99,69,39,0.06)]"
+                aria-label="Open messages"
               >
-                <div className="flex items-end gap-2">
-                  <textarea
-                    ref={chatInputRef}
-                    value={chatDraft}
-                    onChange={(e) => setChatDraft(e.target.value)}
-                    onKeyDown={handleTextareaKeyDown}
-                    rows={1}
-                    style={{ minHeight: "42px", maxHeight: "100px" }}
-                    placeholder={
-                      activeTab === "actions" && hasAdminUi
-                        ? "Describe a Core action..."
-                        : "Ask me about puppies, care tips, availability..."
-                    }
-                    className="max-h-[100px] flex-1 resize-none rounded-[1.35rem] border border-[#e8d5c3] bg-white px-4 py-2.5 text-sm leading-6 text-[#2d1f12] outline-none transition placeholder:text-[#bfa990] focus:border-[#d97540]"
-                  />
-                  <button
-                    type="submit"
-                    disabled={isSending || !chatDraft.trim()}
-                    className="inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#d97540,#b85e2a)] text-white shadow-[0_3px_12px_rgba(90,50,20,0.15)] transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
-                    aria-label="Send message"
-                  >
-                    <SendHorizonal className="h-4 w-4" />
-                  </button>
-                </div>
-
-                <div className="pt-2 text-center text-[10.5px] text-[#c4a88c]">
-                  Emergency? Please contact your vet.{" "}
-                  <a
-                    href="https://www.google.com/maps/search/emergency+veterinarian+near+me"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="font-semibold text-[#7b5b3f] underline underline-offset-2"
-                  >
-                    Nearby emergency vets
-                    <ExternalLink className="ml-1 inline h-3 w-3" />
-                  </a>
-                </div>
-              </form>
+                <Mail className="h-5 w-5" />
+                {unreadMessageCount > 0 ? (
+                  <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-[#cf6a43]" />
+                ) : null}
+              </Link>
             </div>
-          )}
+          </header>
 
-          <button
-            type="button"
-            onClick={() => setIsChiChiOpen((v) => !v)}
-            className={`pointer-events-auto inline-flex h-16 w-16 items-center justify-center rounded-full bg-[linear-gradient(135deg,#d97540,#b85e2a)] text-white shadow-[0_6px_24px_rgba(90,50,20,0.15)] transition duration-200 hover:scale-[1.08] hover:shadow-[0_10px_32px_rgba(90,50,20,0.18)] ${
-              isChiChiOpen ? "scale-0 opacity-0" : "scale-100 opacity-100"
-            }`}
-            aria-label="Toggle ChiChi Assistant"
-            title="Chat with ChiChi"
-          >
-            <PawPrint className="h-7 w-7" />
-          </button>
+          <main className="min-h-screen px-4 py-5 md:px-6 md:py-6 xl:px-8 xl:py-8">
+            <div className="mx-auto w-full max-w-[1480px]">{children}</div>
+          </main>
         </div>
       </div>
+
+      {isDrawerOpen ? (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-[#20160f]/35 backdrop-blur-[2px]"
+            onClick={() => setIsDrawerOpen(false)}
+            aria-label="Close portal navigation"
+          />
+          <div className="absolute left-0 top-0 h-full w-[86%] max-w-[340px] border-r border-[#eadccf] bg-[linear-gradient(180deg,#fbf7f2_0%,#f4eadf_100%)] px-5 py-5 shadow-[0_30px_80px_rgba(47,32,20,0.18)]">
+            <div className="mb-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsDrawerOpen(false)}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#eadccf] bg-white text-[#4b3526]"
+                aria-label="Close portal navigation"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <SidebarContent />
+          </div>
+        </div>
+      ) : null}
+
+      <PortalChiChiWidget
+        displayName={displayName}
+        puppyName={puppyName}
+        userInitial={userInitial}
+        isAdmin={hasAdminUi}
+        messages={messages}
+        adminAuth={adminAuth}
+        isSending={isSending}
+        chatDraft={chatDraft}
+        onDraftChange={setChatDraft}
+        onSend={handleSendChiChiMessage}
+      />
     </div>
   );
 }
 
+function navItemClass(active: boolean) {
+  return [
+    "group flex items-center gap-3 rounded-2xl px-4 py-3 transition-all duration-200",
+    active
+      ? "bg-white text-[#2f2218] shadow-[0_18px_34px_rgba(99,69,39,0.12)] ring-1 ring-[#ead9c7]"
+      : "text-[#785b42] hover:bg-white/75 hover:text-[#2f2218]",
+  ].join(" ");
+}
 
+function navIconClass(active: boolean) {
+  return [
+    "flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-200",
+    active
+      ? "bg-[linear-gradient(135deg,#efd4a5_0%,#d39a52_100%)] text-[#3d2918] shadow-[0_10px_20px_rgba(183,122,49,0.18)]"
+      : "bg-[#f8efe5] text-[#9f7b55] group-hover:bg-white group-hover:text-[#2f2218]",
+  ].join(" ");
+}

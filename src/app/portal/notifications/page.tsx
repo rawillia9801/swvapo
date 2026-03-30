@@ -1,36 +1,31 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { fmtDate, sb } from "@/lib/utils";
-
-type SessionUser = {
-  id: string;
-  email?: string | null;
-};
-
-type PortalMessage = {
-  id: string;
-  created_at: string;
-  subject: string | null;
-  message: string;
-  read_by_user: boolean;
-};
-
-type PuppyEvent = {
-  id: number;
-  event_date: string;
-  label: string | null;
-  details: string | null;
-  event_type: string;
-};
-
-type HealthRecord = {
-  id: number;
-  record_date: string;
-  title: string;
-  description: string | null;
-};
+import { fmtDate } from "@/lib/utils";
+import {
+  findHealthRecords,
+  findPortalMessagesForUser,
+  findPuppyEvents,
+  loadPortalContext,
+  type PortalHealthRecord,
+  type PortalMessage,
+  type PortalPuppyEvent,
+} from "@/lib/portal-data";
+import { usePortalSession } from "@/hooks/use-portal-session";
+import {
+  PortalEmptyState,
+  PortalErrorState,
+  PortalHeroPrimaryAction,
+  PortalHeroSecondaryAction,
+  PortalInfoTile,
+  PortalLoadingState,
+  PortalMetricCard,
+  PortalMetricGrid,
+  PortalPageHero,
+  PortalPanel,
+  PortalStatusBadge,
+} from "@/components/portal/luxury-shell";
 
 type Notice = {
   id: string;
@@ -42,196 +37,209 @@ type Notice = {
   isUnread?: boolean;
 };
 
+function healthLabel(recordType: string) {
+  const normalized = String(recordType || "").toLowerCase();
+  if (normalized === "vaccine") return "Vaccine";
+  if (normalized === "deworming") return "Deworming";
+  if (normalized === "exam") return "Exam";
+  return "Health";
+}
+
 export default function PortalNotificationsPage() {
-  const [user, setUser] = useState<SessionUser | null>(null);
+  const { user, loading: sessionLoading } = usePortalSession();
   const [messages, setMessages] = useState<PortalMessage[]>([]);
-  const [events, setEvents] = useState<PuppyEvent[]>([]);
-  const [health, setHealth] = useState<HealthRecord[]>([]);
+  const [events, setEvents] = useState<PortalPuppyEvent[]>([]);
+  const [health, setHealth] = useState<PortalHealthRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errorText, setErrorText] = useState("");
 
   useEffect(() => {
-    let mounted = true;
+    let active = true;
 
-    const init = async () => {
-      try {
-        const {
-          data: { session },
-        } = await sb.auth.getSession();
-
-        if (!mounted) return;
-
-        const currentUser = (session?.user as SessionUser | null) ?? null;
-        setUser(currentUser);
-        if (currentUser) {
-          await loadNotifications(currentUser);
-        }
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    void init();
-
-    const { data: authListener } = sb.auth.onAuthStateChange(async (_event, session) => {
-      const currentUser = (session?.user as SessionUser | null) ?? null;
-      if (!mounted) return;
-
-      setUser(currentUser);
-      if (currentUser) {
-        await loadNotifications(currentUser);
-      } else {
+    async function loadPage() {
+      if (!user) {
+        setLoading(false);
         setMessages([]);
         setEvents([]);
         setHealth([]);
+        return;
       }
-      setLoading(false);
-    });
+
+      setLoading(true);
+      setErrorText("");
+
+      try {
+        const context = await loadPortalContext(user);
+        const [portalMessages, puppyEvents, healthRecords] = await Promise.all([
+          findPortalMessagesForUser(user, 12),
+          findPuppyEvents(context.puppy?.id),
+          findHealthRecords(context.puppy?.id),
+        ]);
+
+        if (!active) return;
+        setMessages(portalMessages);
+        setEvents(puppyEvents.slice(0, 8));
+        setHealth(healthRecords.slice(0, 8));
+      } catch (error) {
+        console.error("Could not load notifications page:", error);
+        if (!active) return;
+        setErrorText(
+          "We could not load notifications right now. Please refresh or try again in a moment."
+        );
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    void loadPage();
 
     return () => {
-      mounted = false;
-      authListener.subscription.unsubscribe();
+      active = false;
     };
-  }, []);
+  }, [user]);
 
-  async function loadNotifications(currentUser: SessionUser) {
-    const email = String(currentUser.email || "").trim().toLowerCase();
-
-    const unreadMessagesRes = await sb
-      .from("portal_messages")
-      .select("id,created_at,subject,message,read_by_user")
-      .or(`user_id.eq.${currentUser.id},user_email.ilike.${email}`)
-      .order("created_at", { ascending: false })
-      .limit(12);
-
-    setMessages((unreadMessagesRes.data as PortalMessage[]) || []);
-
-    const buyerRes = await sb
-      .from("buyers")
-      .select("id")
-      .or(`user_id.eq.${currentUser.id},email.ilike.${email},buyer_email.ilike.${email}`)
-      .limit(1)
-      .maybeSingle();
-
-    const buyerId = Number(buyerRes.data?.id || 0) || null;
-    let puppyId: number | null = null;
-
-    if (buyerId) {
-      const puppyRes = await sb
-        .from("puppies")
-        .select("id")
-        .eq("buyer_id", buyerId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      puppyId = Number(puppyRes.data?.id || 0) || null;
-    }
-
-    if (!puppyId) {
-      setEvents([]);
-      setHealth([]);
-      return;
-    }
-
-    const [eventsRes, healthRes] = await Promise.all([
-      sb
-        .from("puppy_events")
-        .select("id,event_date,label,details,event_type")
-        .eq("puppy_id", puppyId)
-        .order("event_date", { ascending: false })
-        .limit(8),
-      sb
-        .from("puppy_health")
-        .select("id,record_date,title,description")
-        .eq("puppy_id", puppyId)
-        .eq("is_visible_to_buyer", true)
-        .order("record_date", { ascending: false })
-        .limit(8),
-    ]);
-
-    setEvents((eventsRes.data as PuppyEvent[]) || []);
-    setHealth((healthRes.data as HealthRecord[]) || []);
-  }
-
-  const notices = useMemo<Notice[]>(() => {
-    const items: Notice[] = [
-      ...messages.map((message) => ({
-        id: `message-${message.id}`,
-        kind: "message" as const,
-        date: message.created_at,
-        title: message.subject || "New portal message",
-        body: message.message,
-        href: "/portal/messages",
-        isUnread: !message.read_by_user,
-      })),
-      ...events.map((event) => ({
-        id: `event-${event.id}`,
-        kind: "milestone" as const,
-        date: event.event_date,
-        title: event.label || event.event_type || "Puppy update",
-        body: event.details || "A new puppy milestone was added to your portal.",
-        href: "/portal/updates",
-      })),
-      ...health.map((record) => ({
-        id: `health-${record.id}`,
-        kind: "health" as const,
-        date: record.record_date,
-        title: record.title || "Health update",
-        body: record.description || "A new health record was posted to your portal.",
-        href: "/portal/updates",
-      })),
-    ];
-
-    return items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [events, health, messages]);
-
-  if (loading) {
-    return <div className="py-20 text-center text-sm font-semibold text-[#8b6b4d]">Loading notifications...</div>;
+  if (sessionLoading || loading) {
+    return <PortalLoadingState label="Loading notifications..." />;
   }
 
   if (!user) {
-    return <div className="py-20 text-center text-sm font-semibold text-[#8b6b4d]">Please sign in to view notifications.</div>;
+    return (
+      <PortalPageHero
+        eyebrow="Notifications"
+        title="Sign in to view recent activity."
+        description="Messages, milestones, and visible health updates appear here once you are signed in."
+        actions={<PortalHeroPrimaryAction href="/portal">Open Portal Access</PortalHeroPrimaryAction>}
+      />
+    );
   }
 
-  return (
-    <div className="space-y-8">
-      <section className="rounded-[2rem] border border-[#dccab7] bg-white p-7 shadow-[0_16px_40px_rgba(74,51,33,0.08)]">
-        <div className="text-[11px] font-black uppercase tracking-[0.22em] text-[#9c7b58]">Notifications</div>
-        <h1 className="mt-3 font-serif text-4xl font-bold text-[#3b271b]">Recent Activity</h1>
-        <p className="mt-3 text-sm font-semibold leading-7 text-[#8b6b4d]">
-          Messages, milestones, and health updates for your account are collected here so nothing important gets missed.
-        </p>
-      </section>
+  if (errorText) {
+    return <PortalErrorState title="Notifications are unavailable" description={errorText} />;
+  }
 
-      <section className="rounded-[2rem] border border-[#dccab7] bg-white p-7 shadow-[0_16px_40px_rgba(74,51,33,0.08)]">
-        <div className="space-y-4">
-          {notices.length ? (
-            notices.map((notice) => (
+  const notices: Notice[] = [
+    ...messages.map((message) => ({
+      id: `message-${message.id}`,
+      kind: "message" as const,
+      date: message.created_at,
+      title: message.subject || "New portal message",
+      body: message.message || "A new portal message was added to your conversation.",
+      href: "/portal/messages",
+      isUnread: message.sender === "admin" && !message.read_by_user,
+    })),
+    ...events.map((event) => ({
+      id: `event-${event.id}`,
+      kind: "milestone" as const,
+      date: event.event_date,
+      title: event.title || event.label || "Puppy update",
+      body:
+        event.summary ||
+        event.details ||
+        "A new puppy milestone or breeder update was posted to your timeline.",
+      href: "/portal/updates",
+    })),
+    ...health.map((record) => ({
+      id: `health-${record.id}`,
+      kind: "health" as const,
+      date: record.record_date,
+      title: record.title || "Health update",
+      body:
+        record.description ||
+        `${healthLabel(record.record_type)} added to your puppy's visible wellness history.`,
+      href: "/portal/updates",
+    })),
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  const unreadCount = notices.filter((notice) => notice.kind === "message" && notice.isUnread).length;
+
+  return (
+    <div className="space-y-6 pb-14">
+      <PortalPageHero
+        eyebrow="Notifications"
+        title="Recent activity, collected in one place."
+        description="Messages, breeder notes, and visible health updates are gathered here so important changes are easy to spot without bouncing between tabs."
+        actions={
+          <>
+            <PortalHeroPrimaryAction href="/portal/messages">Open Messages</PortalHeroPrimaryAction>
+            <PortalHeroSecondaryAction href="/portal/updates">Open Pupdates</PortalHeroSecondaryAction>
+          </>
+        }
+        aside={
+          <div className="space-y-4">
+            <PortalInfoTile
+              label="Unread Messages"
+              value={String(unreadCount)}
+              detail="Breeder replies that still need your attention."
+              tone={unreadCount ? "warning" : "neutral"}
+            />
+            <PortalInfoTile
+              label="Recent Activity"
+              value={String(notices.length)}
+              detail="Combined notifications from messages, milestones, and health updates."
+            />
+          </div>
+        }
+      />
+
+      <PortalMetricGrid>
+        <PortalMetricCard
+          label="Unread"
+          value={String(unreadCount)}
+          detail="Breeder messages that have not been read on your side."
+        />
+        <PortalMetricCard
+          label="Messages"
+          value={String(messages.length)}
+          detail="Recent portal message activity."
+          accent="from-[#ece3d5] via-[#d7c1a3] to-[#b18d62]"
+        />
+        <PortalMetricCard
+          label="Milestones"
+          value={String(events.length)}
+          detail="Recent breeder note and milestone activity."
+          accent="from-[#f0dcc1] via-[#ddb68c] to-[#c98743]"
+        />
+        <PortalMetricCard
+          label="Health Updates"
+          value={String(health.length)}
+          detail="Recent visible wellness activity."
+          accent="from-[#dce9d6] via-[#b6cfaa] to-[#7e9c6f]"
+        />
+      </PortalMetricGrid>
+
+      <PortalPanel
+        title="Recent Activity"
+        subtitle="A combined view of your newest messages, milestone notes, and visible health records."
+      >
+        {notices.length ? (
+          <div className="space-y-4">
+            {notices.map((notice) => (
               <Link
                 key={notice.id}
                 href={notice.href}
-                className="block rounded-[1.4rem] border border-[#e5d7c8] bg-[#fcf9f5] p-5 transition hover:bg-white"
+                className="block rounded-[24px] border border-[#eadccf] bg-white px-5 py-5 shadow-[0_10px_24px_rgba(96,67,38,0.05)] transition hover:-translate-y-0.5 hover:border-[#d7b58e]"
               >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <span className="rounded-full bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#8b6b4d]">
-                      {notice.kind}
-                    </span>
-                    {notice.isUnread ? <span className="h-2.5 w-2.5 rounded-full bg-[#ef4444]" /> : null}
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <PortalStatusBadge label={notice.kind} tone={notice.kind === "health" ? "success" : "neutral"} />
+                      {notice.isUnread ? <PortalStatusBadge label="Unread" tone="warning" /> : null}
+                    </div>
+                    <div className="mt-3 text-lg font-semibold text-[#2f2218]">{notice.title}</div>
+                    <div className="mt-2 text-sm leading-7 text-[#72553c]">{notice.body}</div>
                   </div>
-                  <div className="text-xs font-semibold text-[#8b6b4d]">{fmtDate(notice.date)}</div>
+                  <div className="shrink-0 text-[11px] font-medium text-[#8a6a49]">{fmtDate(notice.date)}</div>
                 </div>
-                <div className="mt-3 text-lg font-black text-[#342116]">{notice.title}</div>
-                <div className="mt-2 text-sm font-semibold leading-7 text-[#6f5037]">{notice.body}</div>
               </Link>
-            ))
-          ) : (
-            <div className="rounded-[1.5rem] border border-dashed border-[#e5d7c8] bg-[#fcf8f3] py-14 text-center text-sm font-semibold italic text-[#9e8164]">
-              You do not have any notifications yet.
-            </div>
-          )}
-        </div>
-      </section>
+            ))}
+          </div>
+        ) : (
+          <PortalEmptyState
+            title="No notifications yet"
+            description="Messages, milestones, and visible health activity will appear here as they are added to your portal."
+          />
+        )}
+      </PortalPanel>
     </div>
   );
 }
