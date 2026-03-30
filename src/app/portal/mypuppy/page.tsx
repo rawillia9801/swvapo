@@ -17,17 +17,19 @@ import {
 } from "@/lib/portal-data";
 import { usePortalSession } from "@/hooks/use-portal-session";
 import {
+  PortalActionLink,
   PortalEmptyState,
   PortalErrorState,
   PortalHeroPrimaryAction,
   PortalHeroSecondaryAction,
   PortalInfoTile,
+  PortalListCard,
   PortalLoadingState,
   PortalMetricCard,
   PortalMetricGrid,
+  PortalNarrativeCard,
   PortalPageHero,
   PortalPanel,
-  PortalStatusBadge,
 } from "@/components/portal/luxury-shell";
 
 type JourneyItem = {
@@ -40,7 +42,7 @@ type JourneyItem = {
 };
 
 function displayWeight(value?: number | null, unit = "oz") {
-  if (value === null || value === undefined || Number(value) <= 0) return "—";
+  if (value === null || value === undefined || Number(value) <= 0) return "Not recorded";
   return `${Number(value).toFixed(Number(value) % 1 === 0 ? 0 : 1)} ${unit}`.trim();
 }
 
@@ -57,9 +59,7 @@ function getAgeLabel(dob?: string | null) {
     Math.floor((Date.now() - new Date(dob).getTime()) / (1000 * 60 * 60 * 24))
   );
 
-  if (diffDays < 7) {
-    return `${diffDays} day${diffDays === 1 ? "" : "s"} old`;
-  }
+  if (diffDays < 7) return `${diffDays} day${diffDays === 1 ? "" : "s"} old`;
 
   const weeks = Math.floor(diffDays / 7);
   return `${weeks} week${weeks === 1 ? "" : "s"} old`;
@@ -72,24 +72,29 @@ function getJourneyStage(statusRaw?: string | null, ageWeeks?: number | null) {
     return {
       label: "At Home",
       summary:
-        "This page stays useful after homecoming for breeder history, wellness notes, and reference details.",
+        "This page stays useful after homecoming for breeder history, wellness records, and early development context.",
       guidance: [
         "Use this page as your clean reference for breeder notes, early milestones, and wellness history.",
-        "Messages and resources remain available when you need clarification or support after go-home day.",
-        "The goal is continuity, not a portal that becomes irrelevant once your puppy leaves.",
+        "Messages and resources remain available whenever you need support after homecoming.",
+        "The goal is continuity, not a portal that stops being useful once your puppy leaves breeder care.",
       ],
     };
   }
 
-  if (status.includes("matched") || status.includes("assigned") || status.includes("reserved") || status.includes("sold")) {
+  if (
+    status.includes("matched") ||
+    status.includes("assigned") ||
+    status.includes("reserved") ||
+    status.includes("sold")
+  ) {
     return {
       label: "Matched",
       summary:
-        "Your puppy has been matched to your family and this page will track meaningful progress toward homecoming.",
+        "Your puppy has been matched to your family, and this page is here to show meaningful progress toward homecoming.",
       guidance: [
-        "This stage is about clear breeder updates, healthy growth, and confidence-building progress.",
-        "Only meaningful milestones should show up here, not filler or duplicated information.",
-        "The page is meant to feel like a real client experience, not a breeder admin screen.",
+        "This stage is about healthy development, breeder confidence, and clear next steps.",
+        "Only meaningful milestones should appear here, not filler or duplicated profile details.",
+        "The page should feel like a private puppy story, not a breeder admin screen.",
       ],
     };
   }
@@ -101,8 +106,8 @@ function getJourneyStage(statusRaw?: string | null, ageWeeks?: number | null) {
         "The focus is shifting toward readiness, transition details, and the final stretch before go-home day.",
       guidance: [
         "This is when care details, confidence, and transportation planning matter most.",
-        "The portal should help you understand how close your puppy is to a smooth transition home.",
-        "Use Messages for any practical questions about timing, routines, or handoff details.",
+        "Your portal should help you understand how close your puppy is to a smooth transition home.",
+        "Use Messages for practical questions about timing, routines, or handoff details.",
       ],
     };
   }
@@ -110,7 +115,7 @@ function getJourneyStage(statusRaw?: string | null, ageWeeks?: number | null) {
   return {
     label: "Growing With Breeder",
     summary:
-      "Your puppy is still in breeder care, and this page is centered on healthy development rather than filler updates.",
+      "Your puppy is still in breeder care, and this page is centered on development, confidence, and real progress.",
     guidance: [
       "The most useful updates at this stage are growth, wellness, and meaningful breeder observations.",
       "This page is designed to tell a clear story of progress instead of stacking repetitive data cards.",
@@ -126,7 +131,7 @@ function buildWeightTrend(puppy: PortalPuppy | null, weights: PortalPuppyWeight[
       id: `weight-${entry.id}`,
       label:
         entry.age_weeks !== null && entry.age_weeks !== undefined
-          ? `Wk ${entry.age_weeks}`
+          ? `Week ${entry.age_weeks}`
           : `Entry ${index + 1}`,
       weightOz:
         entry.weight_oz !== null && entry.weight_oz !== undefined
@@ -142,19 +147,19 @@ function buildWeightTrend(puppy: PortalPuppy | null, weights: PortalPuppyWeight[
 
   return [
     { id: "birth", label: "Birth", weightOz: Number(puppy.birth_weight || 0) },
-    { id: "w1", label: "Wk 1", weightOz: Number(puppy.w_1 || 0) },
-    { id: "w2", label: "Wk 2", weightOz: Number(puppy.w_2 || 0) },
-    { id: "w3", label: "Wk 3", weightOz: Number(puppy.w_3 || 0) },
-    { id: "w4", label: "Wk 4", weightOz: Number(puppy.w_4 || 0) },
-    { id: "w5", label: "Wk 5", weightOz: Number(puppy.w_5 || 0) },
-    { id: "w6", label: "Wk 6", weightOz: Number(puppy.w_6 || 0) },
-    { id: "w7", label: "Wk 7", weightOz: Number(puppy.w_7 || 0) },
-    { id: "w8", label: "Wk 8", weightOz: Number(puppy.w_8 || 0) },
+    { id: "w1", label: "Week 1", weightOz: Number(puppy.w_1 || 0) },
+    { id: "w2", label: "Week 2", weightOz: Number(puppy.w_2 || 0) },
+    { id: "w3", label: "Week 3", weightOz: Number(puppy.w_3 || 0) },
+    { id: "w4", label: "Week 4", weightOz: Number(puppy.w_4 || 0) },
+    { id: "w5", label: "Week 5", weightOz: Number(puppy.w_5 || 0) },
+    { id: "w6", label: "Week 6", weightOz: Number(puppy.w_6 || 0) },
+    { id: "w7", label: "Week 7", weightOz: Number(puppy.w_7 || 0) },
+    { id: "w8", label: "Week 8", weightOz: Number(puppy.w_8 || 0) },
   ].filter((entry) => entry.weightOz > 0);
 }
 
 function projectAdultWeight(weightOz?: number | null, ageWeeks?: number | null) {
-  if (!weightOz || ageWeeks === null || ageWeeks === undefined) return "—";
+  if (!weightOz || ageWeeks === null || ageWeeks === undefined) return "Not estimated";
   const factor = ageWeeks >= 12 ? 2 : ageWeeks >= 8 ? 2.5 : ageWeeks >= 6 ? 3 : 3.5;
   return `${((weightOz * factor) / 16).toFixed(1)} lbs est.`;
 }
@@ -248,31 +253,28 @@ export default function PortalMyPuppyPage() {
         eyebrow="My Puppy"
         title="Sign in to view your puppy journey."
         description="Your puppy profile, growth history, breeder notes, and support details live here once you are signed in."
-        actions={<PortalHeroPrimaryAction href="/portal">Open Portal Access</PortalHeroPrimaryAction>}
+        actions={<PortalHeroPrimaryAction href="/portal">Open My Puppy Portal</PortalHeroPrimaryAction>}
       />
     );
   }
 
   if (errorText) {
-    return (
-      <PortalErrorState
-        title="My Puppy is unavailable"
-        description={errorText}
-      />
-    );
+    return <PortalErrorState title="My Puppy is unavailable" description={errorText} />;
   }
 
   if (!puppy) {
     return (
-      <PortalPanel
-        title="My Puppy"
-        subtitle="This page becomes active once your puppy has been matched to your account."
+      <PortalNarrativeCard
+        eyebrow="My Puppy"
+        title="Your puppy profile will become the heart of this portal."
+        description="Once your puppy has been matched to your account, this page becomes a private place for milestones, growth, breeder notes, and the story leading up to homecoming."
       >
         <PortalEmptyState
           title="No puppy profile linked yet"
-          description="If you expected to see your puppy here already, message us and we can make sure your account is connected correctly."
+          description="If you expected to see your puppy here already, send a portal message and we can make sure your account is connected correctly."
+          action={<PortalHeroPrimaryAction href="/portal/messages">Message Support</PortalHeroPrimaryAction>}
         />
-      </PortalPanel>
+      </PortalNarrativeCard>
     );
   }
 
@@ -287,6 +289,7 @@ export default function PortalMyPuppyPage() {
   const latestWeightPoint = weightTrend[weightTrend.length - 1] || null;
   const latestWeightDate = weights[0]?.weigh_date || puppy.weight_date || null;
   const nextCare = health.find((record) => record.next_due_date) || null;
+
   const timeline: JourneyItem[] = [...events, ...health]
     .map((entry) => {
       if ("record_type" in entry) {
@@ -297,7 +300,7 @@ export default function PortalMyPuppyPage() {
           title: entry.title,
           description:
             entry.description ||
-            `${describeRecordType(entry.record_type)} added to your puppy's wellness record.`,
+            `${describeRecordType(entry.record_type)} added to your puppy wellness record.`,
           tone: "success" as const,
         };
       }
@@ -318,18 +321,20 @@ export default function PortalMyPuppyPage() {
 
   const maxWeight = Math.max(...weightTrend.map((item) => item.weightOz), 1);
   const profileChips = [
-    { label: "Sex", value: puppy.sex || "—" },
-    { label: "Color", value: puppy.color || "—" },
-    { label: "Coat", value: puppy.coat_type || puppy.coat || "—" },
-    { label: "Registry", value: puppy.registry || "—" },
+    { label: "Sex", value: puppy.sex || "Not listed" },
+    { label: "Color", value: puppy.color || "Not listed" },
+    { label: "Coat", value: puppy.coat_type || puppy.coat || "Not listed" },
+    { label: "Registry", value: puppy.registry || "Not listed" },
   ];
+
+  const breederContext = [puppy.description, puppy.notes].filter(Boolean).join("\n\n");
 
   return (
     <div className="space-y-6 pb-14">
       <PortalPageHero
         eyebrow="My Puppy"
         title={`${puppyName}'s private journey`}
-        description="A calm, organized view of your puppy's growth, milestones, breeder notes, and wellness record before go-home day and afterward."
+        description="A warm, beautifully organized place to follow growth, milestones, wellness, and breeder context before go-home day and after your puppy is home."
         actions={
           <>
             <PortalHeroPrimaryAction href="/portal/updates">Open Pupdates</PortalHeroPrimaryAction>
@@ -337,8 +342,8 @@ export default function PortalMyPuppyPage() {
           </>
         }
         aside={
-          <div className="overflow-hidden rounded-[30px] border border-[#ead9c7] bg-white shadow-[0_18px_38px_rgba(106,76,45,0.08)]">
-            <div className="relative aspect-[4/3] overflow-hidden">
+          <div className="overflow-hidden rounded-[32px] border border-[#ead9c7] bg-white shadow-[0_18px_42px_rgba(96,67,38,0.08)]">
+            <div className="relative aspect-[4/5] overflow-hidden">
               <Image
                 src={puppyImage}
                 alt={puppyName}
@@ -346,30 +351,31 @@ export default function PortalMyPuppyPage() {
                 sizes="(max-width: 1280px) 100vw, 360px"
                 className="object-cover"
               />
-            </div>
-            <div className="p-5">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#a47946]">
-                Journey Stage
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(28,18,10,0.05)_0%,rgba(28,18,10,0.6)_100%)]" />
+              <div className="absolute inset-x-4 bottom-4 rounded-[24px] border border-white/25 bg-white/14 p-4 backdrop-blur">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/80">
+                  Journey Stage
+                </div>
+                <div className="mt-2 text-2xl font-semibold text-white">{stage.label}</div>
+                <div className="mt-2 text-sm leading-6 text-white/85">{stage.summary}</div>
               </div>
-              <div className="mt-2 text-2xl font-semibold text-[#2f2218]">{stage.label}</div>
-              <div className="mt-2 text-sm leading-6 text-[#73583f]">{stage.summary}</div>
             </div>
           </div>
         }
       />
 
       <PortalMetricGrid>
-        <PortalMetricCard label="Stage" value={stage.label} detail={stage.summary} />
-        <PortalMetricCard
-          label="Age"
-          value={ageLabel}
-          detail={puppy.dob ? `Born ${fmtDate(puppy.dob)}` : "Date of birth not listed yet."}
-          accent="from-[#efe3d1] via-[#dbc2a1] to-[#b99366]"
-        />
+        <PortalMetricCard label="Age" value={ageLabel} detail={puppy.dob ? `Born ${fmtDate(puppy.dob)}` : "Date of birth not listed yet."} />
         <PortalMetricCard
           label="Latest Weight"
           value={displayWeight(latestWeightPoint?.weightOz || puppy.current_weight, puppy.weight_unit || "oz")}
           detail={latestWeightDate ? `Updated ${fmtDate(latestWeightDate)}` : "Weight updates appear here as they are added."}
+          accent="from-[#efe3d1] via-[#dbc2a1] to-[#b99366]"
+        />
+        <PortalMetricCard
+          label="Projected Adult Weight"
+          value={projectAdultWeight(latestWeightPoint?.weightOz || puppy.current_weight, ageWeeks)}
+          detail="Estimated from the most recent available growth data."
           accent="from-[#dce9d6] via-[#b4ceab] to-[#7f9b72]"
         />
         <PortalMetricCard
@@ -380,11 +386,11 @@ export default function PortalMyPuppyPage() {
         />
       </PortalMetricGrid>
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.15fr)_380px]">
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.15fr)_390px]">
         <div className="space-y-6">
           <PortalPanel
-            title="Profile Overview"
-            subtitle="The essentials that matter most for understanding your puppy without repeating the same information across multiple sections."
+            title="Puppy Story"
+            subtitle="The essentials that make this feel like your puppy story, not a breeder database export."
           >
             <div className="grid gap-4 md:grid-cols-2">
               {profileChips.map((chip) => (
@@ -397,24 +403,24 @@ export default function PortalMyPuppyPage() {
               ))}
               <PortalInfoTile
                 label="Parents"
-                value={[puppy.sire, puppy.dam].filter(Boolean).join(" / ") || "—"}
+                value={[puppy.sire, puppy.dam].filter(Boolean).join(" / ") || "Not listed"}
                 detail="Sire and dam listed for this puppy."
               />
               <PortalInfoTile
-                label="Projected Adult Weight"
-                value={projectAdultWeight(latestWeightPoint?.weightOz || puppy.current_weight, ageWeeks)}
-                detail="Estimated from the most recent available growth data."
+                label="Current Stage"
+                value={stage.label}
+                detail="A concise read on where your puppy is in the journey right now."
+                tone={stage.label === "At Home" ? "success" : "neutral"}
               />
             </div>
 
-            {(puppy.description || puppy.notes) ? (
-              <div className="mt-5 rounded-[24px] border border-[#eadccf] bg-[#fffaf4] p-5">
+            {breederContext ? (
+              <div className="mt-5 rounded-[26px] border border-[#eadccf] bg-[linear-gradient(180deg,#fffaf4_0%,#fff6ed_100%)] p-5">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a17848]">
                   Breeder Context
                 </div>
-                <div className="mt-3 space-y-3 text-sm leading-7 text-[#72553c]">
-                  {puppy.description ? <p>{puppy.description}</p> : null}
-                  {puppy.notes ? <p>{puppy.notes}</p> : null}
+                <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-[#72553c]">
+                  {breederContext}
                 </div>
               </div>
             ) : null}
@@ -422,7 +428,7 @@ export default function PortalMyPuppyPage() {
 
           <PortalPanel
             title="Growth Tracking"
-            subtitle="Weight history should feel informative and easy to scan, not like a wall of breeder admin data."
+            subtitle="Weight history should feel informative and easy to scan, not like a bulky admin graph."
           >
             <div className="grid gap-4 md:grid-cols-3">
               <PortalInfoTile
@@ -431,30 +437,30 @@ export default function PortalMyPuppyPage() {
                 detail="Most recent recorded weight."
               />
               <PortalInfoTile
-                label="Age At Last Weight"
+                label="Latest Growth Entry"
                 value={
                   weights[0]?.age_weeks !== null && weights[0]?.age_weeks !== undefined
                     ? `${weights[0].age_weeks} weeks`
                     : ageWeeks !== null
                       ? `${ageWeeks} weeks`
-                      : "—"
+                      : "Not listed"
                 }
-                detail="Age tied to the latest growth point."
+                detail="Age tied to the newest growth point."
               />
               <PortalInfoTile
-                label="Growth Pattern"
-                value={weightTrend.length ? `${weightTrend.length} entries` : "No entries"}
-                detail="Growth points available in your portal history."
+                label="Growth Entries"
+                value={weightTrend.length ? `${weightTrend.length}` : "0"}
+                detail="Growth points currently visible in the portal."
               />
             </div>
 
             {weightTrend.length ? (
-              <div className="mt-6 rounded-[26px] border border-[#ead9c7] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] p-5 shadow-[0_12px_30px_rgba(106,76,45,0.05)]">
+              <div className="mt-6 rounded-[28px] border border-[#ead9c7] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] p-5 shadow-[0_12px_30px_rgba(106,76,45,0.05)]">
                 <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a47946]">
                   <LineChart className="h-4 w-4" />
                   Growth Trend
                 </div>
-                <div className="mt-5 flex h-52 items-end gap-3">
+                <div className="mt-5 flex h-56 items-end gap-3">
                   {weightTrend.map((point) => {
                     const height = Math.max(16, (point.weightOz / maxWeight) * 100);
                     return (
@@ -462,7 +468,7 @@ export default function PortalMyPuppyPage() {
                         <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8d6f52]">
                           {point.weightOz.toFixed(1)} oz
                         </div>
-                        <div className="flex h-36 w-full items-end rounded-[18px] bg-white px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
+                        <div className="flex h-40 w-full items-end rounded-[18px] bg-white px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
                           <div
                             className="w-full rounded-[14px] bg-[linear-gradient(180deg,#d8b178_0%,#c98d49_52%,#a96a2c_100%)]"
                             style={{ height: `${height}%` }}
@@ -480,84 +486,101 @@ export default function PortalMyPuppyPage() {
               <div className="mt-6">
                 <PortalEmptyState
                   title="No growth data yet"
-                  description="When weight history is added to your puppy record, it will appear here as a clean trend instead of a bulky list."
+                  description="When weight history is added to your puppy record, it will appear here as a clear growth story instead of a cluttered list."
                 />
               </div>
+            )}
+          </PortalPanel>
+
+          <PortalPanel
+            title="Milestones & Memories"
+            subtitle="Breeder notes and wellness records stay together so the journey feels easy to revisit later."
+          >
+            {timeline.length ? (
+              <div className="space-y-4">
+                {timeline.slice(0, 8).map((item) => (
+                  <PortalListCard
+                    key={item.id}
+                    label={item.label}
+                    title={item.title}
+                    description={item.description}
+                    rightLabel={fmtDate(item.date)}
+                    tone={item.tone}
+                  />
+                ))}
+              </div>
+            ) : (
+              <PortalEmptyState
+                title="No milestones published yet"
+                description="As breeder notes and wellness records are published for your puppy, they will appear here automatically."
+              />
             )}
           </PortalPanel>
         </div>
 
         <div className="space-y-6">
           <PortalPanel
-            title="Journey Timeline"
-            subtitle="Milestones, breeder notes, and wellness updates stay together in one readable story."
-          >
-            <div className="space-y-4">
-              {timeline.length ? (
-                timeline.slice(0, 6).map((item) => (
-                  <div
-                    key={item.id}
-                    className="rounded-[24px] border border-[#eadccf] bg-white p-4 shadow-[0_10px_24px_rgba(96,67,38,0.05)]"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <PortalStatusBadge label={item.label} tone={item.tone} />
-                        </div>
-                        <div className="mt-3 text-sm font-semibold text-[#2f2218]">{item.title}</div>
-                        <div className="mt-2 text-sm leading-6 text-[#72553c]">{item.description}</div>
-                      </div>
-                      <div className="shrink-0 text-[11px] font-medium text-[#8a6a49]">
-                        {fmtDate(item.date)}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <PortalEmptyState
-                  title="No published timeline entries yet"
-                  description="As breeder notes and wellness records are published for your puppy, they will appear here automatically."
-                />
-              )}
-            </div>
-          </PortalPanel>
-
-          <PortalPanel
             title="What Matters Now"
-            subtitle="A focused summary of what this stage of your puppy journey is really about."
+            subtitle="A calmer way to understand the purpose of this stage in your puppy's journey."
           >
             <div className="space-y-3">
               {stage.guidance.map((item) => (
                 <div
                   key={item}
-                  className="rounded-[22px] border border-[#eadccf] bg-[#fffaf4] px-4 py-4 text-sm leading-7 text-[#72553c]"
+                  className="rounded-[24px] border border-[#eadccf] bg-[#fffaf4] px-4 py-4 text-sm leading-7 text-[#72553c]"
                 >
                   {item}
                 </div>
               ))}
             </div>
+          </PortalPanel>
 
-            <div className="mt-5 grid gap-4">
+          <PortalPanel
+            title="Support Highlights"
+            subtitle="This portal should reassure and guide, not just display raw fields."
+          >
+            <div className="space-y-3">
               <InsightCard
                 icon={<HeartPulse className="h-4 w-4" />}
                 title="Wellness"
-                detail="Health notes are meant to add confidence and clarity, not clutter."
+                detail="Health notes are here to add confidence and clarity, not clutter."
               />
               <InsightCard
                 icon={<Ruler className="h-4 w-4" />}
                 title="Growth"
-                detail="Weight tracking is here to show the trend and readiness of your puppy over time."
+                detail="Weight tracking is meant to show readiness and progress over time."
               />
               <InsightCard
                 icon={<ShieldCheck className="h-4 w-4" />}
-                title="Support"
-                detail="The portal stays useful after homecoming so breeder context remains easy to revisit."
+                title="Continuity"
+                detail="This page stays useful after homecoming, so breeder context remains easy to revisit."
               />
             </div>
+          </PortalPanel>
 
-            <div className="mt-5 flex flex-wrap gap-3">
-              <PortalHeroPrimaryAction href="/portal/messages">Open Messages</PortalHeroPrimaryAction>
-              <PortalHeroSecondaryAction href="/portal/resources">Open Resources</PortalHeroSecondaryAction>
+          <PortalPanel
+            title="Useful next steps"
+            subtitle="A few thoughtful next actions instead of a wall of identical buttons."
+          >
+            <div className="grid gap-4">
+              <PortalActionLink
+                href="/portal/updates"
+                eyebrow="Pupdates"
+                title="See the latest breeder notes"
+                detail="Open the broader journey timeline and health updates."
+              />
+              <PortalActionLink
+                href="/portal/messages"
+                eyebrow="Messages"
+                title="Ask a question"
+                detail="Reach out if you want clarification about your puppy's progress or next steps."
+              />
+              <PortalActionLink
+                href="/portal/resources"
+                eyebrow="Resources"
+                title="Open care guidance"
+                detail="Review breeder-recommended care, health, and support resources."
+              />
             </div>
           </PortalPanel>
         </div>
