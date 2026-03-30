@@ -1,70 +1,72 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { sb, fmtMoney, fmtDate } from "@/lib/utils";
-import { getPortalAdminEmails, isPortalAdminEmail } from "@/lib/portal-admin";
+import type { User } from "@supabase/supabase-js";
+import {
+  AdminEmptyState,
+  AdminHeroPrimaryAction,
+  AdminHeroSecondaryAction,
+  AdminInfoTile,
+  AdminListCard,
+  AdminMetricCard,
+  AdminMetricGrid,
+  AdminPageHero,
+  AdminPageShell,
+  AdminPanel,
+  AdminRestrictedState,
+  adminStatusBadge,
+} from "@/components/admin/luxury-admin-shell";
+import { fmtDate, fmtMoney, sb } from "@/lib/utils";
+import { isPortalAdminEmail } from "@/lib/portal-admin";
 
 type BuyerRow = {
   id: number;
-  email: string | null;
-  buyer_email?: string | null;
+  user_id?: string | null;
   full_name?: string | null;
   name?: string | null;
-  user_id?: string | null;
-};
-
-type ApplicationRow = {
-  id: number;
-  created_at: string;
-  user_id: string | null;
-  full_name: string | null;
-  email: string | null;
-  applicant_email: string | null;
-  status: string | null;
-  assigned_puppy_id?: number | null;
+  email?: string | null;
+  buyer_email?: string | null;
+  finance_enabled?: boolean | null;
+  finance_admin_fee?: boolean | null;
+  finance_rate?: number | null;
+  finance_months?: number | null;
+  finance_monthly_amount?: number | null;
+  finance_next_due_date?: string | null;
+  finance_last_payment_date?: string | null;
+  status?: string | null;
 };
 
 type PuppyRow = {
   id: number;
   buyer_id?: number | null;
-  call_name: string | null;
-  puppy_name: string | null;
-  name: string | null;
-  price: number | null;
-  deposit: number | null;
-  balance: number | null;
-  status: string | null;
-  created_at?: string | null;
+  call_name?: string | null;
+  puppy_name?: string | null;
+  name?: string | null;
+  price?: number | null;
+  deposit?: number | null;
+  balance?: number | null;
+  status?: string | null;
 };
 
-type PaymentRow = {
-  id: number;
+type BuyerPayment = {
+  id: string;
   created_at: string;
-  date: string | null;
-  type: string | null;
-  buyer: string | null;
-  puppy: string | null;
-  amount: number | null;
-  puppy_id: number | null;
-  client_id: string | null;
-  paid_at?: string | null;
-  currency?: string | null;
+  buyer_id: number;
+  payment_date: string;
+  amount: number;
+  payment_type: string | null;
+  method: string | null;
+  note: string | null;
   status: string | null;
-  provider?: string | null;
-  stripe_payment_intent_id?: string | null;
+  reference_number: string | null;
 };
 
-type PortalAccount = {
+type BuyerAccount = {
   key: string;
-  userId: string | null;
-  email: string;
-  displayName: string;
-  buyer: BuyerRow | null;
-  application: ApplicationRow | null;
+  buyer: BuyerRow;
   puppy: PuppyRow | null;
+  payments: BuyerPayment[];
   totalPaid: number;
-  paymentCount: number;
   lastPaymentAt: string | null;
 };
 
@@ -72,22 +74,21 @@ type EditForm = {
   price: string;
   deposit: string;
   balance: string;
-  status: string;
+  puppy_status: string;
+  finance_enabled: string;
+  finance_admin_fee: string;
+  finance_rate: string;
+  finance_months: string;
+  finance_monthly_amount: string;
+  finance_next_due_date: string;
 };
 
-function normalizeEmail(value: string | null | undefined) {
-  return String(value || "").trim().toLowerCase();
-}
-
-function firstNonEmpty(...values: Array<string | null | undefined>) {
+function firstValue(...values: Array<string | null | undefined>) {
   for (const value of values) {
-    if (String(value || "").trim()) return String(value).trim();
+    const trimmed = String(value || "").trim();
+    if (trimmed) return trimmed;
   }
   return "";
-}
-
-function puppyNameFromRow(puppy: PuppyRow | null | undefined) {
-  return firstNonEmpty(puppy?.call_name, puppy?.puppy_name, puppy?.name);
 }
 
 function moneyInputToNumber(value: string): number | null {
@@ -97,59 +98,77 @@ function moneyInputToNumber(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function formatMoneySafe(value: number | null | undefined) {
-  if (value === null || value === undefined) return "—";
-  return fmtMoney(value);
+function toYesNo(value: boolean | null | undefined) {
+  return value ? "yes" : "no";
+}
+
+function paymentCountsTowardBalance(status: string | null | undefined) {
+  const normalized = String(status || "").toLowerCase();
+  if (!normalized) return true;
+  return !["failed", "void", "canceled", "cancelled"].includes(normalized);
+}
+
+function puppyName(puppy: PuppyRow | null) {
+  return firstValue(puppy?.call_name, puppy?.puppy_name, puppy?.name, "Pending Match");
 }
 
 export default function AdminPortalPaymentsPage() {
-  const [user, setUser] = useState<any>(null);
-  const [accounts, setAccounts] = useState<PortalAccount[]>([]);
-  const [selectedKey, setSelectedKey] = useState<string>("");
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [statusText, setStatusText] = useState("");
   const [search, setSearch] = useState("");
-
+  const [accounts, setAccounts] = useState<BuyerAccount[]>([]);
+  const [selectedKey, setSelectedKey] = useState("");
   const [form, setForm] = useState<EditForm>({
     price: "",
     deposit: "",
     balance: "",
-    status: "",
+    puppy_status: "",
+    finance_enabled: "no",
+    finance_admin_fee: "no",
+    finance_rate: "",
+    finance_months: "",
+    finance_monthly_amount: "",
+    finance_next_due_date: "",
   });
 
   useEffect(() => {
     let mounted = true;
 
-    const init = async () => {
+    async function bootstrap() {
       try {
         const {
           data: { session },
         } = await sb.auth.getSession();
 
         if (!mounted) return;
-
         const currentUser = session?.user ?? null;
         setUser(currentUser);
 
-        if (currentUser) {
-          await loadAdminData();
+        if (currentUser && isPortalAdminEmail(currentUser.email)) {
+          const nextAccounts = await loadAccounts();
+          setAccounts(nextAccounts);
+          setSelectedKey(nextAccounts[0]?.key || "");
         }
       } finally {
         if (mounted) setLoading(false);
       }
-    };
+    }
 
-    init();
+    void bootstrap();
 
     const { data: authListener } = sb.auth.onAuthStateChange(async (_event, session) => {
-      const currentUser = session?.user ?? null;
       if (!mounted) return;
-
+      const currentUser = session?.user ?? null;
       setUser(currentUser);
 
-      if (currentUser) {
-        await loadAdminData();
+      if (currentUser && isPortalAdminEmail(currentUser.email)) {
+        const nextAccounts = await loadAccounts();
+        setAccounts(nextAccounts);
+        setSelectedKey((prev) =>
+          nextAccounts.find((account) => account.key === prev)?.key || nextAccounts[0]?.key || ""
+        );
       } else {
         setAccounts([]);
         setSelectedKey("");
@@ -164,853 +183,481 @@ export default function AdminPortalPaymentsPage() {
     };
   }, []);
 
-  async function loadAdminData() {
-    setStatusText("Loading portal users...");
+  async function loadAccounts() {
+    const [buyersRes, puppiesRes, paymentsRes] = await Promise.all([
+      sb
+        .from("buyers")
+        .select("id,user_id,full_name,name,email,buyer_email,finance_enabled,finance_admin_fee,finance_rate,finance_months,finance_monthly_amount,finance_next_due_date,finance_last_payment_date,status")
+        .order("created_at", { ascending: false }),
+      sb
+        .from("puppies")
+        .select("id,buyer_id,call_name,puppy_name,name,price,deposit,balance,status")
+        .order("created_at", { ascending: false }),
+      sb
+        .from("buyer_payments")
+        .select("id,created_at,buyer_id,payment_date,amount,payment_type,method,note,status,reference_number")
+        .order("payment_date", { ascending: false })
+        .order("created_at", { ascending: false }),
+    ]);
 
-    try {
-      const [buyersRes, appsRes, paymentsRes] = await Promise.all([
-        sb
-          .from("buyers")
-          .select("id,email,buyer_email,full_name,name,user_id")
-          .order("id", { ascending: false }),
-        sb
-          .from("puppy_applications")
-          .select("id,created_at,user_id,full_name,email,applicant_email,status,assigned_puppy_id")
-          .order("created_at", { ascending: false }),
-        sb
-          .from("payments")
-          .select("id,created_at,date,type,buyer,puppy,amount,puppy_id,client_id,paid_at,currency,status,provider,stripe_payment_intent_id")
-          .order("created_at", { ascending: false }),
-      ]);
+    const buyers = (buyersRes.data || []) as BuyerRow[];
+    const puppies = (puppiesRes.data || []) as PuppyRow[];
+    const payments = (paymentsRes.data || []) as BuyerPayment[];
 
-      const buyers = (buyersRes.data || []) as BuyerRow[];
-      const apps = (appsRes.data || []) as ApplicationRow[];
-      const payments = (paymentsRes.data || []) as PaymentRow[];
-
-      const buyerIds = buyers.map((b) => b.id).filter(Boolean);
-      let puppies: PuppyRow[] = [];
-
-      if (buyerIds.length) {
-        const puppiesRes = await sb
-          .from("puppies")
-          .select("id,buyer_id,call_name,puppy_name,name,price,deposit,balance,status,created_at")
-          .in("buyer_id", buyerIds)
-          .order("created_at", { ascending: false });
-
-        puppies = (puppiesRes.data || []) as PuppyRow[];
+    const puppyByBuyerId = new Map<number, PuppyRow>();
+    puppies.forEach((puppy) => {
+      const buyerId = Number(puppy.buyer_id || 0);
+      if (buyerId && !puppyByBuyerId.has(buyerId)) {
+        puppyByBuyerId.set(buyerId, puppy);
       }
-
-      const puppyByBuyerId = new Map<number, PuppyRow>();
-      for (const puppy of puppies) {
-        const buyerId = Number(puppy.buyer_id || 0);
-        if (!buyerId) continue;
-        if (!puppyByBuyerId.has(buyerId)) {
-          puppyByBuyerId.set(buyerId, puppy);
-        }
-      }
-
-      const paymentsByClientId = new Map<
-        string,
-        { totalPaid: number; paymentCount: number; lastPaymentAt: string | null }
-      >();
-
-      for (const payment of payments) {
-        const clientId = String(payment.client_id || "").trim();
-        if (!clientId) continue;
-
-        const prev = paymentsByClientId.get(clientId) || {
-          totalPaid: 0,
-          paymentCount: 0,
-          lastPaymentAt: null,
-        };
-
-        const isSucceeded = String(payment.status || "").toLowerCase() === "succeeded";
-        const totalPaid = prev.totalPaid + (isSucceeded ? Number(payment.amount || 0) : 0);
-        const paymentCount = prev.paymentCount + 1;
-        const paymentDate = payment.paid_at || payment.created_at || payment.date || null;
-
-        paymentsByClientId.set(clientId, {
-          totalPaid,
-          paymentCount,
-          lastPaymentAt: prev.lastPaymentAt || paymentDate,
-        });
-      }
-
-      const accountMap = new Map<string, PortalAccount>();
-
-      const ensureAccount = (seed: {
-        userId?: string | null;
-        email?: string | null;
-        displayName?: string | null;
-        buyer?: BuyerRow | null;
-        application?: ApplicationRow | null;
-      }) => {
-        const userId = String(seed.userId || "").trim() || null;
-        const email = normalizeEmail(seed.email);
-        if (!userId && !email) return null;
-
-        const key = userId || email;
-        const existing = accountMap.get(key);
-
-        if (existing) {
-          if (!existing.displayName && seed.displayName) {
-            existing.displayName = String(seed.displayName);
-          }
-          if (!existing.email && email) {
-            existing.email = email;
-          }
-          if (!existing.userId && userId) {
-            existing.userId = userId;
-          }
-          if (!existing.buyer && seed.buyer) {
-            existing.buyer = seed.buyer;
-          }
-          if (!existing.application && seed.application) {
-            existing.application = seed.application;
-          }
-          return existing;
-        }
-
-        const paymentInfo = userId
-          ? paymentsByClientId.get(userId) || {
-              totalPaid: 0,
-              paymentCount: 0,
-              lastPaymentAt: null,
-            }
-          : {
-              totalPaid: 0,
-              paymentCount: 0,
-              lastPaymentAt: null,
-            };
-
-        const created: PortalAccount = {
-          key,
-          userId,
-          email,
-          displayName: String(seed.displayName || ""),
-          buyer: seed.buyer || null,
-          application: seed.application || null,
-          puppy: null,
-          totalPaid: paymentInfo.totalPaid,
-          paymentCount: paymentInfo.paymentCount,
-          lastPaymentAt: paymentInfo.lastPaymentAt,
-        };
-
-        accountMap.set(key, created);
-        return created;
-      };
-
-      for (const buyer of buyers) {
-        const email = firstNonEmpty(buyer.email, buyer.buyer_email);
-        const displayName = firstNonEmpty(buyer.full_name, buyer.name, email, "Portal User");
-
-        const account = ensureAccount({
-          userId: buyer.user_id || null,
-          email,
-          displayName,
-          buyer,
-        });
-
-        if (account && buyer.id && !account.puppy) {
-          account.puppy = puppyByBuyerId.get(buyer.id) || null;
-        }
-      }
-
-      for (const app of apps) {
-        const email = firstNonEmpty(app.email, app.applicant_email);
-        const displayName = firstNonEmpty(app.full_name, email, "Portal User");
-
-        const account = ensureAccount({
-          userId: app.user_id || null,
-          email,
-          displayName,
-          application: app,
-        });
-
-        if (account && !account.application) {
-          account.application = app;
-        }
-      }
-
-      const mergedAccounts = Array.from(accountMap.values())
-        .map((account) => {
-          if (!account.puppy && account.buyer?.id) {
-            account.puppy = puppyByBuyerId.get(account.buyer.id) || null;
-          }
-
-          if (!account.displayName) {
-            account.displayName =
-              firstNonEmpty(
-                account.buyer?.full_name,
-                account.buyer?.name,
-                account.application?.full_name,
-                account.email,
-                "Portal User"
-              ) || "Portal User";
-          }
-
-          return account;
-        })
-        .sort((a, b) => {
-          const aName = a.displayName.toLowerCase();
-          const bName = b.displayName.toLowerCase();
-          return aName.localeCompare(bName);
-        });
-
-      setAccounts(mergedAccounts);
-
-      const nextSelectedKey =
-        mergedAccounts.find((x) => x.key === selectedKey)?.key || mergedAccounts[0]?.key || "";
-
-      setSelectedKey(nextSelectedKey);
-
-      const selected = mergedAccounts.find((x) => x.key === nextSelectedKey) || null;
-      hydrateFormFromAccount(selected);
-
-      setStatusText("");
-    } catch (error: any) {
-      console.error("Admin portal payments load failed:", error);
-      setAccounts([]);
-      setSelectedKey("");
-      setStatusText("Unable to load portal users.");
-    }
-  }
-
-  function hydrateFormFromAccount(account: PortalAccount | null) {
-    setForm({
-      price:
-        account?.puppy?.price !== null && account?.puppy?.price !== undefined
-          ? String(account.puppy.price)
-          : "",
-      deposit:
-        account?.puppy?.deposit !== null && account?.puppy?.deposit !== undefined
-          ? String(account.puppy.deposit)
-          : "",
-      balance:
-        account?.puppy?.balance !== null && account?.puppy?.balance !== undefined
-          ? String(account.puppy.balance)
-          : "",
-      status: account?.puppy?.status || "",
     });
+
+    const paymentsByBuyerId = new Map<number, BuyerPayment[]>();
+    payments.forEach((payment) => {
+      const buyerId = Number(payment.buyer_id || 0);
+      if (!buyerId) return;
+      const group = paymentsByBuyerId.get(buyerId) || [];
+      group.push(payment);
+      paymentsByBuyerId.set(buyerId, group);
+    });
+
+    return buyers
+      .map((buyer) => {
+        const paymentGroup = paymentsByBuyerId.get(buyer.id) || [];
+        const totalPaid = paymentGroup
+          .filter((payment) => paymentCountsTowardBalance(payment.status))
+          .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+
+        return {
+          key: String(buyer.id),
+          buyer,
+          puppy: puppyByBuyerId.get(buyer.id) || null,
+          payments: paymentGroup,
+          totalPaid,
+          lastPaymentAt: paymentGroup[0]?.payment_date || paymentGroup[0]?.created_at || null,
+        };
+      })
+      .sort((a, b) =>
+        firstValue(a.buyer.full_name, a.buyer.name, a.buyer.email).localeCompare(
+          firstValue(b.buyer.full_name, b.buyer.name, b.buyer.email)
+        )
+      );
   }
 
   const filteredAccounts = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return accounts;
-
-    return accounts.filter((account) => {
-      const haystack = [
-        account.displayName,
-        account.email,
-        account.application?.status || "",
-        puppyNameFromRow(account.puppy),
-        account.puppy?.status || "",
+    return accounts.filter((account) =>
+      [
+        account.buyer.full_name,
+        account.buyer.name,
+        account.buyer.email,
+        account.buyer.buyer_email,
+        account.buyer.status,
+        puppyName(account.puppy),
       ]
+        .map((value) => String(value || "").toLowerCase())
         .join(" ")
-        .toLowerCase();
-
-      return haystack.includes(q);
-    });
+        .includes(q)
+    );
   }, [accounts, search]);
 
-  const selectedAccount =
-    accounts.find((account) => account.key === selectedKey) || filteredAccounts[0] || null;
+  const selectedAccount = useMemo(
+    () =>
+      filteredAccounts.find((account) => account.key === selectedKey) ||
+      accounts.find((account) => account.key === selectedKey) ||
+      null,
+    [accounts, filteredAccounts, selectedKey]
+  );
 
   useEffect(() => {
     if (!selectedAccount) return;
-    hydrateFormFromAccount(selectedAccount);
-  }, [selectedKey]);
+    setForm({
+      price:
+        selectedAccount.puppy?.price !== null && selectedAccount.puppy?.price !== undefined
+          ? String(selectedAccount.puppy.price)
+          : "",
+      deposit:
+        selectedAccount.puppy?.deposit !== null && selectedAccount.puppy?.deposit !== undefined
+          ? String(selectedAccount.puppy.deposit)
+          : "",
+      balance:
+        selectedAccount.puppy?.balance !== null && selectedAccount.puppy?.balance !== undefined
+          ? String(selectedAccount.puppy.balance)
+          : "",
+      puppy_status: selectedAccount.puppy?.status || "",
+      finance_enabled: toYesNo(selectedAccount.buyer.finance_enabled),
+      finance_admin_fee: toYesNo(selectedAccount.buyer.finance_admin_fee),
+      finance_rate:
+        selectedAccount.buyer.finance_rate !== null && selectedAccount.buyer.finance_rate !== undefined
+          ? String(selectedAccount.buyer.finance_rate)
+          : "",
+      finance_months:
+        selectedAccount.buyer.finance_months !== null && selectedAccount.buyer.finance_months !== undefined
+          ? String(selectedAccount.buyer.finance_months)
+          : "",
+      finance_monthly_amount:
+        selectedAccount.buyer.finance_monthly_amount !== null &&
+        selectedAccount.buyer.finance_monthly_amount !== undefined
+          ? String(selectedAccount.buyer.finance_monthly_amount)
+          : "",
+      finance_next_due_date: selectedAccount.buyer.finance_next_due_date || "",
+    });
+    setStatusText("");
+  }, [selectedAccount]);
 
-  async function handleRefresh() {
-    await loadAdminData();
-  }
-
-  async function handleSaveBalance(e: React.FormEvent) {
-    e.preventDefault();
-
-    if (!selectedAccount) {
-      setStatusText("Select a portal user first.");
-      return;
-    }
-
-    if (!selectedAccount.puppy?.id) {
-      setStatusText("This portal user does not have a puppy assigned yet.");
-      return;
-    }
-
+  async function handleSave() {
+    if (!selectedAccount) return;
     setSaving(true);
     setStatusText("");
 
     try {
-      const payload = {
-        price: moneyInputToNumber(form.price),
-        deposit: moneyInputToNumber(form.deposit),
-        balance: moneyInputToNumber(form.balance),
-        status: form.status.trim() || null,
+      const buyerUpdate = {
+        finance_enabled: form.finance_enabled === "yes",
+        finance_admin_fee: form.finance_admin_fee === "yes",
+        finance_rate: moneyInputToNumber(form.finance_rate),
+        finance_months: moneyInputToNumber(form.finance_months),
+        finance_monthly_amount: moneyInputToNumber(form.finance_monthly_amount),
+        finance_next_due_date: form.finance_next_due_date || null,
       };
 
-      const { error } = await sb
-        .from("puppies")
-        .update(payload)
-        .eq("id", selectedAccount.puppy.id);
+      const buyerResult = await sb.from("buyers").update(buyerUpdate).eq("id", selectedAccount.buyer.id);
+      if (buyerResult.error) throw buyerResult.error;
 
-      if (error) {
-        setStatusText(error.message || "Unable to save balance changes.");
-        setSaving(false);
-        return;
+      if (selectedAccount.puppy?.id) {
+        const puppyResult = await sb
+          .from("puppies")
+          .update({
+            price: moneyInputToNumber(form.price),
+            deposit: moneyInputToNumber(form.deposit),
+            balance: moneyInputToNumber(form.balance),
+            status: form.puppy_status.trim() || null,
+          })
+          .eq("id", selectedAccount.puppy.id);
+
+        if (puppyResult.error) throw puppyResult.error;
       }
 
-      await loadAdminData();
+      const nextAccounts = await loadAccounts();
+      setAccounts(nextAccounts);
       setSelectedKey(selectedAccount.key);
-      setStatusText("Puppy financial fields updated successfully.");
-    } catch (error: any) {
+      setStatusText("Payment settings updated.");
+    } catch (error) {
       console.error(error);
-      setStatusText("Unable to save balance changes.");
+      setStatusText("Could not update payment settings.");
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleSignOut() {
-    await sb.auth.signOut();
-    setUser(null);
-    setAccounts([]);
-    setSelectedKey("");
-  }
-
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-brand-50 italic">
-        Loading Admin Payments...
-      </div>
-    );
+    return <div className="py-20 text-center text-sm font-semibold text-[#7b5f46]">Loading payments...</div>;
   }
 
   if (!user) {
-    return <AdminPaymentsLogin />;
+    return (
+      <AdminRestrictedState
+        title="Sign in to access payments."
+        details="This page is reserved for the Southwest Virginia Chihuahua owner accounts."
+      />
+    );
   }
 
   if (!isPortalAdminEmail(user.email)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-brand-50 px-6 text-brand-900">
-        <div className="w-full max-w-[760px] rounded-[28px] border border-brand-200 bg-white p-8 shadow-paper">
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-rose-600">
-            Admin Access Restricted
-          </div>
-          <h1 className="mt-4 font-serif text-4xl font-bold text-brand-900">
-            This payments page is limited to the approved owner accounts.
-          </h1>
-          <p className="mt-4 text-sm font-semibold leading-7 text-brand-500">
-            Allowed emails: {getPortalAdminEmails().join(" • ")}
-          </p>
-          <div className="mt-6">
-            <Link
-              href="/portal"
-              className="inline-flex items-center rounded-[18px] border border-brand-200 bg-white px-5 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-brand-700 transition hover:bg-brand-50"
-            >
-              Return to Buyer Portal
-            </Link>
-          </div>
-        </div>
-      </div>
+      <AdminRestrictedState
+        title="This payment workspace is limited to approved owner accounts."
+        details="Only the approved owner emails can manage balances, payment history, and finance settings here."
+      />
     );
   }
 
   return (
-    <div className="min-h-screen text-brand-900 bg-brand-50">
-      <main className="relative flex flex-col bg-texturePaper">
-        <div className="w-full max-w-[1700px] mx-auto p-6 md:p-10 lg:p-12">
-          <div className="space-y-8 pb-14">
-            <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-5">
-              <div>
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/70 border border-brand-200 shadow-paper">
-                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-                    Admin Portal
-                  </span>
-                  <span className="w-1 h-1 rounded-full bg-brand-300" />
-                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-                    Payments & Balances
-                  </span>
-                </div>
-
-                <h2 className="mt-5 font-serif text-4xl md:text-5xl font-bold text-brand-900 leading-[0.95]">
-                  Portal Payments
-                </h2>
-
-                <p className="mt-2 text-brand-500 font-semibold max-w-3xl">
-                  View portal users, review puppy financials, and manually update balances so the
-                  changes appear on the buyer’s portal page.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.18em] bg-white border border-brand-200 text-brand-700">
-                  Portal Users: {accounts.length}
-                </span>
-
-                <button
-                  onClick={handleRefresh}
-                  className="px-5 py-3 bg-white border border-brand-200 text-brand-800 font-black text-xs uppercase tracking-[0.18em] rounded-xl hover:bg-brand-50 transition shadow-paper"
-                >
-                  Refresh
-                </button>
-
-                <button
-                  onClick={handleSignOut}
-                  className="px-5 py-3 bg-white border border-brand-200 text-brand-800 font-black text-xs uppercase tracking-[0.18em] rounded-xl hover:bg-brand-50 transition shadow-paper"
-                >
-                  Sign Out
-                </button>
-              </div>
+    <AdminPageShell>
+      <div className="space-y-6 pb-12">
+        <AdminPageHero
+          eyebrow="Payments"
+          title="Balances, financing, and payment history stay together in one payment-only workspace."
+          description="This tab is dedicated to the buyer’s financial record, so you are not sorting through applications or messages while making money-related updates."
+          actions={
+            <>
+              <AdminHeroPrimaryAction href="/admin/portal/messages">Open Messages</AdminHeroPrimaryAction>
+              <AdminHeroSecondaryAction href="/admin/portal/users">Open Buyers</AdminHeroSecondaryAction>
+            </>
+          }
+          aside={
+            <div className="space-y-4">
+              <AdminInfoTile
+                label="Buyer Accounts"
+                value={String(accounts.length)}
+                detail="Searchable buyer cards grouped for financial review."
+              />
+              <AdminInfoTile
+                label="Finance Enabled"
+                value={String(accounts.filter((account) => account.buyer.finance_enabled).length)}
+                detail="Buyer accounts currently using a financing plan."
+              />
             </div>
+          }
+        />
 
-            {statusText ? (
-              <div className="text-sm font-semibold text-brand-600">{statusText}</div>
-            ) : null}
+        <AdminMetricGrid>
+          <AdminMetricCard
+            label="Buyer Accounts"
+            value={String(accounts.length)}
+            detail="Buyers available to review in the payments tab."
+          />
+          <AdminMetricCard
+            label="Payment Records"
+            value={String(accounts.reduce((sum, account) => sum + account.payments.length, 0))}
+            detail="All recorded buyer payment entries."
+            accent="from-[#ece3d5] via-[#d7c1a3] to-[#b18d62]"
+          />
+          <AdminMetricCard
+            label="Finance Plans"
+            value={String(accounts.filter((account) => account.buyer.finance_enabled).length)}
+            detail="Buyer records with financing enabled."
+            accent="from-[#dce9d6] via-[#b6cfaa] to-[#7e9c6f]"
+          />
+          <AdminMetricCard
+            label="Search Results"
+            value={String(filteredAccounts.length)}
+            detail="Buyer cards matching the current payment search."
+            accent="from-[#f0dcc1] via-[#ddb68c] to-[#c98743]"
+          />
+        </AdminMetricGrid>
 
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-              <div className="xl:col-span-5 2xl:col-span-4 space-y-6">
-                <div className="card-luxury p-7">
-                  <div className="flex items-center justify-between gap-3 mb-5">
-                    <div>
-                      <h3 className="font-serif text-2xl font-bold text-brand-900">
-                        Portal Users
-                      </h3>
-                      <p className="text-brand-500 font-semibold text-sm mt-1">
-                        Accounts tied to portal activity.
-                      </p>
-                    </div>
-                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-400">
-                      Select One
-                    </span>
+        <section className="grid grid-cols-1 gap-6 xl:grid-cols-[390px_minmax(0,1fr)]">
+          <AdminPanel
+            title="Buyer Payment Cards"
+            subtitle="Search by buyer or puppy name. Each card keeps one buyer’s full payment picture together."
+          >
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search buyers or puppies..."
+              className="w-full rounded-[20px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+            />
+
+            <div className="mt-4 space-y-3">
+              {filteredAccounts.length ? (
+                filteredAccounts.map((account) => (
+                  <AdminListCard
+                    key={account.key}
+                    selected={selectedKey === account.key}
+                    onClick={() => setSelectedKey(account.key)}
+                    title={firstValue(account.buyer.full_name, account.buyer.name, account.buyer.email, `Buyer #${account.buyer.id}`)}
+                    subtitle={`${account.buyer.email || account.buyer.buyer_email || "No email"} • ${puppyName(account.puppy)}`}
+                    meta={`${fmtMoney(account.totalPaid)} paid • ${account.payments.length} payment${account.payments.length === 1 ? "" : "s"}`}
+                    badge={
+                      <span
+                        className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(
+                          account.puppy?.status || account.buyer.status
+                        )}`}
+                      >
+                        {account.puppy?.status || account.buyer.status || "pending"}
+                      </span>
+                    }
+                  />
+                ))
+              ) : (
+                <AdminEmptyState
+                  title="No buyer payments matched your search"
+                  description="Try a different buyer name, email, or puppy name."
+                />
+              )}
+            </div>
+          </AdminPanel>
+
+          {selectedAccount ? (
+            <div className="space-y-6">
+              <AdminPanel
+                title="Financial Snapshot"
+                subtitle="A clean read of the selected buyer’s current pricing, financing, and payment history."
+              >
+                {statusText ? (
+                  <div className="mb-4 rounded-[18px] border border-[#ead9c7] bg-[#fff9f2] px-4 py-3 text-sm font-semibold text-[#7a5a3a]">
+                    {statusText}
                   </div>
+                ) : null}
 
-                  <div className="mb-5">
-                    <input
-                      type="text"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search name, email, puppy, status..."
-                      className="w-full rounded-xl border border-brand-200 bg-white px-4 py-3 text-sm text-brand-900 outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-3 max-h-[900px] overflow-y-auto pr-1">
-                    {filteredAccounts.length ? (
-                      filteredAccounts.map((account) => {
-                        const isActive = selectedAccount?.key === account.key;
-
-                        return (
-                          <button
-                            key={account.key}
-                            type="button"
-                            onClick={() => {
-                              setSelectedKey(account.key);
-                              hydrateFormFromAccount(account);
-                            }}
-                            className={`w-full text-left rounded-2xl border p-4 transition ${
-                              isActive
-                                ? "border-brand-400 bg-brand-50 shadow-paper"
-                                : "border-brand-200 bg-white/75 hover:bg-white"
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="text-sm font-black text-brand-900 break-words">
-                                  {account.displayName || "Portal User"}
-                                </div>
-                                <div className="mt-1 text-[12px] text-brand-500 font-semibold break-all">
-                                  {account.email || "No email"}
-                                </div>
-                              </div>
-
-                              <div className="shrink-0">
-                                {account.userId ? (
-                                  <span className="inline-flex px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-black uppercase tracking-[0.18em]">
-                                    Signed Up
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200 text-[10px] font-black uppercase tracking-[0.18em]">
-                                    Partial
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="mt-3 grid grid-cols-2 gap-3 text-[11px]">
-                              <div>
-                                <div className="font-black uppercase tracking-[0.18em] text-brand-500">
-                                  Puppy
-                                </div>
-                                <div className="mt-1 font-semibold text-brand-800">
-                                  {puppyNameFromRow(account.puppy) || "Pending"}
-                                </div>
-                              </div>
-
-                              <div>
-                                <div className="font-black uppercase tracking-[0.18em] text-brand-500">
-                                  Balance
-                                </div>
-                                <div className="mt-1 font-semibold text-brand-800">
-                                  {formatMoneySafe(account.puppy?.balance)}
-                                </div>
-                              </div>
-
-                              <div>
-                                <div className="font-black uppercase tracking-[0.18em] text-brand-500">
-                                  App Status
-                                </div>
-                                <div className="mt-1 font-semibold text-brand-800">
-                                  {account.application?.status || "—"}
-                                </div>
-                              </div>
-
-                              <div>
-                                <div className="font-black uppercase tracking-[0.18em] text-brand-500">
-                                  Total Paid
-                                </div>
-                                <div className="mt-1 font-semibold text-brand-800">
-                                  {fmtMoney(account.totalPaid || 0)}
-                                </div>
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })
-                    ) : (
-                      <div className="text-center py-12 text-brand-400 text-sm italic">
-                        No portal users found.
-                      </div>
-                    )}
-                  </div>
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <AdminInfoTile label="Buyer" value={firstValue(selectedAccount.buyer.full_name, selectedAccount.buyer.name, selectedAccount.buyer.email, "Buyer")} />
+                  <AdminInfoTile label="My Puppy" value={puppyName(selectedAccount.puppy)} />
+                  <AdminInfoTile label="Total Paid" value={fmtMoney(selectedAccount.totalPaid)} />
+                  <AdminInfoTile
+                    label="Last Payment"
+                    value={selectedAccount.lastPaymentAt ? fmtDate(selectedAccount.lastPaymentAt) : "-"}
+                    detail={`${selectedAccount.payments.length} payment record(s)`}
+                  />
                 </div>
-              </div>
+              </AdminPanel>
 
-              <div className="xl:col-span-7 2xl:col-span-8 space-y-6">
-                {selectedAccount ? (
-                  <>
-                    <div className="card-luxury p-7">
-                      <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-5">
-                        <div>
-                          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-                            Selected Portal User
-                          </div>
-                          <h3 className="mt-2 font-serif text-3xl font-bold text-brand-900">
-                            {selectedAccount.displayName || "Portal User"}
-                          </h3>
-                          <p className="mt-2 text-brand-500 font-semibold break-all">
-                            {selectedAccount.email || "No email on file"}
-                          </p>
-                        </div>
+              <section className="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,1.05fr)_420px]">
+                <AdminPanel
+                  title="Payment Settings"
+                  subtitle="This is where price, deposit, balance, and financing settings are edited."
+                >
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <PaymentField label="Price" value={form.price} onChange={(value) => setForm((prev) => ({ ...prev, price: value }))} />
+                    <PaymentField label="Deposit" value={form.deposit} onChange={(value) => setForm((prev) => ({ ...prev, deposit: value }))} />
+                    <PaymentField label="Balance" value={form.balance} onChange={(value) => setForm((prev) => ({ ...prev, balance: value }))} />
+                    <PaymentField label="Puppy Status" value={form.puppy_status} onChange={(value) => setForm((prev) => ({ ...prev, puppy_status: value }))} />
+                    <PaymentSelect label="Financing Enabled" value={form.finance_enabled} onChange={(value) => setForm((prev) => ({ ...prev, finance_enabled: value }))} />
+                    <PaymentSelect label="Admin Fee" value={form.finance_admin_fee} onChange={(value) => setForm((prev) => ({ ...prev, finance_admin_fee: value }))} />
+                    <PaymentField label="APR / Rate" value={form.finance_rate} onChange={(value) => setForm((prev) => ({ ...prev, finance_rate: value }))} />
+                    <PaymentField label="Finance Months" value={form.finance_months} onChange={(value) => setForm((prev) => ({ ...prev, finance_months: value }))} />
+                    <PaymentField label="Monthly Amount" value={form.finance_monthly_amount} onChange={(value) => setForm((prev) => ({ ...prev, finance_monthly_amount: value }))} />
+                    <PaymentDateField label="Next Due Date" value={form.finance_next_due_date} onChange={(value) => setForm((prev) => ({ ...prev, finance_next_due_date: value }))} />
+                  </div>
 
-                        <div className="flex flex-wrap gap-2">
-                          <span className="inline-flex px-3 py-1 rounded-full bg-white border border-brand-200 text-[10px] font-black uppercase tracking-[0.18em] text-brand-700">
-                            Application: {selectedAccount.application?.status || "—"}
-                          </span>
-                          <span className="inline-flex px-3 py-1 rounded-full bg-white border border-brand-200 text-[10px] font-black uppercase tracking-[0.18em] text-brand-700">
-                            Puppy: {selectedAccount.puppy?.status || "Pending"}
-                          </span>
-                        </div>
-                      </div>
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => void handleSave()}
+                      disabled={saving}
+                      className="rounded-2xl bg-[linear-gradient(135deg,#d3a056_0%,#b5752f_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(181,117,47,0.26)] transition hover:brightness-105 disabled:opacity-60"
+                    >
+                      {saving ? "Saving..." : "Save Payment Settings"}
+                    </button>
+                  </div>
+                </AdminPanel>
 
-                      <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <InfoTile
-                          label="Puppy"
-                          value={puppyNameFromRow(selectedAccount.puppy) || "Pending"}
-                        />
-                        <InfoTile
-                          label="Price"
-                          value={formatMoneySafe(selectedAccount.puppy?.price)}
-                        />
-                        <InfoTile
-                          label="Deposit"
-                          value={formatMoneySafe(selectedAccount.puppy?.deposit)}
-                        />
-                        <InfoTile
-                          label="Balance"
-                          value={formatMoneySafe(selectedAccount.puppy?.balance)}
-                        />
-                      </div>
+                <AdminPanel
+                  title="Finance Snapshot"
+                  subtitle="Use this side panel to quickly confirm plan details before or after editing."
+                >
+                  <div className="space-y-4">
+                    <AdminInfoTile label="Financing" value={selectedAccount.buyer.finance_enabled ? "Enabled" : "Not enabled"} />
+                    <AdminInfoTile label="APR / Rate" value={selectedAccount.buyer.finance_rate !== null && selectedAccount.buyer.finance_rate !== undefined ? String(selectedAccount.buyer.finance_rate) : "-"} />
+                    <AdminInfoTile label="Monthly Amount" value={selectedAccount.buyer.finance_monthly_amount !== null && selectedAccount.buyer.finance_monthly_amount !== undefined ? fmtMoney(selectedAccount.buyer.finance_monthly_amount) : "-"} />
+                    <AdminInfoTile label="Next Due" value={selectedAccount.buyer.finance_next_due_date ? fmtDate(selectedAccount.buyer.finance_next_due_date) : "-"} />
+                  </div>
+                </AdminPanel>
+              </section>
 
-                      <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
-                        <MiniInfo
-                          label="Portal Sign-Up"
-                          value={selectedAccount.userId ? "Yes" : "No user_id found"}
-                        />
-                        <MiniInfo
-                          label="Payment Count"
-                          value={String(selectedAccount.paymentCount || 0)}
-                        />
-                        <MiniInfo
-                          label="Total Paid"
-                          value={fmtMoney(selectedAccount.totalPaid || 0)}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 2xl:grid-cols-12 gap-6">
-                      <div className="2xl:col-span-7">
-                        <form onSubmit={handleSaveBalance} className="card-luxury p-7 space-y-6">
+              <AdminPanel
+                title="Payment History"
+                subtitle="Recorded buyer payments stay grouped under the buyer instead of being scattered across the page."
+              >
+                <div className="space-y-3">
+                  {selectedAccount.payments.length ? (
+                    selectedAccount.payments.map((payment) => (
+                      <div
+                        key={payment.id}
+                        className="rounded-[22px] border border-[#ead9c7] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] p-4 shadow-[0_10px_24px_rgba(106,76,45,0.05)]"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
-                            <h3 className="font-serif text-2xl font-bold text-brand-900">
-                              Update Puppy Financials
-                            </h3>
-                            <p className="mt-2 text-brand-500 font-semibold text-sm">
-                              Saving here updates the puppy record used by the buyer portal.
-                            </p>
-                          </div>
-
-                          {!selectedAccount.puppy?.id ? (
-                            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">
-                              This account does not have a puppy assigned yet, so there is no balance
-                              record to update.
+                            <div className="text-sm font-semibold text-[#2f2218]">
+                              {payment.payment_type || "Payment"} • {fmtMoney(payment.amount)}
                             </div>
-                          ) : null}
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                            <Field
-                              label="Price"
-                              value={form.price}
-                              onChange={(v) => setForm((prev) => ({ ...prev, price: v }))}
-                              placeholder="2500"
-                            />
-
-                            <Field
-                              label="Deposit"
-                              value={form.deposit}
-                              onChange={(v) => setForm((prev) => ({ ...prev, deposit: v }))}
-                              placeholder="250"
-                            />
-
-                            <Field
-                              label="Balance"
-                              value={form.balance}
-                              onChange={(v) => setForm((prev) => ({ ...prev, balance: v }))}
-                              placeholder="2250"
-                            />
-
-                            <Field
-                              label="Puppy Status"
-                              value={form.status}
-                              onChange={(v) => setForm((prev) => ({ ...prev, status: v }))}
-                              placeholder="reserved"
-                            />
-                          </div>
-
-                          <div className="rounded-2xl border border-brand-200 bg-white/65 p-4">
-                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-                              Important
-                            </div>
-                            <div className="mt-2 text-sm font-semibold text-brand-700 leading-relaxed">
-                              The buyer portal financial page reads from the puppy record. Updating
-                              the puppy’s balance here is what makes the new balance appear for the
-                              buyer.
+                            <div className="mt-1 text-xs leading-5 text-[#8a6a49]">
+                              {payment.method || "No method"} • {fmtDate(payment.payment_date || payment.created_at)}
                             </div>
                           </div>
-
-                          <div className="flex flex-col md:flex-row gap-3 md:items-center">
-                            <button
-                              type="submit"
-                              disabled={saving || !selectedAccount.puppy?.id}
-                              className="px-7 py-3.5 bg-brand-800 text-white font-black text-sm rounded-xl hover:bg-brand-700 transition shadow-lift uppercase tracking-[0.12em] disabled:opacity-60"
-                            >
-                              {saving ? "Saving..." : "Save Financial Changes"}
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => hydrateFormFromAccount(selectedAccount)}
-                              className="px-7 py-3.5 bg-white border border-brand-200 text-brand-800 font-black text-sm rounded-xl hover:bg-brand-50 transition shadow-paper uppercase tracking-[0.12em]"
-                            >
-                              Reset Form
-                            </button>
-                          </div>
-                        </form>
-                      </div>
-
-                      <div className="2xl:col-span-5 space-y-6">
-                        <div className="card-luxury p-7">
-                          <h3 className="font-serif text-2xl font-bold text-brand-900 mb-4">
-                            Account Snapshot
-                          </h3>
-
-                          <div className="space-y-4">
-                            <MiniInfo
-                              label="Buyer Name"
-                              value={
-                                firstNonEmpty(
-                                  selectedAccount.buyer?.full_name,
-                                  selectedAccount.buyer?.name,
-                                  selectedAccount.application?.full_name,
-                                  selectedAccount.email,
-                                  "Portal User"
-                                ) || "Portal User"
-                              }
-                            />
-                            <MiniInfo
-                              label="Email"
-                              value={selectedAccount.email || "—"}
-                            />
-                            <MiniInfo
-                              label="Application Status"
-                              value={selectedAccount.application?.status || "—"}
-                            />
-                            <MiniInfo
-                              label="Puppy"
-                              value={puppyNameFromRow(selectedAccount.puppy) || "Pending"}
-                            />
-                            <MiniInfo
-                              label="Puppy Status"
-                              value={selectedAccount.puppy?.status || "—"}
-                            />
-                            <MiniInfo
-                              label="Last Payment"
-                              value={
-                                selectedAccount.lastPaymentAt
-                                  ? fmtDate(selectedAccount.lastPaymentAt)
-                                  : "—"
-                              }
-                            />
-                          </div>
+                          <span
+                            className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(
+                              payment.status
+                            )}`}
+                          >
+                            {payment.status || "recorded"}
+                          </span>
                         </div>
-
-                        <div className="card-luxury p-7">
-                          <h3 className="font-serif text-2xl font-bold text-brand-900 mb-4">
-                            What This Updates
-                          </h3>
-
-                          <div className="space-y-3 text-sm font-semibold text-brand-600 leading-relaxed">
-                            <p>Price, deposit, and balance are saved directly to the puppy record.</p>
-                            <p>That same puppy record is what the buyer portal uses for their financial overview.</p>
-                            <p>If you need manual payment entries later, that can be added as a separate admin page flow.</p>
-                          </div>
-                        </div>
+                        {payment.note ? (
+                          <div className="mt-3 text-sm leading-6 text-[#73583f]">{payment.note}</div>
+                        ) : null}
                       </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="card-luxury p-12 text-center">
-                    <div className="w-16 h-16 bg-brand-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl border border-brand-200">
-                      👤
-                    </div>
-                    <h3 className="font-serif text-3xl font-bold text-brand-800">
-                      No Portal User Selected
-                    </h3>
-                    <p className="text-brand-500 mt-3 max-w-md mx-auto text-sm font-semibold leading-relaxed">
-                      Select a portal user from the list to review and update financial details.
-                    </p>
-                  </div>
-                )}
-              </div>
+                    ))
+                  ) : (
+                    <AdminEmptyState
+                      title="No payment records yet"
+                      description="Buyer payment entries will appear here once they are recorded."
+                    />
+                  )}
+                </div>
+              </AdminPanel>
             </div>
-          </div>
-        </div>
-      </main>
-    </div>
+          ) : (
+            <AdminPanel
+              title="Financial Snapshot"
+              subtitle="Choose a buyer card to begin."
+            >
+              <AdminEmptyState
+                title="No buyer selected"
+                description="Choose a buyer card from the left to review payment settings and history."
+              />
+            </AdminPanel>
+          )}
+        </section>
+      </div>
+    </AdminPageShell>
   );
 }
 
-function Field({
+function PaymentField({
   label,
   value,
   onChange,
-  placeholder,
 }: {
   label: string;
   value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
+  onChange: (value: string) => void;
 }) {
   return (
-    <div>
-      <label className="block text-[10px] font-black uppercase tracking-[0.18em] text-brand-500 mb-2">
-        {label}
-      </label>
+    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#a47946]">
+      {label}
       <input
-        type="text"
         value={value}
-        placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-xl border border-brand-200 bg-white px-4 py-3 text-sm text-brand-900 outline-none"
+        className="mt-2 w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm normal-case tracking-normal text-[#3e2a1f] outline-none focus:border-[#c8a884]"
       />
-    </div>
+    </label>
   );
 }
 
-function InfoTile({ label, value }: { label: string; value: string }) {
+function PaymentDateField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
   return (
-    <div className="card-luxury p-5 text-center">
-      <div className="text-[11px] font-black text-brand-700 uppercase tracking-[0.18em]">
-        {label}
-      </div>
-      <div className="mt-2 text-sm font-black text-brand-900 break-words">{value}</div>
-    </div>
+    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#a47946]">
+      {label}
+      <input
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="mt-2 w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm normal-case tracking-normal text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+      />
+    </label>
   );
 }
 
-function MiniInfo({ label, value }: { label: string; value: string }) {
+function PaymentSelect({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
   return (
-    <div className="rounded-2xl border border-brand-200 bg-white/65 p-4">
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-        {label}
-      </div>
-      <div className="mt-1 text-sm font-semibold text-brand-800 break-words">{value}</div>
-    </div>
-  );
-}
-
-function AdminPaymentsLogin() {
-  const [email, setEmail] = useState("");
-  const [pass, setPass] = useState("");
-
-  const login = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const { error } = await sb.auth.signInWithPassword({
-      email,
-      password: pass,
-    });
-
-    if (error) alert(error.message);
-  };
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-brand-50 p-6">
-      <div className="card-luxury shine p-10 w-full max-w-md border border-white">
-        <h2 className="font-serif text-4xl font-bold text-center mb-8">Admin Sign In</h2>
-
-        <form onSubmit={login} className="space-y-5">
-          <div>
-            <label className="text-[10px] font-black uppercase text-brand-500 mb-1 block">
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-3 rounded-xl border border-brand-200"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="text-[10px] font-black uppercase text-brand-500 mb-1 block">
-              Password
-            </label>
-            <input
-              type="password"
-              value={pass}
-              onChange={(e) => setPass(e.target.value)}
-              className="w-full p-3 rounded-xl border border-brand-200"
-              required
-            />
-          </div>
-
-          <button className="w-full bg-brand-800 text-white p-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lift">
-            Sign In
-          </button>
-        </form>
-      </div>
-    </div>
+    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#a47946]">
+      {label}
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="mt-2 w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm normal-case tracking-normal text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+      >
+        <option value="yes">Yes</option>
+        <option value="no">No</option>
+      </select>
+    </label>
   );
 }
