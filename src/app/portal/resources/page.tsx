@@ -49,7 +49,7 @@ const healthTopics = [
   },
   {
     icon: <Stethoscope className="h-5 w-5" />,
-    title: "Wellness & Veterinary Care",
+    title: "Wellness and Veterinary Care",
     text:
       "Keep vaccines, deworming, exams, and follow-up care organized. Early communication with your veterinarian and breeder helps small issues stay manageable.",
   },
@@ -61,14 +61,14 @@ const healthTopics = [
   },
   {
     icon: <Home className="h-5 w-5" />,
-    title: "Routine & Go-Home Readiness",
+    title: "Transition Routine",
     text:
       "A calm first week, predictable meals, close observation, and a prepared home setup make transition easier and help your puppy settle in more confidently.",
   },
 ];
 
 const quickGuides = [
-  "Keep meals on a predictable schedule, especially during early transition.",
+  "Keep meals on a predictable schedule during early transition.",
   "Watch appetite, energy, stool quality, and body warmth closely.",
   "Use calm handling and avoid rough play or high surfaces.",
   "Reach out early if something feels off rather than waiting.",
@@ -80,8 +80,8 @@ export default function PortalResourcesPage() {
     <div className="space-y-6 pb-14">
       <PortalPageHero
         eyebrow="Resources"
-        title="Trusted Chihuahua resources, all in one place."
-        description="This page brings together your most useful external sites, care guidance, and go-home reference material so families always have a reliable starting point inside the portal."
+        title="Open the reference library built for this portal."
+        description="Use this page for Chihuahua education, go-home reminders, and trusted external resources that stay useful before and after your puppy comes home."
         actions={
           <>
             <PortalHeroPrimaryAction href="/portal/messages">Ask a Question</PortalHeroPrimaryAction>
@@ -98,7 +98,7 @@ export default function PortalResourcesPage() {
             <PortalInfoTile
               label="Best Use"
               value="Before and after go-home"
-              detail="This page is meant to remain genuinely helpful after your puppy is home."
+              detail="This page is meant to stay helpful after your puppy is home."
             />
           </div>
         }
@@ -108,33 +108,33 @@ export default function PortalResourcesPage() {
         <PortalMetricCard
           label="External Sites"
           value="3"
-          detail="Linked Chihuahua-focused websites."
+          detail="Trusted Chihuahua-focused websites."
         />
         <PortalMetricCard
-          label="Health Topics"
+          label="Care Topics"
           value={String(healthTopics.length)}
-          detail="Core wellness and care areas to review."
-          accent="from-[#dce9d6] via-[#b6cfaa] to-[#7e9c6f]"
+          detail="Core health and home-readiness topics."
+          accent="from-[#dfe6fb] via-[#b8c7f7] to-[#7388d9]"
         />
         <PortalMetricCard
           label="Quick Guides"
           value={String(quickGuides.length)}
-          detail="Simple reminders worth revisiting."
-          accent="from-[#ece3d5] via-[#d7c1a3] to-[#b18d62]"
+          detail="Concise reminders families tend to revisit."
+          accent="from-[#d9eef4] via-[#acd4e2] to-[#6da8bd]"
         />
         <PortalMetricCard
           label="Support Path"
           value="Portal Messages"
           detail="Use Messages for questions specific to your puppy."
-          accent="from-[#f0dcc1] via-[#ddb68c] to-[#c98743]"
+          accent="from-[#e7ebf2] via-[#cfd8e6] to-[#8ea0b9]"
         />
       </PortalMetricGrid>
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.15fr)_380px]">
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.18fr)_380px]">
         <div className="space-y-6">
           <PortalPanel
             title="Featured Sites"
-            subtitle="Additional websites connected to the Southwest Virginia Chihuahua ecosystem."
+            subtitle="Trusted external websites connected to the Southwest Virginia Chihuahua ecosystem."
           >
             <div className="space-y-4">
               {resourceSites.map((site) => (
@@ -143,14 +143,14 @@ export default function PortalResourcesPage() {
                   href={site.href}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-start gap-4 rounded-[24px] border border-[#eadccf] bg-white px-5 py-5 shadow-[0_10px_24px_rgba(96,67,38,0.05)] transition hover:-translate-y-0.5 hover:border-[#d7b58e]"
+                  className="flex items-start gap-4 rounded-[24px] border border-[var(--portal-border)] bg-white px-5 py-5 shadow-[0_12px_26px_rgba(31,48,79,0.05)] transition hover:-translate-y-0.5 hover:border-[var(--portal-border-strong)] hover:bg-[var(--portal-surface-muted)]"
                 >
-                  <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-[#f8efe5] text-[#a17848]">
+                  <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
                     <ExternalLink className="h-4 w-4" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-lg font-semibold text-[#2f2218]">{site.title}</div>
-                    <div className="mt-2 text-sm leading-7 text-[#72553c]">
+                    <div className="text-lg font-semibold text-[var(--portal-text)]">{site.title}</div>
+                    <div className="mt-2 text-sm leading-7 text-[var(--portal-text-soft)]">
                       {site.description}
                     </div>
                   </div>
@@ -160,20 +160,20 @@ export default function PortalResourcesPage() {
           </PortalPanel>
 
           <PortalPanel
-            title="Health & Care"
-            subtitle="Foundational Chihuahua guidance that is worth having inside the portal, not just scattered across tabs and bookmarks."
+            title="Care Library"
+            subtitle="Foundational Chihuahua guidance that belongs inside the portal, not buried in scattered tabs and bookmarks."
           >
             <div className="grid gap-4 md:grid-cols-2">
               {healthTopics.map((topic) => (
                 <div
                   key={topic.title}
-                  className="rounded-[24px] border border-[#eadccf] bg-white px-5 py-5 shadow-[0_10px_24px_rgba(96,67,38,0.05)]"
+                  className="rounded-[24px] border border-[var(--portal-border)] bg-white px-5 py-5 shadow-[0_10px_22px_rgba(31,48,79,0.05)]"
                 >
-                  <div className="flex items-center gap-3 text-[#a17848]">
+                  <div className="flex items-center gap-3 text-[var(--portal-accent-strong)]">
                     {topic.icon}
-                    <div className="text-base font-semibold text-[#2f2218]">{topic.title}</div>
+                    <div className="text-base font-semibold text-[var(--portal-text)]">{topic.title}</div>
                   </div>
-                  <div className="mt-3 text-sm leading-7 text-[#72553c]">{topic.text}</div>
+                  <div className="mt-3 text-sm leading-7 text-[var(--portal-text-soft)]">{topic.text}</div>
                 </div>
               ))}
             </div>
@@ -183,24 +183,24 @@ export default function PortalResourcesPage() {
         <div className="space-y-6">
           <PortalPanel
             title="Quick Reference"
-            subtitle="A few reminders families tend to revisit often."
+            subtitle="A short set of reminders families tend to reopen often."
           >
             <div className="space-y-4">
-              <PortalInfoTile label="Breed Type" value="Toy Breed" detail="Small size means routines and safety matter." />
-              <PortalInfoTile label="Priority Topic" value="Hypoglycemia awareness" detail="A key concern in very small puppies." />
+              <PortalInfoTile label="Breed Type" value="Toy Breed" detail="Small size makes routines and safety especially important." />
+              <PortalInfoTile label="Priority Topic" value="Hypoglycemia awareness" detail="A high-value topic to understand early." />
               <PortalInfoTile label="Best Support" value="Consistency" detail="Routine, observation, and calm handling go a long way." />
             </div>
           </PortalPanel>
 
           <PortalPanel
             title="First-Week Priorities"
-            subtitle="Simple go-home reminders that stay easy to review."
+            subtitle="The practical reminders that matter most during transition."
           >
             <div className="space-y-3">
               {quickGuides.map((guide) => (
                 <div
                   key={guide}
-                  className="rounded-[22px] border border-[#eadccf] bg-white px-4 py-4 text-sm leading-7 text-[#72553c] shadow-[0_10px_24px_rgba(96,67,38,0.05)]"
+                  className="rounded-[22px] border border-[var(--portal-border)] bg-white px-4 py-4 text-sm leading-7 text-[var(--portal-text-soft)] shadow-[0_10px_22px_rgba(31,48,79,0.05)]"
                 >
                   {guide}
                 </div>
@@ -210,18 +210,21 @@ export default function PortalResourcesPage() {
 
           <PortalPanel
             title="Need puppy-specific help?"
-            subtitle="General education is useful, but your portal conversation is still the best place for questions specific to your puppy."
+            subtitle="General guidance is useful, but account-specific support still belongs in the portal conversation."
           >
-            <div className="flex items-start gap-3 rounded-[22px] border border-[#eadccf] bg-[#fffaf4] px-4 py-4">
-              <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-[#f8efe5] text-[#a17848]">
+            <div className="flex items-start gap-3 rounded-[22px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4">
+              <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-white text-[var(--portal-accent-strong)]">
                 <BookOpen className="h-4 w-4" />
               </div>
-              <div className="text-sm leading-7 text-[#72553c]">
-                Use Messages whenever you want advice about feeding, progress, behavior, medications, or anything that should be answered in the context of your specific puppy.
+              <div className="text-sm leading-7 text-[var(--portal-text-soft)]">
+                Use Messages whenever you want guidance about feeding, progress, behavior, medications, or anything that should be answered in the context of your specific puppy.
               </div>
             </div>
             <div className="mt-5">
-              <Link href="/portal/messages" className="inline-flex items-center rounded-2xl border border-[#e2d3c2] bg-white px-5 py-3 text-sm font-semibold text-[#5b4331] shadow-[0_12px_28px_rgba(96,67,38,0.08)] transition hover:-translate-y-0.5 hover:border-[#d7b58e]">
+              <Link
+                href="/portal/messages"
+                className="inline-flex items-center gap-2 rounded-[18px] border border-[var(--portal-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--portal-text)] shadow-[0_12px_26px_rgba(31,48,79,0.06)] transition hover:-translate-y-0.5 hover:border-[var(--portal-border-strong)]"
+              >
                 Message Support
               </Link>
             </div>

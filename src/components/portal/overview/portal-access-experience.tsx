@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { HeartHandshake, LockKeyhole, Receipt, Sparkles } from "lucide-react";
+import { KeyRound, Layers3, MailCheck, Shield } from "lucide-react";
 import { sb } from "@/lib/utils";
 import {
   PortalActionLink,
@@ -73,32 +73,32 @@ export function PortalAccessExperience() {
   }
 
   return (
-    <div className="grid min-h-[82vh] grid-cols-1 gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+    <div className="grid min-h-[82vh] grid-cols-1 gap-6 xl:grid-cols-[1.12fr_0.88fr]">
       <PortalNarrativeCard
-        eyebrow="Private Client Access"
-        title="Welcome to My Puppy Portal"
-        description="A beautifully organized place for your application, puppy updates, forms, payment history, breeder communication, and go-home support."
+        eyebrow="Portal Access"
+        title="View your puppy’s updates, documents, payments, messages, and next steps in one place."
+        description="Sign in to open the buyer portal tied to your account. If your records are already linked, your puppy profile, documents, payments, breeder messages, and transportation details appear automatically."
       >
         <div className="grid gap-4 md:grid-cols-2">
           <PortalInfoTile
-            label="Emotionally centered"
-            value="Built around your puppy journey"
-            detail="This portal is meant to reassure, guide, and keep your relationship with your puppy at the center."
+            label="Overview"
+            value="Account clarity"
+            detail="See updates, records, payments, and open tasks without digging through email."
           />
           <PortalInfoTile
-            label="Clear"
-            value="One account view"
-            detail="Important details stay together instead of being scattered across texts, emails, and documents."
+            label="My Puppy"
+            value="Profile and timeline"
+            detail="Review photos, milestones, weight history, and breeder notes in one page."
           />
           <PortalInfoTile
-            label="Useful"
-            value="Before and after go-home"
-            detail="The portal stays helpful while your puppy is growing and after your puppy is home."
+            label="Documents"
+            value="Forms and records"
+            detail="Keep signatures, submissions, and shared files organized and easy to review."
           />
           <PortalInfoTile
-            label="Private"
-            value="Secure access"
-            detail="Messages, documents, payments, and breeder guidance all live in one protected place."
+            label="Messages"
+            value="Direct communication"
+            detail="Questions and breeder replies stay connected to your portal account."
           />
         </div>
 
@@ -106,48 +106,48 @@ export function PortalAccessExperience() {
           <PortalActionLink
             href="/portal/mypuppy"
             eyebrow="My Puppy"
-            title="Follow the journey"
-            detail="Milestones, growth, breeder notes, and wellness updates stay connected."
+            title="Open the puppy profile"
+            detail="Photos, milestones, wellness records, and breeder updates stay together."
           />
           <PortalActionLink
             href="/portal/payments"
             eyebrow="Payments"
-            title="Review your account"
-            detail="Balance, financing, and payment history stay easy to understand."
+            title="Review the account record"
+            detail="Check the recorded balance, payment history, financing, and next due date."
           />
           <PortalActionLink
             href="/portal/documents"
             eyebrow="Documents"
             title="Keep records tidy"
-            detail="Forms, signatures, and shared records stay in one organized place."
+            detail="Signed forms, submissions, and shared files remain easy to find."
           />
         </div>
       </PortalNarrativeCard>
 
-      <section className="rounded-[34px] border border-[#eadccf] bg-[linear-gradient(180deg,#fffdfb_0%,#fbf4ec_100%)] p-7 shadow-[0_24px_70px_rgba(96,67,38,0.08)] md:p-10">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a17848]">
+      <section className="rounded-[30px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,var(--portal-surface)_0%,var(--portal-surface-strong)_100%)] p-7 shadow-[0_22px_54px_rgba(31,48,79,0.08)] md:p-10">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
           My Puppy Portal
         </div>
-        <h2 className="mt-3 font-serif text-4xl font-bold text-[#2f2218]">
+        <h2 className="mt-3 text-4xl font-semibold tracking-[-0.04em] text-[var(--portal-text)]">
           {mode === "signin"
             ? "Sign in"
             : mode === "signup"
-              ? "Create your portal account"
+              ? "Create your account"
               : "Reset your password"}
         </h2>
-        <p className="mt-3 text-sm leading-7 text-[#72553c]">
+        <p className="mt-3 text-sm leading-7 text-[var(--portal-text-soft)]">
           {mode === "signin"
-            ? "Use the email tied to your portal account to access your puppy journey."
+            ? "Use the email connected to your portal records."
             : mode === "signup"
-              ? "Create a portal login so your account, documents, and breeder updates stay connected."
-              : "We will email you a secure reset link so you can choose a new password."}
+              ? "Create a portal login to access your buyer account and linked puppy records."
+              : "We will send a secure reset link to the email on file."}
         </p>
 
-        <div className="mt-6 grid grid-cols-3 gap-2 rounded-[20px] border border-[#eadccf] bg-[#fbf6f0] p-1.5">
+        <div className="mt-6 grid grid-cols-3 gap-2 rounded-[18px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] p-1.5">
           {[
-            { key: "signin", label: "Sign In", icon: <LockKeyhole className="h-3.5 w-3.5" /> },
-            { key: "signup", label: "Sign Up", icon: <Sparkles className="h-3.5 w-3.5" /> },
-            { key: "reset", label: "Reset", icon: <HeartHandshake className="h-3.5 w-3.5" /> },
+            { key: "signin", label: "Sign In", icon: <KeyRound className="h-3.5 w-3.5" /> },
+            { key: "signup", label: "Sign Up", icon: <Layers3 className="h-3.5 w-3.5" /> },
+            { key: "reset", label: "Reset", icon: <MailCheck className="h-3.5 w-3.5" /> },
           ].map((item) => (
             <button
               key={item.key}
@@ -156,10 +156,10 @@ export function PortalAccessExperience() {
                 setMode(item.key as AuthMode);
                 setStatusText("");
               }}
-              className={`inline-flex items-center justify-center gap-2 rounded-[16px] px-3 py-3 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
+              className={`inline-flex items-center justify-center gap-2 rounded-[14px] px-3 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] transition ${
                 mode === item.key
-                  ? "bg-[#6b4d33] text-white shadow-md"
-                  : "text-[#a17848] hover:text-[#6b4d33]"
+                  ? "bg-[var(--portal-text)] text-white shadow-[0_10px_22px_rgba(31,48,79,0.14)]"
+                  : "text-[var(--portal-text-muted)] hover:text-[var(--portal-text)]"
               }`}
             >
               {item.icon}
@@ -203,7 +203,7 @@ export function PortalAccessExperience() {
           ) : null}
 
           {statusText ? (
-            <div className="rounded-[18px] border border-[#eadccf] bg-[#fff9f2] px-4 py-3 text-sm font-semibold text-[#72553c]">
+            <div className="rounded-[16px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm font-semibold text-[var(--portal-text-soft)]">
               {statusText}
             </div>
           ) : null}
@@ -221,14 +221,14 @@ export function PortalAccessExperience() {
 
         <div className="mt-6 grid gap-3">
           <SupportRow
-            icon={<Receipt className="h-4 w-4" />}
-            title="If you already have a portal login"
-            detail="Use Sign In with the email tied to your buyer account."
+            icon={<Shield className="h-4 w-4" />}
+            title="Already have portal access?"
+            detail="Sign in with the same email used for your buyer account."
           />
           <SupportRow
-            icon={<HeartHandshake className="h-4 w-4" />}
-            title="If you need help connecting your account"
-            detail="Once you are signed in, Messages and ChiChi can help connect the rest of your records."
+            icon={<MailCheck className="h-4 w-4" />}
+            title="Need help linking records?"
+            detail="After signing in, Messages and ChiChi can help connect the rest of your account."
           />
         </div>
       </section>
@@ -246,13 +246,13 @@ function SupportRow({
   detail: string;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-[22px] border border-[#eadccf] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(96,67,38,0.05)]">
-      <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-[#f8efe5] text-[#a17848]">
+    <div className="flex items-start gap-3 rounded-[20px] border border-[var(--portal-border)] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(31,48,79,0.05)]">
+      <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
         {icon}
       </div>
       <div>
-        <div className="text-sm font-semibold text-[#2f2218]">{title}</div>
-        <div className="mt-1 text-sm leading-6 text-[#72553c]">{detail}</div>
+        <div className="text-sm font-semibold text-[var(--portal-text)]">{title}</div>
+        <div className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
       </div>
     </div>
   );

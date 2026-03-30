@@ -314,7 +314,7 @@ export default function PortalPage() {
       <PortalPageHero
         eyebrow="Overview"
         title={`Welcome back, ${displayName}`}
-        description="A calm home base for your puppy journey, with breeder updates, milestones, documents, financial clarity, and support all in one place."
+        description="View your puppy updates, milestones, documents, payments, messages, and transportation details in one place."
         actions={
           <>
             <PortalHeroPrimaryAction href={puppy ? "/portal/mypuppy" : "/portal/application"}>
@@ -326,7 +326,7 @@ export default function PortalPage() {
           </>
         }
         aside={
-          <div className="overflow-hidden rounded-[32px] border border-[#ead9c7] bg-white shadow-[0_18px_42px_rgba(96,67,38,0.08)]">
+          <div className="overflow-hidden rounded-[28px] border border-[var(--portal-border)] bg-[var(--portal-surface-strong)] shadow-[0_18px_40px_rgba(31,48,79,0.08)]">
             <div className="relative aspect-[5/4] overflow-hidden">
               <Image
                 src={puppyImage}
@@ -335,17 +335,17 @@ export default function PortalPage() {
                 sizes="(max-width: 1280px) 100vw, 360px"
                 className="object-cover"
               />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(29,18,9,0.05)_0%,rgba(29,18,9,0.52)_100%)]" />
-              <div className="absolute inset-x-4 bottom-4 rounded-[22px] border border-white/30 bg-white/16 p-4 backdrop-blur">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/80">
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(17,29,48,0.04)_0%,rgba(17,29,48,0.56)_100%)]" />
+              <div className="absolute inset-x-4 bottom-4 rounded-[22px] border border-white/35 bg-[rgba(245,249,255,0.18)] p-4 backdrop-blur-md">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/78">
                   My Puppy
                 </div>
-                <div className="mt-2 text-xl font-semibold text-white">
+                <div className="mt-2 text-xl font-semibold tracking-[-0.02em] text-white">
                   {puppy ? puppyName : "Waiting for Match"}
                 </div>
                 <div className="mt-1 text-sm leading-6 text-white/85">
                   {puppy
-                    ? `${puppyStage} and ready to follow here through breeder care and after homecoming.`
+                    ? `${puppyStage}. Open the puppy profile for photos, milestones, wellness records, and breeder notes.`
                     : "Your matched puppy profile will appear here once the breeder links it to your account."}
                 </div>
               </div>
@@ -372,7 +372,7 @@ export default function PortalPage() {
           detail="Breeder replies still waiting for your review."
           href="/portal/messages"
           actionLabel="Open Messages"
-          accent="from-[#efe3d1] via-[#dbc2a1] to-[#b99366]"
+          accent="from-[#dfe6fb] via-[#b8c7f7] to-[#7388d9]"
         />
         <PortalMetricCard
           label="Payment Summary"
@@ -384,7 +384,7 @@ export default function PortalPage() {
           }
           href="/portal/payments"
           actionLabel="Open Payments"
-          accent="from-[#dce9d6] via-[#b4ceab] to-[#7f9b72]"
+          accent="from-[#d9eef4] via-[#acd4e2] to-[#6da8bd]"
         />
         <PortalMetricCard
           label="Records"
@@ -392,7 +392,7 @@ export default function PortalPage() {
           detail={`${totalAttachments} attachment${totalAttachments === 1 ? "" : "s"} and ${photoMoments} photo moment${photoMoments === 1 ? "" : "s"} saved in the portal.`}
           href="/portal/documents"
           actionLabel="Open Documents"
-          accent="from-[#f0dcc1] via-[#ddb68c] to-[#c98743]"
+          accent="from-[#e7ebf2] via-[#cfd8e6] to-[#8ea0b9]"
         />
       </PortalMetricGrid>
 
@@ -400,7 +400,7 @@ export default function PortalPage() {
         <div className="space-y-6">
           <PortalPanel
             title="Recent Puppy Journey"
-            subtitle="The newest breeder updates and wellness records tied to your account."
+            subtitle="Recent breeder notes and wellness records tied to your account."
           >
             {timeline.length ? (
               <div className="space-y-4">
@@ -426,7 +426,7 @@ export default function PortalPage() {
 
           <PortalPanel
             title="Upcoming Milestones"
-            subtitle="The next meaningful dates or actions, so your portal feels proactive rather than passive."
+            subtitle="The next visible dates, milestones, or transportation details on your account."
           >
             {upcoming.length ? (
               <div className="grid gap-4 md:grid-cols-2">
@@ -450,7 +450,7 @@ export default function PortalPage() {
 
           <PortalPanel
             title="Quick Actions"
-            subtitle="Useful next steps instead of filler shortcuts."
+            subtitle="Open the places you are most likely to need next."
           >
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <PortalActionLink
@@ -484,7 +484,7 @@ export default function PortalPage() {
         <div className="space-y-6">
           <PortalPanel
             title="Puppy Snapshot"
-            subtitle="The details families glance at most often."
+            subtitle="The most important profile details surfaced first."
           >
             <div className="space-y-4">
               <PortalInfoTile
@@ -528,7 +528,7 @@ export default function PortalPage() {
 
           <PortalPanel
             title="Documents Needing Attention"
-            subtitle="Keep records organized without dumping every file onto the screen."
+            subtitle="Draft forms and active records that still need attention."
           >
             {documentsNeedingAttention.length ? (
               <div className="space-y-4">
@@ -552,8 +552,8 @@ export default function PortalPage() {
           </PortalPanel>
 
           <PortalPanel
-            title="Communication & Confidence"
-            subtitle="A softer support layer so the portal feels guided, not clinical."
+            title="Alerts & Readiness"
+            subtitle="The items most likely to affect your next step."
           >
             <div className="space-y-3">
               <InsightCard
@@ -567,7 +567,7 @@ export default function PortalPage() {
               />
               <InsightCard
                 icon={<CalendarClock className="h-4 w-4" />}
-                title="Upcoming readiness"
+                title="Next milestone"
                 detail={
                   upcoming[0]
                     ? `${upcoming[0].title} is the next visible milestone on your portal.`
@@ -576,8 +576,12 @@ export default function PortalPage() {
               />
               <InsightCard
                 icon={<ShieldCheck className="h-4 w-4" />}
-                title="Why this portal matters"
-                detail="It is designed to keep your puppy journey, breeder communication, documents, and financial record calm and easy to follow."
+                title="Account status"
+                detail={
+                  documentsNeedingAttention.length
+                    ? `${documentsNeedingAttention.length} record${documentsNeedingAttention.length === 1 ? "" : "s"} currently needs review.`
+                    : "Your key records and messages look current right now."
+                }
               />
             </div>
           </PortalPanel>
@@ -597,13 +601,13 @@ function InsightCard({
   detail: string;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-[22px] border border-[#eadccf] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(96,67,38,0.05)]">
-      <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-[#f8efe5] text-[#a17848]">
+    <div className="flex items-start gap-3 rounded-[20px] border border-[var(--portal-border)] bg-[var(--portal-surface-strong)] px-4 py-4 shadow-[0_10px_22px_rgba(31,48,79,0.05)]">
+      <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
         {icon}
       </div>
       <div>
-        <div className="text-sm font-semibold text-[#2f2218]">{title}</div>
-        <div className="mt-1 text-sm leading-6 text-[#72553c]">{detail}</div>
+        <div className="text-sm font-semibold text-[var(--portal-text)]">{title}</div>
+        <div className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
       </div>
     </div>
   );

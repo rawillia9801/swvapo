@@ -680,14 +680,14 @@ export default function PortalApplicationPage() {
           </>
         }
         aside={
-          <div className="rounded-[30px] border border-[#eadccf] bg-white p-5 shadow-[0_18px_42px_rgba(96,67,38,0.08)]">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a17848]">
+          <div className="rounded-[30px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,var(--portal-surface-strong)_0%,var(--portal-surface-muted)_100%)] p-5 shadow-[0_18px_42px_rgba(31,48,79,0.08)]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--portal-text-muted)]">
               Why this page matters
             </div>
-            <div className="mt-3 text-lg font-semibold text-[#2f2218]">
+            <div className="mt-3 text-lg font-semibold text-[var(--portal-text)]">
               Keep your application easy to review.
             </div>
-            <div className="mt-3 space-y-3 text-sm leading-6 text-[#72553c]">
+            <div className="mt-3 space-y-3 text-sm leading-6 text-[var(--portal-text-soft)]">
               <p>Use this page to keep account details current while your application is under review.</p>
               <p>Once you are approved, this page remains part of your buyer record before and after your puppy goes home.</p>
               <p>Important notes, matching details, and next steps stay easier to follow when the record here is complete.</p>
@@ -1010,29 +1010,29 @@ export default function PortalApplicationPage() {
               subtitle="The goal here is clarity and accountability, not a wall of legal-looking text."
             >
               <div className="space-y-5">
-                <div className="rounded-[24px] border border-[#eadccf] bg-[#fffaf4] p-5">
-                  <div className="text-sm font-semibold text-[#2f2218]">
+                <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] p-5">
+                  <div className="text-sm font-semibold text-[var(--portal-text)]">
                     Key policy points
                   </div>
-                  <ul className="mt-3 space-y-2 text-sm leading-6 text-[#72553c]">
+                  <ul className="mt-3 space-y-2 text-sm leading-6 text-[var(--portal-text-soft)]">
                     {policyHighlights.map((item) => (
                       <li key={item} className="flex items-start gap-2">
-                        <span className="mt-2 h-1.5 w-1.5 rounded-full bg-[#c38b47]" />
+                        <span className="mt-2 h-1.5 w-1.5 rounded-full bg-[var(--portal-accent-strong)]" />
                         <span>{item}</span>
                       </li>
                     ))}
                   </ul>
-                  <div className="mt-4 text-sm leading-6 text-[#72553c]">
+                  <div className="mt-4 text-sm leading-6 text-[var(--portal-text-soft)]">
                     Need the full written policies? Visit{" "}
                     <a
                       href="/policies.html"
-                      className="font-semibold text-[#b67831] underline decoration-[#d7b58e] underline-offset-4"
+                      className="font-semibold text-[var(--portal-accent-strong)] underline decoration-[var(--portal-border-strong)] underline-offset-4"
                     >
                       Southwest Virginia Chihuahua policies
                     </a>
                     .
                   </div>
-                  <label className="mt-4 flex items-start gap-3 rounded-[20px] border border-[#eadccf] bg-white px-4 py-4 text-sm leading-6 text-[#5f4531]">
+                  <label className="mt-4 flex items-start gap-3 rounded-[20px] border border-[var(--portal-border)] bg-white px-4 py-4 text-sm leading-6 text-[var(--portal-text-soft)]">
                     <input
                       type="checkbox"
                       checked={form.agreeTerms}
@@ -1090,7 +1090,7 @@ export default function PortalApplicationPage() {
               </div>
 
               <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
-                <div className="text-sm leading-6 text-[#72553c]">
+                <div className="text-sm leading-6 text-[var(--portal-text-soft)]">
                   Saving here keeps your portal application current for breeder review.
                 </div>
                 <PortalButton type="submit" disabled={saving}>
@@ -1169,7 +1169,7 @@ export default function PortalApplicationPage() {
               title="Breeder Notes"
               subtitle="Notes left on your application are kept visible here so they do not get lost."
             >
-              <div className="rounded-[24px] border border-[#eadccf] bg-white px-4 py-4 text-sm leading-7 text-[#5f4531] shadow-[0_10px_24px_rgba(96,67,38,0.05)]">
+              <div className="rounded-[24px] border border-[var(--portal-border)] bg-white px-4 py-4 text-sm leading-7 text-[var(--portal-text-soft)] shadow-[0_10px_24px_rgba(31,48,79,0.05)]">
                 {record.admin_notes}
               </div>
             </PortalPanel>
@@ -1210,14 +1210,14 @@ function DeclarationCard({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="flex items-start gap-3 rounded-[24px] border border-[#eadccf] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(96,67,38,0.05)]">
+    <label className="flex items-start gap-3 rounded-[24px] border border-[var(--portal-border)] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(31,48,79,0.05)]">
       <input
         type="checkbox"
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
         className="mt-1 h-4 w-4"
       />
-      <span className="text-sm leading-6 text-[#5f4531]">{label}</span>
+      <span className="text-sm leading-6 text-[var(--portal-text-soft)]">{label}</span>
     </label>
   );
 }
@@ -1232,13 +1232,13 @@ function NextStepCard({
   detail: string;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-[22px] border border-[#eadccf] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(96,67,38,0.05)]">
-      <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-[#f8efe5] text-[#a17848]">
+    <div className="flex items-start gap-3 rounded-[22px] border border-[var(--portal-border)] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(31,48,79,0.05)]">
+      <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
         {icon}
       </div>
       <div>
-        <div className="text-sm font-semibold text-[#2f2218]">{title}</div>
-        <div className="mt-1 text-sm leading-6 text-[#72553c]">{detail}</div>
+        <div className="text-sm font-semibold text-[var(--portal-text)]">{title}</div>
+        <div className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
       </div>
     </div>
   );
@@ -1258,14 +1258,14 @@ function QuickLinkCard({
   return (
     <Link
       href={href}
-      className="flex items-start gap-3 rounded-[22px] border border-[#eadccf] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(96,67,38,0.05)] transition hover:-translate-y-0.5 hover:border-[#d7b58e]"
+      className="flex items-start gap-3 rounded-[22px] border border-[var(--portal-border)] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(31,48,79,0.05)] transition hover:-translate-y-0.5 hover:border-[var(--portal-border-strong)] hover:bg-[var(--portal-surface-muted)]"
     >
-      <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-[#f8efe5] text-[#a17848]">
+      <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
         {icon}
       </div>
       <div>
-        <div className="text-sm font-semibold text-[#2f2218]">{title}</div>
-        <div className="mt-1 text-sm leading-6 text-[#72553c]">{detail}</div>
+        <div className="text-sm font-semibold text-[var(--portal-text)]">{title}</div>
+        <div className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
       </div>
     </Link>
   );

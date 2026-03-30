@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { fmtDate } from "@/lib/utils";
 import {
@@ -38,7 +38,7 @@ type Notice = {
 };
 
 function healthLabel(recordType: string) {
-  const normalized = String(recordType || "").toLowerCase();
+  const normalized = String(recordType || "").trim().toLowerCase();
   if (normalized === "vaccine") return "Vaccine";
   if (normalized === "deworming") return "Deworming";
   if (normalized === "exam") return "Exam";
@@ -98,6 +98,41 @@ export default function PortalNotificationsPage() {
     };
   }, [user]);
 
+  const notices = useMemo<Notice[]>(() => {
+    return [
+      ...messages.map((message) => ({
+        id: `message-${message.id}`,
+        kind: "message" as const,
+        date: message.created_at,
+        title: message.subject || "New portal message",
+        body: message.message || "A new portal message was added to your conversation.",
+        href: "/portal/messages",
+        isUnread: message.sender === "admin" && !message.read_by_user,
+      })),
+      ...events.map((event) => ({
+        id: `event-${event.id}`,
+        kind: "milestone" as const,
+        date: event.event_date,
+        title: event.title || event.label || "Puppy update",
+        body:
+          event.summary ||
+          event.details ||
+          "A new puppy milestone or breeder update was posted to your timeline.",
+        href: "/portal/updates",
+      })),
+      ...health.map((record) => ({
+        id: `health-${record.id}`,
+        kind: "health" as const,
+        date: record.record_date,
+        title: record.title || "Health update",
+        body:
+          record.description ||
+          `${healthLabel(record.record_type)} added to your puppy's visible wellness history.`,
+        href: "/portal/updates",
+      })),
+    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [events, health, messages]);
+
   if (sessionLoading || loading) {
     return <PortalLoadingState label="Loading notifications..." />;
   }
@@ -108,7 +143,7 @@ export default function PortalNotificationsPage() {
         eyebrow="Notifications"
         title="Sign in to view recent activity."
         description="Messages, milestones, and visible health updates appear here once you are signed in."
-        actions={<PortalHeroPrimaryAction href="/portal">Open Portal Access</PortalHeroPrimaryAction>}
+        actions={<PortalHeroPrimaryAction href="/portal">Open My Puppy Portal</PortalHeroPrimaryAction>}
       />
     );
   }
@@ -117,47 +152,14 @@ export default function PortalNotificationsPage() {
     return <PortalErrorState title="Notifications are unavailable" description={errorText} />;
   }
 
-  const notices: Notice[] = [
-    ...messages.map((message) => ({
-      id: `message-${message.id}`,
-      kind: "message" as const,
-      date: message.created_at,
-      title: message.subject || "New portal message",
-      body: message.message || "A new portal message was added to your conversation.",
-      href: "/portal/messages",
-      isUnread: message.sender === "admin" && !message.read_by_user,
-    })),
-    ...events.map((event) => ({
-      id: `event-${event.id}`,
-      kind: "milestone" as const,
-      date: event.event_date,
-      title: event.title || event.label || "Puppy update",
-      body:
-        event.summary ||
-        event.details ||
-        "A new puppy milestone or breeder update was posted to your timeline.",
-      href: "/portal/updates",
-    })),
-    ...health.map((record) => ({
-      id: `health-${record.id}`,
-      kind: "health" as const,
-      date: record.record_date,
-      title: record.title || "Health update",
-      body:
-        record.description ||
-        `${healthLabel(record.record_type)} added to your puppy's visible wellness history.`,
-      href: "/portal/updates",
-    })),
-  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
   const unreadCount = notices.filter((notice) => notice.kind === "message" && notice.isUnread).length;
 
   return (
     <div className="space-y-6 pb-14">
       <PortalPageHero
         eyebrow="Notifications"
-        title="Recent activity, collected in one place."
-        description="Messages, breeder notes, and visible health updates are gathered here so important changes are easy to spot without bouncing between tabs."
+        title="Recent activity, collected in one stream."
+        description="Messages, breeder notes, and visible health updates are gathered here so important changes are easy to spot without moving between tabs."
         actions={
           <>
             <PortalHeroPrimaryAction href="/portal/messages">Open Messages</PortalHeroPrimaryAction>
@@ -191,19 +193,19 @@ export default function PortalNotificationsPage() {
           label="Messages"
           value={String(messages.length)}
           detail="Recent portal message activity."
-          accent="from-[#ece3d5] via-[#d7c1a3] to-[#b18d62]"
+          accent="from-[#dfe6fb] via-[#b8c7f7] to-[#7388d9]"
         />
         <PortalMetricCard
           label="Milestones"
           value={String(events.length)}
           detail="Recent breeder note and milestone activity."
-          accent="from-[#f0dcc1] via-[#ddb68c] to-[#c98743]"
+          accent="from-[#d9eef4] via-[#acd4e2] to-[#6da8bd]"
         />
         <PortalMetricCard
           label="Health Updates"
           value={String(health.length)}
           detail="Recent visible wellness activity."
-          accent="from-[#dce9d6] via-[#b6cfaa] to-[#7e9c6f]"
+          accent="from-[#e7ebf2] via-[#cfd8e6] to-[#8ea0b9]"
         />
       </PortalMetricGrid>
 
@@ -217,18 +219,25 @@ export default function PortalNotificationsPage() {
               <Link
                 key={notice.id}
                 href={notice.href}
-                className="block rounded-[24px] border border-[#eadccf] bg-white px-5 py-5 shadow-[0_10px_24px_rgba(96,67,38,0.05)] transition hover:-translate-y-0.5 hover:border-[#d7b58e]"
+                className="block rounded-[24px] border border-[var(--portal-border)] bg-white px-5 py-5 shadow-[0_10px_22px_rgba(31,48,79,0.05)] transition hover:-translate-y-0.5 hover:border-[var(--portal-border-strong)] hover:bg-[var(--portal-surface-muted)]"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <PortalStatusBadge label={notice.kind} tone={notice.kind === "health" ? "success" : "neutral"} />
+                      <PortalStatusBadge
+                        label={notice.kind}
+                        tone={notice.kind === "health" ? "success" : "neutral"}
+                      />
                       {notice.isUnread ? <PortalStatusBadge label="Unread" tone="warning" /> : null}
                     </div>
-                    <div className="mt-3 text-lg font-semibold text-[#2f2218]">{notice.title}</div>
-                    <div className="mt-2 text-sm leading-7 text-[#72553c]">{notice.body}</div>
+                    <div className="mt-3 text-lg font-semibold text-[var(--portal-text)]">
+                      {notice.title}
+                    </div>
+                    <div className="mt-2 text-sm leading-7 text-[var(--portal-text-soft)]">
+                      {notice.body}
+                    </div>
                   </div>
-                  <div className="shrink-0 text-[11px] font-medium text-[#8a6a49]">{fmtDate(notice.date)}</div>
+                  <div className="text-xs text-[var(--portal-text-muted)]">{fmtDate(notice.date)}</div>
                 </div>
               </Link>
             ))}

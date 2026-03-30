@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { CalendarClock, Camera, HeartPulse, Sparkles } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { CalendarClock, HeartPulse, Sparkles } from "lucide-react";
 import { fmtDate } from "@/lib/utils";
 import {
   findHealthRecords,
@@ -14,11 +14,13 @@ import {
 } from "@/lib/portal-data";
 import { usePortalSession } from "@/hooks/use-portal-session";
 import {
+  PortalActionLink,
   PortalEmptyState,
   PortalErrorState,
   PortalHeroPrimaryAction,
   PortalHeroSecondaryAction,
   PortalInfoTile,
+  PortalListCard,
   PortalLoadingState,
   PortalMetricCard,
   PortalMetricGrid,
@@ -27,19 +29,8 @@ import {
   PortalStatusBadge,
 } from "@/components/portal/luxury-shell";
 
-type TimelineEntry = {
-  id: string;
-  date: string;
-  title: string;
-  description: string;
-  badge: string;
-  tone: "neutral" | "success";
-  hasPhoto: boolean;
-  nextDueDate?: string | null;
-};
-
-function entryBadge(recordType: string) {
-  const normalized = String(recordType || "").toLowerCase();
+function healthLabel(recordType: string) {
+  const normalized = String(recordType || "").trim().toLowerCase();
   if (normalized === "vaccine") return "Vaccine";
   if (normalized === "deworming") return "Deworming";
   if (normalized === "exam") return "Exam";
@@ -84,7 +75,6 @@ export default function PortalUpdatesPage() {
         ]);
 
         if (!active) return;
-
         setDisplayName(portalDisplayName(user, context.buyer, context.application));
         setPuppyName(portalPuppyName(context.puppy));
         setEvents(timelineEvents);
@@ -107,6 +97,37 @@ export default function PortalUpdatesPage() {
     };
   }, [user]);
 
+  const timeline = useMemo(() => {
+    return [...events, ...health]
+      .map((entry) => {
+        if ("record_type" in entry) {
+          return {
+            id: `health-${entry.id}`,
+            date: entry.record_date,
+            title: entry.title,
+            description:
+              entry.description || `${healthLabel(entry.record_type)} added to your puppy's health record.`,
+            badge: healthLabel(entry.record_type),
+            tone: "success" as const,
+            hasPhoto: false,
+            nextDueDate: entry.next_due_date,
+          };
+        }
+
+        return {
+          id: `event-${entry.id}`,
+          date: entry.event_date,
+          title: entry.title || entry.label || "Breeder update",
+          description:
+            entry.summary || entry.details || "A new breeder update was added to your puppy timeline.",
+          badge: "Breeder Note",
+          tone: "neutral" as const,
+          hasPhoto: Boolean(entry.photo_url) || photoCount(entry.photos) > 0,
+        };
+      })
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [events, health]);
+
   if (sessionLoading || loading) {
     return <PortalLoadingState label="Loading Pupdates..." />;
   }
@@ -115,9 +136,9 @@ export default function PortalUpdatesPage() {
     return (
       <PortalPageHero
         eyebrow="Pupdates"
-        title="Sign in to follow your puppy journey."
-        description="Breeder updates, milestone notes, and wellness records appear here once you are signed in."
-        actions={<PortalHeroPrimaryAction href="/portal">Open Portal Access</PortalHeroPrimaryAction>}
+        title="Sign in to follow your puppy updates."
+        description="Breeder notes, milestone records, and visible wellness updates appear here once you are signed in."
+        actions={<PortalHeroPrimaryAction href="/portal">Open My Puppy Portal</PortalHeroPrimaryAction>}
       />
     );
   }
@@ -126,46 +147,15 @@ export default function PortalUpdatesPage() {
     return <PortalErrorState title="Pupdates are unavailable" description={errorText} />;
   }
 
-  const timeline: TimelineEntry[] = [...events, ...health]
-    .map((entry) => {
-      if ("record_type" in entry) {
-        return {
-          id: `health-${entry.id}`,
-          date: entry.record_date,
-          title: entry.title,
-          description:
-            entry.description ||
-            `${entryBadge(entry.record_type)} added to your puppy's wellness record.`,
-          badge: entryBadge(entry.record_type),
-          tone: "success" as const,
-          hasPhoto: false,
-          nextDueDate: entry.next_due_date,
-        };
-      }
-
-      return {
-        id: `event-${entry.id}`,
-        date: entry.event_date,
-        title: entry.title || entry.label || "Breeder update",
-        description:
-          entry.summary ||
-          entry.details ||
-          "A new breeder update was added to your puppy journey.",
-        badge: "Breeder Note",
-        tone: "neutral" as const,
-        hasPhoto: Boolean(entry.photo_url) || photoCount(entry.photos) > 0,
-      };
-    })
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
   const featured = timeline[0] || null;
-  const nextWellness = health
-    .filter((record) => record.next_due_date)
-    .sort(
-      (a, b) =>
-        new Date(a.next_due_date || a.record_date).getTime() -
-        new Date(b.next_due_date || b.record_date).getTime()
-    )[0] || null;
+  const nextWellness =
+    [...health]
+      .filter((record) => record.next_due_date)
+      .sort(
+        (a, b) =>
+          new Date(a.next_due_date || a.record_date).getTime() -
+          new Date(b.next_due_date || b.record_date).getTime()
+      )[0] || null;
   const photoUpdates = events.filter(
     (event) => Boolean(event.photo_url) || photoCount(event.photos) > 0
   ).length;
@@ -174,12 +164,12 @@ export default function PortalUpdatesPage() {
     <div className="space-y-6 pb-14">
       <PortalPageHero
         eyebrow="Pupdates"
-        title={`A living record of ${puppyName}'s journey.`}
-        description={`${displayName} can follow breeder notes, milestone moments, and wellness records here in one private timeline that stays useful before and after go-home day.`}
+        title={`Track ${puppyName}'s progress in one timeline.`}
+        description={`${displayName} can review breeder notes, visible wellness entries, milestone dates, and photo moments here without having to piece updates together across tabs.`}
         actions={
           <>
             <PortalHeroPrimaryAction href="/portal/mypuppy">Open My Puppy</PortalHeroPrimaryAction>
-            <PortalHeroSecondaryAction href="/portal/messages">Message Support</PortalHeroSecondaryAction>
+            <PortalHeroSecondaryAction href="/portal/messages">Open Messages</PortalHeroSecondaryAction>
           </>
         }
         aside={
@@ -187,7 +177,7 @@ export default function PortalUpdatesPage() {
             <PortalInfoTile
               label="Latest Update"
               value={featured ? fmtDate(featured.date) : "Pending"}
-              detail={featured?.title || "Your next breeder or wellness update will appear here."}
+              detail={featured?.title || "Your next published update will appear here first."}
             />
             <PortalInfoTile
               label="Next Wellness Date"
@@ -202,65 +192,58 @@ export default function PortalUpdatesPage() {
         <PortalMetricCard
           label="Breeder Notes"
           value={String(events.length)}
-          detail="Published breeder notes and milestone entries."
+          detail="Published milestone notes and breeder updates."
         />
         <PortalMetricCard
-          label="Health Records"
+          label="Wellness"
           value={String(health.length)}
-          detail="Visible wellness records tied to your puppy."
-          accent="from-[#dce9d6] via-[#b6cfaa] to-[#7e9c6f]"
+          detail="Visible wellness entries tied to your puppy."
+          accent="from-[#dfe6fb] via-[#b8c7f7] to-[#7388d9]"
         />
         <PortalMetricCard
           label="Photo Moments"
           value={String(photoUpdates)}
-          detail="Timeline entries that include photos."
-          accent="from-[#f0ddc0] via-[#d8b07e] to-[#b67a33]"
+          detail="Published updates that include photos."
+          accent="from-[#d9eef4] via-[#acd4e2] to-[#6da8bd]"
         />
         <PortalMetricCard
           label="Latest Posted"
           value={featured ? fmtDate(featured.date) : "Pending"}
           detail={featured?.badge || "No published updates yet."}
-          accent="from-[#ece4d6] via-[#d7c2a5] to-[#b5936c]"
+          accent="from-[#e7ebf2] via-[#cfd8e6] to-[#8ea0b9]"
         />
       </PortalMetricGrid>
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.15fr)_380px]">
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.18fr)_380px]">
         <div className="space-y-6">
           <PortalPanel
             title="Journey Timeline"
-            subtitle="Every published breeder note, milestone, and visible health record lives here in one clean stream so nothing important gets buried."
+            subtitle="Every published breeder note, milestone, and visible health update appears here in date order."
           >
             {timeline.length ? (
               <div className="space-y-4">
                 {timeline.map((entry) => (
                   <div
                     key={entry.id}
-                    className="rounded-[24px] border border-[#ead9c7] bg-white p-5 shadow-[0_10px_24px_rgba(96,67,38,0.05)]"
+                    className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-strong)] p-5 shadow-[0_12px_26px_rgba(31,48,79,0.05)]"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <PortalStatusBadge label={entry.badge} tone={entry.tone} />
-                          {entry.hasPhoto ? (
-                            <PortalStatusBadge label="Photo" tone="neutral" />
-                          ) : null}
+                          {entry.hasPhoto ? <PortalStatusBadge label="Photo" tone="neutral" /> : null}
                           {entry.nextDueDate ? (
-                            <PortalStatusBadge
-                              label={`Next due ${fmtDate(entry.nextDueDate)}`}
-                              tone="warning"
-                            />
+                            <PortalStatusBadge label={`Next due ${fmtDate(entry.nextDueDate)}`} tone="warning" />
                           ) : null}
                         </div>
-                        <div className="mt-3 text-lg font-semibold text-[#2f2218]">
+                        <div className="mt-3 text-lg font-semibold text-[var(--portal-text)]">
                           {entry.title}
                         </div>
-                        <div className="mt-2 text-sm leading-7 text-[#72553c]">
+                        <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
                           {entry.description}
                         </div>
                       </div>
-                      <div className="shrink-0 text-[11px] font-medium text-[#8a6a49]">
-                        {fmtDate(entry.date)}
-                      </div>
+                      <div className="text-xs text-[var(--portal-text-muted)]">{fmtDate(entry.date)}</div>
                     </div>
                   </div>
                 ))}
@@ -268,7 +251,7 @@ export default function PortalUpdatesPage() {
             ) : (
               <PortalEmptyState
                 title="No published updates yet"
-                description="As breeder notes, milestone moments, and visible wellness records are published for your puppy, they will appear here automatically."
+                description="As breeder notes, milestone moments, and visible wellness entries are posted for your puppy, they will appear here automatically."
               />
             )}
           </PortalPanel>
@@ -276,23 +259,23 @@ export default function PortalUpdatesPage() {
 
         <div className="space-y-6">
           <PortalPanel
-            title="Current Spotlight"
-            subtitle="A quick read of the latest meaningful update without making you scan the entire page."
+            title="Spotlight"
+            subtitle="A concise read of the latest meaningful update."
           >
             {featured ? (
               <div className="space-y-4">
-                <InfoFeature
+                <SupportRow
                   icon={<Sparkles className="h-4 w-4" />}
                   title={featured.title}
                   detail={featured.description}
                 />
-                <InfoFeature
+                <SupportRow
                   icon={<CalendarClock className="h-4 w-4" />}
                   title={fmtDate(featured.date)}
                   detail="The newest published update on your puppy journey."
                 />
                 {nextWellness?.next_due_date ? (
-                  <InfoFeature
+                  <SupportRow
                     icon={<HeartPulse className="h-4 w-4" />}
                     title={fmtDate(nextWellness.next_due_date)}
                     detail={nextWellness.title}
@@ -301,37 +284,53 @@ export default function PortalUpdatesPage() {
               </div>
             ) : (
               <PortalEmptyState
-                title="Awaiting the next update"
-                description="When a new breeder or wellness note is published, it will be surfaced here first."
+                title="Waiting on the next update"
+                description="When a new breeder note or wellness entry is published, it will appear here first."
               />
             )}
           </PortalPanel>
 
           <PortalPanel
-            title="How to use this page"
-            subtitle="This timeline is meant to be genuinely useful, not just a running list of decorative portal activity."
+            title="What to open next"
+            subtitle="Move directly from the timeline to the next part of the portal that helps most."
           >
-            <div className="space-y-3">
-              <InfoFeature
-                icon={<Sparkles className="h-4 w-4" />}
-                title="Before go-home day"
-                detail="Follow breeder observations, progress notes, and the practical story of how your puppy is developing."
+            <div className="grid gap-4">
+              <PortalActionLink
+                href="/portal/mypuppy"
+                eyebrow="My Puppy"
+                title="View the full puppy profile"
+                detail="Open photos, profile details, milestones, and growth information in one place."
               />
-              <InfoFeature
-                icon={<HeartPulse className="h-4 w-4" />}
-                title="After go-home day"
-                detail="Keep revisiting milestone history and wellness notes after your puppy is home."
+              <PortalActionLink
+                href="/portal/messages"
+                eyebrow="Messages"
+                title="Ask about an update"
+                detail="Use Messages if you want context on a breeder note, milestone date, or wellness detail."
               />
-              <InfoFeature
-                icon={<Camera className="h-4 w-4" />}
-                title="When something needs clarity"
-                detail="Use Messages if you want context on a specific update, date, or health note."
+              <PortalActionLink
+                href="/portal/resources"
+                eyebrow="Resources"
+                title="Review care guidance"
+                detail="Open curated Chihuahua resources and support material that stay useful after go-home day."
               />
             </div>
+          </PortalPanel>
 
-            <div className="mt-5 flex flex-wrap gap-3">
-              <PortalHeroPrimaryAction href="/portal/messages">Open Messages</PortalHeroPrimaryAction>
-              <PortalHeroSecondaryAction href="/portal/resources">Open Resources</PortalHeroSecondaryAction>
+          <PortalPanel
+            title="At a Glance"
+            subtitle="A few details that matter often enough to keep visible."
+          >
+            <div className="space-y-4">
+              {timeline.slice(0, 3).map((entry) => (
+                <PortalListCard
+                  key={entry.id}
+                  label={entry.badge}
+                  title={entry.title}
+                  description={entry.description}
+                  rightLabel={fmtDate(entry.date)}
+                  tone={entry.tone}
+                />
+              ))}
             </div>
           </PortalPanel>
         </div>
@@ -340,7 +339,7 @@ export default function PortalUpdatesPage() {
   );
 }
 
-function InfoFeature({
+function SupportRow({
   icon,
   title,
   detail,
@@ -350,13 +349,13 @@ function InfoFeature({
   detail: string;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-[22px] border border-[#eadccf] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(96,67,38,0.05)]">
-      <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-[#f8efe5] text-[#a17848]">
+    <div className="flex items-start gap-3 rounded-[22px] border border-[var(--portal-border)] bg-white px-4 py-4 shadow-[0_10px_22px_rgba(31,48,79,0.05)]">
+      <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
         {icon}
       </div>
       <div>
-        <div className="text-sm font-semibold text-[#2f2218]">{title}</div>
-        <div className="mt-1 text-sm leading-6 text-[#72553c]">{detail}</div>
+        <div className="text-sm font-semibold text-[var(--portal-text)]">{title}</div>
+        <div className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
       </div>
     </div>
   );

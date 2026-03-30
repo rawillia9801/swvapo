@@ -334,7 +334,7 @@ export default function PortalMyPuppyPage() {
       <PortalPageHero
         eyebrow="My Puppy"
         title={`${puppyName}'s private journey`}
-        description="A warm, beautifully organized place to follow growth, milestones, wellness, and breeder context before go-home day and after your puppy is home."
+        description="View photos, milestones, wellness records, breeder notes, and growth details for your puppy in one place."
         actions={
           <>
             <PortalHeroPrimaryAction href="/portal/updates">Open Pupdates</PortalHeroPrimaryAction>
@@ -342,7 +342,7 @@ export default function PortalMyPuppyPage() {
           </>
         }
         aside={
-          <div className="overflow-hidden rounded-[32px] border border-[#ead9c7] bg-white shadow-[0_18px_42px_rgba(96,67,38,0.08)]">
+          <div className="overflow-hidden rounded-[28px] border border-[var(--portal-border)] bg-[var(--portal-surface-strong)] shadow-[0_18px_40px_rgba(31,48,79,0.08)]">
             <div className="relative aspect-[4/5] overflow-hidden">
               <Image
                 src={puppyImage}
@@ -351,12 +351,12 @@ export default function PortalMyPuppyPage() {
                 sizes="(max-width: 1280px) 100vw, 360px"
                 className="object-cover"
               />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(28,18,10,0.05)_0%,rgba(28,18,10,0.6)_100%)]" />
-              <div className="absolute inset-x-4 bottom-4 rounded-[24px] border border-white/25 bg-white/14 p-4 backdrop-blur">
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(17,29,48,0.05)_0%,rgba(17,29,48,0.62)_100%)]" />
+              <div className="absolute inset-x-4 bottom-4 rounded-[24px] border border-white/30 bg-[rgba(244,248,255,0.16)] p-4 backdrop-blur-md">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/80">
                   Journey Stage
                 </div>
-                <div className="mt-2 text-2xl font-semibold text-white">{stage.label}</div>
+                <div className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-white">{stage.label}</div>
                 <div className="mt-2 text-sm leading-6 text-white/85">{stage.summary}</div>
               </div>
             </div>
@@ -370,19 +370,19 @@ export default function PortalMyPuppyPage() {
           label="Latest Weight"
           value={displayWeight(latestWeightPoint?.weightOz || puppy.current_weight, puppy.weight_unit || "oz")}
           detail={latestWeightDate ? `Updated ${fmtDate(latestWeightDate)}` : "Weight updates appear here as they are added."}
-          accent="from-[#efe3d1] via-[#dbc2a1] to-[#b99366]"
+          accent="from-[#dfe6fb] via-[#b8c7f7] to-[#7388d9]"
         />
         <PortalMetricCard
           label="Projected Adult Weight"
           value={projectAdultWeight(latestWeightPoint?.weightOz || puppy.current_weight, ageWeeks)}
           detail="Estimated from the most recent available growth data."
-          accent="from-[#dce9d6] via-[#b4ceab] to-[#7f9b72]"
+          accent="from-[#d9eef4] via-[#acd4e2] to-[#6da8bd]"
         />
         <PortalMetricCard
           label="Next Wellness Date"
           value={nextCare?.next_due_date ? fmtDate(nextCare.next_due_date) : "To be announced"}
           detail={nextCare?.title || "Upcoming wellness dates appear here when they are published."}
-          accent="from-[#f0dcc1] via-[#ddb68c] to-[#c98743]"
+          accent="from-[#e7ebf2] via-[#cfd8e6] to-[#8ea0b9]"
         />
       </PortalMetricGrid>
 
@@ -390,7 +390,7 @@ export default function PortalMyPuppyPage() {
         <div className="space-y-6">
           <PortalPanel
             title="Puppy Story"
-            subtitle="The essentials that make this feel like your puppy story, not a breeder database export."
+            subtitle="Profile details, breeder context, and identifying information for your puppy."
           >
             <div className="grid gap-4 md:grid-cols-2">
               {profileChips.map((chip) => (
@@ -415,11 +415,11 @@ export default function PortalMyPuppyPage() {
             </div>
 
             {breederContext ? (
-              <div className="mt-5 rounded-[26px] border border-[#eadccf] bg-[linear-gradient(180deg,#fffaf4_0%,#fff6ed_100%)] p-5">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a17848]">
-                  Breeder Context
+              <div className="mt-5 rounded-[26px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,var(--portal-surface-muted)_0%,#ffffff_100%)] p-5 shadow-[0_10px_24px_rgba(31,48,79,0.04)]">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--portal-text-muted)]">
+                  Profile Notes
                 </div>
-                <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-[#72553c]">
+                <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-[var(--portal-text-soft)]">
                   {breederContext}
                 </div>
               </div>
@@ -428,7 +428,7 @@ export default function PortalMyPuppyPage() {
 
           <PortalPanel
             title="Growth Tracking"
-            subtitle="Weight history should feel informative and easy to scan, not like a bulky admin graph."
+            subtitle="Weight history and trend data tied to your puppy record."
           >
             <div className="grid gap-4 md:grid-cols-3">
               <PortalInfoTile
@@ -455,8 +455,8 @@ export default function PortalMyPuppyPage() {
             </div>
 
             {weightTrend.length ? (
-              <div className="mt-6 rounded-[28px] border border-[#ead9c7] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] p-5 shadow-[0_12px_30px_rgba(106,76,45,0.05)]">
-                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a47946]">
+              <div className="mt-6 rounded-[28px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,#fbfdff_0%,var(--portal-surface-muted)_100%)] p-5 shadow-[0_12px_30px_rgba(31,48,79,0.06)]">
+                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--portal-text-muted)]">
                   <LineChart className="h-4 w-4" />
                   Growth Trend
                 </div>
@@ -470,11 +470,11 @@ export default function PortalMyPuppyPage() {
                         </div>
                         <div className="flex h-40 w-full items-end rounded-[18px] bg-white px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
                           <div
-                            className="w-full rounded-[14px] bg-[linear-gradient(180deg,#d8b178_0%,#c98d49_52%,#a96a2c_100%)]"
+                            className="w-full rounded-[14px] bg-[linear-gradient(180deg,#d6defc_0%,#93a5eb_56%,#5b70cb_100%)]"
                             style={{ height: `${height}%` }}
                           />
                         </div>
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#a47946]">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
                           {point.label}
                         </div>
                       </div>
@@ -494,7 +494,7 @@ export default function PortalMyPuppyPage() {
 
           <PortalPanel
             title="Milestones & Memories"
-            subtitle="Breeder notes and wellness records stay together so the journey feels easy to revisit later."
+            subtitle="Breeder notes and wellness records, presented in one clear timeline."
           >
             {timeline.length ? (
               <div className="space-y-4">
@@ -521,13 +521,13 @@ export default function PortalMyPuppyPage() {
         <div className="space-y-6">
           <PortalPanel
             title="What Matters Now"
-            subtitle="A calmer way to understand the purpose of this stage in your puppy's journey."
+            subtitle="The most relevant context for the current stage of your puppy profile."
           >
             <div className="space-y-3">
               {stage.guidance.map((item) => (
                 <div
                   key={item}
-                  className="rounded-[24px] border border-[#eadccf] bg-[#fffaf4] px-4 py-4 text-sm leading-7 text-[#72553c]"
+                  className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4 text-sm leading-7 text-[var(--portal-text-soft)]"
                 >
                   {item}
                 </div>
@@ -537,7 +537,7 @@ export default function PortalMyPuppyPage() {
 
           <PortalPanel
             title="Support Highlights"
-            subtitle="This portal should reassure and guide, not just display raw fields."
+            subtitle="Key support context surfaced without turning the page into a generic dashboard."
           >
             <div className="space-y-3">
               <InsightCard
@@ -559,8 +559,8 @@ export default function PortalMyPuppyPage() {
           </PortalPanel>
 
           <PortalPanel
-            title="Useful next steps"
-            subtitle="A few thoughtful next actions instead of a wall of identical buttons."
+            title="Quick Links"
+            subtitle="Open the pages most likely to matter next."
           >
             <div className="grid gap-4">
               <PortalActionLink
@@ -599,13 +599,13 @@ function InsightCard({
   detail: string;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-[22px] border border-[#eadccf] bg-white px-4 py-4 shadow-[0_10px_24px_rgba(96,67,38,0.05)]">
-      <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-[#f8efe5] text-[#a17848]">
+    <div className="flex items-start gap-3 rounded-[20px] border border-[var(--portal-border)] bg-[var(--portal-surface-strong)] px-4 py-4 shadow-[0_10px_22px_rgba(31,48,79,0.05)]">
+      <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
         {icon}
       </div>
       <div>
-        <div className="text-sm font-semibold text-[#2f2218]">{title}</div>
-        <div className="mt-1 text-sm leading-6 text-[#72553c]">{detail}</div>
+        <div className="text-sm font-semibold text-[var(--portal-text)]">{title}</div>
+        <div className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
       </div>
     </div>
   );

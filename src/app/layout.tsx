@@ -1,16 +1,15 @@
 import type { Metadata } from "next";
-import { Merriweather, Open_Sans } from "next/font/google";
+import { Inter, Manrope } from "next/font/google";
 import "./globals.css";
 
-const openSans = Open_Sans({
+const inter = Inter({
   variable: "--font-open-sans",
   subsets: ["latin"],
 });
 
-const merriweather = Merriweather({
+const manrope = Manrope({
   variable: "--font-merriweather",
   subsets: ["latin"],
-  weight: ["400", "700"],
 });
 
 export const metadata: Metadata = {
@@ -20,13 +19,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   return (
     <html lang="en">
       <body
-        className={`${openSans.variable} ${merriweather.variable} bg-[#f0ebe0] text-[#23170f] antialiased [font-family:var(--font-open-sans)]`}
+        className={`${inter.variable} ${manrope.variable} bg-[#edf2f8] text-[#162033] antialiased [font-family:var(--font-open-sans)]`}
       >
         {children}
       </body>

@@ -90,7 +90,7 @@ const navDefinitions: NavDefinition[] = [
 const defaultChiChiMessage: PortalChatMessage = {
   id: makeId("assistant"),
   role: "assistant",
-  text: "Hi, I am ChiChi. I can help with your portal account, puppy journey, payments, documents, breeder messages, transportation questions, and Chihuahua care guidance.",
+  text: "Hi, I am ChiChi. I can help with your account, puppy updates, payments, documents, transportation, and breeder messages.",
   createdAt: formatTime(),
 };
 
@@ -399,40 +399,40 @@ export default function PortalLayout({
       href: "/portal/notifications",
       label: "Notifications",
       icon: <Bell className="h-4 w-4" />,
-      trailing: <span className="text-xs text-[#8d6c4b]">{notificationCount}</span>,
+      trailing: <span className="text-xs text-[var(--portal-text-muted)]">{notificationCount}</span>,
     },
     {
       href: "/portal/profile",
       label: "Profile",
       icon: <UserCircle2 className="h-4 w-4" />,
-      trailing: <span className="text-xs text-[#8d6c4b]">Account</span>,
+      trailing: <span className="text-xs text-[var(--portal-text-muted)]">Account</span>,
     },
     {
       href: "/portal/help",
       label: "Help and Support",
       icon: <ShieldCheck className="h-4 w-4" />,
-      trailing: <span className="text-xs text-[#8d6c4b]">Open</span>,
+      trailing: <span className="text-xs text-[var(--portal-text-muted)]">Open</span>,
     },
     {
       href: "/portal/available-puppies",
       label: "Available Puppies",
       icon: <Sparkles className="h-4 w-4" />,
-      trailing: <span className="text-xs text-[#8d6c4b]">Explore</span>,
+      trailing: <span className="text-xs text-[var(--portal-text-muted)]">Explore</span>,
     },
   ];
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f8f2ea_0%,#f2e8dc_100%)] text-[#2f2218]">
-      <div className="grid min-h-screen lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)]">
-        <aside className="hidden border-r border-[#eadccf] bg-[linear-gradient(180deg,#fcf8f3_0%,#f5ecdf_100%)] px-5 py-5 lg:block">
+    <div className="min-h-screen bg-[linear-gradient(180deg,var(--portal-bg)_0%,var(--portal-bg-alt)_100%)] text-[var(--portal-text)] [--portal-bg:#f5f8fc] [--portal-bg-alt:#edf2f8] [--portal-surface:#f9fbfe] [--portal-surface-strong:#ffffff] [--portal-surface-muted:#f3f7fb] [--portal-border:#d7e0ea] [--portal-border-strong:#c5d0dd] [--portal-text:#162033] [--portal-text-soft:#586579] [--portal-text-muted:#7c8797] [--portal-accent:#6b7fd7] [--portal-accent-strong:#4f63bd]">
+      <div className="grid min-h-screen lg:grid-cols-[312px_minmax(0,1fr)] xl:grid-cols-[328px_minmax(0,1fr)]">
+        <aside className="hidden border-r border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(250,252,255,0.96)_0%,rgba(242,247,252,0.98)_100%)] px-5 py-5 lg:block">
           <PortalSidebar
             brandTitle="My Puppy Portal"
             brandSubtitle="Southwest Virginia Chihuahua"
             welcomeTitle={displayName}
             welcomeDescription={
               puppy
-                ? `${puppyName}'s story, your breeder communication, and account details stay organized here.`
-                : "Your application, account details, and next steps stay beautifully organized here."
+                ? `${puppyName} updates, documents, messages, payments, and next steps are all tied to this account.`
+                : "Your application, records, messages, and next steps stay organized here."
             }
             navItems={navItems}
             utilityLinks={utilityLinks}
@@ -465,7 +465,7 @@ export default function PortalLayout({
           />
 
           <main className="min-h-screen px-4 py-5 md:px-6 md:py-6 xl:px-8 xl:py-8">
-            <div className="mx-auto w-full max-w-[1500px]">{children}</div>
+            <div className="mx-auto w-full max-w-[1560px]">{children}</div>
           </main>
         </div>
       </div>
@@ -474,16 +474,16 @@ export default function PortalLayout({
         <div className="fixed inset-0 z-50 lg:hidden">
           <button
             type="button"
-            className="absolute inset-0 bg-[#20160f]/35 backdrop-blur-[2px]"
+            className="absolute inset-0 bg-[rgba(17,29,48,0.34)] backdrop-blur-[2px]"
             onClick={() => setIsDrawerOpen(false)}
             aria-label="Close portal navigation"
           />
-          <div className="absolute left-0 top-0 h-full w-[86%] max-w-[360px] border-r border-[#eadccf] bg-[linear-gradient(180deg,#fcf8f3_0%,#f5ecdf_100%)] px-5 py-5 shadow-[0_30px_80px_rgba(47,32,20,0.18)]">
+          <div className="absolute left-0 top-0 h-full w-[86%] max-w-[360px] border-r border-[var(--portal-border)] bg-[linear-gradient(180deg,#fbfdff_0%,#f2f7fc_100%)] px-5 py-5 shadow-[0_30px_80px_rgba(17,29,48,0.18)]">
             <div className="mb-4 flex justify-end">
               <button
                 type="button"
                 onClick={() => setIsDrawerOpen(false)}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#eadccf] bg-white text-[#4b3526]"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-[18px] border border-[var(--portal-border)] bg-white text-[var(--portal-text)]"
                 aria-label="Close portal navigation"
               >
                 <X className="h-5 w-5" />
@@ -495,8 +495,8 @@ export default function PortalLayout({
               welcomeTitle={displayName}
               welcomeDescription={
                 puppy
-                  ? `${puppyName}'s story, your breeder communication, and account details stay organized here.`
-                  : "Your application, account details, and next steps stay beautifully organized here."
+                  ? `${puppyName} updates, documents, messages, payments, and next steps are all tied to this account.`
+                  : "Your application, records, messages, and next steps stay organized here."
               }
               navItems={navItems}
               utilityLinks={utilityLinks}
