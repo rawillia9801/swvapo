@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Mail, RefreshCcw, ShieldCheck, Sparkles } from "lucide-react";
+import { Mail, RefreshCcw, ShieldCheck } from "lucide-react";
 import { fmtDate, sb } from "@/lib/utils";
 import { findPortalMessagesForUser, type PortalMessage } from "@/lib/portal-data";
 import { usePortalSession } from "@/hooks/use-portal-session";
@@ -179,8 +179,8 @@ export default function PortalMessagesPage() {
     <div className="space-y-6 pb-14">
       <PortalPageHero
         eyebrow="Messages"
-        title="Keep every conversation in one place."
-        description="Questions, breeder replies, scheduling notes, and account follow-up stay inside the portal so your puppy conversation remains easy to review."
+        title="Keep every account conversation in one place."
+        description="Questions, breeder replies, scheduling notes, and account follow-up remain inside the portal so the full conversation stays easy to review."
         actions={
           <>
             <PortalHeroPrimaryAction href="/portal/mypuppy">Open My Puppy</PortalHeroPrimaryAction>
@@ -188,7 +188,7 @@ export default function PortalMessagesPage() {
           </>
         }
         aside={
-          <div className="space-y-4">
+          <div className="grid gap-4">
             <PortalInfoTile
               label="Unread"
               value={String(unreadBreederMessages)}
@@ -198,20 +198,20 @@ export default function PortalMessagesPage() {
             <PortalInfoTile
               label="Latest Reply"
               value={lastReply ? fmtDate(lastReply) : "No replies yet"}
-              detail="The newest message currently in your portal history."
+              detail="The newest message currently saved in your portal history."
             />
           </div>
         }
       />
 
       {statusText ? (
-        <div className="rounded-[20px] border border-[rgba(106,162,134,0.24)] bg-[linear-gradient(180deg,#f8fcfb_0%,#f1f8f4_100%)] px-4 py-3 text-sm font-semibold text-[#486957]">
+        <div className="rounded-[20px] border border-[rgba(47,143,103,0.18)] bg-[linear-gradient(180deg,rgba(246,253,249,0.98)_0%,rgba(240,249,245,0.94)_100%)] px-4 py-3 text-sm font-semibold text-[#2f7657]">
           {statusText}
         </div>
       ) : null}
 
       {errorText && messages.length ? (
-        <div className="rounded-[20px] border border-[rgba(193,110,125,0.2)] bg-[linear-gradient(180deg,#fff8f9_0%,#fff2f4_100%)] px-4 py-3 text-sm font-semibold text-[#8f5360]">
+        <div className="rounded-[20px] border border-[rgba(194,84,114,0.16)] bg-[linear-gradient(180deg,rgba(255,249,251,0.98)_0%,rgba(255,242,246,0.94)_100%)] px-4 py-3 text-sm font-semibold text-[#aa4f68]">
           {errorText}
         </div>
       ) : null}
@@ -225,20 +225,20 @@ export default function PortalMessagesPage() {
         <PortalMetricCard
           label="From Breeder"
           value={String(breederMessages)}
-          detail="Messages sent from Southwest Virginia Chihuahua."
-          accent="from-[#dfe6fb] via-[#b8c7f7] to-[#7388d9]"
+          detail="Replies sent from Southwest Virginia Chihuahua."
+          accent="from-[rgba(93,121,255,0.16)] via-transparent to-[rgba(159,175,198,0.14)]"
         />
         <PortalMetricCard
           label="From You"
           value={String(yourMessages)}
           detail="Messages you have sent through the portal."
-          accent="from-[#d9eef4] via-[#acd4e2] to-[#6da8bd]"
+          accent="from-[rgba(110,166,218,0.16)] via-transparent to-[rgba(159,175,198,0.14)]"
         />
         <PortalMetricCard
           label="Unread"
           value={String(unreadBreederMessages)}
           detail="Breeder replies that still need your review."
-          accent="from-[#e7ebf2] via-[#cfd8e6] to-[#8ea0b9]"
+          accent="from-[rgba(113,198,164,0.16)] via-transparent to-[rgba(159,175,198,0.14)]"
         />
       </PortalMetricGrid>
 
@@ -274,24 +274,19 @@ export default function PortalMessagesPage() {
           </PortalPanel>
 
           <PortalPanel
-            title="Why the portal helps"
-            subtitle="The point is to keep communication readable, searchable, and connected to your account."
+            title="Conversation Rules"
+            subtitle="This page stays useful when it is easy to scan and easy to trust."
           >
             <div className="space-y-4">
               <SupportRow
                 icon={<Mail className="h-4 w-4" />}
                 title="Everything stays together"
-                detail="Questions, breeder replies, and follow-up details remain linked to the same portal record."
+                detail="Questions, breeder replies, and follow-up notes remain tied to the same account."
               />
               <SupportRow
                 icon={<ShieldCheck className="h-4 w-4" />}
-                title="Less confusion later"
-                detail="The full conversation trail remains easy to revisit when you need to confirm what was said."
-              />
-              <SupportRow
-                icon={<Sparkles className="h-4 w-4" />}
-                title="Better context"
-                detail="Messages work best when they stay close to your puppy profile, documents, and payment history."
+                title="Readable later"
+                detail="The full message trail stays easy to revisit when you need to confirm what was said."
               />
             </div>
           </PortalPanel>
@@ -299,7 +294,7 @@ export default function PortalMessagesPage() {
 
         <PortalPanel
           title="Conversation"
-          subtitle="Read everything in one private thread instead of piecing the story together across text and email."
+          subtitle="Read the account conversation in one thread instead of piecing it together across text and email."
           action={
             <PortalSecondaryButton onClick={refreshMessages}>
               <RefreshCcw className="mr-2 h-4 w-4" />
@@ -318,72 +313,36 @@ export default function PortalMessagesPage() {
                   <div className="space-y-4">
                     {group.items.map((entry) => {
                       const fromBreeder = entry.sender === "admin";
-                      const readTone =
-                        fromBreeder && !entry.read_by_user
-                          ? "warning"
-                          : !fromBreeder && !entry.read_by_admin
-                            ? "warning"
-                            : "success";
-
                       return (
                         <div
                           key={entry.id}
                           className={`flex ${fromBreeder ? "justify-start" : "justify-end"}`}
                         >
-                          <div
-                            className={`max-w-[86%] rounded-[28px] border px-5 py-4 shadow-[0_10px_24px_rgba(31,48,79,0.06)] ${
-                              fromBreeder
-                                ? "border-[var(--portal-border)] bg-white text-[var(--portal-text)]"
-                                : "border-[rgba(79,99,189,0.16)] bg-[linear-gradient(135deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] text-white"
-                            }`}
-                          >
-                            <div className="flex flex-wrap items-center justify-between gap-3">
-                              <div
-                                className={`text-[10px] font-semibold uppercase tracking-[0.18em] ${
-                                  fromBreeder ? "text-[var(--portal-text-muted)]" : "text-white/70"
-                                }`}
-                              >
-                                {fromBreeder ? "Southwest Virginia Chihuahua" : "You"}
-                              </div>
-                              <div
-                                className={`text-[10px] ${
-                                  fromBreeder ? "text-[var(--portal-text-muted)]" : "text-white/65"
-                                }`}
-                              >
-                                {new Date(entry.created_at).toLocaleString("en-US", {
-                                  month: "short",
-                                  day: "numeric",
-                                  hour: "numeric",
-                                  minute: "2-digit",
-                                })}
-                              </div>
+                          <div className={`max-w-[78%] ${fromBreeder ? "" : "text-right"}`}>
+                            <div className="mb-2 flex items-center gap-2">
+                              <PortalStatusBadge
+                                label={fromBreeder ? "Breeder" : "You"}
+                                tone={fromBreeder ? (entry.read_by_user ? "neutral" : "warning") : "success"}
+                              />
+                              {entry.subject ? (
+                                <span className="text-xs text-[var(--portal-text-muted)]">
+                                  {entry.subject}
+                                </span>
+                              ) : null}
                             </div>
 
-                            {entry.subject ? (
-                              <div className="mt-2 text-sm font-semibold">{entry.subject}</div>
-                            ) : null}
-
-                            <div className="mt-3 whitespace-pre-wrap text-sm leading-7">
-                              {entry.message}
+                            <div
+                              className={`rounded-[24px] border px-4 py-4 text-sm leading-7 shadow-[0_12px_28px_rgba(23,35,56,0.05)] ${
+                                fromBreeder
+                                  ? "border-[var(--portal-border)] bg-white text-[var(--portal-text)]"
+                                  : "border-[rgba(93,121,255,0.18)] bg-[linear-gradient(135deg,rgba(234,240,255,0.98)_0%,rgba(225,234,255,0.96)_100%)] text-[var(--portal-text)]"
+                              }`}
+                            >
+                              {entry.message || "No message body."}
                             </div>
 
-                            <div className="mt-4 flex flex-wrap gap-2">
-                              <PortalStatusBadge
-                                label={entry.status || "open"}
-                                tone={readTone}
-                              />
-                              <PortalStatusBadge
-                                label={
-                                  fromBreeder
-                                    ? entry.read_by_user
-                                      ? "Read by you"
-                                      : "Unread by you"
-                                    : entry.read_by_admin
-                                      ? "Read by breeder"
-                                      : "Unread by breeder"
-                                }
-                                tone={readTone}
-                              />
+                            <div className="mt-2 text-xs text-[var(--portal-text-muted)]">
+                              {fmtDate(entry.created_at)}
                             </div>
                           </div>
                         </div>
@@ -396,7 +355,7 @@ export default function PortalMessagesPage() {
           ) : (
             <PortalEmptyState
               title="No messages yet"
-              description="Send your first portal message whenever you need an update, have a question, or want to confirm a detail."
+              description="When you or the breeder send a portal message, the conversation will appear here."
             />
           )}
         </PortalPanel>
@@ -415,8 +374,8 @@ function SupportRow({
   detail: string;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-[22px] border border-[var(--portal-border)] bg-white px-4 py-4 shadow-[0_10px_22px_rgba(31,48,79,0.05)]">
-      <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
+    <div className="flex items-start gap-3 rounded-[22px] border border-[var(--portal-border)] bg-white px-4 py-4 shadow-[0_10px_22px_rgba(23,35,56,0.05)]">
+      <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
         {icon}
       </div>
       <div>

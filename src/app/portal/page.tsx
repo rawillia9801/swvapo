@@ -3,8 +3,9 @@
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import {
-  CalendarClock,
+  CreditCard,
   MessageCircle,
+  Route,
   ShieldCheck,
 } from "lucide-react";
 import { buildPuppyPhotoUrl, fmtDate, fmtMoney } from "@/lib/utils";
@@ -22,7 +23,6 @@ import {
   paymentCountsTowardBalance,
   portalDisplayName,
   portalPuppyName,
-  portalStatusTone,
   type PortalDocument,
   type PortalFormSubmission,
   type PortalHealthRecord,
@@ -45,6 +45,7 @@ import {
   PortalNarrativeCard,
   PortalPageHero,
   PortalPanel,
+  PortalStatusBadge,
 } from "@/components/portal/luxury-shell";
 import { PortalAccessExperience } from "@/components/portal/overview/portal-access-experience";
 
@@ -56,6 +57,15 @@ type DashboardState = {
   documents: PortalDocument[];
   payments: PortalPayment[];
   pickupRequest: PortalPickupRequest | null;
+};
+
+type ActivityItem = {
+  id: string;
+  date: string;
+  label: string;
+  title: string;
+  detail: string;
+  tone: "neutral" | "success" | "warning";
 };
 
 function emptyState(): DashboardState {
@@ -76,46 +86,41 @@ function requestStatusLabel(request: PortalPickupRequest | null) {
 }
 
 function requestTypeLabel(request: PortalPickupRequest | null) {
-  if (!request?.request_type) return "No transportation request yet";
+  if (!request?.request_type) return "No transportation request";
   return String(request.request_type)
     .replace(/[_-]/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function topMilestones(
+function buildUpcoming(
   events: PortalPuppyEvent[],
   health: PortalHealthRecord[],
   request: PortalPickupRequest | null
 ) {
-  const milestones: Array<{
-    id: string;
-    label: string;
-    title: string;
-    detail: string;
-    date: string;
-    tone: "neutral" | "success" | "warning";
-  }> = [
+  const milestones: ActivityItem[] = [
     ...health
       .filter((entry) => entry.next_due_date)
       .map((entry) => ({
         id: `health-${entry.id}`,
         label: "Wellness",
         title: entry.title,
-        detail: entry.description || "Upcoming wellness item on your puppy journey.",
+        detail: entry.description || "A scheduled wellness item is on file.",
         date: entry.next_due_date as string,
         tone: "success" as const,
       })),
-    ...events.map((entry) => ({
-      id: `event-${entry.id}`,
-      label: "Journey",
-      title: entry.title || entry.label || "Breeder update",
-      detail: entry.summary || entry.details || "A new breeder update was published.",
-      date: entry.event_date,
-      tone: "neutral" as const,
-    })),
+    ...events
+      .filter((entry) => !!entry.event_date)
+      .map((entry) => ({
+        id: `event-${entry.id}`,
+        label: "Pupdate",
+        title: entry.title || entry.label || "Breeder update",
+        detail: entry.summary || entry.details || "A breeder update was posted to the portal.",
+        date: entry.event_date,
+        tone: "neutral" as const,
+      })),
   ]
-    .filter((item) => !!item.date)
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .slice(0, 4);
 
   if (request?.request_date) {
     milestones.unshift({
@@ -124,11 +129,53 @@ function topMilestones(
       title: requestTypeLabel(request),
       detail: request.location_text || request.address_text || "Transportation request on file.",
       date: request.request_date,
-      tone: "warning" as const,
+      tone: "warning",
     });
   }
 
   return milestones.slice(0, 4);
+}
+
+function buildActivity({
+  events,
+  health,
+  messages,
+}: {
+  events: PortalPuppyEvent[];
+  health: PortalHealthRecord[];
+  messages: PortalMessage[];
+}) {
+  const activity: ActivityItem[] = [
+    ...events.map((entry) => ({
+      id: `event-${entry.id}`,
+      date: entry.event_date,
+      label: "Pupdate",
+      title: entry.title || entry.label || "Breeder update",
+      detail: entry.summary || entry.details || "A new breeder update was posted.",
+      tone: "neutral" as const,
+    })),
+    ...health.map((entry) => ({
+      id: `health-${entry.id}`,
+      date: entry.record_date,
+      label: "Wellness",
+      title: entry.title,
+      detail: entry.description || "A wellness record was added to your puppy profile.",
+      tone: "success" as const,
+    })),
+    ...messages.map((entry) => ({
+      id: `message-${entry.id}`,
+      date: entry.created_at,
+      label: entry.sender === "admin" ? "Message" : "Sent",
+      title: entry.subject || (entry.sender === "admin" ? "Breeder reply" : "Your message"),
+      detail: entry.message || "A new portal message is available.",
+      tone: entry.sender === "admin" ? "warning" as const : "neutral" as const,
+    })),
+  ];
+
+  return activity
+    .filter((entry) => !!entry.date)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 6);
 }
 
 export default function PortalPage() {
@@ -228,75 +275,22 @@ export default function PortalPage() {
     price !== null && price !== undefined
       ? Math.max(0, Number(price) - paid)
       : puppy?.balance ?? null;
-
   const unreadBreederMessages = state.messages.filter(
     (message) => message.sender === "admin" && !message.read_by_user
   ).length;
   const draftForms = state.forms.filter(
     (form) => String(form.status || "").toLowerCase() === "draft"
   );
-  const documentsNeedingAttention: Array<{
-    id: string;
-    label: string;
-    title: string;
-    description: string;
-    rightLabel: string;
-    tone: "neutral" | "success" | "warning" | "danger";
-  }> = [
-    ...draftForms.map((form) => ({
-      id: `form-${form.id}`,
-      label: "Draft Form",
-      title: form.form_title || form.form_key,
-      description: form.submitted_at
-        ? `Submitted ${fmtDate(form.submitted_at)}`
-        : "Saved in the portal and ready for review or submission.",
-      rightLabel: form.updated_at ? fmtDate(form.updated_at) : fmtDate(form.created_at || ""),
-      tone: "warning" as const,
-    })),
-    ...state.documents
-      .filter((document) => String(document.status || "").toLowerCase() !== "completed")
-      .slice(0, 3)
-      .map((document) => ({
-        id: `document-${document.id}`,
-        label: document.category || "Document",
-        title: document.title || "Portal record",
-        description: document.description || "A record is available in your portal.",
-        rightLabel: document.created_at ? fmtDate(document.created_at) : "Now",
-        tone: portalStatusTone(document.status) as "neutral" | "success" | "warning" | "danger",
-      })),
-  ].slice(0, 4);
-
-  const timeline: Array<{
-    id: string;
-    date: string;
-    title: string;
-    detail: string;
-    label: string;
-    tone: "neutral" | "success";
-  }> = [...state.events, ...state.health]
-    .map((item) => {
-      const isHealth = "record_type" in item;
-      return {
-        id: `${isHealth ? "health" : "event"}-${item.id}`,
-        date: isHealth ? item.record_date : item.event_date,
-        title: isHealth ? item.title : item.title || item.label || "Breeder update",
-        detail: isHealth
-          ? item.description || "A wellness update has been added to your puppy journey."
-          : item.summary || item.details || "A new breeder update has been published.",
-        label: isHealth ? "Wellness" : "Journey",
-        tone: (isHealth ? "success" : "neutral") as "success" | "neutral",
-      };
-    })
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 4);
-
-  const upcoming = topMilestones(state.events, state.health, state.pickupRequest);
-  const totalAttachments = state.forms.reduce(
-    (sum, form) => sum + countAttachments(form.attachments),
-    0
-  );
+  const openDocuments = state.documents.filter((document) => {
+    const status = String(document.status || "").toLowerCase();
+    return status !== "completed" && status !== "signed";
+  });
   const photoMoments = state.events.reduce(
     (sum, event) => sum + attachmentPhotoCount(event.photos) + (event.photo_url ? 1 : 0),
+    0
+  );
+  const totalAttachments = state.forms.reduce(
+    (sum, form) => sum + countAttachments(form.attachments),
     0
   );
   const puppyStage = puppy
@@ -306,282 +300,399 @@ export default function PortalPage() {
           String(puppy.status || "").toLowerCase().includes("reserved") ||
           String(puppy.status || "").toLowerCase().includes("sold")
         ? "Matched"
-        : "Growing With Breeder"
-    : "Waiting for Match";
+        : "Growing with breeder"
+    : "Waiting for match";
+
+  const upcoming = buildUpcoming(state.events, state.health, state.pickupRequest);
+  const activity = buildActivity({
+    events: state.events,
+    health: state.health,
+    messages: state.messages,
+  });
+
+  const attentionCards = [
+    unreadBreederMessages
+      ? {
+          id: "messages",
+          label: "Unread messages",
+          title: `${unreadBreederMessages} message${unreadBreederMessages === 1 ? "" : "s"} waiting`,
+          description: "Open Messages to review breeder replies and follow-up notes.",
+          rightLabel: "Messages",
+          tone: "warning" as const,
+        }
+      : null,
+    draftForms.length
+      ? {
+          id: "forms",
+          label: "Forms",
+          title: `${draftForms.length} draft form${draftForms.length === 1 ? "" : "s"}`,
+          description: "Review saved forms and finish anything that still needs to be submitted.",
+          rightLabel: "Documents",
+          tone: "warning" as const,
+        }
+      : null,
+    remaining !== null && remaining > 0
+      ? {
+          id: "payments",
+          label: "Payments",
+          title: `${fmtMoney(remaining)} remaining`,
+          description: "Open Payments to review your recorded history and any balance still on file.",
+          rightLabel: "Payments",
+          tone: "neutral" as const,
+        }
+      : null,
+    openDocuments.length
+      ? {
+          id: "documents",
+          label: "Documents",
+          title: `${openDocuments.length} open record${openDocuments.length === 1 ? "" : "s"}`,
+          description: "Review recent documents, signatures, or portal files that are still active.",
+          rightLabel: "Documents",
+          tone: "neutral" as const,
+        }
+      : null,
+    state.pickupRequest
+      ? {
+          id: "transport",
+          label: "Transportation",
+          title: requestStatusLabel(state.pickupRequest),
+          description:
+            state.pickupRequest.request_date
+              ? `${requestTypeLabel(state.pickupRequest)} scheduled for ${fmtDate(
+                  state.pickupRequest.request_date
+                )}.`
+              : "A transportation request is on file.",
+          rightLabel: "Transportation",
+          tone: "success" as const,
+        }
+      : null,
+  ].filter(Boolean) as Array<{
+    id: string;
+    label: string;
+    title: string;
+    description: string;
+    rightLabel: string;
+    tone: "neutral" | "success" | "warning";
+  }>;
 
   return (
     <div className="space-y-6 pb-14">
       <PortalPageHero
         eyebrow="Overview"
         title={`Welcome back, ${displayName}`}
-        description="View your puppy updates, milestones, documents, payments, messages, and transportation details in one place."
+        description="View your puppy’s updates, milestones, documents, payments, messages, transportation details, and next steps in one place."
         actions={
           <>
             <PortalHeroPrimaryAction href={puppy ? "/portal/mypuppy" : "/portal/application"}>
               {puppy ? "Open My Puppy" : "Open Application"}
             </PortalHeroPrimaryAction>
-            <PortalHeroSecondaryAction href="/portal/messages">
-              Open Messages
-            </PortalHeroSecondaryAction>
+            <PortalHeroSecondaryAction href="/portal/messages">Open Messages</PortalHeroSecondaryAction>
           </>
         }
         aside={
-          <div className="overflow-hidden rounded-[28px] border border-[var(--portal-border)] bg-[var(--portal-surface-strong)] shadow-[0_18px_40px_rgba(31,48,79,0.08)]">
-            <div className="relative aspect-[5/4] overflow-hidden">
-              <Image
-                src={puppyImage}
-                alt={puppy ? puppyName : "Southwest Virginia Chihuahua"}
-                fill
-                sizes="(max-width: 1280px) 100vw, 360px"
-                className="object-cover"
-              />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(17,29,48,0.04)_0%,rgba(17,29,48,0.56)_100%)]" />
-              <div className="absolute inset-x-4 bottom-4 rounded-[22px] border border-white/35 bg-[rgba(245,249,255,0.18)] p-4 backdrop-blur-md">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/78">
-                  My Puppy
-                </div>
-                <div className="mt-2 text-xl font-semibold tracking-[-0.02em] text-white">
-                  {puppy ? puppyName : "Waiting for Match"}
-                </div>
-                <div className="mt-1 text-sm leading-6 text-white/85">
-                  {puppy
-                    ? `${puppyStage}. Open the puppy profile for photos, milestones, wellness records, and breeder notes.`
-                    : "Your matched puppy profile will appear here once the breeder links it to your account."}
-                </div>
-              </div>
-            </div>
+          <div className="grid gap-4">
+            <PortalInfoTile
+              label="My Puppy"
+              value={puppy ? puppyName : "Waiting for match"}
+              detail={puppy ? `${puppyStage} on this account.` : "Your account is active and waiting for a linked puppy profile."}
+              tone={puppy ? "success" : "neutral"}
+            />
+            <PortalInfoTile
+              label="Payment Status"
+              value={
+                remaining !== null && remaining !== undefined
+                  ? remaining > 0
+                    ? fmtMoney(remaining)
+                    : "Paid in full"
+                  : "No balance posted"
+              }
+              detail={remaining && remaining > 0 ? "Current balance remaining on file." : "No amount currently due."}
+              tone={remaining && remaining > 0 ? "warning" : "success"}
+            />
           </div>
         }
       />
 
       <PortalMetricGrid>
         <PortalMetricCard
-          label="My Puppy"
-          value={puppy ? puppyName : "Waiting for Match"}
-          detail={
-            puppy
-              ? "Open the full puppy profile, milestones, growth, and care guidance."
-              : "Your puppy profile will appear here once your match is linked."
-          }
-          href="/portal/mypuppy"
-          actionLabel="Open My Puppy"
+          label="Pupdates"
+          value={String(state.events.length + state.health.length)}
+          detail="Published breeder notes, wellness records, and milestone entries."
         />
         <PortalMetricCard
-          label="Unread Messages"
-          value={String(unreadBreederMessages)}
-          detail="Breeder replies still waiting for your review."
-          href="/portal/messages"
-          actionLabel="Open Messages"
-          accent="from-[#dfe6fb] via-[#b8c7f7] to-[#7388d9]"
+          label="Documents"
+          value={String(state.documents.length + state.forms.length)}
+          detail="Shared records, forms, and saved submissions linked to your account."
+          accent="from-[rgba(93,121,255,0.16)] via-transparent to-[rgba(140,156,183,0.14)]"
         />
         <PortalMetricCard
-          label="Payment Summary"
-          value={remaining !== null && remaining !== undefined ? fmtMoney(remaining) : "No balance shown"}
-          detail={
-            price
-              ? `${fmtMoney(paid)} recorded toward ${fmtMoney(price)}`
-              : "Open Payments for your account summary and financing details."
-          }
-          href="/portal/payments"
-          actionLabel="Open Payments"
-          accent="from-[#d9eef4] via-[#acd4e2] to-[#6da8bd]"
+          label="Messages"
+          value={String(state.messages.length)}
+          detail={unreadBreederMessages ? `${unreadBreederMessages} breeder message${unreadBreederMessages === 1 ? "" : "s"} unread.` : "No unread breeder replies."}
+          accent="from-[rgba(113,198,164,0.16)] via-transparent to-[rgba(159,175,198,0.14)]"
         />
         <PortalMetricCard
-          label="Records"
-          value={`${state.forms.length + state.documents.length}`}
-          detail={`${totalAttachments} attachment${totalAttachments === 1 ? "" : "s"} and ${photoMoments} photo moment${photoMoments === 1 ? "" : "s"} saved in the portal.`}
-          href="/portal/documents"
-          actionLabel="Open Documents"
-          accent="from-[#e7ebf2] via-[#cfd8e6] to-[#8ea0b9]"
+          label="Transportation"
+          value={state.pickupRequest ? requestStatusLabel(state.pickupRequest) : "Not scheduled"}
+          detail={state.pickupRequest ? requestTypeLabel(state.pickupRequest) : "No transportation request on file yet."}
+          accent="from-[rgba(110,166,218,0.16)] via-transparent to-[rgba(159,175,198,0.14)]"
         />
       </PortalMetricGrid>
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.12fr)_390px]">
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.28fr)_380px]">
+        <PortalPanel
+          title="Puppy Snapshot"
+          subtitle="The core account context stays visible here so the homepage feels useful the moment it opens."
+        >
+          {puppy ? (
+            <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
+              <div className="relative min-h-[320px] overflow-hidden rounded-[28px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] shadow-[0_18px_40px_rgba(23,35,56,0.06)]">
+                <Image
+                  src={puppyImage}
+                  alt={puppyName}
+                  fill
+                  sizes="(max-width: 1280px) 100vw, 320px"
+                  className="object-cover"
+                />
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,18,31,0.04)_0%,rgba(10,18,31,0.6)_100%)]" />
+                <div className="absolute inset-x-4 bottom-4 rounded-[22px] border border-white/22 bg-[rgba(246,250,255,0.16)] p-4 backdrop-blur-md">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/82">
+                    Current Stage
+                  </div>
+                  <div className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-white">
+                    {puppyStage}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-5">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <PortalInfoTile
+                    label="My Puppy"
+                    value={puppyName}
+                    detail={`${puppy.sex || "Puppy"}${puppy.color ? ` · ${puppy.color}` : ""}${puppy.dob ? ` · DOB ${fmtDate(puppy.dob)}` : ""}`}
+                  />
+                  <PortalInfoTile
+                    label="Photo Moments"
+                    value={String(photoMoments)}
+                    detail="Published updates that included photos."
+                  />
+                  <PortalInfoTile
+                    label="Latest Payment"
+                    value={
+                      state.payments[0]?.payment_date
+                        ? fmtDate(state.payments[0].payment_date)
+                        : "No payment posted"
+                    }
+                    detail={state.payments[0] ? fmtMoney(state.payments[0].amount) : "Payment history will appear as soon as it is recorded."}
+                    tone={state.payments[0] ? "success" : "neutral"}
+                  />
+                  <PortalInfoTile
+                    label="Transportation"
+                    value={state.pickupRequest ? requestTypeLabel(state.pickupRequest) : "Not requested"}
+                    detail={
+                      state.pickupRequest?.request_date
+                        ? fmtDate(state.pickupRequest.request_date)
+                        : "Scheduling details will appear here when requested."
+                    }
+                    tone={state.pickupRequest ? "warning" : "neutral"}
+                  />
+                </div>
+
+                <div className="rounded-[28px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(243,248,253,0.95)_100%)] p-5 shadow-[0_14px_30px_rgba(23,35,56,0.05)]">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <PortalStatusBadge label={puppyStage} tone={puppy ? "success" : "neutral"} />
+                    {state.messages[0]?.sender === "admin" ? (
+                      <PortalStatusBadge label="Recent breeder activity" tone="warning" />
+                    ) : null}
+                  </div>
+                  <div className="mt-4 text-sm leading-7 text-[var(--portal-text-soft)]">
+                    {puppy.description ||
+                      puppy.notes ||
+                      "Your puppy page brings together the breeder timeline, wellness record, documents, payments, and next steps without making you jump across disconnected pages."}
+                  </div>
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <PortalHeroPrimaryAction href="/portal/mypuppy">Open My Puppy</PortalHeroPrimaryAction>
+                    <PortalHeroSecondaryAction href="/portal/updates">Open Pupdates</PortalHeroSecondaryAction>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <PortalEmptyState
+              title="A puppy profile will appear here when your account is matched."
+              description="Until then, you can still use the portal for your application, messages, forms, and next steps."
+              action={<PortalHeroPrimaryAction href="/portal/application">Open Application</PortalHeroPrimaryAction>}
+            />
+          )}
+        </PortalPanel>
+
         <div className="space-y-6">
           <PortalPanel
-            title="Recent Puppy Journey"
-            subtitle="Recent breeder notes and wellness records tied to your account."
-          >
-            {timeline.length ? (
-              <div className="space-y-4">
-                {timeline.map((item) => (
-                  <PortalListCard
-                    key={item.id}
-                    label={item.label}
-                    title={item.title}
-                    description={item.detail}
-                    rightLabel={fmtDate(item.date)}
-                    tone={item.tone}
-                  />
-                ))}
-              </div>
-            ) : (
-              <PortalEmptyState
-                title="No journey updates yet"
-                description="When breeder notes, wellness records, or milestone updates are ready, they will appear here automatically."
-                action={<PortalHeroSecondaryAction href="/portal/messages">Ask for an update</PortalHeroSecondaryAction>}
-              />
-            )}
-          </PortalPanel>
-
-          <PortalPanel
             title="Upcoming Milestones"
-            subtitle="The next visible dates, milestones, or transportation details on your account."
+            subtitle="The next visible milestone, wellness date, or transportation step appears here first."
           >
             {upcoming.length ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                {upcoming.map((item) => (
-                  <PortalInfoTile
-                    key={item.id}
-                    label={item.label}
-                    value={item.title}
-                    detail={`${fmtDate(item.date)} - ${item.detail}`}
-                    tone={item.tone}
+              <div className="space-y-4">
+                {upcoming.map((entry) => (
+                  <PortalListCard
+                    key={entry.id}
+                    label={entry.label}
+                    title={entry.title}
+                    description={entry.detail}
+                    rightLabel={fmtDate(entry.date)}
+                    tone={entry.tone}
                   />
                 ))}
               </div>
             ) : (
               <PortalEmptyState
-                title="No upcoming milestones yet"
-                description="As transportation, wellness, or breeder milestones are scheduled, they will appear here."
+                title="No upcoming milestone published yet"
+                description="The next milestone, wellness date, or transportation step will appear here as soon as it is on file."
               />
             )}
           </PortalPanel>
 
           <PortalPanel
-            title="Quick Actions"
-            subtitle="Open the places you are most likely to need next."
+            title="Quick Links"
+            subtitle="Go directly to the pages most buyers open next."
           >
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-4">
               <PortalActionLink
-                href="/portal/application"
-                eyebrow="Application"
-                title={application?.status || "Review application"}
-                detail="Keep buyer details, preferences, and declarations current."
+                href="/portal/documents"
+                eyebrow="Documents"
+                title="Review forms and records"
+                detail="Open documents, signatures, and shared account files."
               />
               <PortalActionLink
-                href="/portal/updates"
-                eyebrow="Pupdates"
-                title={timeline[0]?.title || "See the latest journey update"}
-                detail="Breeder updates, wellness notes, and milestones live here."
-              />
-              <PortalActionLink
-                href="/portal/transportation"
-                eyebrow="Transportation"
-                title={requestTypeLabel(state.pickupRequest)}
-                detail="Review current plans for pickup, meet-up, delivery, or travel."
+                href="/portal/payments"
+                eyebrow="Payments"
+                title="Check balance and history"
+                detail="See recorded payments, due dates, and any remaining balance."
               />
               <PortalActionLink
                 href="/portal/resources"
                 eyebrow="Resources"
-                title="Helpful guidance"
-                detail="Open curated care, health, and breeder support resources."
+                title="Open the library"
+                detail="Review Chihuahua guidance, care information, and portal support material."
               />
             </div>
+          </PortalPanel>
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.18fr)_380px]">
+        <div className="space-y-6">
+          <PortalPanel
+            title="Recent Activity"
+            subtitle="A single feed of the latest breeder replies, milestone posts, and wellness records keeps the homepage useful instead of repetitive."
+          >
+            {activity.length ? (
+              <div className="space-y-4">
+                {activity.map((entry) => (
+                  <PortalListCard
+                    key={entry.id}
+                    label={entry.label}
+                    title={entry.title}
+                    description={entry.detail}
+                    rightLabel={fmtDate(entry.date)}
+                    tone={entry.tone}
+                  />
+                ))}
+              </div>
+            ) : (
+              <PortalEmptyState
+                title="No recent activity yet"
+                description="As messages, breeder updates, milestones, and wellness records are added, they will appear here."
+              />
+            )}
+          </PortalPanel>
+
+          <PortalPanel
+            title="Records Needing Attention"
+            subtitle="Only the items that still need review or action belong here."
+          >
+            {attentionCards.length ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                {attentionCards.map((entry) => (
+                  <PortalListCard
+                    key={entry.id}
+                    label={entry.label}
+                    title={entry.title}
+                    description={entry.description}
+                    rightLabel={entry.rightLabel}
+                    tone={entry.tone}
+                  />
+                ))}
+              </div>
+            ) : (
+              <PortalEmptyState
+                title="Nothing needs immediate attention"
+                description="Your key records look settled right now. New items will appear here when something changes."
+              />
+            )}
           </PortalPanel>
         </div>
 
         <div className="space-y-6">
           <PortalPanel
-            title="Puppy Snapshot"
-            subtitle="The most important profile details surfaced first."
+            title="At a Glance"
+            subtitle="The operational summary stays concise so the page remains easy to scan."
           >
-            <div className="space-y-4">
+            <div className="grid gap-4">
               <PortalInfoTile
-                label="Journey Stage"
-                value={puppyStage}
-                detail={puppy ? "Your puppy profile is linked to this portal." : "The breeder will link your puppy here once matched."}
-                tone={puppy ? "success" : "warning"}
+                label="Unread Messages"
+                value={String(unreadBreederMessages)}
+                detail="Breeder replies waiting in Messages."
+                tone={unreadBreederMessages ? "warning" : "neutral"}
               />
               <PortalInfoTile
-                label="Application"
-                value={application?.status || "Not started"}
-                detail={
-                  application?.created_at
-                    ? `Submitted ${fmtDate(application.created_at)}`
-                    : "Use the portal to start or update your buyer application."
-                }
-                tone={portalStatusTone(application?.status)}
+                label="Open Documents"
+                value={String(openDocuments.length)}
+                detail="Shared files and records still active on your account."
               />
               <PortalInfoTile
-                label="Latest Wellness"
-                value={state.health[0]?.title || "No record yet"}
-                detail={
-                  state.health[0]?.record_date
-                    ? fmtDate(state.health[0].record_date)
-                    : "Wellness updates will appear here when published."
-                }
-                tone={state.health[0] ? "success" : "neutral"}
+                label="Saved Attachments"
+                value={String(totalAttachments)}
+                detail="Files uploaded with portal forms or records."
               />
               <PortalInfoTile
-                label="Transportation"
-                value={requestStatusLabel(state.pickupRequest)}
-                detail={
-                  state.pickupRequest?.request_date
-                    ? `${requestTypeLabel(state.pickupRequest)} on ${fmtDate(state.pickupRequest.request_date)}`
-                    : "No transportation request has been saved yet."
-                }
-                tone={state.pickupRequest ? portalStatusTone(state.pickupRequest.status) : "neutral"}
+                label="Transportation Status"
+                value={state.pickupRequest ? requestStatusLabel(state.pickupRequest) : "Not scheduled"}
+                detail={state.pickupRequest ? requestTypeLabel(state.pickupRequest) : "No transportation request recorded yet."}
+                tone={state.pickupRequest ? "success" : "neutral"}
               />
             </div>
           </PortalPanel>
 
           <PortalPanel
-            title="Documents Needing Attention"
-            subtitle="Draft forms and active records that still need attention."
-          >
-            {documentsNeedingAttention.length ? (
-              <div className="space-y-4">
-                {documentsNeedingAttention.map((item) => (
-                  <PortalListCard
-                    key={item.id}
-                    label={item.label}
-                    title={item.title}
-                    description={item.description}
-                    rightLabel={item.rightLabel}
-                    tone={item.tone}
-                  />
-                ))}
-              </div>
-            ) : (
-              <PortalEmptyState
-                title="Everything looks current"
-                description="There are no draft forms or portal records needing attention right now."
-              />
-            )}
-          </PortalPanel>
-
-          <PortalPanel
-            title="Alerts & Readiness"
-            subtitle="The items most likely to affect your next step."
+            title="What to open next"
+            subtitle="A clearer path to the pages that usually matter most after the homepage."
           >
             <div className="space-y-3">
-              <InsightCard
-                icon={<MessageCircle className="h-4 w-4" />}
-                title="Unread messages"
-                detail={
-                  unreadBreederMessages
-                    ? `${unreadBreederMessages} breeder message${unreadBreederMessages === 1 ? "" : "s"} still waiting for review.`
-                    : "Your breeder conversation is fully caught up right now."
-                }
-              />
-              <InsightCard
-                icon={<CalendarClock className="h-4 w-4" />}
-                title="Next milestone"
-                detail={
-                  upcoming[0]
-                    ? `${upcoming[0].title} is the next visible milestone on your portal.`
-                    : "As your next milestone is published, it will appear here first."
-                }
-              />
-              <InsightCard
+              <ActionRow
                 icon={<ShieldCheck className="h-4 w-4" />}
-                title="Account status"
-                detail={
-                  documentsNeedingAttention.length
-                    ? `${documentsNeedingAttention.length} record${documentsNeedingAttention.length === 1 ? "" : "s"} currently needs review.`
-                    : "Your key records and messages look current right now."
-                }
+                href="/portal/mypuppy"
+                title="My Puppy"
+                detail="Open the photo-led puppy profile, weights, timeline, and wellness history."
+              />
+              <ActionRow
+                icon={<MessageCircle className="h-4 w-4" />}
+                href="/portal/messages"
+                title="Messages"
+                detail="Review breeder replies or send account-specific questions."
+              />
+              <ActionRow
+                icon={<CreditCard className="h-4 w-4" />}
+                href="/portal/payments"
+                title="Payments"
+                detail="Check the recorded payment history, financing, and balance."
+              />
+              <ActionRow
+                icon={<Route className="h-4 w-4" />}
+                href="/portal/transportation"
+                title="Transportation"
+                detail="View transportation status, request details, and scheduling progress."
               />
             </div>
           </PortalPanel>
@@ -591,24 +702,29 @@ export default function PortalPage() {
   );
 }
 
-function InsightCard({
+function ActionRow({
+  href,
   icon,
   title,
   detail,
 }: {
+  href: string;
   icon: React.ReactNode;
   title: string;
   detail: string;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-[20px] border border-[var(--portal-border)] bg-[var(--portal-surface-strong)] px-4 py-4 shadow-[0_10px_22px_rgba(31,48,79,0.05)]">
-      <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
+    <a
+      href={href}
+      className="flex items-start gap-3 rounded-[22px] border border-[var(--portal-border)] bg-white px-4 py-4 shadow-[0_10px_22px_rgba(23,35,56,0.05)] transition hover:-translate-y-0.5 hover:border-[var(--portal-border-strong)]"
+    >
+      <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
         {icon}
       </div>
-      <div>
+      <div className="min-w-0">
         <div className="text-sm font-semibold text-[var(--portal-text)]">{title}</div>
         <div className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
       </div>
-    </div>
+    </a>
   );
 }

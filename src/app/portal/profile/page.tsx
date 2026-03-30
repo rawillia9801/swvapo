@@ -240,13 +240,13 @@ export default function PortalProfilePage() {
       />
 
       {statusText ? (
-        <div className="rounded-[20px] border border-[#d5e7d0] bg-[#f5fbf2] px-4 py-3 text-sm font-semibold text-[#456640]">
+        <div className="rounded-[20px] border border-[rgba(89,139,109,0.22)] bg-[rgba(237,248,241,0.92)] px-4 py-3 text-sm font-semibold text-[#355543]">
           {statusText}
         </div>
       ) : null}
 
       {errorText && buyer && application ? (
-        <div className="rounded-[20px] border border-[#efd2cc] bg-[#fff6f4] px-4 py-3 text-sm font-semibold text-[#8f4b42]">
+        <div className="rounded-[20px] border border-[rgba(190,122,116,0.22)] bg-[rgba(255,246,244,0.92)] px-4 py-3 text-sm font-semibold text-[#7b4a46]">
           {errorText}
         </div>
       ) : null}

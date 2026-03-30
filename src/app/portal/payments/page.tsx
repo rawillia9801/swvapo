@@ -14,7 +14,6 @@ import {
 } from "@/lib/portal-data";
 import { usePortalSession } from "@/hooks/use-portal-session";
 import {
-  PortalActionLink,
   PortalEmptyState,
   PortalErrorState,
   PortalHeroPrimaryAction,
@@ -84,7 +83,10 @@ function PaymentRow({
         {fmtMoney(payment.amount || 0)}
       </td>
       <td className="px-5 py-4 text-sm">
-        <PortalStatusBadge label={displayText(payment.status, "Recorded")} tone={paymentStatusTone(payment.status)} />
+        <PortalStatusBadge
+          label={displayText(payment.status, "Recorded")}
+          tone={paymentStatusTone(payment.status)}
+        />
       </td>
     </tr>
   );
@@ -186,44 +188,36 @@ export default function PortalPaymentsPage() {
   const nextDueDate = buyer?.finance_next_due_date ? fmtDate(buyer.finance_next_due_date) : "No due date";
   const deliverySummary = [buyer?.delivery_option, buyer?.delivery_location]
     .filter(Boolean)
-    .join(" - ");
+    .join(" · ");
+  const paidInFull =
+    summary.remaining !== null && summary.remaining !== undefined && summary.remaining <= 0;
 
   return (
     <div className="space-y-6 pb-14">
       <PortalPageHero
         eyebrow="Payments"
         title="Track your payment record with clarity."
-        description="Review recorded payments, current balance, financing details, and the financial steps still ahead for your puppy journey."
+        description="Review the recorded balance, posted payments, financing details, and the next financial step tied to your puppy account."
         actions={
           <>
-            <PortalHeroPrimaryAction href="/portal/messages">Message Support</PortalHeroPrimaryAction>
+            <PortalHeroPrimaryAction href="/portal/messages">Open Messages</PortalHeroPrimaryAction>
             <PortalHeroSecondaryAction href="/portal/documents">Open Documents</PortalHeroSecondaryAction>
           </>
         }
         aside={
-          <div className="rounded-[28px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,var(--portal-surface-strong)_0%,var(--portal-surface-muted)_100%)] p-5 shadow-[0_18px_40px_rgba(31,48,79,0.08)]">
+          <div className="rounded-[30px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96)_0%,rgba(243,248,253,0.95)_100%)] p-5 shadow-[0_18px_40px_rgba(23,35,56,0.08)]">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--portal-text-muted)]">
                   Account Progress
                 </div>
-                <div className="mt-2 text-[2.25rem] font-semibold tracking-[-0.04em] text-[var(--portal-text)]">
+                <div className="mt-2 text-[2.3rem] font-semibold tracking-[-0.05em] text-[var(--portal-text)]">
                   {summary.percentPaid}%
                 </div>
               </div>
               <PortalStatusBadge
-                label={
-                  summary.remaining !== null && summary.remaining !== undefined && summary.remaining <= 0
-                    ? "Paid in Full"
-                    : buyer?.finance_enabled
-                      ? "Financing Active"
-                      : "Payment Record"
-                }
-                tone={
-                  summary.remaining !== null && summary.remaining !== undefined && summary.remaining <= 0
-                    ? "success"
-                    : "neutral"
-                }
+                label={paidInFull ? "Paid in Full" : buyer?.finance_enabled ? "Financing Active" : "Payment Record"}
+                tone={paidInFull ? "success" : "neutral"}
               />
             </div>
             <div className="mt-4 h-3 overflow-hidden rounded-full bg-[var(--portal-surface-muted)]">
@@ -249,13 +243,13 @@ export default function PortalPaymentsPage() {
               ? fmtMoney(summary.totalPrice)
               : "Not listed"
           }
-          detail="Purchase amount currently tied to your account."
+          detail="Purchase amount currently tied to this account."
         />
         <PortalMetricCard
           label="Paid to Date"
           value={fmtMoney(summary.paidToDate)}
           detail={`${payments.length} recorded payment${payments.length === 1 ? "" : "s"} on file.`}
-          accent="from-[#dfe6fb] via-[#b8c7f7] to-[#7388d9]"
+          accent="from-[rgba(93,121,255,0.16)] via-transparent to-[rgba(159,175,198,0.14)]"
         />
         <PortalMetricCard
           label="Remaining"
@@ -265,13 +259,13 @@ export default function PortalPaymentsPage() {
               : "Not listed"
           }
           detail="Current balance after recorded payments."
-          accent="from-[#d9eef4] via-[#acd4e2] to-[#6da8bd]"
+          accent="from-[rgba(110,166,218,0.16)] via-transparent to-[rgba(159,175,198,0.14)]"
         />
         <PortalMetricCard
           label="Next Due"
           value={nextDueDate}
           detail={buyer?.finance_enabled ? "Based on the active financing schedule." : "No financing due date on file."}
-          accent="from-[#e7ebf2] via-[#cfd8e6] to-[#8ea0b9]"
+          accent="from-[rgba(113,198,164,0.16)] via-transparent to-[rgba(159,175,198,0.14)]"
         />
       </PortalMetricGrid>
 
@@ -279,7 +273,7 @@ export default function PortalPaymentsPage() {
         <div className="space-y-6">
           <PortalPanel
             title="Account Summary"
-            subtitle="The most important financial details are surfaced first so the page stays readable, calm, and trustworthy."
+            subtitle="The most important financial details come first so the page stays calm, readable, and trustworthy."
           >
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <PortalInfoTile
@@ -301,14 +295,14 @@ export default function PortalPaymentsPage() {
               <PortalInfoTile
                 label="Transportation"
                 value={deliverySummary || "Not scheduled"}
-                detail="Pickup, delivery, or travel details recorded on the buyer account."
+                detail="Pickup, delivery, or travel details stored on the buyer account."
               />
             </div>
           </PortalPanel>
 
           <PortalPanel
             title="Payment History"
-            subtitle="Every payment recorded on your buyer account appears here in one clean ledger."
+            subtitle="Every recorded payment appears here in one ledger view."
           >
             {payments.length ? (
               <PortalTable headers={["Date", "Type", "Method", "Amount", "Status"]}>
@@ -318,121 +312,107 @@ export default function PortalPaymentsPage() {
               </PortalTable>
             ) : (
               <PortalEmptyState
-                title="No payments recorded yet"
-                description="When deposits or additional payments are added to your account, the full payment history will appear here automatically."
+                title="No recorded payments yet"
+                description="When a payment is logged to your buyer account, it will appear here automatically."
               />
-            )}
-          </PortalPanel>
-
-          <PortalPanel
-            title="Financing"
-            subtitle="Apply here if financing is not active yet, or review the live plan details once financing has been approved."
-          >
-            {buyer?.finance_enabled ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                <PortalInfoTile
-                  label="Status"
-                  value="Active"
-                  detail="Financing is enabled for this account."
-                  tone="success"
-                />
-                <PortalInfoTile
-                  label="APR"
-                  value={
-                    buyer.finance_rate !== null && buyer.finance_rate !== undefined
-                      ? `${buyer.finance_rate}%`
-                      : "Not listed"
-                  }
-                  detail="Annual percentage rate currently on file."
-                />
-                <PortalInfoTile
-                  label="Monthly Amount"
-                  value={
-                    buyer.finance_monthly_amount !== null && buyer.finance_monthly_amount !== undefined
-                      ? fmtMoney(buyer.finance_monthly_amount)
-                      : "Not listed"
-                  }
-                  detail="Scheduled monthly amount."
-                />
-                <PortalInfoTile
-                  label="Term"
-                  value={buyer.finance_months ? `${buyer.finance_months} months` : "Not listed"}
-                  detail="Current financing duration."
-                />
-                <PortalInfoTile
-                  label="Payment Day"
-                  value={buyer.finance_day_of_month ? `Day ${buyer.finance_day_of_month}` : "Not listed"}
-                  detail="Day of month currently assigned to the plan."
-                />
-                <PortalInfoTile
-                  label="Admin Fee"
-                  value={buyer.finance_admin_fee ? "Applied" : "Not applied"}
-                  detail="Administrative fee status for the plan."
-                />
-              </div>
-            ) : (
-              <div className="space-y-5">
-                <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-5 py-5 text-sm leading-7 text-[var(--portal-text-soft)]">
-                  Financing is not active on this account yet. If you would like to apply, you can use the embedded financing application below. Once approved, financing details will appear directly on this page.
-                </div>
-                <div className="overflow-hidden rounded-[28px] border border-[var(--portal-border)] bg-[var(--portal-surface-strong)] shadow-[0_16px_38px_rgba(31,48,79,0.06)]">
-                  <iframe
-                    src={financingUrl}
-                    title="Puppy Financing Application"
-                    className="h-[860px] w-full border-0 bg-white"
-                  />
-                </div>
-              </div>
             )}
           </PortalPanel>
         </div>
 
         <div className="space-y-6">
           <PortalPanel
-            title="What this page is for"
-            subtitle="This page should reduce uncertainty, not bury account details under a cluttered finance screen."
+            title="Financing"
+            subtitle="A cleaner view of financing details and the next action if a plan is needed."
+          >
+            {buyer?.finance_enabled ? (
+              <div className="space-y-4">
+                <PortalInfoTile
+                  label="Monthly Amount"
+                  value={buyer.finance_monthly_amount ? fmtMoney(buyer.finance_monthly_amount) : "Not listed"}
+                  detail="Monthly amount stored on the buyer record."
+                  tone="success"
+                />
+                <PortalInfoTile
+                  label="APR"
+                  value={buyer.finance_rate !== null && buyer.finance_rate !== undefined ? `${buyer.finance_rate}%` : "Not listed"}
+                  detail="Rate currently saved for this plan."
+                />
+                <PortalInfoTile
+                  label="Plan Length"
+                  value={buyer.finance_months ? `${buyer.finance_months} months` : "Not listed"}
+                  detail="Configured duration of the payment plan."
+                />
+                <PortalInfoTile
+                  label="Admin Fee"
+                  value={buyer.finance_admin_fee ? "Included" : "Not listed"}
+                  detail="Whether the financing plan includes an admin fee flag."
+                />
+              </div>
+            ) : (
+              <PortalEmptyState
+                title="No financing plan is active"
+                description="If financing is needed, you can start with the financing application and your approved plan details will appear here."
+                action={
+                  <a
+                    href={financingUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center justify-center gap-2 rounded-[18px] bg-[linear-gradient(135deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_34px_rgba(47,88,227,0.22)]"
+                  >
+                    Open Financing Application
+                  </a>
+                }
+              />
+            )}
+          </PortalPanel>
+
+          <PortalPanel
+            title="Payment Status"
+            subtitle="This column keeps the account state easy to scan."
           >
             <div className="space-y-4">
-              <SupportRow
-                icon={<BadgeDollarSign className="h-4 w-4" />}
-                title="Clear account totals"
-                detail="Use this page to quickly see what has been recorded, what remains, and whether financing is active."
+              <PortalInfoTile
+                label="Balance State"
+                value={paidInFull ? "Paid in Full" : summary.remaining ? "Balance Open" : "No balance posted"}
+                detail={paidInFull ? "No remaining amount is currently due." : "Open the full history if you want to review the account ledger."}
+                tone={paidInFull ? "success" : "neutral"}
               />
-              <SupportRow
-                icon={<CalendarClock className="h-4 w-4" />}
-                title="Due-date visibility"
-                detail="If financing is enabled, the next due date stays visible without needing to ask for it."
+              <PortalInfoTile
+                label="Next Due"
+                value={nextDueDate}
+                detail={buyer?.finance_enabled ? "Pulled from the buyer financing record." : "No financing due date saved."}
+                tone={buyer?.finance_enabled ? "warning" : "neutral"}
               />
-              <SupportRow
-                icon={<ShieldCheck className="h-4 w-4" />}
-                title="Clean record trail"
-                detail="The payment history is here so your account remains easy to confirm later."
+              <PortalInfoTile
+                label="Last Posted"
+                value={buyer?.finance_last_payment_date ? fmtDate(buyer.finance_last_payment_date) : latestPayment?.payment_date ? fmtDate(latestPayment.payment_date) : "No payment posted"}
+                detail="The newest payment date currently on file."
               />
             </div>
           </PortalPanel>
 
           <PortalPanel
-            title="Quick Links"
-            subtitle="Open the parts of the portal most likely to matter next."
+            title="Open Next"
+            subtitle="The next page buyers usually open after Payments."
           >
-            <div className="grid gap-4">
-              <PortalActionLink
+            <div className="space-y-3">
+              <ActionCard
+                icon={<ShieldCheck className="h-4 w-4" />}
                 href="/portal/documents"
-                eyebrow="Documents"
-                title="Review agreements and records"
-                detail="Open the forms, signatures, and supporting documents tied to your account."
+                title="Documents"
+                detail="Review contracts, forms, and account records linked to payment steps."
               />
-              <PortalActionLink
-                href="/portal/transportation"
-                eyebrow="Transportation"
-                title="Review travel planning"
-                detail="See pickup, delivery, or transportation details that relate to your account."
-              />
-              <PortalActionLink
+              <ActionCard
+                icon={<BadgeDollarSign className="h-4 w-4" />}
                 href="/portal/messages"
-                eyebrow="Messages"
-                title="Ask a payment question"
-                detail="Use Messages if you want clarification on a posted payment, balance, or schedule."
+                title="Messages"
+                detail="Ask questions about the balance, a posted payment, or a financing detail."
+              />
+              <ActionCard
+                icon={<CalendarClock className="h-4 w-4" />}
+                href="/portal/transportation"
+                title="Transportation"
+                detail="Check whether pickup or delivery details are already reflected on the account."
               />
             </div>
           </PortalPanel>
@@ -442,24 +422,29 @@ export default function PortalPaymentsPage() {
   );
 }
 
-function SupportRow({
+function ActionCard({
+  href,
   icon,
   title,
   detail,
 }: {
+  href: string;
   icon: React.ReactNode;
   title: string;
   detail: string;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-[22px] border border-[var(--portal-border)] bg-white px-4 py-4 shadow-[0_10px_22px_rgba(31,48,79,0.05)]">
-      <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
+    <a
+      href={href}
+      className="flex items-start gap-3 rounded-[22px] border border-[var(--portal-border)] bg-white px-4 py-4 shadow-[0_10px_22px_rgba(23,35,56,0.05)] transition hover:-translate-y-0.5 hover:border-[var(--portal-border-strong)]"
+    >
+      <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
         {icon}
       </div>
-      <div>
+      <div className="min-w-0">
         <div className="text-sm font-semibold text-[var(--portal-text)]">{title}</div>
         <div className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
       </div>
-    </div>
+    </a>
   );
 }

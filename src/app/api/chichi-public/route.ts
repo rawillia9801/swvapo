@@ -6,6 +6,10 @@ import {
   loadChiChiMemories,
   upsertChiChiMemory,
 } from "@/lib/chichi-memory";
+import {
+  buildPublicChiChiSystemPrompt,
+  publicChiChiLocalFallback,
+} from "@/lib/chichi-public-agent";
 
 // ─────────────────────────────────────────────
 // Types
@@ -445,6 +449,7 @@ function analyzeLead(message: string): LeadAnalysis {
 // ─────────────────────────────────────────────
 
 function buildSystemPrompt(memories?: string): string {
+  return buildPublicChiChiSystemPrompt(memories);
   return `
 You are ChiChi — the warm, knowledgeable assistant for Southwest Virginia Chihuahua in Marion, Virginia.
 
@@ -542,6 +547,7 @@ function localFallback(
   history: { role: ChatRole; content: string }[] = [],
   memories = ""
 ): string {
+  return publicChiChiLocalFallback(message, history, memories);
   const q = cleanText(message);
   const recent = recentHistory(history).map((m) => `${m.role}: ${m.content.toLowerCase()}`).join("\n");
   const memoryText = String(memories || "").toLowerCase();

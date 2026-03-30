@@ -20,7 +20,6 @@ import {
   PortalHeroPrimaryAction,
   PortalHeroSecondaryAction,
   PortalInfoTile,
-  PortalListCard,
   PortalLoadingState,
   PortalMetricCard,
   PortalMetricGrid,
@@ -106,7 +105,7 @@ export default function PortalUpdatesPage() {
             date: entry.record_date,
             title: entry.title,
             description:
-              entry.description || `${healthLabel(entry.record_type)} added to your puppy's health record.`,
+              entry.description || `${healthLabel(entry.record_type)} added to your puppy’s health record.`,
             badge: healthLabel(entry.record_type),
             tone: "success" as const,
             hasPhoto: false,
@@ -119,8 +118,8 @@ export default function PortalUpdatesPage() {
           date: entry.event_date,
           title: entry.title || entry.label || "Breeder update",
           description:
-            entry.summary || entry.details || "A new breeder update was added to your puppy timeline.",
-          badge: "Breeder Note",
+            entry.summary || entry.details || "A breeder update was added to your puppy timeline.",
+          badge: "Pupdate",
           tone: "neutral" as const,
           hasPhoto: Boolean(entry.photo_url) || photoCount(entry.photos) > 0,
         };
@@ -164,8 +163,8 @@ export default function PortalUpdatesPage() {
     <div className="space-y-6 pb-14">
       <PortalPageHero
         eyebrow="Pupdates"
-        title={`Track ${puppyName}'s progress in one timeline.`}
-        description={`${displayName} can review breeder notes, visible wellness entries, milestone dates, and photo moments here without having to piece updates together across tabs.`}
+        title={`Track ${puppyName}'s timeline in one feed.`}
+        description={`${displayName} can review breeder notes, visible wellness entries, milestone dates, and photo moments here without piecing updates together across tabs.`}
         actions={
           <>
             <PortalHeroPrimaryAction href="/portal/mypuppy">Open My Puppy</PortalHeroPrimaryAction>
@@ -173,14 +172,14 @@ export default function PortalUpdatesPage() {
           </>
         }
         aside={
-          <div className="space-y-4">
+          <div className="grid gap-4">
             <PortalInfoTile
               label="Latest Update"
               value={featured ? fmtDate(featured.date) : "Pending"}
-              detail={featured?.title || "Your next published update will appear here first."}
+              detail={featured?.title || "The next published update will appear here first."}
             />
             <PortalInfoTile
-              label="Next Wellness Date"
+              label="Next Wellness"
               value={nextWellness?.next_due_date ? fmtDate(nextWellness.next_due_date) : "To be announced"}
               detail={nextWellness?.title || "Upcoming care dates will show here when published."}
             />
@@ -198,34 +197,34 @@ export default function PortalUpdatesPage() {
           label="Wellness"
           value={String(health.length)}
           detail="Visible wellness entries tied to your puppy."
-          accent="from-[#dfe6fb] via-[#b8c7f7] to-[#7388d9]"
+          accent="from-[rgba(93,121,255,0.16)] via-transparent to-[rgba(159,175,198,0.14)]"
         />
         <PortalMetricCard
           label="Photo Moments"
           value={String(photoUpdates)}
           detail="Published updates that include photos."
-          accent="from-[#d9eef4] via-[#acd4e2] to-[#6da8bd]"
+          accent="from-[rgba(110,166,218,0.16)] via-transparent to-[rgba(159,175,198,0.14)]"
         />
         <PortalMetricCard
           label="Latest Posted"
           value={featured ? fmtDate(featured.date) : "Pending"}
           detail={featured?.badge || "No published updates yet."}
-          accent="from-[#e7ebf2] via-[#cfd8e6] to-[#8ea0b9]"
+          accent="from-[rgba(113,198,164,0.16)] via-transparent to-[rgba(159,175,198,0.14)]"
         />
       </PortalMetricGrid>
 
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.18fr)_380px]">
         <div className="space-y-6">
           <PortalPanel
-            title="Journey Timeline"
-            subtitle="Every published breeder note, milestone, and visible health update appears here in date order."
+            title="Timeline"
+            subtitle="Every published breeder note, milestone, and visible health update appears here in one date-ordered feed."
           >
             {timeline.length ? (
               <div className="space-y-4">
                 {timeline.map((entry) => (
                   <div
                     key={entry.id}
-                    className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-strong)] p-5 shadow-[0_12px_26px_rgba(31,48,79,0.05)]"
+                    className="rounded-[26px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(243,248,253,0.95)_100%)] p-5 shadow-[0_12px_26px_rgba(23,35,56,0.05)]"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -236,7 +235,7 @@ export default function PortalUpdatesPage() {
                             <PortalStatusBadge label={`Next due ${fmtDate(entry.nextDueDate)}`} tone="warning" />
                           ) : null}
                         </div>
-                        <div className="mt-3 text-lg font-semibold text-[var(--portal-text)]">
+                        <div className="mt-3 text-lg font-semibold tracking-[-0.03em] text-[var(--portal-text)]">
                           {entry.title}
                         </div>
                         <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
@@ -251,7 +250,7 @@ export default function PortalUpdatesPage() {
             ) : (
               <PortalEmptyState
                 title="No published updates yet"
-                description="As breeder notes, milestone moments, and visible wellness entries are posted for your puppy, they will appear here automatically."
+                description="Breeder notes, milestone moments, and visible wellness entries will appear here automatically as they are posted."
               />
             )}
           </PortalPanel>
@@ -260,7 +259,7 @@ export default function PortalUpdatesPage() {
         <div className="space-y-6">
           <PortalPanel
             title="Spotlight"
-            subtitle="A concise read of the latest meaningful update."
+            subtitle="A concise read of the newest visible update."
           >
             {featured ? (
               <div className="space-y-4">
@@ -272,7 +271,7 @@ export default function PortalUpdatesPage() {
                 <SupportRow
                   icon={<CalendarClock className="h-4 w-4" />}
                   title={fmtDate(featured.date)}
-                  detail="The newest published update on your puppy journey."
+                  detail="The newest published update on your puppy timeline."
                 />
                 {nextWellness?.next_due_date ? (
                   <SupportRow
@@ -292,45 +291,51 @@ export default function PortalUpdatesPage() {
 
           <PortalPanel
             title="What to open next"
-            subtitle="Move directly from the timeline to the next part of the portal that helps most."
+            subtitle="Move directly from the update feed to the next relevant page."
           >
             <div className="grid gap-4">
               <PortalActionLink
                 href="/portal/mypuppy"
                 eyebrow="My Puppy"
-                title="View the full puppy profile"
-                detail="Open photos, profile details, milestones, and growth information in one place."
+                title="Open the full profile"
+                detail="View photos, profile details, milestones, and growth information in one place."
               />
               <PortalActionLink
                 href="/portal/messages"
                 eyebrow="Messages"
                 title="Ask about an update"
-                detail="Use Messages if you want context on a breeder note, milestone date, or wellness detail."
+                detail="Use Messages if you want more context on a breeder note, milestone date, or wellness detail."
               />
               <PortalActionLink
                 href="/portal/resources"
                 eyebrow="Resources"
-                title="Review care guidance"
-                detail="Open curated Chihuahua resources and support material that stay useful after go-home day."
+                title="Open the care library"
+                detail="Review Chihuahua guidance and support material that stays useful after go-home day."
               />
             </div>
           </PortalPanel>
 
           <PortalPanel
             title="At a Glance"
-            subtitle="A few details that matter often enough to keep visible."
+            subtitle="The short operational summary for this update stream."
           >
             <div className="space-y-4">
-              {timeline.slice(0, 3).map((entry) => (
-                <PortalListCard
-                  key={entry.id}
-                  label={entry.badge}
-                  title={entry.title}
-                  description={entry.description}
-                  rightLabel={fmtDate(entry.date)}
-                  tone={entry.tone}
-                />
-              ))}
+              <PortalInfoTile
+                label="Published Notes"
+                value={String(events.length)}
+                detail="Milestone and breeder note entries."
+              />
+              <PortalInfoTile
+                label="Visible Wellness"
+                value={String(health.length)}
+                detail="Health records visible in the buyer portal."
+                tone={health.length ? "success" : "neutral"}
+              />
+              <PortalInfoTile
+                label="Photo Updates"
+                value={String(photoUpdates)}
+                detail="Entries that included a photo moment."
+              />
             </div>
           </PortalPanel>
         </div>
@@ -349,8 +354,8 @@ function SupportRow({
   detail: string;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-[22px] border border-[var(--portal-border)] bg-white px-4 py-4 shadow-[0_10px_22px_rgba(31,48,79,0.05)]">
-      <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
+    <div className="flex items-start gap-3 rounded-[22px] border border-[var(--portal-border)] bg-white px-4 py-4 shadow-[0_10px_22px_rgba(23,35,56,0.05)]">
+      <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
         {icon}
       </div>
       <div>

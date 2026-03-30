@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { FileCheck2, Files, FolderOpen, PenSquare } from "lucide-react";
+import { FileCheck2, FolderOpen, PenSquare } from "lucide-react";
 import { fmtDate } from "@/lib/utils";
 import {
   countAttachments,
@@ -15,7 +15,6 @@ import {
 } from "@/lib/portal-data";
 import { usePortalSession } from "@/hooks/use-portal-session";
 import {
-  PortalActionLink,
   PortalEmptyState,
   PortalErrorState,
   PortalHeroPrimaryAction,
@@ -41,7 +40,7 @@ function documentTone(status: string | null | undefined) {
   if (["complete", "completed", "signed", "approved"].some((item) => normalized.includes(item))) {
     return "success" as const;
   }
-  if (["draft", "pending", "submitted"].some((item) => normalized.includes(item))) {
+  if (["draft", "pending", "submitted", "review"].some((item) => normalized.includes(item))) {
     return "warning" as const;
   }
   return "neutral" as const;
@@ -115,25 +114,25 @@ export default function PortalDocumentsPage() {
   }, [user]);
 
   const summary = useMemo(() => {
-    const { forms, documents } = state;
-    const drafts = forms.filter((form) => String(form.status || "").toLowerCase() === "draft");
-    const submitted = forms.filter((form) => !!form.submitted_at);
-    const signed = forms.filter(
+    const drafts = state.forms.filter((form) => String(form.status || "").toLowerCase() === "draft");
+    const submitted = state.forms.filter((form) => !!form.submitted_at);
+    const signed = state.forms.filter(
       (form) =>
         !!form.signed_at ||
         !!form.signed_date ||
         String(form.status || "").toLowerCase().includes("signed")
     );
-    const attachments = forms.reduce((sum, form) => sum + countAttachments(form.attachments), 0);
+    const attachments = state.forms.reduce((sum, form) => sum + countAttachments(form.attachments), 0);
+    const publishedDocuments = state.documents.filter(
+      (document) => !["draft", "hidden"].includes(String(document.status || "").toLowerCase())
+    );
 
     return {
       drafts,
       submitted,
       signed,
       attachments,
-      publishedDocuments: documents.filter(
-        (document) => !["draft", "hidden"].includes(String(document.status || "").toLowerCase())
-      ),
+      publishedDocuments,
     };
   }, [state]);
 
@@ -165,7 +164,7 @@ export default function PortalDocumentsPage() {
   const needsAttention = [
     ...summary.drafts.map((form) => ({
       id: `draft-${form.id}`,
-      label: "Draft form",
+      label: "Draft Form",
       title: form.form_title || toLabel(form.form_key),
       description: "Saved in the portal and still waiting to be finished or submitted.",
       rightLabel: form.updated_at ? fmtDate(form.updated_at) : "Saved",
@@ -176,19 +175,19 @@ export default function PortalDocumentsPage() {
       .map((document) => ({
         id: `doc-${document.id}`,
         label: toLabel(document.category || "Document"),
-        title: document.title || "Portal document",
+        title: document.title || "Portal record",
         description: document.description || "This record still needs attention.",
         rightLabel: document.created_at ? fmtDate(document.created_at) : "Pending",
         tone: "warning" as const,
       })),
-  ].slice(0, 4);
+  ].slice(0, 5);
 
   return (
     <div className="space-y-6 pb-14">
       <PortalPageHero
         eyebrow="Documents"
-        title="Keep your records organized and easy to review."
-        description={`Applications, signatures, uploaded files, and shared records for ${state.puppyName} are collected here in one clean document center.`}
+        title="Review forms, signatures, and shared records without the clutter."
+        description={`Everything filed for ${state.puppyName} is organized here so contracts, uploads, and submitted forms stay easy to scan.`}
         actions={
           <>
             <PortalHeroPrimaryAction href="/portal/application">Open Application</PortalHeroPrimaryAction>
@@ -196,16 +195,16 @@ export default function PortalDocumentsPage() {
           </>
         }
         aside={
-          <div className="space-y-4">
+          <div className="grid gap-4">
             <PortalInfoTile
               label="Portal Family"
               value={state.displayName}
               detail="The account currently tied to these records."
             />
             <PortalInfoTile
-              label="Shared Records"
-              value={String(summary.publishedDocuments.length)}
-              detail="Visible files and documents posted to the portal."
+              label="Files on Hand"
+              value={String(summary.attachments)}
+              detail="Uploads attached to forms or stored with records."
             />
           </div>
         }
@@ -221,34 +220,34 @@ export default function PortalDocumentsPage() {
           label="Submitted"
           value={String(summary.submitted.length)}
           detail="Forms formally submitted through the portal."
-          accent="from-[#dfe6fb] via-[#b8c7f7] to-[#7388d9]"
+          accent="from-[rgba(93,121,255,0.16)] via-transparent to-[rgba(159,175,198,0.14)]"
         />
         <PortalMetricCard
           label="Signed"
           value={String(summary.signed.length)}
           detail="Forms with a signature on file."
-          accent="from-[#d9eef4] via-[#acd4e2] to-[#6da8bd]"
+          accent="from-[rgba(113,198,164,0.16)] via-transparent to-[rgba(159,175,198,0.14)]"
         />
         <PortalMetricCard
-          label="Attachments"
-          value={String(summary.attachments)}
-          detail="Files uploaded along with forms or records."
-          accent="from-[#e7ebf2] via-[#cfd8e6] to-[#8ea0b9]"
+          label="Shared Documents"
+          value={String(summary.publishedDocuments.length)}
+          detail="Records published to the portal for this account."
+          accent="from-[rgba(110,166,218,0.16)] via-transparent to-[rgba(159,175,198,0.14)]"
         />
       </PortalMetricGrid>
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.16fr)_380px]">
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.18fr)_380px]">
         <div className="space-y-6">
           <PortalPanel
             title="Forms and Signatures"
-            subtitle="The formal record of your application, acknowledgements, and signed items stays together here."
+            subtitle="Saved forms, signed acknowledgements, and submitted records stay together in a cleaner filing view."
           >
             {recentForms.length ? (
               <div className="space-y-4">
                 {recentForms.map((form) => (
                   <div
                     key={form.id}
-                    className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-strong)] p-5 shadow-[0_12px_26px_rgba(31,48,79,0.05)]"
+                    className="rounded-[26px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(243,248,253,0.95)_100%)] p-5 shadow-[0_12px_26px_rgba(23,35,56,0.05)]"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div className="min-w-0">
@@ -258,12 +257,12 @@ export default function PortalDocumentsPage() {
                             <PortalStatusBadge label="Signed" tone="success" />
                           ) : null}
                         </div>
-                        <div className="mt-3 text-lg font-semibold text-[var(--portal-text)]">
+                        <div className="mt-3 text-lg font-semibold tracking-[-0.03em] text-[var(--portal-text)]">
                           {form.form_title || toLabel(form.form_key)}
                         </div>
                         <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
-                          Version {form.version || "v1"} -{" "}
-                          {form.submitted_at ? `Submitted ${fmtDate(form.submitted_at)}` : "Not submitted yet"} -{" "}
+                          Version {form.version || "v1"} ·{" "}
+                          {form.submitted_at ? `Submitted ${fmtDate(form.submitted_at)}` : "Not submitted yet"} ·{" "}
                           {countAttachments(form.attachments)} attachment
                           {countAttachments(form.attachments) === 1 ? "" : "s"}
                         </div>
@@ -278,14 +277,14 @@ export default function PortalDocumentsPage() {
             ) : (
               <PortalEmptyState
                 title="No saved forms yet"
-                description="When forms are saved, signed, or submitted through the portal, they will appear here automatically."
+                description="Forms will appear here automatically once they are saved, signed, or submitted through the portal."
               />
             )}
           </PortalPanel>
 
           <PortalPanel
             title="Shared Documents"
-            subtitle="Published files, forms, and other records remain easy to revisit without digging through email."
+            subtitle="Published files and breeder records remain easy to revisit without searching across messages or email."
           >
             {state.documents.length ? (
               <div className="space-y-4">
@@ -297,7 +296,7 @@ export default function PortalDocumentsPage() {
                     description={
                       document.description ||
                       `${document.file_name || "File attached"}${
-                        document.created_at ? ` - added ${fmtDate(document.created_at)}` : ""
+                        document.created_at ? ` · added ${fmtDate(document.created_at)}` : ""
                       }`
                     }
                     rightLabel={document.file_name || "Record"}
@@ -317,73 +316,76 @@ export default function PortalDocumentsPage() {
         <div className="space-y-6">
           <PortalPanel
             title="Needs Attention"
-            subtitle="This keeps the few items that still need action from getting buried under everything else."
+            subtitle="Only the items still waiting for review or completion belong here."
           >
             {needsAttention.length ? (
               <div className="space-y-4">
-                {needsAttention.map((item) => (
+                {needsAttention.map((entry) => (
                   <PortalListCard
-                    key={item.id}
-                    label={item.label}
-                    title={item.title}
-                    description={item.description}
-                    rightLabel={item.rightLabel}
-                    tone={item.tone}
+                    key={entry.id}
+                    label={entry.label}
+                    title={entry.title}
+                    description={entry.description}
+                    rightLabel={entry.rightLabel}
+                    tone={entry.tone}
                   />
                 ))}
               </div>
             ) : (
               <PortalEmptyState
-                title="Nothing is waiting on you"
-                description="There are no draft forms or pending records needing attention right now."
+                title="Nothing is waiting right now"
+                description="Any record that still needs your attention will appear here instead of getting buried in a longer list."
               />
             )}
           </PortalPanel>
 
           <PortalPanel
-            title="Quick Links"
-            subtitle="Open the next page most likely to matter."
+            title="Document Center"
+            subtitle="Open the next page that is most likely to matter after this one."
           >
             <div className="grid gap-4">
-              <PortalActionLink
+              <ActionCard
+                icon={<PenSquare className="h-4 w-4" />}
+                title="Application"
+                detail="Continue or review the buyer application connected to this account."
                 href="/portal/application"
-                eyebrow="Application"
-                title="Review buyer details"
-                detail="Open your application if you need to update household details, preferences, or declarations."
               />
-              <PortalActionLink
+              <ActionCard
+                icon={<FileCheck2 className="h-4 w-4" />}
+                title="Payments"
+                detail="Cross-check documents with the payment record and account balance."
+                href="/portal/payments"
+              />
+              <ActionCard
+                icon={<FolderOpen className="h-4 w-4" />}
+                title="Messages"
+                detail="Use Messages if you need clarification about a form, file, or contract detail."
                 href="/portal/messages"
-                eyebrow="Messages"
-                title="Ask about a document"
-                detail="Use Messages if a signature, upload, or document status needs clarification."
               />
             </div>
           </PortalPanel>
 
           <PortalPanel
-            title="Record Summary"
-            subtitle="A short overview of what is already organized for you."
+            title="At a Glance"
+            subtitle="Quick operational totals without turning the page into a spreadsheet."
           >
             <div className="space-y-4">
-              <SupportRow
-                icon={<PenSquare className="h-4 w-4" />}
-                title="Application trail"
-                detail="Saved forms and signatures stay tied to the same portal account."
+              <PortalInfoTile
+                label="Draft Forms"
+                value={String(summary.drafts.length)}
+                detail="Saved but not yet submitted."
+                tone={summary.drafts.length ? "warning" : "neutral"}
               />
-              <SupportRow
-                icon={<FolderOpen className="h-4 w-4" />}
-                title="Shared records"
-                detail="Contracts, uploaded files, and supporting documents remain easy to reopen later."
+              <PortalInfoTile
+                label="Signed Items"
+                value={String(summary.signed.length)}
+                detail="Forms with signatures already on file."
+                tone={summary.signed.length ? "success" : "neutral"}
               />
-              <SupportRow
-                icon={<FileCheck2 className="h-4 w-4" />}
-                title="Clear statuses"
-                detail="Draft, submitted, signed, and completed states are visible without making the page feel cluttered."
-              />
-              <SupportRow
-                icon={<Files className="h-4 w-4" />}
-                title="Portable reference"
-                detail="This page stays useful both before and after your puppy goes home."
+              <PortalInfoTile
+                label="Portal Files"
+                value={String(summary.publishedDocuments.length)}
+                detail="Visible records and shared documents posted to your account."
               />
             </div>
           </PortalPanel>
@@ -393,24 +395,29 @@ export default function PortalDocumentsPage() {
   );
 }
 
-function SupportRow({
+function ActionCard({
+  href,
   icon,
   title,
   detail,
 }: {
+  href: string;
   icon: React.ReactNode;
   title: string;
   detail: string;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-[22px] border border-[var(--portal-border)] bg-white px-4 py-4 shadow-[0_10px_22px_rgba(31,48,79,0.05)]">
-      <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
+    <a
+      href={href}
+      className="flex items-start gap-3 rounded-[22px] border border-[var(--portal-border)] bg-white px-4 py-4 shadow-[0_10px_22px_rgba(23,35,56,0.05)] transition hover:-translate-y-0.5 hover:border-[var(--portal-border-strong)]"
+    >
+      <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
         {icon}
       </div>
-      <div>
+      <div className="min-w-0">
         <div className="text-sm font-semibold text-[var(--portal-text)]">{title}</div>
         <div className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
       </div>
-    </div>
+    </a>
   );
 }

@@ -7,6 +7,7 @@ import {
   loadChiChiMemories,
   upsertChiChiMemory,
 } from "@/lib/chichi-memory";
+import { buildPortalChiChiSystemPrompt } from "@/lib/chichi-portal-agent";
 import { isPortalAdminEmail } from "@/lib/portal-admin";
 
 type ChatMessage = {
@@ -201,6 +202,24 @@ type ActionIntent =
       action: "answer_only";
       confidence?: string;
       reason?: string;
+    }
+  | {
+      action: "list_records";
+      confidence?: string;
+      entity?:
+        | "buyers"
+        | "puppies"
+        | "payments"
+        | "applications"
+        | "documents"
+        | "forms"
+        | "messages"
+        | "events"
+        | "weights"
+        | "health"
+        | "pickup_requests";
+      query?: string | null;
+      limit?: number | null;
     }
   | {
       action: "add_puppy";
@@ -1209,8 +1228,9 @@ function buildContextSummary(params: {
 
 function buildSystemPrompt(
   summary: ReturnType<typeof buildContextSummary>,
-  options?: { isAdmin?: boolean; canWriteCore?: boolean; memories?: string }
+  options: { isAdmin?: boolean; canWriteCore?: boolean; memories?: string } = {}
 ) {
+  return buildPortalChiChiSystemPrompt(summary, options);
   if (options?.isAdmin) {
     return `
 You are ChiChi Assistant for Southwest Virginia Chihuahua.
@@ -1220,7 +1240,7 @@ Your role:
 - Keep answers concise, warm, and operationally clear.
 - Never claim a database write succeeded unless the action handler already completed it.
 - Never say you are unable to perform database writes when Core admin write access is enabled. If an action needs more detail, ask only for the missing fields.
-- If the admin asks what commands are available, mention add, edit, and delete coverage for buyers, puppies, puppy events, payments, and puppy weights.
+- If the admin asks what commands are available, mention add, edit, delete, list, and lookup coverage for buyers, puppies, puppy events, payments, puppy weights, applications, forms, documents, and transportation requests.
 - If an admin request is missing details, ask for the exact missing fields only.
 - If a request is ambiguous because multiple buyers, puppies, or payments could match, say that plainly and ask for one clarifying detail.
 - Persistent ChiChi memory contains ongoing breeder or owner instructions. Use it for business rules, hours, pricing, website notices, and recurring guidance unless the admin clearly replaces it.
@@ -1282,6 +1302,7 @@ No explanation.
 
 Allowed actions:
 - "answer_only"
+- "list_records"
 - "add_buyer"
 - "update_buyer"
 - "delete_buyer"
@@ -1299,6 +1320,22 @@ Allowed actions:
 - "delete_puppy_weight"
 
 Use "answer_only" if the message is mostly a question, lookup, explanation, or lacks enough intent to act.
+
+For "list_records", try to extract:
+entity, query, limit
+
+Valid entities for "list_records":
+- buyers
+- puppies
+- payments
+- applications
+- documents
+- forms
+- messages
+- events
+- weights
+- health
+- pickup_requests
 
 For "add_buyer", try to extract:
 full_name, name, email, phone, status, notes
@@ -1379,6 +1416,55 @@ function parseDirectActionIntent(userMessage: string): ActionIntent | null {
     if (names.length === 1) {
       return { action: "delete_puppy", puppy_name: names[0] };
     }
+  }
+
+  const normalizedText = lower.replace(/[?.!]+$/g, "").trim();
+
+  const entityMap: Array<{
+    pattern: RegExp;
+    entity: Extract<ActionIntent, { action: "list_records" }>["entity"];
+  }> = [
+    { pattern: /\bbuyers?\b/, entity: "buyers" },
+    { pattern: /\bpupp(?:y|ies)\b/, entity: "puppies" },
+    { pattern: /\bpayments?\b/, entity: "payments" },
+    { pattern: /\bapplications?\b/, entity: "applications" },
+    { pattern: /\bdocuments?\b/, entity: "documents" },
+    { pattern: /\bforms?\b/, entity: "forms" },
+    { pattern: /\bmessages?\b/, entity: "messages" },
+    { pattern: /\bevents?\b|\bupdates?\b/, entity: "events" },
+    { pattern: /\bweights?\b/, entity: "weights" },
+    { pattern: /\bhealth\b|\bhealth records?\b/, entity: "health" },
+    { pattern: /\bpickup requests?\b|\btransportation requests?\b/, entity: "pickup_requests" },
+  ];
+
+  const matchedEntity = entityMap.find((entry) => entry.pattern.test(normalizedText))?.entity;
+  const listMatch =
+    normalizedText === "buyers" ||
+    normalizedText === "puppies" ||
+    normalizedText === "payments" ||
+    normalizedText === "applications" ||
+    normalizedText === "documents" ||
+    normalizedText === "forms" ||
+    normalizedText === "messages" ||
+    normalizedText === "events" ||
+    normalizedText === "updates" ||
+    normalizedText === "weights" ||
+    normalizedText === "health" ||
+    normalizedText === "pickup requests" ||
+    /^(?:list|show|get|view)\b/.test(normalizedText) ||
+    /^(?:who are|what are)\b/.test(normalizedText);
+  const countMatch = /^(?:how many|count|total)\b/.test(normalizedText);
+
+  if (matchedEntity && (listMatch || countMatch)) {
+    const queryMatch =
+      normalizedText.match(/\b(?:for|named|called|with|about)\s+(.+)$/i)?.[1]?.trim() || null;
+
+    return {
+      action: "list_records",
+      entity: matchedEntity,
+      query: queryMatch,
+      limit: countMatch ? 0 : 12,
+    };
   }
 
   if (lower.startsWith("add puppy")) {
@@ -1585,6 +1671,10 @@ async function extractActionIntent(userMessage: string, recentUserMessages: stri
     return mergeIntentWithRecentContext(directIntent, recentUserMessages);
   }
 
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return { action: "answer_only", reason: "intent extraction skipped because anthropic is unavailable" };
+  }
+
   const response = await fetch(ANTHROPIC_URL, {
     method: "POST",
     headers: {
@@ -1691,6 +1781,10 @@ async function findPuppyByNameOrId(
 }
 
 function missingFieldsForAction(intent: ActionIntent): string[] {
+  if (intent.action === "list_records") {
+    return intent.entity ? [] : ["what to list"];
+  }
+
   if (intent.action === "add_buyer") {
     const missing: string[] = [];
     if (!intent.full_name && !intent.name) missing.push("buyer name");
@@ -1894,6 +1988,504 @@ function missingFieldsForAction(intent: ActionIntent): string[] {
   }
 
   return [];
+}
+
+function recordLimit(value: number | null | undefined, fallback = 12) {
+  if (value === 0) return 0;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(Math.max(Math.round(parsed), 1), 50);
+}
+
+async function executeListRecords(
+  admin: SupabaseClient,
+  intent: Extract<ActionIntent, { action: "list_records" }>
+) {
+  const entity = intent.entity;
+  const limit = recordLimit(intent.limit, 12);
+  const queryText = String(intent.query || "").trim().toLowerCase();
+
+  if (!entity) {
+    throw new Error("I still need to know what records you want listed.");
+  }
+
+  if (entity === "buyers") {
+    const { data, error } = await admin
+      .from("buyers")
+      .select("id,full_name,name,email,phone,status,created_at")
+      .order("created_at", { ascending: false })
+      .limit(limit || 500);
+    if (error) throw new Error(`Could not load buyers: ${error.message}`);
+
+    const rows = (data || []).filter((row) => {
+      if (!queryText) return true;
+      return [row.full_name, row.name, row.email, row.phone, row.status]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ")
+        .includes(queryText);
+    });
+
+    if (limit === 0) {
+      return `I found ${rows.length} buyer record${rows.length === 1 ? "" : "s"}${queryText ? ` matching "${intent.query}".` : "."}`;
+    }
+
+    if (!rows.length) {
+      return queryText
+        ? `I could not find any buyers matching "${intent.query}".`
+        : "I could not find any buyers yet.";
+    }
+
+    return [
+      `Here ${rows.length === 1 ? "is" : "are"} the latest buyer${rows.length === 1 ? "" : "s"}${queryText ? ` matching "${intent.query}"` : ""}:`,
+      "",
+      ...rows.slice(0, limit).map((row, index) => {
+        const name = row.full_name || row.name || row.email || `Buyer ${row.id}`;
+        const parts = [row.email, row.phone, row.status].filter(Boolean);
+        return `${index + 1}. ${name}${parts.length ? ` - ${parts.join(" - ")}` : ""}`;
+      }),
+    ].join("\n");
+  }
+
+  if (entity === "puppies") {
+    const { data, error } = await admin
+      .from("puppies")
+      .select("id,call_name,puppy_name,name,sex,color,status,owner_email,created_at")
+      .order("created_at", { ascending: false })
+      .limit(limit || 500);
+    if (error) throw new Error(`Could not load puppies: ${error.message}`);
+
+    const rows = (data || []).filter((row) => {
+      if (!queryText) return true;
+      return [row.call_name, row.puppy_name, row.name, row.sex, row.color, row.status, row.owner_email]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ")
+        .includes(queryText);
+    });
+
+    if (limit === 0) {
+      return `I found ${rows.length} pupp${rows.length === 1 ? "y" : "ies"}${queryText ? ` matching "${intent.query}".` : "."}`;
+    }
+
+    if (!rows.length) {
+      return queryText
+        ? `I could not find any puppies matching "${intent.query}".`
+        : "I could not find any puppies yet.";
+    }
+
+    return [
+      `Here ${rows.length === 1 ? "is" : "are"} the latest pupp${rows.length === 1 ? "y" : "ies"}${queryText ? ` matching "${intent.query}"` : ""}:`,
+      "",
+      ...rows.slice(0, limit).map((row, index) => {
+        const name = row.call_name || row.puppy_name || row.name || `Puppy ${row.id}`;
+        const parts = [row.sex, row.color, row.status].filter(Boolean);
+        return `${index + 1}. ${name}${parts.length ? ` - ${parts.join(" - ")}` : ""}`;
+      }),
+    ].join("\n");
+  }
+
+  if (entity === "payments") {
+    const { data, error } = await admin
+      .from("buyer_payments")
+      .select("id,buyer_id,payment_date,amount,payment_type,method,status,reference_number,created_at")
+      .order("payment_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(limit || 500);
+    if (error) throw new Error(`Could not load payments: ${error.message}`);
+
+    const buyerIds = Array.from(new Set((data || []).map((row) => Number(row.buyer_id || 0)).filter(Boolean)));
+    const buyerMap = new Map<number, string>();
+    if (buyerIds.length) {
+      const { data: buyers } = await admin.from("buyers").select("id,full_name,name,email").in("id", buyerIds);
+      (buyers || []).forEach((buyer) => {
+        buyerMap.set(Number(buyer.id), buyer.full_name || buyer.name || buyer.email || `Buyer ${buyer.id}`);
+      });
+    }
+
+    const rows = (data || []).filter((row) => {
+      const haystack = [
+        buyerMap.get(Number(row.buyer_id || 0)),
+        row.payment_type,
+        row.method,
+        row.status,
+        row.reference_number,
+        row.payment_date,
+        row.amount,
+      ]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ");
+      return !queryText || haystack.includes(queryText);
+    });
+
+    if (limit === 0) {
+      return `I found ${rows.length} payment record${rows.length === 1 ? "" : "s"}${queryText ? ` matching "${intent.query}".` : "."}`;
+    }
+
+    if (!rows.length) {
+      return queryText
+        ? `I could not find any payments matching "${intent.query}".`
+        : "I could not find any payments yet.";
+    }
+
+    return [
+      `Here ${rows.length === 1 ? "is" : "are"} the latest payment${rows.length === 1 ? "" : "s"}${queryText ? ` matching "${intent.query}"` : ""}:`,
+      "",
+      ...rows.slice(0, limit).map((row, index) => {
+        const buyerName = buyerMap.get(Number(row.buyer_id || 0)) || `Buyer ${row.buyer_id || "-"}`;
+        return `${index + 1}. ${buyerName} - $${Number(row.amount || 0).toFixed(2)} - ${row.payment_date || "No date"} - ${row.status || "recorded"}`;
+      }),
+    ].join("\n");
+  }
+
+  if (entity === "applications") {
+    const { data, error } = await admin
+      .from("puppy_applications")
+      .select("id,full_name,email,applicant_email,phone,status,created_at,assigned_puppy_id")
+      .order("created_at", { ascending: false })
+      .limit(limit || 500);
+    if (error) throw new Error(`Could not load applications: ${error.message}`);
+
+    const rows = (data || []).filter((row) => {
+      if (!queryText) return true;
+      return [row.full_name, row.email, row.applicant_email, row.phone, row.status, row.assigned_puppy_id]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ")
+        .includes(queryText);
+    });
+
+    if (limit === 0) {
+      return `I found ${rows.length} application${rows.length === 1 ? "" : "s"}${queryText ? ` matching "${intent.query}".` : "."}`;
+    }
+
+    if (!rows.length) {
+      return queryText
+        ? `I could not find any applications matching "${intent.query}".`
+        : "I could not find any applications yet.";
+    }
+
+    return [
+      `Here ${rows.length === 1 ? "is" : "are"} the latest application${rows.length === 1 ? "" : "s"}${queryText ? ` matching "${intent.query}"` : ""}:`,
+      "",
+      ...rows.slice(0, limit).map((row, index) => {
+        const name = row.full_name || row.email || row.applicant_email || `Application ${row.id}`;
+        const parts = [row.status, row.phone, row.assigned_puppy_id ? `puppy ${row.assigned_puppy_id}` : null].filter(Boolean);
+        return `${index + 1}. ${name}${parts.length ? ` - ${parts.join(" - ")}` : ""}`;
+      }),
+    ].join("\n");
+  }
+
+  if (entity === "forms") {
+    const { data, error } = await admin
+      .from("portal_form_submissions")
+      .select("id,user_email,form_key,form_title,status,submitted_at,created_at")
+      .order("created_at", { ascending: false })
+      .limit(limit || 500);
+    if (error) throw new Error(`Could not load forms: ${error.message}`);
+
+    const rows = (data || []).filter((row) => {
+      if (!queryText) return true;
+      return [row.user_email, row.form_key, row.form_title, row.status]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ")
+        .includes(queryText);
+    });
+
+    if (limit === 0) {
+      return `I found ${rows.length} form submission${rows.length === 1 ? "" : "s"}${queryText ? ` matching "${intent.query}".` : "."}`;
+    }
+
+    if (!rows.length) {
+      return queryText
+        ? `I could not find any form submissions matching "${intent.query}".`
+        : "I could not find any form submissions yet.";
+    }
+
+    return [
+      `Here ${rows.length === 1 ? "is" : "are"} the latest form submission${rows.length === 1 ? "" : "s"}${queryText ? ` matching "${intent.query}"` : ""}:`,
+      "",
+      ...rows.slice(0, limit).map((row, index) => {
+        const title = row.form_title || row.form_key || `Form ${row.id}`;
+        const when = row.submitted_at || row.created_at || "No date";
+        return `${index + 1}. ${title} - ${row.user_email || "No email"} - ${row.status || "draft"} - ${when}`;
+      }),
+    ].join("\n");
+  }
+
+  if (entity === "documents") {
+    const [formRes, docRes] = await Promise.all([
+      admin
+        .from("portal_form_submissions")
+        .select("id,user_email,form_title,form_key,status,submitted_at,created_at")
+        .order("created_at", { ascending: false })
+        .limit(limit || 250),
+      admin
+        .from("portal_documents")
+        .select("id,title,category,status,email,created_at,file_name")
+        .order("created_at", { ascending: false })
+        .limit(limit || 250),
+    ]);
+
+    if (formRes.error) throw new Error(`Could not load form records: ${formRes.error.message}`);
+    if (docRes.error) throw new Error(`Could not load portal documents: ${docRes.error.message}`);
+
+    const rows = [
+      ...(formRes.data || []).map((row) => ({
+        title: row.form_title || row.form_key || `Form ${row.id}`,
+        email: row.user_email || null,
+        status: row.status || "draft",
+        kind: "form",
+        created_at: row.submitted_at || row.created_at || null,
+      })),
+      ...(docRes.data || []).map((row) => ({
+        title: row.title || row.file_name || `Document ${row.id}`,
+        email: row.email || null,
+        status: row.status || row.category || "document",
+        kind: "document",
+        created_at: row.created_at || null,
+      })),
+    ].filter((row) => {
+      if (!queryText) return true;
+      return [row.title, row.email, row.status, row.kind]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ")
+        .includes(queryText);
+    });
+
+    if (limit === 0) {
+      return `I found ${rows.length} document record${rows.length === 1 ? "" : "s"}${queryText ? ` matching "${intent.query}".` : "."}`;
+    }
+
+    if (!rows.length) {
+      return queryText
+        ? `I could not find any document records matching "${intent.query}".`
+        : "I could not find any document records yet.";
+    }
+
+    return [
+      `Here ${rows.length === 1 ? "is" : "are"} the latest document record${rows.length === 1 ? "" : "s"}${queryText ? ` matching "${intent.query}"` : ""}:`,
+      "",
+      ...rows.slice(0, limit).map((row, index) => {
+        return `${index + 1}. ${row.title} - ${row.kind} - ${row.email || "No email"} - ${row.status}`;
+      }),
+    ].join("\n");
+  }
+
+  if (entity === "messages") {
+    const { data, error } = await admin
+      .from("portal_messages")
+      .select("id,created_at,user_email,subject,message,status,read_by_admin,sender")
+      .order("created_at", { ascending: false })
+      .limit(limit || 500);
+    if (error) throw new Error(`Could not load portal messages: ${error.message}`);
+
+    const rows = (data || []).filter((row) => {
+      if (!queryText) return true;
+      return [row.user_email, row.subject, row.message, row.status, row.sender]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ")
+        .includes(queryText);
+    });
+
+    if (limit === 0) {
+      return `I found ${rows.length} message${rows.length === 1 ? "" : "s"}${queryText ? ` matching "${intent.query}".` : "."}`;
+    }
+
+    if (!rows.length) {
+      return queryText
+        ? `I could not find any portal messages matching "${intent.query}".`
+        : "I could not find any portal messages yet.";
+    }
+
+    return [
+      `Here ${rows.length === 1 ? "is" : "are"} the latest message${rows.length === 1 ? "" : "s"}${queryText ? ` matching "${intent.query}"` : ""}:`,
+      "",
+      ...rows.slice(0, limit).map((row, index) => {
+        const preview = String(row.message || "").replace(/\s+/g, " ").trim().slice(0, 70);
+        return `${index + 1}. ${row.user_email || "No email"} - ${row.sender || "unknown"} - ${row.status || "open"} - ${preview}${preview.length === 70 ? "..." : ""}`;
+      }),
+    ].join("\n");
+  }
+
+  if (entity === "events") {
+    const { data, error } = await admin
+      .from("puppy_events")
+      .select("id,event_date,event_type,label,title,summary")
+      .order("event_date", { ascending: false })
+      .limit(limit || 500);
+    if (error) throw new Error(`Could not load puppy events: ${error.message}`);
+
+    const rows = (data || []).filter((row) => {
+      if (!queryText) return true;
+      return [row.event_date, row.event_type, row.label, row.title, row.summary]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ")
+        .includes(queryText);
+    });
+
+    if (limit === 0) {
+      return `I found ${rows.length} update${rows.length === 1 ? "" : "s"}${queryText ? ` matching "${intent.query}".` : "."}`;
+    }
+
+    if (!rows.length) {
+      return queryText
+        ? `I could not find any updates matching "${intent.query}".`
+        : "I could not find any puppy events yet.";
+    }
+
+    return [
+      `Here ${rows.length === 1 ? "is" : "are"} the latest update${rows.length === 1 ? "" : "s"}${queryText ? ` matching "${intent.query}"` : ""}:`,
+      "",
+      ...rows.slice(0, limit).map((row, index) => {
+        const title = row.title || row.label || `Event ${row.id}`;
+        return `${index + 1}. ${title} - ${row.event_date || "No date"} - ${row.event_type || "event"}`;
+      }),
+    ].join("\n");
+  }
+
+  if (entity === "weights") {
+    const { data, error } = await admin
+      .from("puppy_weights")
+      .select("id,weight_date,weigh_date,age_weeks,weight_oz,weight_g,notes,source")
+      .order("weight_date", { ascending: false })
+      .order("weigh_date", { ascending: false })
+      .limit(limit || 500);
+    if (error) throw new Error(`Could not load puppy weights: ${error.message}`);
+
+    const rows = (data || []).filter((row) => {
+      if (!queryText) return true;
+      return [row.weight_date, row.weigh_date, row.age_weeks, row.weight_oz, row.weight_g, row.notes, row.source]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ")
+        .includes(queryText);
+    });
+
+    if (limit === 0) {
+      return `I found ${rows.length} weight entr${rows.length === 1 ? "y" : "ies"}${queryText ? ` matching "${intent.query}".` : "."}`;
+    }
+
+    if (!rows.length) {
+      return queryText
+        ? `I could not find any puppy weights matching "${intent.query}".`
+        : "I could not find any puppy weights yet.";
+    }
+
+    return [
+      `Here ${rows.length === 1 ? "is" : "are"} the latest weight entr${rows.length === 1 ? "y" : "ies"}${queryText ? ` matching "${intent.query}"` : ""}:`,
+      "",
+      ...rows.slice(0, limit).map((row, index) => {
+        const weight =
+          row.weight_oz !== null && row.weight_oz !== undefined
+            ? `${row.weight_oz} oz`
+            : row.weight_g !== null && row.weight_g !== undefined
+              ? `${row.weight_g} g`
+              : "No weight";
+        return `${index + 1}. ${row.weight_date || row.weigh_date || "No date"} - ${weight} - ${row.age_weeks ?? "?"} weeks`;
+      }),
+    ].join("\n");
+  }
+
+  if (entity === "health") {
+    const { data, error } = await admin
+      .from("puppy_health_records")
+      .select("id,record_date,record_type,title,description,next_due_date")
+      .order("record_date", { ascending: false })
+      .limit(limit || 500);
+    if (error) throw new Error(`Could not load health records: ${error.message}`);
+
+    const rows = (data || []).filter((row) => {
+      if (!queryText) return true;
+      return [row.record_date, row.record_type, row.title, row.description, row.next_due_date]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ")
+        .includes(queryText);
+    });
+
+    if (limit === 0) {
+      return `I found ${rows.length} health record${rows.length === 1 ? "" : "s"}${queryText ? ` matching "${intent.query}".` : "."}`;
+    }
+
+    if (!rows.length) {
+      return queryText
+        ? `I could not find any health records matching "${intent.query}".`
+        : "I could not find any health records yet.";
+    }
+
+    return [
+      `Here ${rows.length === 1 ? "is" : "are"} the latest health record${rows.length === 1 ? "" : "s"}${queryText ? ` matching "${intent.query}"` : ""}:`,
+      "",
+      ...rows.slice(0, limit).map((row, index) => {
+        return `${index + 1}. ${row.title} - ${row.record_date || "No date"} - ${row.record_type || "record"}${row.next_due_date ? ` - next due ${row.next_due_date}` : ""}`;
+      }),
+    ].join("\n");
+  }
+
+  if (entity === "pickup_requests") {
+    const { data, error } = await admin
+      .from("portal_pickup_requests")
+      .select("id,request_date,request_type,location_text,address_text,status,miles")
+      .order("request_date", { ascending: false })
+      .limit(limit || 500);
+    if (error) throw new Error(`Could not load pickup requests: ${error.message}`);
+
+    const rows = (data || []).filter((row) => {
+      if (!queryText) return true;
+      return [row.request_date, row.request_type, row.location_text, row.address_text, row.status, row.miles]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ")
+        .includes(queryText);
+    });
+
+    if (limit === 0) {
+      return `I found ${rows.length} transportation request${rows.length === 1 ? "" : "s"}${queryText ? ` matching "${intent.query}".` : "."}`;
+    }
+
+    if (!rows.length) {
+      return queryText
+        ? `I could not find any transportation requests matching "${intent.query}".`
+        : "I could not find any transportation requests yet.";
+    }
+
+    return [
+      `Here ${rows.length === 1 ? "is" : "are"} the latest transportation request${rows.length === 1 ? "" : "s"}${queryText ? ` matching "${intent.query}"` : ""}:`,
+      "",
+      ...rows.slice(0, limit).map((row, index) => {
+        const location = row.location_text || row.address_text || "No location";
+        return `${index + 1}. ${row.request_date || "No date"} - ${row.request_type || "request"} - ${location} - ${row.status || "pending"}`;
+      }),
+    ].join("\n");
+  }
+
+  return "I do not have a list handler for that record type yet.";
+}
+
+async function localAdminFallback(
+  admin: SupabaseClient,
+  userMessage: string
+) {
+  const directIntent = parseDirectActionIntent(userMessage);
+  if (directIntent?.action === "list_records") {
+    return executeListRecords(admin, directIntent);
+  }
+
+  const lower = String(userMessage || "").trim().toLowerCase();
+  if (!lower) return "";
+
+  if (/\bbuyers?\b/.test(lower)) {
+    return executeListRecords(admin, { action: "list_records", entity: "buyers", limit: 12 });
+  }
+
+  if (/\bpupp(?:y|ies)\b/.test(lower)) {
+    return executeListRecords(admin, { action: "list_records", entity: "puppies", limit: 12 });
+  }
+
+  if (/\bpayments?\b/.test(lower)) {
+    return executeListRecords(admin, { action: "list_records", entity: "payments", limit: 12 });
+  }
+
+  if (/\bapplications?\b/.test(lower)) {
+    return executeListRecords(admin, { action: "list_records", entity: "applications", limit: 12 });
+  }
+
+  return "";
 }
 
 async function executeAddBuyer(
@@ -2741,10 +3333,6 @@ export async function POST(req: Request) {
       return jsonError("Please enter a message for ChiChi.", 400);
     }
 
-    if (!process.env.ANTHROPIC_API_KEY) {
-      return jsonError("ChiChi is not configured yet. The Anthropic API key is missing.", 500);
-    }
-
     const { user } = await verifyUser(req, body);
     if (!user) {
       return jsonError("Please sign in to use ChiChi with your account.", 401);
@@ -2860,6 +3448,8 @@ export async function POST(req: Request) {
         const missing = missingFieldsForAction(intent);
         if (missing.length) {
           text = `I can do that, but I still need: ${missing.join(", ")}.`;
+        } else if (intent.action === "list_records") {
+          text = await executeListRecords(admin, intent);
         } else if (intent.action === "add_buyer") {
           text = await executeAddBuyer(admin, intent);
         } else if (intent.action === "update_buyer") {
@@ -2901,35 +3491,48 @@ export async function POST(req: Request) {
         memories: memoryContext,
       });
 
-      const anthropicResponse = await fetch(ANTHROPIC_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": getEnv("ANTHROPIC_API_KEY"),
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: ANTHROPIC_MODEL,
-          max_tokens: body.max_tokens || 1200,
-          system,
-          messages: messages.map((message) => ({
-            role: message.role,
-            content: message.content,
-          })),
-        }),
-      });
+      if (!process.env.ANTHROPIC_API_KEY) {
+        text = await localAdminFallback(admin, lastUserMessage);
+        if (!text) {
+          text = "I can still run direct admin actions and listings right now, but the model-backed response layer is unavailable.";
+        }
+      } else {
+        const anthropicResponse = await fetch(ANTHROPIC_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": getEnv("ANTHROPIC_API_KEY"),
+            "anthropic-version": "2023-06-01",
+          },
+          body: JSON.stringify({
+            model: ANTHROPIC_MODEL,
+            max_tokens: body.max_tokens || 1200,
+            system,
+            messages: messages.map((message) => ({
+              role: message.role,
+              content: message.content,
+            })),
+          }),
+        });
 
-      if (!anthropicResponse.ok) {
-        const errorText = await anthropicResponse.text();
-        console.error("Anthropic API Error:", errorText);
-        return jsonError("ChiChi had trouble generating a response right now.", 502);
-      }
+        if (!anthropicResponse.ok) {
+          const errorText = await anthropicResponse.text();
+          console.error("Anthropic API Error:", errorText);
+          text = await localAdminFallback(admin, lastUserMessage);
+          if (!text) {
+            return jsonError("ChiChi had trouble generating a response right now.", 502);
+          }
+        } else {
+          const anthropicData = await anthropicResponse.json();
+          text = anthropicData?.content?.[0]?.text?.trim();
 
-      const anthropicData = await anthropicResponse.json();
-      text = anthropicData?.content?.[0]?.text?.trim();
-
-      if (!text) {
-        return jsonError("ChiChi could not generate a response.", 502);
+          if (!text) {
+            text = await localAdminFallback(admin, lastUserMessage);
+            if (!text) {
+              return jsonError("ChiChi could not generate a response.", 502);
+            }
+          }
+        }
       }
     }
 

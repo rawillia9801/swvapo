@@ -671,8 +671,8 @@ export default function PortalApplicationPage() {
     <div className="space-y-6 pb-14">
       <PortalPageHero
         eyebrow="Application"
-        title="A clean application workspace, not a cluttered form dump."
-        description="Keep your buyer details, puppy preferences, household information, and declarations organized in one place so your breeder can review everything clearly."
+        title="Manage your buyer application from one record."
+        description="Review contact details, puppy preferences, household information, declarations, and signature in one place."
         actions={
           <>
             <PortalHeroPrimaryAction href="/portal/messages">Message Support</PortalHeroPrimaryAction>
@@ -682,28 +682,28 @@ export default function PortalApplicationPage() {
         aside={
           <div className="rounded-[30px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,var(--portal-surface-strong)_0%,var(--portal-surface-muted)_100%)] p-5 shadow-[0_18px_42px_rgba(31,48,79,0.08)]">
             <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--portal-text-muted)]">
-              Why this page matters
+              Application record
             </div>
             <div className="mt-3 text-lg font-semibold text-[var(--portal-text)]">
-              Keep your application easy to review.
+              Keep the full buyer file current.
             </div>
             <div className="mt-3 space-y-3 text-sm leading-6 text-[var(--portal-text-soft)]">
-              <p>Use this page to keep account details current while your application is under review.</p>
-              <p>Once you are approved, this page remains part of your buyer record before and after your puppy goes home.</p>
-              <p>Important notes, matching details, and next steps stay easier to follow when the record here is complete.</p>
+              <p>Use this record for the buyer information the breeder should rely on during review and matching.</p>
+              <p>Preference, declaration, and signature details stay attached to the same application instead of being split across emails or notes.</p>
+              <p>Once approved, breeder notes and matching details remain visible here as part of your portal history.</p>
             </div>
           </div>
         }
       />
 
       {statusText ? (
-        <div className="rounded-[20px] border border-[#d5e7d0] bg-[#f5fbf2] px-4 py-3 text-sm font-semibold text-[#456640]">
+        <div className="rounded-[20px] border border-[rgba(89,139,109,0.22)] bg-[rgba(237,248,241,0.92)] px-4 py-3 text-sm font-semibold text-[#355543]">
           {statusText}
         </div>
       ) : null}
 
       {errorText ? (
-        <div className="rounded-[20px] border border-[#efd2cc] bg-[#fff6f4] px-4 py-3 text-sm font-semibold text-[#8f4b42]">
+        <div className="rounded-[20px] border border-[rgba(190,122,116,0.22)] bg-[rgba(255,246,244,0.92)] px-4 py-3 text-sm font-semibold text-[#7b4a46]">
           {errorText}
         </div>
       ) : null}
@@ -718,19 +718,19 @@ export default function PortalApplicationPage() {
           label="Portal Family"
           value={displayName}
           detail={form.email || user.email || "The email tied to your portal application."}
-          accent="from-[#efe3d1] via-[#dfc2a2] to-[#c08f5b]"
+          accent="from-[#edf2ff] via-[#dbe5ff] to-[#9ab2eb]"
         />
         <PortalMetricCard
           label="My Puppy"
           value={preferredPuppyLabel}
           detail={puppy ? "Your matched puppy profile is already linked to the portal." : "Your matched puppy will appear here once assigned."}
-          accent="from-[#dce9d6] via-[#b9d2b0] to-[#7b9d71]"
+          accent="from-[#e8f5fb] via-[#d2e8f5] to-[#95b8d9]"
         />
         <PortalMetricCard
           label="Declarations"
           value={`${declarationCount}/${declarationItems.length}`}
           detail="Required acknowledgements completed in this application."
-          accent="from-[#f1dcc4] via-[#ddb48a] to-[#c67f42]"
+          accent="from-[#eef2f8] via-[#dbe3ef] to-[#a6bad0]"
         />
       </PortalMetricGrid>
 
@@ -739,7 +739,7 @@ export default function PortalApplicationPage() {
           <form onSubmit={handleSave} className="space-y-6">
             <PortalPanel
               title="Contact Details"
-              subtitle="Keep the primary buyer information here accurate so updates, reminders, and breeder follow-up reach the right place."
+              subtitle="Use the contact details the breeder should rely on for review, approval, and follow-up."
             >
               <div className="grid gap-5 md:grid-cols-2">
                 <PortalField label="Full Name">
@@ -810,7 +810,7 @@ export default function PortalApplicationPage() {
 
             <PortalPanel
               title="Puppy Preferences"
-              subtitle="This keeps your preference details visible without burying them under duplicate summary cards."
+              subtitle="Record the timing and puppy preferences tied to this application."
             >
               <div className="grid gap-5 md:grid-cols-2">
                 <PortalField label="Interest Type">
@@ -872,7 +872,7 @@ export default function PortalApplicationPage() {
 
             <PortalPanel
               title="Home & Lifestyle"
-              subtitle="These answers help the breeder understand your household, routines, and readiness for puppy care."
+              subtitle="Share the household setup, schedule, and care environment tied to this application."
             >
               <div className="grid gap-5 md:grid-cols-2">
                 <PortalField label="Other Pets">
@@ -958,7 +958,7 @@ export default function PortalApplicationPage() {
 
             <PortalPanel
               title="Readiness & Questions"
-              subtitle="Use this section for payment preference, referral notes, and anything you want the breeder to know early."
+              subtitle="Add payment preference, referral context, and any early questions that belong on the buyer record."
             >
               <div className="grid gap-5 md:grid-cols-2">
                 <PortalField label="Payment Preference">
@@ -1007,7 +1007,7 @@ export default function PortalApplicationPage() {
 
             <PortalPanel
               title="Policies & Applicant Declarations"
-              subtitle="The goal here is clarity and accountability, not a wall of legal-looking text."
+              subtitle="Review the policy points and applicant confirmations attached to this application."
             >
               <div className="space-y-5">
                 <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] p-5">
@@ -1058,7 +1058,7 @@ export default function PortalApplicationPage() {
 
             <PortalPanel
               title="Signature"
-              subtitle="A clean signature step keeps the application complete without making the page feel bureaucratic."
+              subtitle="Finish the record with the signature and timestamp that should stay on file."
             >
               <div className="grid gap-5 md:grid-cols-2">
                 <PortalField label="Signed At">
@@ -1108,7 +1108,7 @@ export default function PortalApplicationPage() {
         <div className="space-y-6 xl:sticky xl:top-6 xl:self-start">
           <PortalPanel
             title="At a Glance"
-            subtitle="A concise summary of what matters most, without repeating the same status block several times."
+            subtitle="The core application details most likely to be checked during review."
           >
             <div className="space-y-4">
               <PortalInfoTile
@@ -1167,7 +1167,7 @@ export default function PortalApplicationPage() {
           {record?.admin_notes ? (
             <PortalPanel
               title="Breeder Notes"
-              subtitle="Notes left on your application are kept visible here so they do not get lost."
+              subtitle="Notes added to your application remain visible here for reference."
             >
               <div className="rounded-[24px] border border-[var(--portal-border)] bg-white px-4 py-4 text-sm leading-7 text-[var(--portal-text-soft)] shadow-[0_10px_24px_rgba(31,48,79,0.05)]">
                 {record.admin_notes}
@@ -1177,7 +1177,7 @@ export default function PortalApplicationPage() {
 
           <PortalPanel
             title="Helpful links"
-            subtitle="Keep nearby actions obvious and easy to reach."
+            subtitle="Use the adjacent pages that most often support application review."
           >
             <div className="space-y-3">
               <QuickLinkCard

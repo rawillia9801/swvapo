@@ -1,9 +1,17 @@
 "use client";
 
 import React from "react";
-import Link from "next/link";
-import { BookOpen, ExternalLink, HeartPulse, Home, ShieldPlus, Stethoscope } from "lucide-react";
 import {
+  ArrowUpRight,
+  Compass,
+  HeartPulse,
+  House,
+  MessageSquareText,
+  ShieldCheck,
+  Stethoscope,
+} from "lucide-react";
+import {
+  PortalActionLink,
   PortalHeroPrimaryAction,
   PortalHeroSecondaryAction,
   PortalInfoTile,
@@ -16,63 +24,73 @@ import {
 type ResourceSite = {
   title: string;
   href: string;
+  tag: string;
   description: string;
 };
 
-const resourceSites: ResourceSite[] = [
+type KnowledgeModule = {
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+};
+
+const referenceSites: ResourceSite[] = [
   {
     title: "Pup-Lift",
     href: "https://pup-lift.com",
+    tag: "Transportation",
     description:
-      "Transportation-focused support and planning resources for families preparing for safe puppy travel and delivery arrangements.",
+      "Travel planning, delivery support, and transportation guidance connected to the puppy handoff process.",
   },
   {
     title: "Chihuahua HQ",
     href: "https://chihuahuahq.com",
+    tag: "Breed Education",
     description:
-      "Breed education, owner guidance, and Chihuahua-specific reading for families who want a stronger foundation in care and temperament.",
+      "Long-form Chihuahua education covering temperament, care routines, and owner education beyond the portal.",
   },
   {
     title: "Chihuahua Services",
     href: "https://chihuahua.services",
+    tag: "Services",
     description:
-      "Additional Chihuahua-centered tools, services, and support resources connected to the broader puppy journey.",
+      "Additional Chihuahua-centered tools, services, and support resources connected to your ongoing account journey.",
   },
 ];
 
-const healthTopics = [
+const knowledgeModules: KnowledgeModule[] = [
   {
+    title: "Health Watch",
+    description:
+      "Review the signals that matter most in small-breed puppies, including appetite changes, body warmth, stool quality, and unusual lethargy.",
     icon: <HeartPulse className="h-5 w-5" />,
-    title: "Hypoglycemia Awareness",
-    text:
-      "Very small puppies can be sensitive to missed meals, chilling, stress, or overexertion. Sudden weakness, shakiness, poor appetite, or unusual sleepiness should be taken seriously.",
   },
   {
+    title: "Veterinary Readiness",
+    description:
+      "Keep your first exam, vaccine follow-up, deworming notes, and any medication questions organized before and after go-home day.",
     icon: <Stethoscope className="h-5 w-5" />,
-    title: "Wellness and Veterinary Care",
-    text:
-      "Keep vaccines, deworming, exams, and follow-up care organized. Early communication with your veterinarian and breeder helps small issues stay manageable.",
   },
   {
-    icon: <ShieldPlus className="h-5 w-5" />,
-    title: "Home Safety",
-    text:
-      "Tiny breed puppies need careful handling, low fall-risk environments, warmth, and supervision around larger pets, furniture, stairs, and busy foot traffic.",
+    title: "Home Setup",
+    description:
+      "Use a low-risk setup with warmth, supervision, stable meals, and safe handling practices that fit a tiny Chihuahua puppy.",
+    icon: <House className="h-5 w-5" />,
   },
   {
-    icon: <Home className="h-5 w-5" />,
-    title: "Transition Routine",
-    text:
-      "A calm first week, predictable meals, close observation, and a prepared home setup make transition easier and help your puppy settle in more confidently.",
+    title: "Operating Guidance",
+    description:
+      "Use portal messages for anything that should be answered in the context of your specific puppy, account, or records.",
+    icon: <ShieldCheck className="h-5 w-5" />,
   },
 ];
 
-const quickGuides = [
-  "Keep meals on a predictable schedule during early transition.",
-  "Watch appetite, energy, stool quality, and body warmth closely.",
-  "Use calm handling and avoid rough play or high surfaces.",
-  "Reach out early if something feels off rather than waiting.",
-  "Use portal messages anytime for puppy-specific questions.",
+const quickReference = [
+  "Keep meals steady and predictable during transition.",
+  "Watch for appetite changes, chills, weakness, or unusual sleepiness.",
+  "Use calm handling and avoid elevated surfaces or rough play.",
+  "Recheck portal updates, documents, and messages before travel day.",
+  "Use portal messages for account-specific questions instead of guessing.",
 ];
 
 export default function PortalResourcesPage() {
@@ -80,8 +98,8 @@ export default function PortalResourcesPage() {
     <div className="space-y-6 pb-14">
       <PortalPageHero
         eyebrow="Resources"
-        title="Open the reference library built for this portal."
-        description="Use this page for Chihuahua education, go-home reminders, and trusted external resources that stay useful before and after your puppy comes home."
+        title="Reference library"
+        description="Open Chihuahua care guidance, transportation references, and related Southwest Virginia Chihuahua resources in one place."
         actions={
           <>
             <PortalHeroPrimaryAction href="/portal/messages">Ask a Question</PortalHeroPrimaryAction>
@@ -91,14 +109,14 @@ export default function PortalResourcesPage() {
         aside={
           <div className="space-y-4">
             <PortalInfoTile
-              label="External Sites"
-              value="3"
-              detail="Connected Chihuahua resources you can revisit anytime."
+              label="Reference scope"
+              value="Before and after go-home"
+              detail="Use this page throughout the full buyer lifecycle, not only during pickup week."
             />
             <PortalInfoTile
-              label="Best Use"
-              value="Before and after go-home"
-              detail="This page is meant to stay helpful after your puppy is home."
+              label="Support route"
+              value="Messages"
+              detail="Use portal messages whenever a question depends on your puppy, account, or breeder notes."
             />
           </div>
         }
@@ -106,74 +124,94 @@ export default function PortalResourcesPage() {
 
       <PortalMetricGrid>
         <PortalMetricCard
-          label="External Sites"
-          value="3"
-          detail="Trusted Chihuahua-focused websites."
+          label="Reference Sites"
+          value={String(referenceSites.length)}
+          detail="Connected Chihuahua properties and support destinations."
         />
         <PortalMetricCard
-          label="Care Topics"
-          value={String(healthTopics.length)}
-          detail="Core health and home-readiness topics."
-          accent="from-[#dfe6fb] via-[#b8c7f7] to-[#7388d9]"
+          label="Knowledge Modules"
+          value={String(knowledgeModules.length)}
+          detail="Core topics families revisit most often."
+          accent="from-[#e9efff] via-[#d7e2ff] to-[#9eb5ef]"
         />
         <PortalMetricCard
-          label="Quick Guides"
-          value={String(quickGuides.length)}
-          detail="Concise reminders families tend to revisit."
-          accent="from-[#d9eef4] via-[#acd4e2] to-[#6da8bd]"
+          label="Quick Checks"
+          value={String(quickReference.length)}
+          detail="Short reminders for transition, travel, and home setup."
+          accent="from-[#e8f4fb] via-[#d4e7f5] to-[#9dbddb]"
         />
         <PortalMetricCard
-          label="Support Path"
+          label="Account Help"
           value="Portal Messages"
-          detail="Use Messages for questions specific to your puppy."
-          accent="from-[#e7ebf2] via-[#cfd8e6] to-[#8ea0b9]"
+          detail="Use messages for anything tied to your own records."
+          accent="from-[#eef2f8] via-[#dbe4ef] to-[#a9bbd1]"
         />
       </PortalMetricGrid>
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.18fr)_380px]">
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.18fr)_380px]">
         <div className="space-y-6">
           <PortalPanel
-            title="Featured Sites"
-            subtitle="Trusted external websites connected to the Southwest Virginia Chihuahua ecosystem."
+            title="Connected destinations"
+            subtitle="Open the broader Southwest Virginia Chihuahua ecosystem without leaving the structure of your portal."
           >
             <div className="space-y-4">
-              {resourceSites.map((site) => (
+              {referenceSites.map((site) => (
                 <a
                   key={site.href}
                   href={site.href}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-start gap-4 rounded-[24px] border border-[var(--portal-border)] bg-white px-5 py-5 shadow-[0_12px_26px_rgba(31,48,79,0.05)] transition hover:-translate-y-0.5 hover:border-[var(--portal-border-strong)] hover:bg-[var(--portal-surface-muted)]"
+                  className="group flex items-start gap-4 rounded-[28px] border border-[var(--portal-border)] bg-[rgba(255,255,255,0.92)] px-5 py-5 shadow-[0_18px_34px_rgba(23,35,56,0.05)] transition hover:-translate-y-0.5 hover:border-[var(--portal-border-strong)] hover:shadow-[0_22px_42px_rgba(23,35,56,0.08)]"
                 >
-                  <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
-                    <ExternalLink className="h-4 w-4" />
+                  <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-[linear-gradient(135deg,#eef3ff_0%,#dbe6ff_100%)] text-[var(--portal-accent-strong)] shadow-[0_10px_22px_rgba(47,88,227,0.14)]">
+                    <Compass className="h-4 w-4" />
                   </div>
-                  <div className="min-w-0">
-                    <div className="text-lg font-semibold text-[var(--portal-text)]">{site.title}</div>
-                    <div className="mt-2 text-sm leading-7 text-[var(--portal-text-soft)]">
-                      {site.description}
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h3 className="text-lg font-semibold tracking-[-0.03em] text-[var(--portal-text)]">
+                        {site.title}
+                      </h3>
+                      <span className="inline-flex items-center rounded-full border border-[rgba(93,121,255,0.18)] bg-[rgba(93,121,255,0.08)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-accent-strong)]">
+                        {site.tag}
+                      </span>
                     </div>
+
+                    <p className="mt-2 max-w-2xl text-sm leading-7 text-[var(--portal-text-soft)]">
+                      {site.description}
+                    </p>
                   </div>
+
+                  <span className="mt-1 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--portal-border)] bg-white text-[var(--portal-text-muted)] transition group-hover:border-[var(--portal-border-strong)] group-hover:text-[var(--portal-accent-strong)]">
+                    <ArrowUpRight className="h-4 w-4" />
+                  </span>
                 </a>
               ))}
             </div>
           </PortalPanel>
 
           <PortalPanel
-            title="Care Library"
-            subtitle="Foundational Chihuahua guidance that belongs inside the portal, not buried in scattered tabs and bookmarks."
+            title="Knowledge modules"
+            subtitle="The reference material buyers tend to reopen during transition, care, and post-go-home support."
           >
             <div className="grid gap-4 md:grid-cols-2">
-              {healthTopics.map((topic) => (
+              {knowledgeModules.map((module) => (
                 <div
-                  key={topic.title}
-                  className="rounded-[24px] border border-[var(--portal-border)] bg-white px-5 py-5 shadow-[0_10px_22px_rgba(31,48,79,0.05)]"
+                  key={module.title}
+                  className="rounded-[28px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96)_0%,rgba(245,249,255,0.86)_100%)] p-5 shadow-[0_16px_32px_rgba(23,35,56,0.05)]"
                 >
-                  <div className="flex items-center gap-3 text-[var(--portal-accent-strong)]">
-                    {topic.icon}
-                    <div className="text-base font-semibold text-[var(--portal-text)]">{topic.title}</div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
+                      {module.icon}
+                    </div>
+                    <div className="text-base font-semibold tracking-[-0.03em] text-[var(--portal-text)]">
+                      {module.title}
+                    </div>
                   </div>
-                  <div className="mt-3 text-sm leading-7 text-[var(--portal-text-soft)]">{topic.text}</div>
+
+                  <p className="mt-4 text-sm leading-7 text-[var(--portal-text-soft)]">
+                    {module.description}
+                  </p>
                 </div>
               ))}
             </div>
@@ -182,51 +220,82 @@ export default function PortalResourcesPage() {
 
         <div className="space-y-6">
           <PortalPanel
-            title="Quick Reference"
-            subtitle="A short set of reminders families tend to reopen often."
+            title="Use this page for"
+            subtitle="Keep the portal focused: general guidance lives here, account-specific guidance stays attached to your records."
           >
             <div className="space-y-4">
-              <PortalInfoTile label="Breed Type" value="Toy Breed" detail="Small size makes routines and safety especially important." />
-              <PortalInfoTile label="Priority Topic" value="Hypoglycemia awareness" detail="A high-value topic to understand early." />
-              <PortalInfoTile label="Best Support" value="Consistency" detail="Routine, observation, and calm handling go a long way." />
+              <PortalInfoTile
+                label="General breed guidance"
+                value="Resources"
+                detail="Use this page for Chihuahua care, home prep, and supporting references."
+              />
+              <PortalInfoTile
+                label="Account-specific questions"
+                value="Messages"
+                detail="Use Messages if the answer depends on your puppy, breeder notes, or an active portal record."
+              />
+              <PortalInfoTile
+                label="Medical urgency"
+                value="Veterinarian"
+                detail="Use veterinary care right away for urgent symptoms, sudden weakness, or serious health concerns."
+              />
             </div>
           </PortalPanel>
 
           <PortalPanel
-            title="First-Week Priorities"
-            subtitle="The practical reminders that matter most during transition."
+            title="First-week priorities"
+            subtitle="A short operating list for the days immediately before and after your puppy comes home."
           >
             <div className="space-y-3">
-              {quickGuides.map((guide) => (
+              {quickReference.map((item, index) => (
                 <div
-                  key={guide}
-                  className="rounded-[22px] border border-[var(--portal-border)] bg-white px-4 py-4 text-sm leading-7 text-[var(--portal-text-soft)] shadow-[0_10px_22px_rgba(31,48,79,0.05)]"
+                  key={item}
+                  className="flex items-start gap-3 rounded-[24px] border border-[var(--portal-border)] bg-[rgba(255,255,255,0.92)] px-4 py-4 shadow-[0_14px_26px_rgba(23,35,56,0.04)]"
                 >
-                  {guide}
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--portal-surface-muted)] text-sm font-semibold text-[var(--portal-accent-strong)]">
+                    {index + 1}
+                  </div>
+                  <div className="text-sm leading-7 text-[var(--portal-text-soft)]">{item}</div>
                 </div>
               ))}
             </div>
           </PortalPanel>
 
           <PortalPanel
-            title="Need puppy-specific help?"
-            subtitle="General guidance is useful, but account-specific support still belongs in the portal conversation."
+            title="Need account help?"
+            subtitle="Use your portal records, not a generic contact form, when the question depends on your own puppy journey."
           >
-            <div className="flex items-start gap-3 rounded-[22px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4">
-              <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-white text-[var(--portal-accent-strong)]">
-                <BookOpen className="h-4 w-4" />
+            <div className="space-y-4">
+              <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-[16px] bg-white text-[var(--portal-accent-strong)]">
+                    <MessageSquareText className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-[var(--portal-text)]">
+                      Use Messages for account-specific questions
+                    </div>
+                    <div className="mt-2 text-sm leading-7 text-[var(--portal-text-soft)]">
+                      Feeding questions, breeder notes, medication details, documents, and transportation updates are easier to track when they stay inside your portal history.
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="text-sm leading-7 text-[var(--portal-text-soft)]">
-                Use Messages whenever you want guidance about feeding, progress, behavior, medications, or anything that should be answered in the context of your specific puppy.
+
+              <div className="flex flex-wrap gap-3">
+                <PortalActionLink
+                  href="/portal/messages"
+                  eyebrow="Support"
+                  title="Open Messages"
+                  detail="Use account-linked messaging for puppy-specific questions."
+                />
+                <PortalActionLink
+                  href="/portal/documents"
+                  eyebrow="Records"
+                  title="Open Documents"
+                  detail="Review signed forms, portal files, and account documents."
+                />
               </div>
-            </div>
-            <div className="mt-5">
-              <Link
-                href="/portal/messages"
-                className="inline-flex items-center gap-2 rounded-[18px] border border-[var(--portal-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--portal-text)] shadow-[0_12px_26px_rgba(31,48,79,0.06)] transition hover:-translate-y-0.5 hover:border-[var(--portal-border-strong)]"
-              >
-                Message Support
-              </Link>
             </div>
           </PortalPanel>
         </div>

@@ -193,19 +193,19 @@ export default function PortalNotificationsPage() {
           label="Messages"
           value={String(messages.length)}
           detail="Recent portal message activity."
-          accent="from-[#dfe6fb] via-[#b8c7f7] to-[#7388d9]"
+          accent="from-[#e9efff] via-[#d7e2ff] to-[#9eb5ef]"
         />
         <PortalMetricCard
           label="Milestones"
           value={String(events.length)}
           detail="Recent breeder note and milestone activity."
-          accent="from-[#d9eef4] via-[#acd4e2] to-[#6da8bd]"
+          accent="from-[#e8f4fb] via-[#d4e7f5] to-[#9dbddb]"
         />
         <PortalMetricCard
           label="Health Updates"
           value={String(health.length)}
           detail="Recent visible wellness activity."
-          accent="from-[#e7ebf2] via-[#cfd8e6] to-[#8ea0b9]"
+          accent="from-[#eef2f8] via-[#dbe4ef] to-[#a9bbd1]"
         />
       </PortalMetricGrid>
 

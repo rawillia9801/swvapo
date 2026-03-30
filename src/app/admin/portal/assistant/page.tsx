@@ -15,6 +15,7 @@ type ChatMessage = {
 
 type ChiChiResponse = {
   text?: string;
+  error?: string;
   threadId?: string | null;
   adminAuth?: {
     userId?: string | null;
@@ -100,6 +101,7 @@ export default function AdminPortalAssistantPage() {
       })),
     [messages]
   );
+  const hasOwnerWrite = isPortalAdminEmail(user?.email) || !!adminAuth?.canWriteCore;
 
   async function sendMessage() {
     const text = draft.trim();
@@ -133,6 +135,10 @@ export default function AdminPortalAssistantPage() {
       });
 
       const data = (await response.json()) as ChiChiResponse;
+      if (!response.ok) {
+        throw new Error(String(data?.error || data?.text || "ChiChi could not complete that request."));
+      }
+
       const reply =
         String(data?.text || "").trim() ||
         "I ran into a problem while processing that request.";
@@ -156,7 +162,10 @@ export default function AdminPortalAssistantPage() {
         {
           id: makeId("assistant"),
           role: "assistant",
-          text: "I hit a connection problem while trying to complete that request.",
+          text:
+            error instanceof Error && error.message
+              ? error.message
+              : "I hit a connection problem while trying to complete that request.",
           createdAt: formatTime(),
         },
       ]);
@@ -209,22 +218,22 @@ export default function AdminPortalAssistantPage() {
         <div className="absolute inset-0 bg-[linear-gradient(rgba(120,144,180,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(120,144,180,0.08)_1px,transparent_1px)] bg-[size:52px_52px] opacity-30" />
       </div>
 
-      <main className="relative mx-auto min-h-screen w-full max-w-[1820px] px-4 py-5 md:px-8 md:py-8 xl:px-10">
-        <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+      <main className="relative mx-auto min-h-screen w-full max-w-[1720px] px-4 py-5 md:px-8 md:py-8 xl:px-10">
+        <div className="grid gap-5 xl:grid-cols-[260px_minmax(0,1fr)]">
           <aside className="space-y-6">
-            <section className="overflow-hidden rounded-[34px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(244,248,255,0.96)_100%)] p-6 shadow-[0_28px_90px_rgba(47,77,120,0.12)] backdrop-blur-2xl">
+            <section className="overflow-hidden rounded-[30px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(244,248,255,0.96)_100%)] p-5 shadow-[0_28px_90px_rgba(47,77,120,0.12)] backdrop-blur-2xl">
               <div className="inline-flex items-center gap-2 rounded-full border border-[#d9e4f5] bg-white/90 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#6981a8]">
                 <Sparkles className="h-3.5 w-3.5 text-[#5576dd]" />
                 ChiChi
               </div>
-              <h1 className="mt-5 text-[2.9rem] font-semibold tracking-[-0.06em] text-[#162334] md:text-[3.6rem]">
+              <h1 className="mt-4 text-[2.5rem] font-semibold tracking-[-0.06em] text-[#162334] md:text-[3rem]">
                 ChiChi
               </h1>
               <p className="mt-3 text-sm leading-7 text-[#617188]">
-                Run direct changes across buyers, puppies, payments, documents, updates, and portal records from one console.
+                Direct owner control for portal records, changes, and live operations.
               </p>
 
-              <div className="mt-6 flex flex-wrap gap-3">
+              <div className="mt-5 flex flex-wrap gap-2.5">
                 <Link
                   href="/admin/portal"
                   className="inline-flex items-center rounded-2xl border border-[#d7e0f0] bg-white px-4 py-3 text-sm font-semibold text-[#324763] shadow-[0_12px_30px_rgba(44,72,113,0.08)] transition hover:-translate-y-0.5 hover:border-[#adc2eb]"
@@ -249,12 +258,12 @@ export default function AdminPortalAssistantPage() {
               </div>
             </section>
 
-            <section className="space-y-4 rounded-[34px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(241,246,255,0.95)_100%)] p-6 shadow-[0_28px_90px_rgba(47,77,120,0.10)] backdrop-blur-2xl">
+            <section className="space-y-4 rounded-[30px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(241,246,255,0.95)_100%)] p-5 shadow-[0_28px_90px_rgba(47,77,120,0.10)] backdrop-blur-2xl">
               <ConsoleStat
                 icon={<ShieldCheck className="h-4 w-4" />}
                 label="Owner Session"
                 value={user.email || "Owner account"}
-                detail={adminAuth?.canWriteCore ? "Write access enabled" : "Awaiting write confirmation"}
+                detail={hasOwnerWrite ? "Owner access confirmed" : "Awaiting server confirmation"}
               />
               <ConsoleStat
                 icon={<Activity className="h-4 w-4" />}
@@ -277,7 +286,7 @@ export default function AdminPortalAssistantPage() {
             ) : null}
           </aside>
 
-          <section className="overflow-hidden rounded-[36px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.88)_0%,rgba(243,247,255,0.96)_100%)] shadow-[0_36px_120px_rgba(47,77,120,0.14)] backdrop-blur-2xl">
+          <section className="overflow-hidden rounded-[34px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.88)_0%,rgba(243,247,255,0.96)_100%)] shadow-[0_36px_120px_rgba(47,77,120,0.14)] backdrop-blur-2xl">
             <div className="border-b border-[#d9e3f3] px-6 py-6 md:px-8">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
@@ -301,8 +310,9 @@ export default function AdminPortalAssistantPage() {
               </div>
             </div>
 
-            <div className="flex min-h-[760px] flex-col">
+            <div className="flex min-h-[720px] flex-col">
               <div className="flex-1 overflow-y-auto px-5 py-6 md:px-8">
+                <div className="mx-auto w-full max-w-[1160px]">
                 {messages.length ? (
                   <div className="space-y-5">
                     {messages.map((message) => {
@@ -358,6 +368,7 @@ export default function AdminPortalAssistantPage() {
                     </div>
                   </div>
                 )}
+                </div>
               </div>
 
               <form
@@ -367,7 +378,7 @@ export default function AdminPortalAssistantPage() {
                 }}
                 className="border-t border-[#d9e3f3] bg-[linear-gradient(180deg,rgba(252,254,255,0.92)_0%,rgba(244,248,255,0.98)_100%)] px-5 py-5 md:px-8"
               >
-                <div className="rounded-[30px] border border-[#d5e0f1] bg-white/90 p-3 shadow-[0_18px_50px_rgba(47,77,120,0.08)]">
+                <div className="mx-auto w-full max-w-[1160px] rounded-[30px] border border-[#d5e0f1] bg-white/90 p-3 shadow-[0_18px_50px_rgba(47,77,120,0.08)]">
                   <textarea
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}

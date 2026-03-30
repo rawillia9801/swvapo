@@ -29,7 +29,6 @@ import {
   PortalTextarea,
   PortalInput,
   PortalSecondaryButton,
-  PortalStatusBadge,
 } from "@/components/portal/luxury-shell";
 
 type PickupRequestType = "" | "pickup" | "meet" | "dropoff" | "transportation";
@@ -152,7 +151,7 @@ function calculateTransportEstimate(
   };
 }
 
-function InfoCard({
+function CalendarInfoCard({
   label,
   value,
   detail,
@@ -162,7 +161,7 @@ function InfoCard({
   detail: string;
 }) {
   return (
-    <div className="rounded-[22px] border border-[var(--portal-border)] bg-white p-4 shadow-[0_10px_22px_rgba(31,48,79,0.05)]">
+    <div className="rounded-[22px] border border-[var(--portal-border)] bg-white p-4 shadow-[0_10px_22px_rgba(23,35,56,0.05)]">
       <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
         {label}
       </div>
@@ -271,7 +270,7 @@ export default function PortalTransportationPage() {
     puppy?.status ? formatRequestStatus(puppy.status) : null,
   ]
     .filter(Boolean)
-    .join(" - ");
+    .join(" · ");
 
   const selectedAvailability = !selectedDate
     ? {
@@ -364,25 +363,32 @@ export default function PortalTransportationPage() {
     }
 
     if (!selectedDate) {
-      setErrorText("Please choose a day on the calendar.");
+      setErrorText("Please choose a date from the calendar.");
       return;
     }
 
-    if (showMeetDropFields && (!miles.trim() || !locationText.trim())) {
-      setErrorText("Please enter the mileage and proposed location for meet-up or drop-off requests.");
+    if (blockedDates.has(selectedDate)) {
+      setErrorText("That date is already blocked. Please choose another day.");
+      return;
+    }
+
+    if ((requestType === "meet" || requestType === "dropoff") && (!miles || Number(miles) < 0)) {
+      setErrorText("Please enter the one-way mileage for meet-up or drop-off requests.");
       return;
     }
 
     setBusy(true);
 
-    try {
-      const available = await isPickupDateAvailable(selectedDate);
-      if (!available) {
-        await refreshCurrentData();
-        setSelectedDate("");
-        throw new Error("That day was just taken by another client. Please choose another day.");
-      }
+    const available = await isPickupDateAvailable(selectedDate);
+    if (!available) {
+      await refreshCurrentData();
+      setBusy(false);
+      setSelectedDate("");
+      setErrorText("That day was just taken by another client. Please choose another day.");
+      return;
+    }
 
+    try {
       const { error } = await sb.from("portal_pickup_requests").insert({
         user_id: user.id,
         puppy_id: puppy?.id || null,
@@ -394,14 +400,27 @@ export default function PortalTransportationPage() {
         notes: notes.trim() || null,
       });
 
-      if (error) throw error;
+      if (error) {
+        if (String(error.message || "").toLowerCase().includes("unique")) {
+          await refreshCurrentData();
+          setSelectedDate("");
+          throw new Error("That day was just taken by another client. Please choose another day.");
+        }
+        throw error;
+      }
 
+      setRequestType("");
+      setSelectedDate("");
+      setMiles("");
+      setLocationText("");
+      setAddressText("");
+      setNotes("");
+      setSuccessText("Transportation request submitted.");
       await refreshCurrentData();
-      setSuccessText("Request submitted. We will confirm details through Messages.");
     } catch (error) {
       console.error("Could not submit transportation request:", error);
       setErrorText(
-        error instanceof Error ? error.message : "We could not submit this request right now."
+        error instanceof Error ? error.message : "We could not submit the request right now."
       );
     } finally {
       setBusy(false);
@@ -412,232 +431,189 @@ export default function PortalTransportationPage() {
     <div className="space-y-6 pb-14">
       <PortalPageHero
         eyebrow="Transportation"
-        title="Plan pickup, delivery, or travel details with clarity."
-        description="Review the current request, choose an available day, estimate travel costs, and keep transportation details attached to your puppy account."
+        title="Plan pickup, meet-up, delivery, or transportation with less confusion."
+        description="Use one page to review your latest request, understand pricing, choose an available date, and submit the next transportation step for your puppy."
         actions={
           <>
             <PortalHeroPrimaryAction href="/portal/messages">Open Messages</PortalHeroPrimaryAction>
-            <PortalHeroSecondaryAction href="/portal/resources">Open Resources</PortalHeroSecondaryAction>
+            <PortalHeroSecondaryAction href="/portal/mypuppy">Open My Puppy</PortalHeroSecondaryAction>
           </>
         }
         aside={
-          <div className="space-y-4">
+          <div className="grid gap-4">
             <PortalInfoTile
               label="My Puppy"
               value={puppyName}
-              detail={puppyMetaLine || "Transportation planning stays connected to your puppy profile."}
+              detail={puppyMetaLine || "A linked puppy profile will show here."}
             />
             <PortalInfoTile
-              label="Estimated Fee"
-              value={requestEstimate.label}
-              detail={requestEstimate.detail}
+              label="Current Request"
+              value={latestRequest ? formatRequestStatus(latestRequest.status) : "Not scheduled"}
+              detail={latestRequest ? formatRequestType(latestRequest.request_type) : "No transportation request on file yet."}
+              tone={latestRequest ? "success" : "neutral"}
             />
           </div>
         }
       />
 
       {successText ? (
-        <div className="rounded-[20px] border border-[rgba(106,162,134,0.24)] bg-[linear-gradient(180deg,#f8fcfb_0%,#f1f8f4_100%)] px-4 py-3 text-sm font-semibold text-[#486957]">
+        <div className="rounded-[20px] border border-[rgba(47,143,103,0.18)] bg-[linear-gradient(180deg,rgba(246,253,249,0.98)_0%,rgba(240,249,245,0.94)_100%)] px-4 py-3 text-sm font-semibold text-[#2f7657]">
           {successText}
         </div>
       ) : null}
 
       {errorText ? (
-        <div className="rounded-[20px] border border-[rgba(193,110,125,0.2)] bg-[linear-gradient(180deg,#fff8f9_0%,#fff2f4_100%)] px-4 py-3 text-sm font-semibold text-[#8f5360]">
+        <div className="rounded-[20px] border border-[rgba(194,84,114,0.16)] bg-[linear-gradient(180deg,rgba(255,249,251,0.98)_0%,rgba(255,242,246,0.94)_100%)] px-4 py-3 text-sm font-semibold text-[#aa4f68]">
           {errorText}
         </div>
       ) : null}
 
       <PortalMetricGrid>
         <PortalMetricCard
-          label="My Puppy"
-          value={puppyName}
-          detail={puppyMetaLine || "Travel planning stays connected to your puppy profile."}
-          href="/portal/mypuppy"
-          actionLabel="Open My Puppy"
-        />
-        <PortalMetricCard
-          label="Selected Day"
-          value={selectedDate ? fmtDate(selectedDate) : "Not selected"}
-          detail={
-            selectedDate
-              ? "This date will be reserved if it is still available when submitted."
-              : "Choose a date from the calendar."
-          }
-          accent="from-[#dfe6fb] via-[#b8c7f7] to-[#7388d9]"
-        />
-        <PortalMetricCard
-          label="Availability"
-          value={selectedAvailability.title}
-          detail={selectedAvailability.detail}
-          accent="from-[#d9eef4] via-[#acd4e2] to-[#6da8bd]"
+          label="Current Request"
+          value={latestRequest ? formatRequestStatus(latestRequest.status) : "Not scheduled"}
+          detail={latestRequest ? formatRequestType(latestRequest.request_type) : "No transportation request on file."}
         />
         <PortalMetricCard
           label="Estimated Fee"
-          value={requestEstimate.label}
-          detail={requestEstimate.detail}
-          accent="from-[#e7ebf2] via-[#cfd8e6] to-[#8ea0b9]"
+          value={latestRequest && currentEstimate ? currentEstimate.label : "Pending"}
+          detail={latestRequest && currentEstimate ? currentEstimate.detail : "Pricing depends on request type and mileage."}
+          accent="from-[rgba(93,121,255,0.16)] via-transparent to-[rgba(159,175,198,0.14)]"
+        />
+        <PortalMetricCard
+          label="Free Mileage"
+          value="50 miles"
+          detail="Included one-way for meet-up and drop-off requests."
+          accent="from-[rgba(110,166,218,0.16)] via-transparent to-[rgba(159,175,198,0.14)]"
+        />
+        <PortalMetricCard
+          label="Local Range"
+          value="200 miles"
+          detail="Longer distances may require breeder approval."
+          accent="from-[rgba(113,198,164,0.16)] via-transparent to-[rgba(159,175,198,0.14)]"
         />
       </PortalMetricGrid>
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.16fr)_400px]">
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.15fr)_420px]">
         <div className="space-y-6">
           <PortalPanel
-            title="Current Request"
-            subtitle="Your most recent transportation request appears here so the current plan stays clear."
-          >
-            {latestRequest ? (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
-                  <InfoCard
-                    label="Request Date"
-                    value={latestRequest.request_date ? fmtDate(latestRequest.request_date) : "Not listed"}
-                    detail="Most recent saved request"
-                  />
-                  <InfoCard
-                    label="Type"
-                    value={formatRequestType(latestRequest.request_type)}
-                    detail="Pickup, meet-up, drop-off, or transportation"
-                  />
-                  <InfoCard
-                    label="Miles"
-                    value={
-                      latestRequest.miles !== null && latestRequest.miles !== undefined
-                        ? String(latestRequest.miles)
-                        : "Not listed"
-                    }
-                    detail="One-way mileage"
-                  />
-                  <InfoCard
-                    label="Estimated Fee"
-                    value={currentEstimate?.label || "Not listed"}
-                    detail="Based on the current transportation policy"
-                  />
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <InfoCard
-                    label="Location"
-                    value={latestRequest.location_text || latestRequest.address_text || "Not listed"}
-                    detail="Recorded for this request"
-                  />
-                  <div className="rounded-[22px] border border-[var(--portal-border)] bg-white p-4 shadow-[0_10px_22px_rgba(31,48,79,0.05)]">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
-                          Status
-                        </div>
-                        <div className="mt-2 text-lg font-semibold text-[var(--portal-text)]">
-                          {formatRequestStatus(latestRequest.status)}
-                        </div>
-                      </div>
-                      <PortalStatusBadge
-                        label={formatRequestStatus(latestRequest.status)}
-                        tone={
-                          ["approved", "completed"].includes(
-                            String(latestRequest.status || "").toLowerCase()
-                          )
-                            ? "success"
-                            : ["declined", "cancelled"].includes(
-                                  String(latestRequest.status || "").toLowerCase()
-                                )
-                              ? "danger"
-                              : "warning"
-                        }
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {latestRequest.notes ? (
-                  <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-5 py-5 text-sm leading-7 text-[var(--portal-text-soft)]">
-                    {latestRequest.notes}
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <PortalEmptyState
-                title="No transportation request on file"
-                description="When you submit a pickup, meet-up, drop-off, or transportation request, the latest request will appear here automatically."
-              />
-            )}
-          </PortalPanel>
-
-          <PortalPanel
-            title="Choose a Day"
-            subtitle="Blocked dates already have a pending or approved request, so only open dates can be selected."
+            title="Choose a Date"
+            subtitle="Only open dates can be requested. Pending and approved requests block the day for other clients."
             action={
-              <div className="flex items-center gap-3">
-                <PortalSecondaryButton
-                  onClick={() => setMonth(firstOfMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1)))}
-                >
-                  Prev
+              <div className="flex items-center gap-2">
+                <PortalSecondaryButton onClick={() => setMonth(firstOfMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1)))}>
+                  ←
                 </PortalSecondaryButton>
-                <PortalSecondaryButton
-                  onClick={() => setMonth(firstOfMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1)))}
-                >
-                  Next
+                <PortalSecondaryButton onClick={() => setMonth(firstOfMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1)))}>
+                  →
                 </PortalSecondaryButton>
               </div>
             }
           >
-            <div className="text-sm font-semibold text-[var(--portal-text)]">
-              {month.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+            <div className="flex items-center justify-between gap-4">
+              <div className="text-lg font-semibold tracking-[-0.03em] text-[var(--portal-text)]">
+                {month.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+              </div>
+              <div className="text-sm text-[var(--portal-text-soft)]">Today: {fmtDate(today)}</div>
             </div>
 
-            <div className="mt-5 grid grid-cols-7 gap-2 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
-              <div>Sun</div>
-              <div>Mon</div>
-              <div>Tue</div>
-              <div>Wed</div>
-              <div>Thu</div>
-              <div>Fri</div>
-              <div>Sat</div>
+            <div className="mt-5 grid grid-cols-7 gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+                <div key={day} className="text-center">
+                  {day}
+                </div>
+              ))}
             </div>
 
             <div className="mt-3 grid grid-cols-7 gap-2">
-              {calendarDays.map((cell) => {
-                if (cell.type === "blank") {
-                  return <div key={cell.key} className="h-12" />;
+              {calendarDays.map((entry) => {
+                if (entry.type === "blank") {
+                  return <div key={entry.key} className="h-12 rounded-[18px]" />;
                 }
 
-                const disabled = cell.past || cell.blocked;
-                const className = [
-                  "h-12 rounded-2xl border text-sm font-semibold transition",
-                  cell.selected
-                    ? "border-[var(--portal-accent-strong)] bg-[linear-gradient(135deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] text-white shadow-[0_0_0_4px_rgba(79,99,189,0.16)]"
-                    : cell.blocked
-                      ? "cursor-not-allowed border-[var(--portal-border)] bg-[var(--portal-surface-muted)] text-[var(--portal-text-muted)]"
-                      : cell.past
-                        ? "cursor-not-allowed border-[var(--portal-border)] bg-[#fafbfd] text-[#bcc5d1]"
-                        : "border-[var(--portal-border)] bg-white text-[var(--portal-text)] hover:border-[var(--portal-border-strong)] hover:bg-[var(--portal-surface-muted)]",
-                ].join(" ");
-
+                const disabled = entry.past || entry.blocked;
                 return (
                   <button
-                    key={cell.key}
+                    key={entry.key}
                     type="button"
+                    onClick={() => void handleDaySelect(entry.iso)}
                     disabled={disabled}
-                    className={className}
-                    onClick={() => void handleDaySelect(cell.iso)}
-                    title={cell.past ? "Past date" : cell.blocked ? "Already requested" : "Available"}
+                    className={[
+                      "h-12 rounded-[18px] border text-sm font-semibold transition",
+                      entry.selected
+                        ? "border-[var(--portal-accent)] bg-[linear-gradient(135deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] text-white shadow-[0_14px_26px_rgba(47,88,227,0.2)]"
+                        : entry.blocked
+                          ? "border-[var(--portal-border)] bg-[var(--portal-surface-muted)] text-[var(--portal-text-muted)] opacity-65"
+                          : entry.past
+                            ? "border-[var(--portal-border)] bg-[rgba(255,255,255,0.52)] text-[var(--portal-text-muted)] opacity-55"
+                            : "border-[var(--portal-border)] bg-white text-[var(--portal-text)] hover:-translate-y-0.5 hover:border-[var(--portal-border-strong)]",
+                    ].join(" ")}
                   >
-                    {cell.day}
+                    {entry.day}
                   </button>
                 );
               })}
             </div>
 
-            <div className="mt-5 rounded-[22px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4 text-sm text-[var(--portal-text-soft)]">
-              Today: <span className="font-semibold text-[var(--portal-text)]">{fmtDate(todayIso())}</span>
+            <div className="mt-5 grid gap-4 md:grid-cols-3">
+              <CalendarInfoCard
+                label="My Puppy"
+                value={puppyName}
+                detail={puppyMetaLine || "A linked puppy profile will show here."}
+              />
+              <CalendarInfoCard
+                label="Selected Date"
+                value={selectedDate ? fmtDate(selectedDate) : "Not selected"}
+                detail={selectedDate ? "This date will be reserved when you submit." : "Pick a date from the calendar."}
+              />
+              <CalendarInfoCard
+                label="Availability"
+                value={selectedAvailability.title}
+                detail={selectedAvailability.detail}
+              />
             </div>
+          </PortalPanel>
+
+          <PortalPanel
+            title="Your Latest Request"
+            subtitle="The most recent request saved under this portal account."
+          >
+            {latestRequest ? (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <CalendarInfoCard
+                  label="Request Date"
+                  value={latestRequest.request_date ? fmtDate(latestRequest.request_date) : "Not listed"}
+                  detail="Most recent request date."
+                />
+                <CalendarInfoCard
+                  label="Type"
+                  value={formatRequestType(latestRequest.request_type)}
+                  detail="Request type currently on file."
+                />
+                <CalendarInfoCard
+                  label="Status"
+                  value={formatRequestStatus(latestRequest.status)}
+                  detail="Current review status."
+                />
+                <CalendarInfoCard
+                  label="Estimated Fee"
+                  value={currentEstimate?.label || "Pending"}
+                  detail={currentEstimate?.detail || "Pricing is based on request type and mileage."}
+                />
+              </div>
+            ) : (
+              <PortalEmptyState
+                title="No transportation request on file yet"
+                description="When you submit pickup, meet-up, delivery, or transportation details, the latest request will appear here."
+              />
+            )}
           </PortalPanel>
         </div>
 
         <div className="space-y-6">
           <PortalPanel
-            title="Transportation Request"
-            subtitle="Complete the form below to request pickup, a public meet-up, drop-off, or travel planning."
+            title="Submit a Request"
+            subtitle="Choose the request type, add any mileage or location details, and submit for review."
           >
             <form onSubmit={handleSubmit} className="space-y-4">
               <PortalField label="Request Type">
@@ -646,7 +622,7 @@ export default function PortalTransportationPage() {
                   onChange={(event) => setRequestType(event.target.value as PickupRequestType)}
                   required
                 >
-                  <option value="">Select...</option>
+                  <option value="">Select…</option>
                   <option value="pickup">Pickup (at our location)</option>
                   <option value="meet">Meet-up (public location)</option>
                   <option value="dropoff">Drop-off (to your area)</option>
@@ -654,70 +630,67 @@ export default function PortalTransportationPage() {
                 </PortalSelect>
               </PortalField>
 
-              <PortalField label="Selected Day">
-                <PortalInput value={selectedDate} readOnly className="bg-[var(--portal-surface-muted)]" />
+              <PortalField label="Selected Date">
+                <PortalInput value={selectedDate} readOnly placeholder="Pick a date from the calendar" />
               </PortalField>
 
               {showMeetDropFields ? (
-                <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] p-4">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <PortalField label="Miles (one-way)">
-                      <PortalInput
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        value={miles}
-                        onChange={(event) => setMiles(event.target.value)}
-                        placeholder="e.g. 25"
-                        required={showMeetDropFields}
-                      />
-                    </PortalField>
-                    <PortalField label="Meet / Drop Location">
-                      <PortalInput
-                        value={locationText}
-                        onChange={(event) => setLocationText(event.target.value)}
-                        placeholder="e.g. Exit 17 Park & Ride, Bristol"
-                        required={showMeetDropFields}
-                      />
-                    </PortalField>
-                  </div>
-
-                  <div className="mt-4">
-                    <PortalField label="Address (optional)">
-                      <PortalInput
-                        value={addressText}
-                        onChange={(event) => setAddressText(event.target.value)}
-                        placeholder="Street / City / State"
-                      />
-                    </PortalField>
-                  </div>
-                </div>
+                <>
+                  <PortalField label="Miles (one-way)">
+                    <PortalInput
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={miles}
+                      onChange={(event) => setMiles(event.target.value)}
+                      placeholder="e.g. 25"
+                    />
+                  </PortalField>
+                  <PortalField label="Proposed Meet / Drop Location">
+                    <PortalInput
+                      value={locationText}
+                      onChange={(event) => setLocationText(event.target.value)}
+                      placeholder="Exit 17 Park & Ride, Bristol"
+                    />
+                  </PortalField>
+                  <PortalField label="Address (optional)">
+                    <PortalInput
+                      value={addressText}
+                      onChange={(event) => setAddressText(event.target.value)}
+                      placeholder="Street / City / State"
+                    />
+                  </PortalField>
+                </>
               ) : null}
 
               {showTransportationFields ? (
-                <div className="rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] p-4 text-sm leading-7 text-[var(--portal-text-soft)]">
-                  For transportation requests, include helpful details below such as airport, nearest major city, preferred carrier, or timing needs. Transportation pricing is arranged separately and confirmed before scheduling.
+                <div className="rounded-[22px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4 text-sm leading-7 text-[var(--portal-text-soft)]">
+                  For transportation requests, use the notes field for airport, nearest major city, preferred carrier, or timing requirements. Transportation pricing is arranged separately and must be approved before scheduling.
                 </div>
               ) : null}
 
-              <div className="rounded-[24px] border border-[var(--portal-border)] bg-white p-5 shadow-[0_12px_24px_rgba(31,48,79,0.05)]">
+              <div className="rounded-[24px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(243,248,253,0.95)_100%)] p-4 shadow-[0_10px_22px_rgba(23,35,56,0.05)]">
                 <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
                   Estimated Transportation Fee
                 </div>
-                <div className="mt-2 text-2xl font-semibold text-[var(--portal-text)]">{requestEstimate.label}</div>
-                <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">{requestEstimate.detail}</div>
+                <div className="mt-2 text-[1.9rem] font-semibold tracking-[-0.04em] text-[var(--portal-text)]">
+                  {requestEstimate.label}
+                </div>
+                <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
+                  {requestEstimate.detail}
+                </div>
               </div>
 
               <PortalField label="Notes">
                 <PortalTextarea
-                  rows={5}
                   value={notes}
                   onChange={(event) => setNotes(event.target.value)}
-                  placeholder="Timing, logistics, airport details, or anything you want us to know."
+                  rows={5}
+                  placeholder="Timing, logistics, special considerations, or anything you want us to know."
                 />
               </PortalField>
 
-              <PortalButton type="submit" disabled={busy} className="w-full">
+              <PortalButton type="submit" disabled={busy || !selectedDate} className="w-full">
                 {busy ? "Submitting..." : "Submit Request"}
               </PortalButton>
             </form>
@@ -725,21 +698,13 @@ export default function PortalTransportationPage() {
 
           <PortalPanel
             title="Pricing Policy"
-            subtitle="The travel policy is surfaced clearly here so local requests are easy to estimate before you submit."
+            subtitle="Transportation pricing is surfaced here so the request form stays easier to understand."
           >
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <InfoCard label="Free Mileage" value="First 50 miles" detail="One-way from Marion, VA" />
-              <InfoCard label="After 50 Miles" value="$1.25 / mile" detail="One-way rate" />
-              <InfoCard label="Minimum Fee" value="$75" detail="Beyond the free-mile zone" />
-              <InfoCard label="Local Range" value="200 miles" detail="Longer trips by approval" />
-            </div>
-
-            <div className="mt-5 space-y-2 text-sm leading-7 text-[var(--portal-text-soft)]">
-              <p>Pending and approved requests block the day for other portal families.</p>
-              <p>Pickup at our location does not include a transportation fee.</p>
-              <p>Meet-up and drop-off pricing uses the mileage policy above.</p>
-              <p>Longer distances may require added travel costs or breeder approval.</p>
-              <p>Transportation, flight nanny, and courier arrangements are quoted separately.</p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <PortalInfoTile label="Free Mileage" value="First 50 miles" detail="One-way from Marion, Virginia." />
+              <PortalInfoTile label="After 50 Miles" value="$1.25 / mile" detail="One-way rate for meet-up and drop-off." />
+              <PortalInfoTile label="Minimum Fee" value="$75" detail="Applies beyond the free-mile zone." />
+              <PortalInfoTile label="Local Range" value="200 miles" detail="Longer trips may require breeder approval." />
             </div>
           </PortalPanel>
         </div>

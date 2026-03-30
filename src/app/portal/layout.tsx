@@ -90,7 +90,7 @@ const navDefinitions: NavDefinition[] = [
 const defaultChiChiMessage: PortalChatMessage = {
   id: makeId("assistant"),
   role: "assistant",
-  text: "Hi, I am ChiChi. I can help with your account, puppy updates, payments, documents, transportation, and breeder messages.",
+  text: "I can review this account’s puppy updates, documents, payments, messages, transportation details, and next steps using the records tied to your portal.",
   createdAt: formatTime(),
 };
 
@@ -335,7 +335,7 @@ export default function PortalLayout({
         {
           id: makeId("assistant"),
           role: "assistant",
-          text: "Please sign in through the portal first so I can answer using your account information.",
+          text: "Please sign in through the portal first so I can answer using your account records.",
           createdAt: formatTime(),
         },
       ]);
@@ -364,7 +364,7 @@ export default function PortalLayout({
       const data = (await response.json()) as ChiChiResponse;
       const reply =
         data.text?.trim() ||
-        "I ran into an issue while loading your portal information. Please try again.";
+        "I ran into a connection issue while reading your portal records. Please try again.";
 
       if (data.threadId) setThreadId(data.threadId);
       if (data.adminAuth) setAdminAuth(data.adminAuth);
@@ -421,40 +421,42 @@ export default function PortalLayout({
     },
   ];
 
+  const sidebarDescription = puppy
+    ? `${puppyName} is linked to this account. Review updates, records, payments, transportation, and messages from one portal surface.`
+    : "Your application, documents, messages, and next steps stay organized here until a puppy is linked.";
+
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,var(--portal-bg)_0%,var(--portal-bg-alt)_100%)] text-[var(--portal-text)] [--portal-bg:#f5f8fc] [--portal-bg-alt:#edf2f8] [--portal-surface:#f9fbfe] [--portal-surface-strong:#ffffff] [--portal-surface-muted:#f3f7fb] [--portal-border:#d7e0ea] [--portal-border-strong:#c5d0dd] [--portal-text:#162033] [--portal-text-soft:#586579] [--portal-text-muted:#7c8797] [--portal-accent:#6b7fd7] [--portal-accent-strong:#4f63bd]">
-      <div className="grid min-h-screen lg:grid-cols-[312px_minmax(0,1fr)] xl:grid-cols-[328px_minmax(0,1fr)]">
-        <aside className="hidden border-r border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(250,252,255,0.96)_0%,rgba(242,247,252,0.98)_100%)] px-5 py-5 lg:block">
-          <PortalSidebar
-            brandTitle="My Puppy Portal"
-            brandSubtitle="Southwest Virginia Chihuahua"
-            welcomeTitle={displayName}
-            welcomeDescription={
-              puppy
-                ? `${puppyName} updates, documents, messages, payments, and next steps are all tied to this account.`
-                : "Your application, records, messages, and next steps stay organized here."
-            }
-            navItems={navItems}
-            utilityLinks={utilityLinks}
-            footer={
-              <div ref={userMenuRef}>
-                <PortalUserMenu
-                  displayName={displayName}
-                  displayEmail={displayEmail}
-                  displayPhone={displayPhone}
-                  userInitial={userInitial}
-                  isOpen={isUserMenuOpen}
-                  hasAdminUi={hasAdminUi}
-                  onToggle={() => setIsUserMenuOpen((value) => !value)}
-                  onClose={() => setIsUserMenuOpen(false)}
-                  onSignOut={() => {
-                    setIsUserMenuOpen(false);
-                    void handleSignOut();
-                  }}
-                />
-              </div>
-            }
-          />
+    <div className="min-h-screen bg-texturePaper text-[var(--portal-text)]">
+      <div className="grid min-h-screen lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[336px_minmax(0,1fr)]">
+        <aside className="hidden border-r border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(247,250,255,0.76)_0%,rgba(239,245,252,0.88)_100%)] px-5 py-5 lg:block">
+          <div className="sticky top-5 h-[calc(100vh-2.5rem)]">
+            <PortalSidebar
+              brandTitle="My Puppy Portal"
+              brandSubtitle="Southwest Virginia Chihuahua"
+              welcomeTitle={displayName}
+              welcomeDescription={sidebarDescription}
+              navItems={navItems}
+              utilityLinks={utilityLinks}
+              footer={
+                <div ref={userMenuRef}>
+                  <PortalUserMenu
+                    displayName={displayName}
+                    displayEmail={displayEmail}
+                    displayPhone={displayPhone}
+                    userInitial={userInitial}
+                    isOpen={isUserMenuOpen}
+                    hasAdminUi={hasAdminUi}
+                    onToggle={() => setIsUserMenuOpen((value) => !value)}
+                    onClose={() => setIsUserMenuOpen(false)}
+                    onSignOut={() => {
+                      setIsUserMenuOpen(false);
+                      void handleSignOut();
+                    }}
+                  />
+                </div>
+              }
+            />
+          </div>
         </aside>
 
         <div className="min-w-0">
@@ -465,7 +467,7 @@ export default function PortalLayout({
           />
 
           <main className="min-h-screen px-4 py-5 md:px-6 md:py-6 xl:px-8 xl:py-8">
-            <div className="mx-auto w-full max-w-[1560px]">{children}</div>
+            <div className="mx-auto w-full max-w-[1660px]">{children}</div>
           </main>
         </div>
       </div>
@@ -474,16 +476,16 @@ export default function PortalLayout({
         <div className="fixed inset-0 z-50 lg:hidden">
           <button
             type="button"
-            className="absolute inset-0 bg-[rgba(17,29,48,0.34)] backdrop-blur-[2px]"
+            className="absolute inset-0 bg-[rgba(16,24,38,0.24)] backdrop-blur-[3px]"
             onClick={() => setIsDrawerOpen(false)}
             aria-label="Close portal navigation"
           />
-          <div className="absolute left-0 top-0 h-full w-[86%] max-w-[360px] border-r border-[var(--portal-border)] bg-[linear-gradient(180deg,#fbfdff_0%,#f2f7fc_100%)] px-5 py-5 shadow-[0_30px_80px_rgba(17,29,48,0.18)]">
+          <div className="absolute left-0 top-0 h-full w-[88%] max-w-[368px] border-r border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(249,252,255,0.98)_0%,rgba(241,246,253,0.98)_100%)] px-5 py-5 shadow-[0_30px_80px_rgba(16,24,38,0.18)]">
             <div className="mb-4 flex justify-end">
               <button
                 type="button"
                 onClick={() => setIsDrawerOpen(false)}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-[18px] border border-[var(--portal-border)] bg-white text-[var(--portal-text)]"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-[18px] border border-[var(--portal-border)] bg-[rgba(255,255,255,0.9)] text-[var(--portal-text)]"
                 aria-label="Close portal navigation"
               >
                 <X className="h-5 w-5" />
@@ -493,11 +495,7 @@ export default function PortalLayout({
               brandTitle="My Puppy Portal"
               brandSubtitle="Southwest Virginia Chihuahua"
               welcomeTitle={displayName}
-              welcomeDescription={
-                puppy
-                  ? `${puppyName} updates, documents, messages, payments, and next steps are all tied to this account.`
-                  : "Your application, records, messages, and next steps stay organized here."
-              }
+              welcomeDescription={sidebarDescription}
               navItems={navItems}
               utilityLinks={utilityLinks}
               footer={

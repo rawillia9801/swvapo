@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Shield } from "lucide-react";
 
 export function PortalUserMenu({
   displayName,
@@ -30,9 +30,9 @@ export function PortalUserMenu({
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full items-center gap-3 rounded-[22px] border border-[var(--portal-border)] bg-[rgba(255,255,255,0.9)] px-3 py-3 shadow-[0_12px_26px_rgba(31,48,79,0.05)] transition hover:border-[var(--portal-border-strong)]"
+        className="flex w-full items-center gap-3 rounded-[22px] border border-[var(--portal-border)] bg-[rgba(255,255,255,0.82)] px-3 py-3 shadow-[0_12px_26px_rgba(23,35,56,0.05)] transition hover:border-[var(--portal-border-strong)] hover:bg-white"
       >
-        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[linear-gradient(135deg,#92a4eb_0%,#647ad8_100%)] text-sm font-black text-white">
+        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[linear-gradient(135deg,#dfe8ff_0%,#c6d4ff_100%)] text-sm font-black text-[var(--portal-accent-strong)]">
           {userInitial}
         </div>
         <div className="min-w-0 flex-1 text-left">
@@ -43,8 +43,8 @@ export function PortalUserMenu({
       </button>
 
       {isOpen ? (
-        <div className="absolute bottom-[calc(100%+12px)] left-0 z-40 w-full rounded-[24px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,var(--portal-surface)_0%,var(--portal-surface-strong)_100%)] p-3 shadow-[0_24px_48px_rgba(31,48,79,0.16)]">
-          <div className="rounded-[18px] border border-[var(--portal-border)] bg-white px-4 py-3">
+        <div className="absolute bottom-[calc(100%+12px)] left-0 z-40 w-full rounded-[26px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96)_0%,rgba(246,250,255,0.96)_100%)] p-3 shadow-[0_24px_48px_rgba(23,35,56,0.16)] backdrop-blur-xl">
+          <div className="rounded-[20px] border border-[var(--portal-border)] bg-[rgba(255,255,255,0.84)] px-4 py-4">
             <div className="text-sm font-semibold text-[var(--portal-text)]">{displayName}</div>
             <div className="mt-1 text-xs text-[var(--portal-text-muted)]">{displayEmail}</div>
             <div className="mt-1 text-xs text-[var(--portal-text-muted)]">{displayPhone}</div>
@@ -56,23 +56,24 @@ export function PortalUserMenu({
               onClick={onClose}
               className="block rounded-[16px] border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]"
             >
-              View and Edit Profile
+              View profile
             </Link>
             {hasAdminUi ? (
               <Link
                 href="/admin/portal"
                 onClick={onClose}
-                className="block rounded-[16px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)] hover:bg-white"
+                className="flex items-center gap-2 rounded-[16px] border border-[rgba(93,121,255,0.16)] bg-[rgba(93,121,255,0.08)] px-4 py-3 text-sm font-semibold text-[var(--portal-accent-strong)] transition hover:border-[rgba(93,121,255,0.26)]"
               >
-                Open Admin Portal
+                <Shield className="h-4 w-4" />
+                Open admin portal
               </Link>
             ) : null}
             <button
               type="button"
               onClick={onSignOut}
-              className="w-full rounded-[16px] border border-[var(--portal-border)] bg-[var(--portal-text)] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#1f2b40]"
+              className="w-full rounded-[16px] border border-[var(--portal-border)] bg-[var(--portal-text)] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#1b2940]"
             >
-              Sign Out
+              Sign out
             </button>
           </div>
         </div>
