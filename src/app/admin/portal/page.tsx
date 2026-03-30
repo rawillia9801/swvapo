@@ -208,7 +208,7 @@ export default function AdminPortalPage() {
         setUser(currentUser);
 
         if (currentUser && isPortalAdminEmail(currentUser.email)) {
-          const nextData = await loadOverviewData();
+          const nextData = await loadOverviewData(session?.access_token || "");
           if (mounted) setData(nextData);
         }
       } finally {
@@ -225,7 +225,7 @@ export default function AdminPortalPage() {
       setUser(currentUser);
 
       if (currentUser && isPortalAdminEmail(currentUser.email)) {
-        setData(await loadOverviewData());
+        setData(await loadOverviewData(session?.access_token || ""));
       } else {
         setData(emptyData());
       }
@@ -491,7 +491,7 @@ export default function AdminPortalPage() {
   );
 }
 
-async function loadOverviewData(): Promise<AdminOverviewData> {
+async function loadOverviewData(accessToken: string): Promise<AdminOverviewData> {
   const nextData = emptyData();
 
   const [buyersRes, appsRes, puppiesRes, messagesRes, formsRes, pickupsRes, paymentsRes, digestRes] = await Promise.all([
@@ -546,7 +546,23 @@ async function loadOverviewData(): Promise<AdminOverviewData> {
     const key = email || String(application.user_id || "").trim();
     if (key) userKeys.add(key);
   }
-  nextData.uniquePortalUsers = userKeys.size;
+
+  try {
+    const response = await fetch("/api/admin/portal/accounts", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (response.ok) {
+      const payload = (await response.json()) as { userCount?: number };
+      nextData.uniquePortalUsers = Number(payload.userCount || 0);
+    } else {
+      nextData.uniquePortalUsers = userKeys.size;
+    }
+  } catch {
+    nextData.uniquePortalUsers = userKeys.size;
+  }
 
   return nextData;
 }

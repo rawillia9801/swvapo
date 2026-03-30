@@ -4,12 +4,55 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { sb, T, fmtMoney, fmtDate, buildPuppyPhotoUrl } from "@/lib/utils";
 
+type PortalEntity = {
+  id?: string | number;
+  status?: string | null;
+  application_status?: string | null;
+  assignment_status?: string | null;
+  created_at?: string | null;
+  sent_at?: string | null;
+  updated_at?: string | null;
+  event_date?: string | null;
+  date?: string | null;
+  title?: string | null;
+  label?: string | null;
+  name?: string | null;
+  call_name?: string | null;
+  puppy_name?: string | null;
+  sender_name?: string | null;
+  sender?: string | null;
+  from_name?: string | null;
+  message?: string | null;
+  content?: string | null;
+  body?: string | null;
+  text?: string | null;
+  image_url?: string | null;
+  image_path?: string | null;
+  photo_url?: string | null;
+  photo?: string | null;
+  image?: string | null;
+  balance?: number | null;
+  price?: number | null;
+  total_price?: number | null;
+  adoption_fee?: number | null;
+  [key: string]: unknown;
+};
+
+type PortalUser = {
+  id?: string;
+  email?: string | null;
+  user_metadata?: {
+    full_name?: string | null;
+    [key: string]: unknown;
+  } | null;
+};
+
 type PortalData = {
   buyer: BuyerRow | null;
-  app: any | null;
-  puppy: any | null;
-  msgs: any[];
-  updates: any[];
+  app: PortalEntity | null;
+  puppy: PortalEntity | null;
+  msgs: PortalEntity[];
+  updates: PortalEntity[];
   docCount: number;
 };
 
@@ -30,7 +73,17 @@ type NextStep = {
   cta: string;
 };
 
-function statusPill(statusRaw: any, type?: "application" | "puppy") {
+type OverviewCard = {
+  label: string;
+  value: string;
+  sub: string;
+  href: string;
+  cta?: string;
+  icon?: string;
+  accent?: string;
+};
+
+function statusPill(statusRaw: unknown, type?: "application" | "puppy") {
   const raw = String(statusRaw || "").trim();
   const s = raw.toLowerCase();
 
@@ -54,7 +107,24 @@ function statusPill(statusRaw: any, type?: "application" | "puppy") {
   }
 
   if (!raw && type === "application") label = "Pending";
-  if (!raw && type === "puppy") label = "Pending Match";
+  if (!raw && type === "puppy") label = "Waiting for Match";
+
+  if (type === "puppy") {
+    if (
+      ["sold", "matched", "assigned", "reserved", "active"].some((x) => s.includes(x))
+    ) {
+      label = "Matched";
+      cls = "bg-emerald-50 text-emerald-700 border border-emerald-200";
+    } else if (
+      !raw ||
+      ["pending", "wait", "available", "not assigned", "in progress"].some((x) =>
+        s.includes(x)
+      )
+    ) {
+      label = "Waiting for Match";
+      cls = "bg-amber-50 text-amber-700 border border-amber-200";
+    }
+  }
 
   return { cls, label };
 }
@@ -159,7 +229,7 @@ function nextSteps(hasApp: boolean, hasPuppy: boolean): NextStep[] {
 }
 
 export default function PortalPage() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<PortalUser | null>(null);
   const [data, setData] = useState<PortalData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -232,6 +302,7 @@ export default function PortalPage() {
       authListener.subscription.unsubscribe();
       window.removeEventListener("storage", onStorage);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function findBuyer(uid: string | undefined, email: string): Promise<BuyerRow | null> {
@@ -479,8 +550,8 @@ export default function PortalPage() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      return (updatesRes.data || []).filter((u: any) => {
-        const eventDate = new Date(u.event_date || u.created_at);
+      return ((updatesRes.data as PortalEntity[] | null) || []).filter((u) => {
+        const eventDate = new Date(String(u.event_date || u.created_at || today.toISOString()));
         eventDate.setHours(0, 0, 0, 0);
         return eventDate.getTime() <= today.getTime();
       });
@@ -489,7 +560,7 @@ export default function PortalPage() {
     }
   }
 
-  async function loadData(currUser: any) {
+  async function loadData(currUser: PortalUser) {
     const email = String(currUser?.email || "").trim().toLowerCase();
     const uid = currUser?.id as string | undefined;
 
@@ -544,21 +615,23 @@ export default function PortalPage() {
     user?.user_metadata?.full_name ||
     "Family";
 
+  const rawPuppyImage =
+    data?.puppy?.image_url ||
+    data?.puppy?.image_path ||
+    data?.puppy?.photo_url ||
+    data?.puppy?.photo ||
+    data?.puppy?.image ||
+    "";
+
   const puppyImage =
-    buildPuppyPhotoUrl(
-      data?.puppy?.image_url ||
-        data?.puppy?.image_path ||
-        data?.puppy?.photo_url ||
-        data?.puppy?.photo ||
-        data?.puppy?.image
-    ) ||
+    buildPuppyPhotoUrl(rawPuppyImage) ||
     "https://images.unsplash.com/photo-1591769225440-811ad7d6eca6?auto=format&fit=crop&w=1200&q=80";
 
   const primaryHref = hasPuppy ? "/portal/mypuppy" : "/portal/application";
   const primaryLabel = hasPuppy
     ? "Open My Puppy"
     : hasApp
-      ? "View Application"
+      ? "Open Application"
       : "Start Application";
 
   const financialValue =
@@ -575,7 +648,7 @@ export default function PortalPage() {
 
   const recentUpdates =
     data?.updates?.length
-      ? data.updates.slice(0, 2).map((u: any) => ({
+      ? data.updates.slice(0, 2).map((u: PortalEntity) => ({
           id: String(u.id),
           title: u.title || u.label || u.name || "Update",
           date: fmtDate(u.event_date || u.created_at || u.date),
@@ -589,7 +662,7 @@ export default function PortalPage() {
   const recentMessages = data?.msgs?.slice(0, 3) || [];
   const actionSteps = nextSteps(hasApp, hasPuppy);
 
-  const overviewCards = [
+  const overviewCards: OverviewCard[] = [
     {
       label: "Application",
       value: data?.app?.status || data?.app?.application_status || "Not started",
@@ -600,30 +673,30 @@ export default function PortalPage() {
       icon: "✓",
     },
     {
-      label: "Latest Update",
+      label: "Pupdates",
       value: nextUpdateLabel,
       sub:
         recentUpdates[0]?.title ||
         (hasPuppy
-          ? "Breeder updates and milestones appear here."
+          ? "Breeder notes and milestone updates appear here."
           : hasApp
-            ? "Stay in touch with us through the portal."
+            ? "Fresh updates appear here as your puppy journey progresses."
             : "Complete your portal setup."),
-      href: hasPuppy ? "/portal/mypuppy" : hasApp ? "/portal/messages" : "/portal/application",
+      href: "/portal/updates",
       icon: "→",
     },
     {
-      label: "Balance",
+      label: "Payments",
       value: financialValue,
-      sub: "Open payments for details",
+      sub: "Balance, due dates, and financing details",
       href: "/portal/payments",
       icon: "$",
     },
     {
-      label: hasPuppy ? "Assigned Puppy" : "Available Puppies",
-      value: hasPuppy ? puppyDisplayName : "Browse now",
-      sub: hasPuppy ? "Full profile and updates" : "See current and future matches",
-      href: hasPuppy ? "/portal/mypuppy" : "/portal/available-puppies",
+      label: "My Puppy",
+      value: hasPuppy ? puppyDisplayName : "Waiting for Match",
+      sub: hasPuppy ? "Profile, photos, and milestone details" : "Your match will appear here once assigned",
+      href: "/portal/mypuppy",
       icon: "🐾",
     },
   ];
@@ -648,7 +721,7 @@ export default function PortalPage() {
 
   const timelineItems =
     data?.updates?.length
-      ? data.updates.slice(0, 3).map((u: any) => ({
+      ? data.updates.slice(0, 3).map((u: PortalEntity) => ({
           id: String(u.id),
           title: u.title || u.label || u.name || "Update",
           date: fmtDate(u.event_date || u.created_at || u.date),
@@ -706,7 +779,6 @@ export default function PortalPage() {
       primaryHref={primaryHref}
       primaryLabel={primaryLabel}
       hasPuppy={hasPuppy}
-      hasApp={hasApp}
       puppyDisplayName={puppyDisplayName}
       puppyStatus={puppyStatus.label}
       appStatus={appStatus.label}
@@ -731,7 +803,6 @@ function PortalHomeDashboard({
   primaryHref,
   primaryLabel,
   hasPuppy,
-  hasApp,
   puppyDisplayName,
   puppyStatus,
   appStatus,
@@ -751,14 +822,13 @@ function PortalHomeDashboard({
   primaryHref: string;
   primaryLabel: string;
   hasPuppy: boolean;
-  hasApp: boolean;
   puppyDisplayName: string;
   puppyStatus: string;
   appStatus: string;
   nextUpdateLabel: string;
   financialValue: string;
   overviewCards: Array<{ label: string; value: string; sub: string; href: string; accent?: string }>;
-  recentMessages: any[];
+  recentMessages: PortalEntity[];
   timelineItems: Array<{ id: string; title: string; date: string }>;
   resourceTiles: Array<{ title: string; desc: string; href: string }>;
   actionSteps: NextStep[];
@@ -766,44 +836,85 @@ function PortalHomeDashboard({
   docCount: number;
   totalMessages: number;
 }) {
+  const heroImageStyle = {
+    backgroundImage: `linear-gradient(180deg, rgba(41, 28, 20, 0.08) 0%, rgba(41, 28, 20, 0.18) 100%), url(${puppyImage})`,
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+  } as React.CSSProperties;
+
+  const curatedCards: OverviewCard[] = [
+    {
+      label: "Application",
+      value: appStatus,
+      sub: overviewCards[0]?.sub || "Your application details stay organized here.",
+      href: "/portal/application",
+      cta: "Open Application",
+      accent: "from-[#f2d9a8] via-[#d7a45d] to-[#b7712d]",
+    },
+    {
+      label: "Pupdates",
+      value: overviewCards[1]?.value || "Awaiting pupdates",
+      sub: overviewCards[1]?.sub || "Breeder notes and milestone updates appear here.",
+      href: "/portal/updates",
+      cta: "Open Pupdates",
+      accent: "from-[#d7efe8] via-[#87c5b4] to-[#488f7b]",
+    },
+    {
+      label: "Payments",
+      value: financialValue,
+      sub: "Balance, due dates, and financing details",
+      href: "/portal/payments",
+      cta: "Open Payments",
+      accent: "from-[#dce9ff] via-[#88b1f5] to-[#4a72c0]",
+    },
+    {
+      label: "My Puppy",
+      value: hasPuppy ? puppyDisplayName : "Waiting for Match",
+      sub: hasPuppy
+        ? "Profile, photos, and milestone details"
+        : "Your match will appear here once assigned",
+      href: "/portal/mypuppy",
+      cta: "Open My Puppy",
+      accent: "from-[#f2dce5] via-[#d89fb7] to-[#ab6782]",
+    },
+  ];
+
+  const currentMatchDetail = hasPuppy
+    ? "Your puppy has been matched and is ready to follow here."
+    : "We will update this as soon as your puppy is assigned.";
+
+  const latestPupdateDetail =
+    timelineItems[0]?.title ||
+    "Breeder notes, milestones, and puppy care updates appear here as they are published.";
+
   return (
     <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.22),transparent_24%),radial-gradient(circle_at_75%_18%,rgba(124,58,237,0.22),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(14,165,233,0.16),transparent_26%),linear-gradient(135deg,#050816_0%,#0c1427_42%,#18233f_100%)] p-6 shadow-[0_40px_100px_rgba(3,8,23,0.55)] md:p-8">
-        <div className="absolute inset-y-0 right-0 hidden w-[34%] overflow-hidden lg:block">
-          <img
-            src={puppyImage}
-            alt={hasPuppy ? "Portal hero puppy" : "Portal welcome puppy"}
-            className="h-full w-full object-cover opacity-60"
-          />
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(15,23,42,1)_0%,rgba(15,23,42,0.72)_35%,rgba(15,23,42,0.18)_100%)]" />
-        </div>
-
-        <div className="relative z-10 grid gap-8 xl:grid-cols-[minmax(0,1.3fr)_360px]">
+      <section className="overflow-hidden rounded-[36px] border border-[#e7d7c5] bg-[radial-gradient(circle_at_top_left,#fff8f0_0%,#fffdfa_42%,#f5ede4_100%)] p-6 shadow-[0_34px_90px_rgba(106,76,45,0.10)] md:p-8">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_360px]">
           <div className="max-w-4xl">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="inline-flex rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-100">
-                Southwest Virginia Chihuahua
+              <span className="inline-flex rounded-full border border-[#ead8c1] bg-white/90 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#9e7446]">
+                Overview
               </span>
             </div>
 
-            <h1 className="mt-6 max-w-3xl font-serif text-4xl font-bold leading-[0.98] text-white [font-family:var(--font-merriweather)] md:text-6xl xl:text-[64px]">
+            <h1 className="mt-6 max-w-3xl font-serif text-4xl font-bold leading-tight text-[#2f2218] [font-family:var(--font-merriweather)] md:text-6xl">
               Welcome to your Puppy Portal
             </h1>
-            <p className="mt-4 max-w-2xl text-[15px] leading-7 text-slate-300 md:text-base">
-              Everything for {greetingName} lives here: your puppy profile, documents,
-              breeder communication, payments, and milestone updates in one private place.
+            <p className="mt-4 max-w-2xl text-[15px] leading-7 text-[#72553c] md:text-base">
+              Everything for {greetingName} is organized here with a cleaner view of your puppy journey, messages, documents, payments, and breeder pupdates.
             </p>
 
             <div className="mt-6 flex flex-wrap gap-3">
               <Link
                 href={primaryHref}
-                className="inline-flex items-center rounded-2xl bg-[linear-gradient(135deg,#60a5fa_0%,#7c3aed_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_38px_rgba(96,165,250,0.28)] transition hover:-translate-y-0.5"
+                className="inline-flex items-center rounded-2xl bg-[linear-gradient(135deg,#d3a056_0%,#b5752f_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(181,117,47,0.26)] transition hover:-translate-y-0.5 hover:brightness-105"
               >
                 {primaryLabel}
               </Link>
               <Link
                 href="/portal/messages"
-                className="inline-flex items-center rounded-2xl border border-white/10 bg-white/6 px-5 py-3 text-sm font-semibold text-slate-100 transition hover:border-white/20 hover:bg-white/10"
+                className="inline-flex items-center rounded-2xl border border-[#e4d2be] bg-white px-5 py-3 text-sm font-semibold text-[#5d4330] shadow-[0_12px_28px_rgba(106,76,45,0.08)] transition hover:-translate-y-0.5 hover:border-[#d4b48b]"
               >
                 Open Messages
               </Link>
@@ -811,51 +922,43 @@ function PortalHomeDashboard({
 
             <div className="mt-8 grid gap-3 md:grid-cols-3">
               {spotlightMetrics.map((metric) => (
-                <div
+                <SpotlightCard
                   key={metric.label}
-                  className="group relative overflow-hidden rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_100%)] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_18px_34px_rgba(2,6,23,0.18)] backdrop-blur-sm transition hover:-translate-y-1 hover:border-sky-300/20"
-                >
-                  <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-                  <div className="absolute -right-6 -top-6 h-16 w-16 rounded-full bg-sky-400/10 blur-2xl transition group-hover:bg-sky-400/20" />
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-                    {metric.label}
-                  </div>
-                  <div className="mt-2 text-3xl font-semibold text-white">{metric.value}</div>
-                  <div className="mt-2 text-sm leading-6 text-slate-300">{metric.detail}</div>
-                </div>
+                  metric={{
+                    ...metric,
+                    label: metric.label === "Updates" ? "Pupdates" : metric.label,
+                  }}
+                />
               ))}
             </div>
           </div>
 
-          <div className="relative z-10">
-            <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(2,6,23,0.58)_0%,rgba(15,23,42,0.58)_100%)] p-5 shadow-[0_24px_56px_rgba(2,6,23,0.48),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl">
-              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-              <div className="absolute right-0 top-0 h-24 w-24 rounded-full bg-violet-400/10 blur-3xl" />
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-                    Client Snapshot
-                  </div>
-                  <div className="mt-2 text-2xl font-semibold text-white">{greetingName}</div>
-                </div>
-                <span className="inline-flex rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-[11px] font-semibold text-emerald-200">
-                  {appStatus}
+          <div className="rounded-[30px] border border-[#ead8c6] bg-white/88 p-4 shadow-[0_18px_50px_rgba(106,76,45,0.10)]">
+            <div
+              className="relative min-h-[330px] overflow-hidden rounded-[26px] border border-[#e6d4c0] bg-[#eadccf]"
+              style={heroImageStyle}
+            >
+              <div className="absolute left-4 top-4">
+                <span className="inline-flex rounded-full border border-white/70 bg-white/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8d6842] shadow-sm">
+                  My Puppy
                 </span>
               </div>
-
-              <div className="mt-5 space-y-3">
-                <GlassMetric
-                  label="Assigned Puppy"
-                  value={hasPuppy ? puppyDisplayName : "Waiting for match"}
-                />
-                <GlassMetric label="Portal Balance" value={financialValue} />
-                <GlassMetric label="Latest Activity" value={nextUpdateLabel} />
+              <div className="absolute right-4 top-4">
+                <span className="inline-flex rounded-full border border-white/70 bg-white/90 px-3 py-1 text-[11px] font-semibold text-[#5f4731] shadow-sm">
+                  {puppyStatus}
+                </span>
               </div>
-
-              <div className="mt-5 grid grid-cols-3 gap-3">
-                <MiniMetricBadge label="Secure" />
-                <MiniMetricBadge label="Organized" />
-                <MiniMetricBadge label="Private" />
+              <div className="absolute inset-x-0 bottom-0 bg-[linear-gradient(180deg,rgba(41,28,20,0.02)_0%,rgba(41,28,20,0.82)_100%)] p-6">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#efdcc5]">
+                  {hasPuppy ? "Current Match" : "Match Status"}
+                </div>
+                <div className="mt-2 font-serif text-3xl text-white [font-family:var(--font-merriweather)]">
+                  {hasPuppy ? puppyDisplayName : "Waiting for Match"}
+                </div>
+                <div className="mt-3 text-sm leading-6 text-[#f6eadf]">
+                  {timelineItems[0]?.title ||
+                    "This area will update as soon as your puppy match or first breeder note is ready."}
+                </div>
               </div>
             </div>
           </div>
@@ -863,89 +966,38 @@ function PortalHomeDashboard({
       </section>
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
-        {overviewCards.map((card) => (
-          <Link
-            key={card.label}
-            href={card.href}
-            className="group relative overflow-hidden rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.92)_0%,rgba(15,23,42,0.72)_100%)] p-5 shadow-[0_24px_48px_rgba(2,6,23,0.32),inset_0_1px_0_rgba(255,255,255,0.06)] transition hover:-translate-y-1.5 hover:border-sky-300/20 hover:shadow-[0_30px_64px_rgba(2,6,23,0.42),inset_0_1px_0_rgba(255,255,255,0.08)]"
-          >
-            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-            <div className="absolute -right-10 top-6 h-24 w-24 rounded-full bg-white/5 blur-3xl transition group-hover:bg-sky-400/10" />
-            <div
-              className={`h-1.5 w-full rounded-full bg-gradient-to-r ${
-                card.accent || "from-slate-400/20 to-slate-500/10"
-              }`}
-            />
-            <div className="mt-5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-              {card.label}
-            </div>
-            <div className="mt-3 break-words text-[28px] font-semibold leading-tight text-white">
-              {card.value}
-            </div>
-            <div className="mt-3 text-sm leading-6 text-slate-300">{card.sub}</div>
-            <div className="mt-5 text-[12px] font-semibold uppercase tracking-[0.2em] text-sky-300 transition group-hover:text-sky-200">
-              Open Panel
-            </div>
-          </Link>
+        {curatedCards.map((card) => (
+          <OverviewActionCard key={card.label} card={card} />
         ))}
       </section>
 
-      <section className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.25fr)_390px]">
+      <section className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.22fr)_390px]">
         <div className="space-y-5">
           <DashboardPanel
-            title="Puppy Command Center"
+            title="Puppy Journey"
             subtitle={
               hasPuppy
-                ? "Your puppy profile, current status, and fastest next actions."
-                : "Portal setup and match readiness in one place."
+                ? "A clean view of your current match, next breeder note, and what to do next."
+                : "A cleaner place to watch your match status and the next steps in your portal."
             }
-            actionHref={hasPuppy ? "/portal/mypuppy" : "/portal/available-puppies"}
-            actionLabel={hasPuppy ? "Open My Puppy" : "Browse Puppies"}
           >
-            <div className="grid gap-5 lg:grid-cols-[340px_minmax(0,1fr)]">
-              <div className="relative min-h-[320px] overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/60">
-                <img
-                  src={puppyImage}
-                  alt={hasPuppy ? "My puppy preview" : "Available puppies preview"}
-                  className="absolute inset-0 h-full w-full object-cover opacity-80"
-                />
-                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.08)_0%,rgba(2,6,23,0.72)_65%,rgba(2,6,23,0.96)_100%)]" />
-                <div className="absolute inset-x-0 bottom-0 p-5">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-200/90">
-                    {hasPuppy ? "Assigned Puppy" : "Available Puppies"}
-                  </div>
-                  <div className="mt-2 font-serif text-3xl text-white [font-family:var(--font-merriweather)]">
-                    {hasPuppy ? puppyDisplayName : "Your next match starts here"}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-200">
-                    {hasPuppy
-                      ? "Profile details, milestones, and breeder updates are organized in a single luxury experience."
-                      : "Explore available puppies, monitor updates, and stay ready for the right match."}
-                  </div>
-                </div>
-              </div>
-
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
               <div className="grid gap-4">
                 <div className="grid gap-4 md:grid-cols-2">
                   <InfoTile
-                    label="Application Status"
-                    value={appStatus}
-                    detail={hasApp ? "Your portal record is active." : "Start when you are ready."}
+                    label="Match Status"
+                    value={puppyStatus}
+                    detail={currentMatchDetail}
                   />
                   <InfoTile
-                    label="Puppy Status"
-                    value={puppyStatus}
-                    detail={
-                      hasPuppy
-                        ? "Current assignment is visible in My Puppy."
-                        : "Assignment appears once matched."
-                    }
+                    label="Latest Pupdate"
+                    value={nextUpdateLabel}
+                    detail={latestPupdateDetail}
                   />
                 </div>
 
-                <div className="relative overflow-hidden rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(2,6,23,0.45)_0%,rgba(15,23,42,0.52)_100%)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-                  <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+                <div className="rounded-[28px] border border-[#ead8c4] bg-[linear-gradient(180deg,#fffaf5_0%,#f9f1e8_100%)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#a47946]">
                     Recommended Next Steps
                   </div>
                   <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -953,13 +1005,13 @@ function PortalHomeDashboard({
                       <Link
                         key={step.title}
                         href={step.href}
-                        className="rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:border-sky-300/20 hover:bg-white/8"
+                        className="rounded-[22px] border border-[#ead9c7] bg-white px-4 py-4 shadow-[0_12px_30px_rgba(106,76,45,0.06)] transition hover:-translate-y-0.5 hover:border-[#d8b48b]"
                       >
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a47946]">
                           {step.title}
                         </div>
-                        <div className="mt-2 text-sm leading-6 text-slate-200">{step.desc}</div>
-                        <div className="mt-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-sky-300">
+                        <div className="mt-2 text-sm leading-6 text-[#684c34]">{step.desc}</div>
+                        <div className="mt-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#b8772f]">
                           {step.cta}
                         </div>
                       </Link>
@@ -967,98 +1019,72 @@ function PortalHomeDashboard({
                   </div>
                 </div>
               </div>
+
+              <div className="rounded-[28px] border border-[#ead8c4] bg-[linear-gradient(180deg,#fffaf6_0%,#f7efe6_100%)] p-5 shadow-[0_16px_40px_rgba(106,76,45,0.08)]">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#a47946]">
+                  Portal Essentials
+                </div>
+                <div className="mt-4 space-y-3">
+                  <MetricRow label="My Puppy" value={hasPuppy ? puppyDisplayName : "Waiting for Match"} />
+                  <MetricRow label="Payments" value={financialValue} />
+                  <MetricRow label="Documents Ready" value={`${docCount}`} />
+                  <MetricRow label="Messages Logged" value={`${totalMessages}`} />
+                </div>
+                <div className="mt-5 rounded-[22px] border border-[#e5d2bc] bg-white px-4 py-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a47946]">
+                    Private Portal Access
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-[#684c34]">
+                    Your updates, records, documents, and payment details stay organized here in one private client experience.
+                  </p>
+                </div>
+              </div>
             </div>
           </DashboardPanel>
 
-          <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
-            <DashboardPanel
-              title="Recent Messages"
-              subtitle="Important communication stays visible and easy to scan."
-              actionHref="/portal/messages"
-              actionLabel="View All"
-            >
-              <div className="space-y-3">
-                {recentMessages.length ? (
-                  recentMessages.map((m: any) => (
-                    <div
-                      key={m.id}
-                      className="rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:border-sky-300/20 hover:bg-white/7"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-                            {m.sender_name || m.sender || m.from_name || "Support Team"}
-                          </div>
-                          <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-100">
-                            {m.message || m.content || m.body || m.text || "-"}
-                          </p>
-                        </div>
-                        <span className="shrink-0 text-[11px] font-medium text-slate-400">
-                          {fmtDate(m.created_at || m.sent_at)}
-                        </span>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <EmptyState
-                    title="No recent messages"
-                    desc="When breeder messages or account updates arrive, they will appear here automatically."
+          <DashboardPanel
+            title="Recent Messages"
+            subtitle="Important communication stays visible and easy to scan."
+            actionHref="/portal/messages"
+            actionLabel="Open Messages"
+          >
+            <div className="space-y-3">
+              {recentMessages.length ? (
+                recentMessages.map((m, index) => (
+                  <MessageCard
+                    key={String(m.id || index)}
+                    sender={m.sender_name || m.sender || m.from_name || "Support Team"}
+                    body={m.message || m.content || m.body || m.text || "No preview available."}
+                    date={fmtDate(m.created_at || m.sent_at)}
                   />
-                )}
-              </div>
-            </DashboardPanel>
-
-            <DashboardPanel
-              title="Portal Activity"
-              subtitle="Updates, milestones, and client-visible timeline items."
-              actionHref="/portal/updates"
-              actionLabel="Open Updates"
-            >
-              <div className="space-y-3">
-                {timelineItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className="rounded-2xl border border-white/10 bg-white/5 p-4"
-                  >
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-                      {item.date}
-                    </div>
-                    <div className="mt-2 text-sm font-medium leading-6 text-slate-100">
-                      {item.title}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </DashboardPanel>
-          </div>
+                ))
+              ) : (
+                <EmptyState
+                  title="No recent messages"
+                  desc="When breeder messages or account updates arrive, they will appear here automatically."
+                />
+              )}
+            </div>
+          </DashboardPanel>
         </div>
 
         <div className="space-y-5">
           <DashboardPanel
-            title="Financial Snapshot"
-            subtitle="A cleaner overview before opening full payments."
-            actionHref="/portal/payments"
-            actionLabel="Open Payments"
+            title="Recent Pupdates"
+            subtitle="Breeder notes, milestones, and client-facing timeline items."
+            actionHref="/portal/updates"
+            actionLabel="Open Pupdates"
           >
             <div className="space-y-3">
-              <MetricRow label="Balance Due" value={financialValue} />
-              <MetricRow label="Documents Ready" value={`${docCount}`} />
-              <MetricRow label="Messages Logged" value={`${totalMessages}`} />
-            </div>
-            <div className="mt-5 rounded-2xl border border-emerald-400/15 bg-emerald-400/8 p-4">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-200">
-                Buyer Transparency
-              </div>
-              <p className="mt-2 text-sm leading-6 text-slate-200">
-                Your payment history, financing details, and remaining balance stay visible
-                in the payments dashboard.
-              </p>
+              {timelineItems.map((item) => (
+                <TimelineCard key={item.id} item={item} />
+              ))}
             </div>
           </DashboardPanel>
 
           <DashboardPanel
             title="Resource Library"
-            subtitle="Quick access to guidance, transportation, and portal essentials."
+            subtitle="Quick access to transportation, contracts, and care guidance."
             actionHref="/portal/resources"
             actionLabel="Open Resources"
           >
@@ -1070,6 +1096,86 @@ function PortalHomeDashboard({
           </DashboardPanel>
         </div>
       </section>
+    </div>
+  );
+}
+
+function SpotlightCard({
+  metric,
+}: {
+  metric: { label: string; value: string; detail: string };
+}) {
+  return (
+    <div className="rounded-[24px] border border-[#ead8c6] bg-white/92 px-4 py-4 shadow-[0_14px_34px_rgba(106,76,45,0.08)] transition hover:-translate-y-0.5">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#a47946]">
+        {metric.label}
+      </div>
+      <div className="mt-2 text-3xl font-semibold text-[#2f2218]">{metric.value}</div>
+      <div className="mt-2 text-sm leading-6 text-[#73583f]">{metric.detail}</div>
+    </div>
+  );
+}
+
+function OverviewActionCard({ card }: { card: OverviewCard }) {
+  return (
+    <Link
+      href={card.href}
+      className="group overflow-hidden rounded-[28px] border border-[#ead8c6] bg-white shadow-[0_18px_48px_rgba(106,76,45,0.08)] transition hover:-translate-y-1 hover:border-[#d8b48b]"
+    >
+      <div
+        className={`h-1.5 w-full bg-gradient-to-r ${card.accent || "from-[#f2d9a8] via-[#d7a45d] to-[#b7712d]"}`}
+      />
+      <div className="p-5">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#a47946]">
+          {card.label}
+        </div>
+        <div className="mt-3 break-words text-[30px] font-semibold leading-tight text-[#2f2218]">
+          {card.value}
+        </div>
+        <div className="mt-3 text-sm leading-6 text-[#73583f]">{card.sub}</div>
+        <div className="mt-5 text-[12px] font-semibold uppercase tracking-[0.2em] text-[#b8772f] transition group-hover:text-[#9f6425]">
+          {card.cta || "Open"}
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function MessageCard({
+  sender,
+  body,
+  date,
+}: {
+  sender: string;
+  body: string;
+  date: string;
+}) {
+  return (
+    <div className="rounded-[22px] border border-[#ead9c7] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] p-4 shadow-[0_10px_24px_rgba(106,76,45,0.05)]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a47946]">
+            {sender}
+          </div>
+          <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#513c2b]">{body}</p>
+        </div>
+        <span className="shrink-0 text-[11px] font-medium text-[#9c7a57]">{date}</span>
+      </div>
+    </div>
+  );
+}
+
+function TimelineCard({
+  item,
+}: {
+  item: { id: string; title: string; date: string };
+}) {
+  return (
+    <div className="rounded-[22px] border border-[#ead9c7] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] p-4 shadow-[0_10px_24px_rgba(106,76,45,0.05)]">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a47946]">
+        {item.date}
+      </div>
+      <div className="mt-2 text-sm font-medium leading-6 text-[#513c2b]">{item.title}</div>
     </div>
   );
 }
@@ -1088,22 +1194,20 @@ function DashboardPanel({
   children: React.ReactNode;
 }) {
   return (
-    <section className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.86)_0%,rgba(15,23,42,0.68)_100%)] p-5 shadow-[0_28px_60px_rgba(2,6,23,0.34),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl md:p-6">
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-      <div className="absolute -right-8 top-0 h-24 w-24 rounded-full bg-sky-400/8 blur-3xl" />
+    <section className="overflow-hidden rounded-[32px] border border-[#ead8c4] bg-white p-5 shadow-[0_24px_70px_rgba(106,76,45,0.09)] md:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#a47946]">
             {title}
           </div>
           {subtitle ? (
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">{subtitle}</p>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-[#73583f]">{subtitle}</p>
           ) : null}
         </div>
         {actionHref && actionLabel ? (
           <Link
             href={actionHref}
-            className="inline-flex rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-200 transition hover:border-sky-300/20 hover:bg-white/10"
+            className="inline-flex rounded-full border border-[#e5d2bc] bg-[#fff9f2] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#b8772f] transition hover:border-[#d8b48b]"
           >
             {actionLabel}
           </Link>
@@ -1114,34 +1218,13 @@ function DashboardPanel({
   );
 }
 
-function GlassMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="relative overflow-hidden flex items-center justify-between gap-4 rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06)_0%,rgba(255,255,255,0.03)_100%)] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-      <div className="absolute inset-y-0 left-0 w-1 rounded-full bg-gradient-to-b from-sky-400/80 to-violet-400/70" />
-      <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-        {label}
-      </span>
-      <span className="text-sm font-semibold text-white">{value}</span>
-    </div>
-  );
-}
-
-function MiniMetricBadge({ label }: { label: string }) {
-  return (
-    <div className="rounded-[18px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07)_0%,rgba(255,255,255,0.03)_100%)] px-3 py-3 text-center text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-      {label}
-    </div>
-  );
-}
-
 function MetricRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="relative overflow-hidden flex items-center justify-between gap-4 rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06)_0%,rgba(255,255,255,0.03)_100%)] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-      <div className="absolute inset-y-0 left-0 w-1 rounded-full bg-gradient-to-b from-emerald-400/70 to-sky-400/70" />
-      <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+    <div className="flex items-center justify-between gap-4 rounded-[20px] border border-[#ead9c7] bg-white px-4 py-3 shadow-[0_10px_24px_rgba(106,76,45,0.05)]">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a47946]">
         {label}
       </span>
-      <span className="text-sm font-semibold text-white">{value}</span>
+      <span className="text-sm font-semibold text-[#2f2218]">{value}</span>
     </div>
   );
 }
@@ -1158,14 +1241,13 @@ function QuickLink({
   return (
     <Link
       href={href}
-      className="group relative block overflow-hidden rounded-[22px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06)_0%,rgba(255,255,255,0.03)_100%)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition hover:-translate-y-1 hover:border-sky-300/20 hover:bg-white/8"
+      className="group block rounded-[22px] border border-[#ead9c7] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] p-4 shadow-[0_12px_30px_rgba(106,76,45,0.05)] transition hover:-translate-y-1 hover:border-[#d8b48b]"
     >
-      <div className="absolute inset-y-0 left-0 w-1 rounded-full bg-gradient-to-b from-sky-400/80 to-violet-400/70 opacity-80" />
-      <div className="text-sm font-semibold text-white">{title}</div>
-      <div className="mt-1 text-[13px] leading-6 text-slate-300">
+      <div className="text-sm font-semibold text-[#2f2218]">{title}</div>
+      <div className="mt-1 text-[13px] leading-6 text-[#73583f]">
         {desc}
       </div>
-      <div className="mt-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-300 transition group-hover:text-sky-200">
+      <div className="mt-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#b8772f] transition group-hover:text-[#9f6425]">
         Open
       </div>
     </Link>
@@ -1182,22 +1264,21 @@ function InfoTile({
   detail: string;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-[22px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06)_0%,rgba(255,255,255,0.03)_100%)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-      <div className="absolute inset-y-0 left-0 w-1 rounded-full bg-gradient-to-b from-fuchsia-400/70 to-sky-400/70" />
-      <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+    <div className="rounded-[24px] border border-[#ead9c7] bg-white p-4 shadow-[0_12px_32px_rgba(106,76,45,0.06)]">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a47946]">
         {label}
       </div>
-      <div className="mt-2 text-xl font-semibold text-white">{value}</div>
-      <div className="mt-2 text-sm leading-6 text-slate-300">{detail}</div>
+      <div className="mt-2 text-2xl font-semibold text-[#2f2218]">{value}</div>
+      <div className="mt-2 text-sm leading-6 text-[#73583f]">{detail}</div>
     </div>
   );
 }
 
 function EmptyState({ title, desc }: { title: string; desc: string }) {
   return (
-    <div className="rounded-[24px] border border-dashed border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0.02)_100%)] px-5 py-10 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-      <div className="text-base font-semibold text-white">{title}</div>
-      <div className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-300">{desc}</div>
+    <div className="rounded-[24px] border border-dashed border-[#e7d6c2] bg-[#fffaf5] px-5 py-10 text-center">
+      <div className="text-base font-semibold text-[#2f2218]">{title}</div>
+      <div className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#73583f]">{desc}</div>
     </div>
   );
 }

@@ -49,6 +49,8 @@ type AccountRow = {
   userId: string | null;
   displayName: string;
   phone: string;
+  createdAt?: string | null;
+  lastSignInAt?: string | null;
   buyer: BuyerRow | null;
   application: ApplicationRow | null;
   forms: FormRow[];
@@ -61,10 +63,6 @@ type BuyerEditForm = {
   status: string;
   notes: string;
 };
-
-function normalizeEmail(value: string | null | undefined) {
-  return String(value || "").trim().toLowerCase();
-}
 
 function firstValue(...values: Array<string | null | undefined>) {
   for (const value of values) {
@@ -87,6 +85,7 @@ function tone(statusRaw: string | null | undefined) {
 
 export default function AdminPortalUsersPage() {
   const [user, setUser] = useState<{ id: string; email?: string | null } | null>(null);
+  const [accessToken, setAccessToken] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [statusText, setStatusText] = useState("");
@@ -113,9 +112,10 @@ export default function AdminPortalUsersPage() {
         if (!mounted) return;
         const currentUser = session?.user ?? null;
         setUser(currentUser);
+        setAccessToken(session?.access_token || "");
 
         if (currentUser && isPortalAdminEmail(currentUser.email)) {
-          const nextAccounts = await loadAccounts();
+          const nextAccounts = await loadAccounts(session?.access_token || "");
           if (!mounted) return;
           setAccounts(nextAccounts);
           setSelectedKey(nextAccounts[0]?.key || "");
@@ -131,9 +131,10 @@ export default function AdminPortalUsersPage() {
       if (!mounted) return;
       const currentUser = session?.user ?? null;
       setUser(currentUser);
+      setAccessToken(session?.access_token || "");
 
       if (currentUser && isPortalAdminEmail(currentUser.email)) {
-        const nextAccounts = await loadAccounts();
+        const nextAccounts = await loadAccounts(session?.access_token || "");
         setAccounts(nextAccounts);
         setSelectedKey(nextAccounts[0]?.key || "");
       } else {
@@ -191,7 +192,7 @@ export default function AdminPortalUsersPage() {
   }
 
   async function refreshAccounts(nextSelectedKey?: string) {
-    const nextAccounts = await loadAccounts();
+    const nextAccounts = await loadAccounts(accessToken);
     setAccounts(nextAccounts);
     setSelectedKey(nextSelectedKey || nextAccounts[0]?.key || "");
   }
@@ -431,90 +432,25 @@ export default function AdminPortalUsersPage() {
   );
 }
 
-async function loadAccounts(): Promise<AccountRow[]> {
-  const [buyersRes, applicationsRes, formsRes] = await Promise.all([
-    sb.from("buyers").select("id,user_id,full_name,name,email,buyer_email,phone,status,notes,created_at").order("created_at", { ascending: false }),
-    sb.from("puppy_applications").select("id,user_id,created_at,full_name,email,applicant_email,phone,status,admin_notes,assigned_puppy_id").order("created_at", { ascending: false }),
-    sb.from("portal_form_submissions").select("id,user_id,created_at,user_email,form_key,form_title,status,signed_name,submitted_at").order("created_at", { ascending: false }),
-  ]);
+async function loadAccounts(accessToken: string): Promise<AccountRow[]> {
+  if (!accessToken) return [];
 
-  const buyers = (buyersRes.data || []) as BuyerRow[];
-  const applications = (applicationsRes.data || []) as ApplicationRow[];
-  const forms = (formsRes.data || []) as FormRow[];
-
-  const accounts = new Map<string, AccountRow>();
-
-  function ensureAccount(key: string, payload: Partial<AccountRow>): AccountRow {
-    const existing = accounts.get(key) || {
-      key,
-      email: "",
-      userId: null,
-      displayName: "Portal User",
-      phone: "",
-      buyer: null,
-      application: null,
-      forms: [],
-    };
-
-    const next: AccountRow = {
-      ...existing,
-      ...payload,
-      email: payload.email || existing.email,
-      userId: payload.userId === undefined ? existing.userId : payload.userId,
-      displayName: payload.displayName || existing.displayName,
-      phone: payload.phone || existing.phone,
-      buyer: payload.buyer === undefined ? existing.buyer : payload.buyer,
-      application: payload.application === undefined ? existing.application : payload.application,
-      forms: payload.forms === undefined ? existing.forms : payload.forms,
-    };
-
-    accounts.set(key, next);
-    return next;
-  }
-
-  for (const buyer of buyers) {
-    const email = normalizeEmail(firstValue(buyer.email, buyer.buyer_email));
-    const key = email || String(buyer.user_id || `buyer-${buyer.id}`);
-    ensureAccount(key, {
-      email,
-      userId: buyer.user_id || null,
-      displayName: firstValue(buyer.full_name, buyer.name, email, `Buyer #${buyer.id}`),
-      phone: firstValue(buyer.phone),
-      buyer,
+  try {
+    const response = await fetch("/api/admin/portal/accounts", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
     });
-  }
 
-  for (const application of applications) {
-    const email = normalizeEmail(firstValue(application.email, application.applicant_email));
-    const key = email || String(application.user_id || `application-${application.id}`);
-    const existing = accounts.get(key);
-    ensureAccount(key, {
-      email: email || existing?.email || "",
-      userId: application.user_id || existing?.userId || null,
-      displayName: firstValue(application.full_name, existing?.displayName, email, `Application #${application.id}`),
-      phone: firstValue(application.phone, existing?.phone),
-      application: existing?.application || application,
-      buyer: existing?.buyer || null,
-      forms: existing?.forms || [],
-    });
-  }
+    if (!response.ok) {
+      return [];
+    }
 
-  for (const item of forms) {
-    const email = normalizeEmail(item.user_email);
-    const key = email || String(item.user_id || `form-${item.id}`);
-    const existing = accounts.get(key);
-    ensureAccount(key, {
-      email: email || existing?.email || "",
-      userId: item.user_id || existing?.userId || null,
-      displayName: existing?.displayName || firstValue(item.signed_name, email, `Portal User ${item.id}`),
-      phone: existing?.phone || "",
-      buyer: existing?.buyer || null,
-      application: existing?.application || null,
-      forms: [...(existing?.forms || []), item],
-    });
+    const payload = (await response.json()) as { accounts?: AccountRow[] };
+    return Array.isArray(payload.accounts) ? payload.accounts : [];
+  } catch {
+    return [];
   }
-
-  return Array.from(accounts.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
 function Field({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
