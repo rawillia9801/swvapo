@@ -1,7 +1,18 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import type { User } from "@supabase/supabase-js";
 import { sb } from "@/lib/utils";
+import {
+  PortalEmptyState,
+  PortalHeroPrimaryAction,
+  PortalHeroSecondaryAction,
+  PortalInfoTile,
+  PortalMetricCard,
+  PortalMetricGrid,
+  PortalPageHero,
+  PortalPanel,
+} from "@/components/portal/luxury-shell";
 
 type PortalMessage = {
   id: string;
@@ -17,11 +28,10 @@ type PortalMessage = {
 };
 
 export default function PortalMessagesPage() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [messages, setMessages] = useState<PortalMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [statusText, setStatusText] = useState("");
@@ -34,58 +44,36 @@ export default function PortalMessagesPage() {
         const {
           data: { session },
         } = await sb.auth.getSession();
-
         if (!mounted) return;
-
         const currentUser = session?.user ?? null;
         setUser(currentUser);
-
-        if (currentUser) {
-          await loadMessages(currentUser);
-        } else {
-          setMessages([]);
-        }
+        if (currentUser) await loadMessages(currentUser);
       } finally {
         if (mounted) setLoading(false);
       }
     };
 
-    init();
+    void init();
 
-    const { data: authListener } = sb.auth.onAuthStateChange(
-      async (_event, session) => {
-        const currentUser = session?.user ?? null;
-        if (!mounted) return;
+    const { data: authListener } = sb.auth.onAuthStateChange(async (_event, session) => {
+      const currentUser = session?.user ?? null;
+      if (!mounted) return;
+      setUser(currentUser);
+      if (currentUser) await loadMessages(currentUser);
+      else setMessages([]);
+      setLoading(false);
+    });
 
-        setUser(currentUser);
-
-        if (currentUser) {
-          await loadMessages(currentUser);
-        } else {
-          setMessages([]);
-        }
-
-        setLoading(false);
-      }
-    );
-
-    const onStorage = async (e: StorageEvent) => {
-      if (!String(e.key || "").includes("supabase")) return;
-
+    const onStorage = async (event: StorageEvent) => {
+      if (!String(event.key || "").includes("supabase")) return;
       const {
         data: { session },
       } = await sb.auth.getSession();
-
       const currentUser = session?.user ?? null;
       if (!mounted) return;
-
       setUser(currentUser);
-
-      if (currentUser) {
-        await loadMessages(currentUser);
-      } else {
-        setMessages([]);
-      }
+      if (currentUser) await loadMessages(currentUser);
+      else setMessages([]);
     };
 
     window.addEventListener("storage", onStorage);
@@ -97,9 +85,9 @@ export default function PortalMessagesPage() {
     };
   }, []);
 
-  async function loadMessages(currUser: any) {
-    const email = String(currUser?.email || "").trim().toLowerCase();
-    const uid = currUser?.id as string | undefined;
+  async function loadMessages(currentUser: User) {
+    const email = String(currentUser.email || "").trim().toLowerCase();
+    const uid = currentUser.id;
 
     try {
       let loadedMessages: PortalMessage[] = [];
@@ -113,8 +101,6 @@ export default function PortalMessagesPage() {
 
         if (!byUserId.error && byUserId.data?.length) {
           loadedMessages = byUserId.data as PortalMessage[];
-        } else if (byUserId.error) {
-          console.warn("portal_messages by user_id failed:", byUserId.error.message);
         }
       }
 
@@ -127,12 +113,10 @@ export default function PortalMessagesPage() {
 
         if (!byUserEmail.error && byUserEmail.data?.length) {
           loadedMessages = byUserEmail.data as PortalMessage[];
-        } else if (byUserEmail.error) {
-          console.warn("portal_messages by user_email failed:", byUserEmail.error.message);
         }
       }
 
-      setMessages(loadedMessages || []);
+      setMessages(loadedMessages);
     } catch (error) {
       console.error("loadMessages failed:", error);
       setMessages([]);
@@ -141,9 +125,7 @@ export default function PortalMessagesPage() {
 
   async function handleSendMessage(e: React.FormEvent) {
     e.preventDefault();
-
     if (!user) return;
-
     if (!message.trim()) {
       setStatusText("Please enter a message.");
       return;
@@ -184,43 +166,32 @@ export default function PortalMessagesPage() {
     await loadMessages(user);
   }
 
-  async function handleSignOut() {
-    await sb.auth.signOut();
-    setUser(null);
-    setMessages([]);
-  }
-
   const groupedMessages = useMemo(() => {
     const sorted = [...messages].sort(
       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
 
     const groups: { key: string; items: PortalMessage[] }[] = [];
-
-    for (const msg of sorted) {
-      const d = new Date(msg.created_at).toLocaleDateString("en-US", {
+    for (const entry of sorted) {
+      const key = new Date(entry.created_at).toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
         year: "numeric",
       });
-
       const last = groups[groups.length - 1];
-      if (!last || last.key !== d) {
-        groups.push({ key: d, items: [msg] });
-      } else {
-        last.items.push(msg);
-      }
+      if (!last || last.key !== key) groups.push({ key, items: [entry] });
+      else last.items.push(entry);
     }
 
     return groups;
   }, [messages]);
 
+  const adminMessages = messages.filter((entry) => entry.sender === "admin").length;
+  const userMessages = messages.filter((entry) => entry.sender === "user").length;
+  const unreadByUser = messages.filter((entry) => entry.sender === "admin" && !entry.read_by_user).length;
+
   if (loading) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-brand-50 italic">
-        Loading Messages...
-      </div>
-    );
+    return <div className="py-20 text-center text-sm font-semibold text-[#7b5f46]">Loading messages...</div>;
   }
 
   if (!user) {
@@ -228,252 +199,221 @@ export default function PortalMessagesPage() {
   }
 
   return (
-    <div className="min-h-screen text-brand-900 bg-brand-50">
-      <main className="relative flex flex-col bg-texturePaper">
-        <div className="w-full max-w-[1600px] mx-auto p-6 md:p-10 lg:p-12">
-          <div className="space-y-8 pb-14">
-            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
+    <div className="space-y-6 pb-14">
+      <PortalPageHero
+        eyebrow="Messages"
+        title="A private conversation space for your puppy journey."
+        description="Use Messages for questions, breeder updates, logistics, and ongoing support before go-home day and afterward."
+        actions={
+          <>
+            <PortalHeroPrimaryAction href="/portal/mypuppy">Open My Puppy</PortalHeroPrimaryAction>
+            <PortalHeroSecondaryAction href="/portal/documents">Open Documents</PortalHeroSecondaryAction>
+          </>
+        }
+        aside={
+          <div className="space-y-4">
+            <PortalInfoTile
+              label="Portal Email"
+              value={user.email || "No email on file"}
+              detail="Messages sent here stay connected to your portal account."
+            />
+            <PortalInfoTile
+              label="Unread From Breeder"
+              value={String(unreadByUser)}
+              detail="New breeder replies you may want to review."
+            />
+          </div>
+        }
+      />
+
+      <PortalMetricGrid>
+        <PortalMetricCard label="Total Messages" value={String(messages.length)} detail="Every saved portal message in this conversation." />
+        <PortalMetricCard label="From Breeder" value={String(adminMessages)} detail="Messages sent from Southwest Virginia Chihuahua." accent="from-[#dce9d6] via-[#b6cfaa] to-[#7e9c6f]" />
+        <PortalMetricCard label="From You" value={String(userMessages)} detail="Messages you have sent through the portal." accent="from-[#ece3d5] via-[#d7c1a3] to-[#b18d62]" />
+        <PortalMetricCard label="Unread" value={String(unreadByUser)} detail="Breeder replies still marked unread on your side." accent="from-[#f0dcc1] via-[#ddb68c] to-[#c98743]" />
+      </PortalMetricGrid>
+
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="space-y-6">
+          <PortalPanel title="Send a Message" subtitle="Use this form whenever you need an update, want to confirm details, or need help with your account.">
+            <form onSubmit={handleSendMessage} className="space-y-4">
               <div>
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/70 border border-brand-200 shadow-paper">
-                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-                    Messages
-                  </span>
-                  <span className="w-1 h-1 rounded-full bg-brand-300" />
-                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-                    Southwest Virginia Chihuahua
-                  </span>
+                <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.2em] text-[#a47946]">
+                  Subject
+                </label>
+                <input
+                  type="text"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  placeholder="Optional subject"
+                  className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.2em] text-[#a47946]">
+                  Message
+                </label>
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  rows={8}
+                  placeholder="Write your message here..."
+                  className="w-full resize-none rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+                  required
+                />
+              </div>
+
+              {statusText ? (
+                <div className="rounded-[18px] border border-[#ead9c7] bg-[#fff9f2] px-4 py-3 text-sm text-[#7a5a3a]">
+                  {statusText}
                 </div>
+              ) : null}
 
-                <h2 className="mt-5 font-serif text-4xl md:text-5xl font-bold text-brand-900 leading-[0.95]">
-                  Your Messages
-                </h2>
+              <button
+                type="submit"
+                disabled={sending}
+                className="w-full rounded-[18px] bg-[#6b4d33] px-5 py-4 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-[0_14px_30px_rgba(88,63,37,0.18)] transition hover:bg-[#5b412c] disabled:opacity-60"
+              >
+                {sending ? "Sending..." : "Send Message"}
+              </button>
+            </form>
+          </PortalPanel>
 
-                <p className="mt-2 text-brand-500 font-semibold">
-                  Send updates or questions to the breeder and review your conversation history.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.18em] bg-white border border-brand-200 text-brand-700">
-                  Total: {messages.length}
-                </span>
-                <button
-                  onClick={handleRefresh}
-                  className="px-5 py-3 bg-white border border-brand-200 text-brand-800 font-black text-xs uppercase tracking-[0.18em] rounded-xl hover:bg-brand-50 transition shadow-paper"
-                >
-                  Refresh
-                </button>
-                <button
-                  onClick={handleSignOut}
-                  className="px-5 py-3 bg-white border border-brand-200 text-brand-800 font-black text-xs uppercase tracking-[0.18em] rounded-xl hover:bg-brand-50 transition shadow-paper"
-                >
-                  Sign Out
-                </button>
-              </div>
+          <PortalPanel title="Conversation Tips" subtitle="A simple rhythm helps these conversations stay efficient and easy to track.">
+            <div className="space-y-4">
+              <PortalInfoTile
+                label="Use clear subjects"
+                value="Keep topics easy to spot"
+                detail="A short subject helps when you return to earlier messages later."
+              />
+              <PortalInfoTile
+                label="Ask here first"
+                value="Keep support organized"
+                detail="Using the portal keeps your puppy questions, updates, and breeder replies together."
+              />
             </div>
+          </PortalPanel>
+        </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-              <div className="xl:col-span-4">
-                <div className="card-luxury p-7 sticky top-6">
-                  <div className="flex items-center justify-between gap-3 mb-5">
-                    <h3 className="font-serif text-2xl font-bold text-brand-900">
-                      Send Message
-                    </h3>
-                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-400">
-                      Portal Support
+        <PortalPanel
+          title="Conversation"
+          subtitle="Your portal conversation history is collected here so you can follow updates without digging through texts or emails."
+          actionHref="#"
+          actionLabel="Refresh"
+        >
+          <div className="mb-5">
+            <button
+              type="button"
+              onClick={handleRefresh}
+              className="inline-flex rounded-full border border-[#e5d2bc] bg-[#fff9f2] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#b8772f] transition hover:border-[#d8b48b]"
+            >
+              Refresh Conversation
+            </button>
+          </div>
+
+          {!messages.length ? (
+            <PortalEmptyState
+              title="No messages yet"
+              description="Send your first message here whenever you need an update, want to confirm a detail, or have a question about your puppy journey."
+            />
+          ) : (
+            <div className="space-y-8">
+              {groupedMessages.map((group) => (
+                <div key={group.key}>
+                  <div className="mb-4">
+                    <span className="inline-flex rounded-full border border-[#ead9c7] bg-[#fff9f2] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#a47946]">
+                      {group.key}
                     </span>
                   </div>
 
-                  <form onSubmit={handleSendMessage} className="space-y-4">
-                    <div>
-                      <label className="block text-[10px] font-black uppercase tracking-[0.18em] text-brand-500 mb-2">
-                        Subject
-                      </label>
-                      <input
-                        type="text"
-                        value={subject}
-                        onChange={(e) => setSubject(e.target.value)}
-                        placeholder="Optional subject"
-                        className="w-full rounded-xl border border-brand-200 bg-white px-4 py-3 text-sm text-brand-900 outline-none"
-                      />
-                    </div>
+                  <div className="space-y-4">
+                    {group.items.map((entry) => {
+                      const isAdmin = entry.sender === "admin";
+                      return (
+                        <div
+                          key={entry.id}
+                          className={`flex ${isAdmin ? "justify-start" : "justify-end"}`}
+                        >
+                          <div
+                            className={[
+                              "max-w-[85%] rounded-[28px] border px-5 py-4 shadow-[0_10px_24px_rgba(106,76,45,0.05)]",
+                              isAdmin
+                                ? "border-[#ead9c7] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] text-[#2f2218]"
+                                : "border-[#d8c2a8] bg-[linear-gradient(180deg,#6b4d33_0%,#5a3f2d_100%)] text-white",
+                            ].join(" ")}
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div
+                                className={`text-[10px] font-semibold uppercase tracking-[0.18em] ${
+                                  isAdmin ? "text-[#a47946]" : "text-white/70"
+                                }`}
+                              >
+                                {isAdmin ? "Southwest Virginia Chihuahua" : "You"}
+                              </div>
+                              <div
+                                className={`text-[10px] ${isAdmin ? "text-[#8d6f52]" : "text-white/60"}`}
+                              >
+                                {new Date(entry.created_at).toLocaleString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "numeric",
+                                  minute: "2-digit",
+                                })}
+                              </div>
+                            </div>
 
-                    <div>
-                      <label className="block text-[10px] font-black uppercase tracking-[0.18em] text-brand-500 mb-2">
-                        Message
-                      </label>
-                      <textarea
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                        rows={7}
-                        placeholder="Write your message here..."
-                        className="w-full rounded-xl border border-brand-200 bg-white px-4 py-3 text-sm text-brand-900 outline-none resize-none"
-                        required
-                      />
-                    </div>
+                            {entry.subject ? (
+                              <div className={`mt-2 text-sm font-semibold ${isAdmin ? "text-[#2f2218]" : "text-white"}`}>
+                                {entry.subject}
+                              </div>
+                            ) : null}
 
-                    {statusText ? (
-                      <div className="text-sm font-semibold text-brand-600">{statusText}</div>
-                    ) : null}
+                            <div className={`mt-3 whitespace-pre-wrap text-sm leading-7 ${isAdmin ? "text-[#73583f]" : "text-white/92"}`}>
+                              {entry.message}
+                            </div>
 
-                    <button
-                      type="submit"
-                      disabled={sending}
-                      className="w-full px-6 py-3 rounded-xl bg-brand-800 text-white font-black text-xs uppercase tracking-[0.18em] hover:bg-brand-700 transition shadow-lift disabled:opacity-60"
-                    >
-                      {sending ? "Sending..." : "Send Message"}
-                    </button>
-                  </form>
-
-                  <div className="mt-5 p-4 rounded-2xl bg-white/60 border border-brand-200">
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-                      Account
-                    </div>
-                    <div className="mt-1 text-sm font-black text-brand-900 break-all">
-                      {user.email}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="xl:col-span-8">
-                <div className="card-luxury p-7">
-                  <div className="flex items-center justify-between gap-3 mb-6">
-                    <h3 className="font-serif text-2xl font-bold text-brand-900">
-                      Conversation
-                    </h3>
-                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-400">
-                      Latest first in database
-                    </span>
-                  </div>
-
-                  {!messages.length ? (
-                    <div className="text-center py-16">
-                      <div className="w-16 h-16 bg-brand-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl border border-brand-200">
-                        💬
-                      </div>
-                      <h4 className="font-serif text-3xl font-bold text-brand-800">
-                        No Messages Yet
-                      </h4>
-                      <p className="text-brand-500 mt-3 max-w-md mx-auto text-sm font-semibold leading-relaxed">
-                        Send your first message to get in touch with the breeder through the portal.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-8">
-                      {groupedMessages.map((group) => (
-                        <div key={group.key}>
-                          <div className="sticky top-0 z-10 mb-4">
-                            <span className="inline-flex px-3 py-1 rounded-full bg-brand-100 border border-brand-200 text-[10px] font-black uppercase tracking-[0.18em] text-brand-600">
-                              {group.key}
-                            </span>
-                          </div>
-
-                          <div className="space-y-4">
-                            {group.items.map((m) => {
-                              const isAdmin = m.sender === "admin";
-
-                              return (
-                                <div
-                                  key={m.id}
-                                  className={`flex ${isAdmin ? "justify-start" : "justify-end"}`}
-                                >
-                                  <div
-                                    className={`max-w-[85%] rounded-3xl px-5 py-4 border shadow-paper ${
-                                      isAdmin
-                                        ? "bg-white border-brand-200 text-brand-900"
-                                        : "bg-brand-800 border-brand-800 text-white"
-                                    }`}
-                                  >
-                                    <div className="flex items-center justify-between gap-4 mb-2">
-                                      <div
-                                        className={`text-[10px] font-black uppercase tracking-[0.18em] ${
-                                          isAdmin ? "text-brand-500" : "text-white/70"
-                                        }`}
-                                      >
-                                        {isAdmin ? "Support" : "You"}
-                                      </div>
-
-                                      <div
-                                        className={`text-[10px] font-semibold ${
-                                          isAdmin ? "text-brand-400" : "text-white/60"
-                                        }`}
-                                      >
-                                        {new Date(m.created_at).toLocaleString("en-US", {
-                                          month: "short",
-                                          day: "numeric",
-                                          hour: "numeric",
-                                          minute: "2-digit",
-                                        })}
-                                      </div>
-                                    </div>
-
-                                    {m.subject ? (
-                                      <div
-                                        className={`text-xs font-black mb-2 ${
-                                          isAdmin ? "text-brand-800" : "text-white"
-                                        }`}
-                                      >
-                                        {m.subject}
-                                      </div>
-                                    ) : null}
-
-                                    <div
-                                      className={`text-sm leading-relaxed font-semibold whitespace-pre-wrap ${
-                                        isAdmin ? "text-brand-800" : "text-white"
-                                      }`}
-                                    >
-                                      {m.message}
-                                    </div>
-
-                                    <div className="mt-3 flex items-center gap-2 flex-wrap">
-                                      <span
-                                        className={`inline-flex px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.18em] ${
-                                          isAdmin
-                                            ? "bg-brand-50 text-brand-600 border border-brand-200"
-                                            : "bg-white/10 text-white border border-white/20"
-                                        }`}
-                                      >
-                                        {m.status || "open"}
-                                      </span>
-
-                                      {!isAdmin ? (
-                                        <span
-                                          className={`inline-flex px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.18em] ${
-                                            m.read_by_admin
-                                              ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
-                                              : "bg-amber-100 text-amber-700 border border-amber-200"
-                                          }`}
-                                        >
-                                          {m.read_by_admin ? "Read by admin" : "Unread by admin"}
-                                        </span>
-                                      ) : (
-                                        <span
-                                          className={`inline-flex px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.18em] ${
-                                            m.read_by_user
-                                              ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
-                                              : "bg-amber-100 text-amber-700 border border-amber-200"
-                                          }`}
-                                        >
-                                          {m.read_by_user ? "Read by you" : "Unread by you"}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              <span
+                                className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${
+                                  isAdmin
+                                    ? "border border-[#ead9c7] bg-white text-[#8d6f52]"
+                                    : "border border-white/15 bg-white/10 text-white"
+                                }`}
+                              >
+                                {entry.status || "open"}
+                              </span>
+                              <span
+                                className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${
+                                  isAdmin
+                                    ? entry.read_by_user
+                                      ? "border border-[#d5e3ce] bg-[#f6fbf2] text-[#6d8a5d]"
+                                      : "border border-[#f0deb7] bg-[#fff8e8] text-[#b37a2d]"
+                                    : entry.read_by_admin
+                                      ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                                      : "border border-amber-200 bg-amber-50 text-amber-700"
+                                }`}
+                              >
+                                {isAdmin
+                                  ? entry.read_by_user
+                                    ? "Read by you"
+                                    : "Unread by you"
+                                  : entry.read_by_admin
+                                    ? "Read by breeder"
+                                    : "Unread by breeder"}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
-          </div>
-        </div>
-      </main>
+          )}
+        </PortalPanel>
+      </section>
     </div>
   );
 }
@@ -484,54 +424,47 @@ function MessagesLogin() {
 
   const login = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    const { error } = await sb.auth.signInWithPassword({
-      email,
-      password: pass,
-    });
-
+    const { error } = await sb.auth.signInWithPassword({ email, password: pass });
     if (error) alert(error.message);
   };
 
   return (
-    <div className="h-screen flex items-center justify-center bg-brand-50 p-6">
-      <div className="card-luxury shine p-10 w-full max-w-md border border-white">
-        <h2 className="font-serif text-4xl font-bold text-center mb-8">
-          Welcome Home
-        </h2>
+    <div className="grid min-h-[80vh] grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+      <section className="overflow-hidden rounded-[36px] border border-[#e2d4c5] bg-[linear-gradient(135deg,#fff8f1_0%,#f8efe4_55%,#efe2d2_100%)] shadow-[0_26px_70px_rgba(88,63,37,0.10)]">
+        <div className="px-7 py-8 md:px-10 md:py-10 lg:px-14 lg:py-14">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[#dcc6ad] bg-white/70 px-4 py-2 shadow-sm">
+            <span className="text-[10px] font-black uppercase tracking-[0.22em] text-[#a47946]">Portal Messages</span>
+          </div>
+          <div className="mt-10 max-w-3xl">
+            <h1 className="font-serif text-5xl font-bold leading-[0.95] text-[#3e2a1f] md:text-6xl">Welcome to your private conversation space.</h1>
+            <p className="mt-6 max-w-2xl text-[17px] font-semibold leading-8 text-[#7a5a3a]">
+              Sign in to review breeder updates and send questions through the portal instead of searching through email and text threads.
+            </p>
+          </div>
+        </div>
+      </section>
 
-        <form onSubmit={login} className="space-y-5">
-          <div>
-            <label className="text-[10px] font-black uppercase text-brand-500 mb-1 block">
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-3 rounded-xl border border-brand-200"
-              required
-            />
+      <section className="overflow-hidden rounded-[36px] border border-[#ead9c7] bg-white shadow-[0_30px_80px_rgba(88,63,37,0.10)]">
+        <div className="px-7 py-8 md:px-10 md:py-10">
+          <div className="mb-8">
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#b08251]">Portal Messages Access</div>
+            <h2 className="mt-3 font-serif text-4xl font-bold leading-none text-[#3e2a1f]">Sign in</h2>
+            <p className="mt-3 text-sm font-semibold leading-7 text-[#8a6a49]">Enter your portal login to continue your conversation.</p>
           </div>
 
-          <div>
-            <label className="text-[10px] font-black uppercase text-brand-500 mb-1 block">
-              Password
-            </label>
-            <input
-              type="password"
-              value={pass}
-              onChange={(e) => setPass(e.target.value)}
-              className="w-full p-3 rounded-xl border border-brand-200"
-              required
-            />
-          </div>
-
-          <button className="w-full bg-brand-800 text-white p-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lift">
-            Sign In
-          </button>
-        </form>
-      </div>
+          <form onSubmit={login} className="space-y-5">
+            <div>
+              <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-[#a47946]">Email</label>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]" required />
+            </div>
+            <div>
+              <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-[#a47946]">Password</label>
+              <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]" required />
+            </div>
+            <button className="w-full rounded-[18px] bg-[#6b4d33] px-5 py-4 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-[0_14px_30px_rgba(88,63,37,0.18)] transition hover:bg-[#5b412c]">Sign In</button>
+          </form>
+        </div>
+      </section>
     </div>
   );
 }

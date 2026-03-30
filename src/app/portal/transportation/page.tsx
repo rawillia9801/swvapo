@@ -1,19 +1,18 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  CalendarDays,
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  Dog,
-  Printer,
-  RefreshCw,
-  ShieldCheck,
-  Truck,
-} from "lucide-react";
+import type { User } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 import { sb } from "@/lib/utils";
+import {
+  PortalHeroPrimaryAction,
+  PortalHeroSecondaryAction,
+  PortalInfoTile,
+  PortalMetricCard,
+  PortalMetricGrid,
+  PortalPageHero,
+  PortalPanel,
+} from "@/components/portal/luxury-shell";
 
 type PickupRequestStatus =
   | "pending"
@@ -45,11 +44,6 @@ type BuyerLike = {
   assigned_puppy_id?: number | null;
   selected_puppy_id?: number | null;
   puppyId?: number | null;
-};
-
-type PortalUser = {
-  id: string;
-  email?: string | null;
 };
 
 type QueryFilter = {
@@ -96,7 +90,7 @@ function isoFromParts(year: number, month1: number, day: number) {
 }
 
 function formatDate(iso?: string | null) {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const dt = new Date(`${iso}T00:00:00`);
   return dt.toLocaleDateString("en-US", {
     month: "short",
@@ -110,11 +104,31 @@ function todayIso() {
 }
 
 function formatMoney(value: number | null | undefined) {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) return "—";
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
   return Number(value).toLocaleString("en-US", {
     style: "currency",
     currency: "USD",
   });
+}
+
+function formatRequestType(value: PickupRequestType | "" | null | undefined) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return "-";
+  if (normalized === "dropoff") return "Drop-off";
+  if (normalized === "transportation") return "Transportation";
+  if (normalized === "pickup") return "Pickup";
+  if (normalized === "meet") return "Meet-up";
+  return normalized.replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
+function formatRequestStatus(value: string | null | undefined) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return "Pending";
+  if (normalized === "approved") return "Approved";
+  if (normalized === "declined") return "Declined";
+  if (normalized === "cancelled") return "Cancelled";
+  if (normalized === "completed") return "Completed";
+  return normalized.replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
 function calculateTransportEstimate(
@@ -171,7 +185,7 @@ function calculateTransportEstimate(
     const rawFee = billableMiles * RATE_PER_MILE;
     const fee = Math.max(MINIMUM_DELIVERY_FEE, rawFee);
 
-    let detail = `${billableMiles.toFixed(1).replace(/\.0$/, "")} billable one-way miles × ${formatMoney(
+    let detail = `${billableMiles.toFixed(1).replace(/\.0$/, "")} billable one-way miles x ${formatMoney(
       RATE_PER_MILE
     )} = ${formatMoney(rawFee)}. Minimum fee policy applies beyond ${FREE_MILES_ONE_WAY} miles.`;
 
@@ -188,35 +202,31 @@ function calculateTransportEstimate(
 
   return {
     fee: null,
-    label: "—",
+    label: "-",
     detail: "Select a request type to see how pricing applies.",
   };
 }
 
 const inputClass =
-  "w-full rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:ring-4 focus:ring-slate-200/60";
+  "w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none transition focus:border-[#c8a884]";
 
 export default function PortalTransportationPage() {
   const router = useRouter();
 
-  const [user, setUser] = useState<PortalUser | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-
   const [puppyId, setPuppyId] = useState<number | null>(null);
   const [puppyMeta, setPuppyMeta] = useState<PuppyMeta | null>(null);
-
   const [month, setMonth] = useState<Date>(firstOfMonth(new Date()));
   const [blockedDates, setBlockedDates] = useState<Set<string>>(new Set());
   const [selectedDate, setSelectedDate] = useState("");
-
   const [requestType, setRequestType] = useState<PickupRequestType | "">("");
   const [miles, setMiles] = useState("");
   const [locationText, setLocationText] = useState("");
   const [addressText, setAddressText] = useState("");
   const [notes, setNotes] = useState("");
   const [latestRequest, setLatestRequest] = useState<PickupRequestRow | null>(null);
-
   const [alertText, setAlertText] = useState("");
   const [successText, setSuccessText] = useState("");
 
@@ -229,8 +239,7 @@ export default function PortalTransportationPage() {
           data: { session },
         } = await sb.auth.getSession();
 
-        const currentUser = (session?.user as PortalUser) ?? null;
-
+        const currentUser = session?.user ?? null;
         if (!mounted) return;
 
         if (!currentUser) {
@@ -242,7 +251,6 @@ export default function PortalTransportationPage() {
 
         const resolvedPuppyId = await resolveAssignedPuppyId(currentUser);
         if (!mounted) return;
-
         setPuppyId(resolvedPuppyId);
 
         if (resolvedPuppyId) {
@@ -258,11 +266,11 @@ export default function PortalTransportationPage() {
       }
     };
 
-    boot();
+    void boot();
 
     const { data: authListener } = sb.auth.onAuthStateChange(
       async (_event, session) => {
-        const currentUser = (session?.user as PortalUser) ?? null;
+        const currentUser = session?.user ?? null;
         if (!mounted) return;
 
         if (!currentUser) {
@@ -279,14 +287,11 @@ export default function PortalTransportationPage() {
       mounted = false;
       authListener.subscription.unsubscribe();
     };
-    // We intentionally subscribe once on mount and refresh state from auth callbacks.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // We only need the initial auth bootstrap and router redirect wiring here.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
-  async function safeSelectFirst(
-    table: string,
-    filters: QueryFilter[]
-  ) {
+  async function safeSelectFirst(table: string, filters: QueryFilter[]) {
     try {
       let query = sb.from(table).select("*").limit(1);
       for (const filter of filters) {
@@ -300,14 +305,11 @@ export default function PortalTransportationPage() {
     }
   }
 
-  async function resolveAssignedPuppyId(currUser: PortalUser) {
-    const uid = currUser.id;
-    const email = String(currUser.email || "").toLowerCase();
+  async function resolveAssignedPuppyId(currentUser: User) {
+    const uid = currentUser.id;
+    const email = String(currentUser.email || "").toLowerCase();
 
-    const candidates: Array<{
-      table: string;
-      filters: QueryFilter[];
-    }> = [
+    const candidates: Array<{ table: string; filters: QueryFilter[] }> = [
       { table: "bp_buyers", filters: [{ col: "user_id", value: uid }] },
       { table: "bp_buyers", filters: [{ col: "email", value: email }] },
       { table: "buyers", filters: [{ col: "user_id", value: uid }] },
@@ -320,11 +322,7 @@ export default function PortalTransportationPage() {
     ];
 
     for (const candidate of candidates) {
-      const row = (await safeSelectFirst(
-        candidate.table,
-        candidate.filters
-      )) as BuyerLike | null;
-
+      const row = (await safeSelectFirst(candidate.table, candidate.filters)) as BuyerLike | null;
       if (!row) continue;
 
       const pid =
@@ -333,46 +331,38 @@ export default function PortalTransportationPage() {
         row.selected_puppy_id ??
         row.puppyId;
 
-   if (pid !== null && pid !== undefined) {
+      if (pid !== null && pid !== undefined) {
         return Number(pid);
       }
     }
 
     return null;
   }
-async function fetchPuppyMeta(id: number): Promise<PuppyMeta> {
-  const tryQueries = [
-    "id,call_name,name,sex,dob,status",
-    "id,name,status",
-    "id",
-  ];
 
-  for (const query of tryQueries) {
-    try {
-      const { data, error } = await sb
-        .from("puppies")
-        .select(query)
-        .eq("id", id)
-        .limit(1);
+  async function fetchPuppyMeta(id: number): Promise<PuppyMeta> {
+    const tryQueries = ["id,call_name,name,sex,dob,status", "id,name,status", "id"];
 
-      if (error || !data?.[0]) continue;
-const row = data[0] as unknown as Record<string, unknown>;
-      if (typeof row.id === "number") {
-        return {
-          id: row.id,
-          call_name:
-            typeof row.call_name === "string" ? row.call_name : null,
-          name: typeof row.name === "string" ? row.name : null,
-          sex: typeof row.sex === "string" ? row.sex : null,
-          dob: typeof row.dob === "string" ? row.dob : null,
-          status: typeof row.status === "string" ? row.status : null,
-        };
-      }
-    } catch {}
+    for (const query of tryQueries) {
+      try {
+        const { data, error } = await sb.from("puppies").select(query).eq("id", id).limit(1);
+        if (error || !data?.[0]) continue;
+
+        const row = data[0] as unknown as Record<string, unknown>;
+        if (typeof row.id === "number") {
+          return {
+            id: row.id,
+            call_name: typeof row.call_name === "string" ? row.call_name : null,
+            name: typeof row.name === "string" ? row.name : null,
+            sex: typeof row.sex === "string" ? row.sex : null,
+            dob: typeof row.dob === "string" ? row.dob : null,
+            status: typeof row.status === "string" ? row.status : null,
+          };
+        }
+      } catch {}
+    }
+
+    return { id };
   }
-
-  return { id };
-}
 
   async function loadBlockedDates(targetMonth: Date) {
     const year = targetMonth.getFullYear();
@@ -392,7 +382,7 @@ const row = data[0] as unknown as Record<string, unknown>;
       if (error) throw error;
 
       const next = new Set<string>();
-      ((data as RequestDateRow[] | null) || []).forEach((row) => {
+      (((data as RequestDateRow[] | null) || [])).forEach((row) => {
         if (row.request_date) next.add(row.request_date);
       });
 
@@ -423,14 +413,7 @@ const row = data[0] as unknown as Record<string, unknown>;
     }
   }
 
-  async function refreshAll() {
-    setAlertText("");
-    setSuccessText("");
-    await loadBlockedDates(month);
-    if (user) await loadLatestRequest(user);
-  }
-
-  async function loadLatestRequest(currentUser: PortalUser) {
+  async function loadLatestRequest(currentUser: User) {
     try {
       const { data, error } = await sb
         .from("portal_pickup_requests")
@@ -459,18 +442,22 @@ const row = data[0] as unknown as Record<string, unknown>;
 
     const parts: string[] = [];
     if (puppyMeta?.sex) parts.push(puppyMeta.sex);
-    if (puppyMeta?.dob) {
-      parts.push(`DOB ${formatDate(String(puppyMeta.dob).slice(0, 10))}`);
-    }
-    if (puppyMeta?.status) parts.push(puppyMeta.status);
+    if (puppyMeta?.dob) parts.push(`DOB ${formatDate(String(puppyMeta.dob).slice(0, 10))}`);
 
-    return parts.length ? parts.join(" • ") : "Puppy assignment found.";
-  }, [puppyMeta, puppyId]);
+    const buyerStatus = String(puppyMeta?.status || "").toLowerCase();
+    if (buyerStatus.includes("sold") || buyerStatus.includes("reserved") || buyerStatus.includes("assigned")) {
+      parts.push("Matched");
+    } else if (puppyMeta?.status) {
+      parts.push(puppyMeta.status);
+    }
+
+    return parts.length ? parts.join(" - ") : "Puppy assignment found.";
+  }, [puppyId, puppyMeta]);
 
   const selectedAvailability = useMemo(() => {
     if (!selectedDate) {
       return {
-        title: "—",
+        title: "-",
         hint: "Blocked days are not selectable.",
       };
     }
@@ -478,7 +465,7 @@ const row = data[0] as unknown as Record<string, unknown>;
     if (blockedDates.has(selectedDate)) {
       return {
         title: "Blocked",
-        hint: "That date already has a request. Please choose another day.",
+        hint: "That day already has a request on file.",
       };
     }
 
@@ -488,14 +475,14 @@ const row = data[0] as unknown as Record<string, unknown>;
     };
   }, [blockedDates, selectedDate]);
 
-  const showMeetDropFields =
-    requestType === "meet" || requestType === "dropoff";
-
+  const showMeetDropFields = requestType === "meet" || requestType === "dropoff";
   const showTransportationFields = requestType === "transportation";
+
   const requestEstimate = useMemo(
     () => calculateTransportEstimate(requestType, miles),
-    [requestType, miles]
+    [miles, requestType]
   );
+
   const currentRequestEstimate = useMemo(
     () =>
       latestRequest
@@ -507,11 +494,7 @@ const row = data[0] as unknown as Record<string, unknown>;
   const calendarDays = useMemo(() => {
     const first = new Date(month.getFullYear(), month.getMonth(), 1);
     const firstDayOfWeek = first.getDay();
-    const daysInMonth = new Date(
-      month.getFullYear(),
-      month.getMonth() + 1,
-      0
-    ).getDate();
+    const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
 
     const cells: Array<
       | { type: "blank"; key: string }
@@ -526,13 +509,13 @@ const row = data[0] as unknown as Record<string, unknown>;
         }
     > = [];
 
-    for (let i = 0; i < firstDayOfWeek; i++) {
+    for (let i = 0; i < firstDayOfWeek; i += 1) {
       cells.push({ type: "blank", key: `blank-${i}` });
     }
 
     const today = todayIso();
 
-    for (let day = 1; day <= daysInMonth; day++) {
+    for (let day = 1; day <= daysInMonth; day += 1) {
       const iso = isoFromParts(month.getFullYear(), month.getMonth() + 1, day);
       cells.push({
         type: "day",
@@ -546,7 +529,7 @@ const row = data[0] as unknown as Record<string, unknown>;
     }
 
     return cells;
-  }, [month, blockedDates, selectedDate]);
+  }, [blockedDates, month, selectedDate]);
 
   async function handleDayClick(iso: string) {
     setAlertText("");
@@ -557,9 +540,7 @@ const row = data[0] as unknown as Record<string, unknown>;
       await loadBlockedDates(month);
       if (user) await loadLatestRequest(user);
       setSelectedDate("");
-      setAlertText(
-        "That day was just taken by another client. Please choose another day."
-      );
+      setAlertText("That day was just taken by another client. Please choose another day.");
       return;
     }
 
@@ -568,7 +549,6 @@ const row = data[0] as unknown as Record<string, unknown>;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-
     if (!user) return;
 
     setAlertText("");
@@ -585,7 +565,7 @@ const row = data[0] as unknown as Record<string, unknown>;
     }
 
     if (blockedDates.has(selectedDate)) {
-      setAlertText("That date is already blocked. Please choose another day.");
+      setAlertText("That day is already blocked. Please choose another day.");
       return;
     }
 
@@ -605,13 +585,10 @@ const row = data[0] as unknown as Record<string, unknown>;
 
     try {
       const stillAvailable = await checkDateAvailable(selectedDate);
-
       if (!stillAvailable) {
         await loadBlockedDates(month);
         setSelectedDate("");
-        setAlertText(
-          "That day was just taken by another client. Please choose another day."
-        );
+        setAlertText("That day was just taken by another client. Please choose another day.");
         setBusy(false);
         return;
       }
@@ -627,13 +604,10 @@ const row = data[0] as unknown as Record<string, unknown>;
         notes: notes.trim() || null,
       };
 
-      const { error } = await sb
-        .from("portal_pickup_requests")
-        .insert(payload);
+      const { error } = await sb.from("portal_pickup_requests").insert(payload);
 
       if (error) {
         const message = String(error.message || "").toLowerCase();
-
         if (
           message.includes("duplicate") ||
           message.includes("unique") ||
@@ -641,18 +615,14 @@ const row = data[0] as unknown as Record<string, unknown>;
         ) {
           await loadBlockedDates(month);
           setSelectedDate("");
-          throw new Error(
-            "That day was just taken by another client. Please choose another day."
-          );
+          throw new Error("That day was just taken by another client. Please choose another day.");
         }
-
         throw error;
       }
 
       await loadBlockedDates(month);
-      setSuccessText(
-        "Request submitted. We’ll confirm details through Messages."
-      );
+      await loadLatestRequest(user);
+      setSuccessText("Request submitted. We'll confirm details through Messages.");
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : "Unable to submit the request.";
@@ -669,8 +639,8 @@ const row = data[0] as unknown as Record<string, unknown>;
 
   if (loading) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center rounded-[28px] border border-slate-200 bg-white px-6 py-16 text-slate-500 shadow-sm">
-        Loading transportation page...
+      <div className="py-20 text-center text-sm font-semibold text-[#7b5f46]">
+        Loading transportation details...
       </div>
     );
   }
@@ -680,512 +650,389 @@ const row = data[0] as unknown as Record<string, unknown>;
   }
 
   return (
-    <div className="space-y-6 pb-8">
-      <section className="overflow-hidden rounded-[32px] border border-white/10 bg-[linear-gradient(135deg,#0b1120_0%,#111827_45%,#172036_100%)] px-6 py-6 shadow-[0_30px_80px_rgba(2,6,23,0.42)] sm:px-8 sm:py-8">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-sky-200 shadow-sm">
-              <Truck className="h-4 w-4" />
-              Transporation
-            </div>
-
-            <h1 className="mt-4 font-serif text-3xl leading-tight text-white sm:text-5xl">
-              Pickup / Meet / Delivery Request
-            </h1>
-
-            <p className="mt-3 max-w-4xl text-sm font-medium leading-6 text-slate-300 sm:text-[15px]">
-              Use this page to request pickup at our location, a public meet-up,
-              a drop-off arrangement, or transportation planning for your puppy.
-            </p>
+    <div className="space-y-6 pb-14">
+      <PortalPageHero
+        eyebrow="Transporation"
+        title="Plan pickup, meet-up, delivery, or transportation with the same calm experience as the rest of your portal."
+        description="This page keeps scheduling organized before go-home day, while still staying useful afterward whenever travel details or handoff records need to be revisited."
+        actions={
+          <>
+            <PortalHeroPrimaryAction href="/portal/messages">Open Messages</PortalHeroPrimaryAction>
+            <PortalHeroSecondaryAction href="/portal/resources">Open Resources</PortalHeroSecondaryAction>
+          </>
+        }
+        aside={
+          <div className="space-y-4">
+            <PortalInfoTile
+              label="My Puppy"
+              value={puppyName}
+              detail={puppyMetaLine}
+            />
+            <PortalInfoTile
+              label="Current Estimate"
+              value={requestEstimate.label}
+              detail={requestEstimate.detail}
+            />
           </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={refreshAll}
-              className="inline-flex items-center gap-2 rounded-[16px] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-100 shadow-[0_16px_28px_rgba(2,6,23,0.18)] transition hover:bg-white/10"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Refresh
-            </button>
-
-            <button
-              onClick={() => window.print()}
-              className="inline-flex items-center gap-2 rounded-[16px] bg-[linear-gradient(135deg,#60a5fa_0%,#7c3aed_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_18px_32px_rgba(59,130,246,0.26)] transition hover:brightness-110"
-            >
-              <Printer className="h-4 w-4" />
-              Print
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-6 rounded-[26px] border border-emerald-400/20 bg-emerald-400/10 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-          <div className="flex items-start gap-4">
-            <div className="mt-0.5 flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-600 text-white">
-              <ShieldCheck className="h-5 w-5" />
-            </div>
-
-            <div className="min-w-0">
-              <h2 className="text-base font-bold text-slate-900">
-                Scheduling Policy
-              </h2>
-
-              <ul className="mt-3 space-y-2 text-sm font-medium leading-6 text-slate-700">
-                <li>
-                  Only <span className="font-bold">one request per day</span> is
-                  allowed across all portal clients.
-                </li>
-                <li>
-                  Your request is saved as <span className="font-bold">Pending</span>{" "}
-                  until we confirm final details.
-                </li>
-                <li>
-                  If plans change, please message us as soon as possible so we can
-                  help move you to another open date.
-                </li>
-                <li>
-                  Meet-up and drop-off requests may include a mileage-based travel fee.
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
-          <StatusCard
-            label="Assigned Puppy"
-            title={puppyName}
-            subtitle={puppyMetaLine}
-            icon={<Dog className="h-5 w-5" />}
-          />
-
-          <StatusCard
-            label="Selected Day"
-            title={selectedDate ? formatDate(selectedDate) : "—"}
-            subtitle={
-              selectedDate
-                ? "This date will be reserved if it is still available when submitted."
-                : "Choose a date from the calendar."
-            }
-            icon={<CalendarDays className="h-5 w-5" />}
-          />
-
-          <StatusCard
-            label="Availability"
-            title={selectedAvailability.title}
-            subtitle={selectedAvailability.hint}
-            icon={<CheckCircle2 className="h-5 w-5" />}
-          />
-
-          <StatusCard
-            label="Estimated Fee"
-            title={requestEstimate.label}
-            subtitle={requestEstimate.detail}
-            icon={<Truck className="h-5 w-5" />}
-          />
-        </div>
-      </section>
+        }
+      />
 
       {alertText ? (
-        <div className="rounded-[24px] border border-rose-200 bg-rose-50 px-5 py-4 text-sm font-semibold text-rose-800 shadow-sm">
+        <div className="rounded-[24px] border border-rose-200 bg-rose-50 px-5 py-4 text-sm font-semibold text-rose-800">
           {alertText}
         </div>
       ) : null}
 
       {successText ? (
-        <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-800 shadow-sm">
+        <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-800">
           {successText}
         </div>
       ) : null}
 
-      <section className="rounded-[32px] border border-[#dccab7] bg-white p-6 shadow-[0_24px_80px_rgba(36,24,15,0.10)] sm:p-7">
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-          <div className="space-y-4 xl:col-span-8">
-            <div>
-              <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
-                Current Request
-              </div>
-              <h2 className="mt-2 font-serif text-2xl text-slate-900">
-                Your latest transportation request
-              </h2>
-            </div>
+      <PortalPanel
+        title="Scheduling Policy"
+        subtitle="The calendar is designed to keep pickup and transportation requests orderly, fair, and easy to confirm."
+      >
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <PolicyCard
+            label="One Request Per Day"
+            value="Protected scheduling"
+            detail="Pending and approved requests block the day for other portal families."
+          />
+          <PolicyCard
+            label="Pickup"
+            value="No added fee"
+            detail="Pickup at our location does not include a transportation fee."
+          />
+          <PolicyCard
+            label="Meet / Drop-Off"
+            value="Mileage pricing"
+            detail="The first 50 miles are free. Beyond that, the mileage policy applies."
+          />
+          <PolicyCard
+            label="Transportation"
+            value="Custom quote"
+            detail="Flight nanny and courier arrangements are quoted separately and confirmed before scheduling."
+          />
+        </div>
+      </PortalPanel>
 
+      <PortalMetricGrid>
+        <PortalMetricCard
+          label="My Puppy"
+          value={puppyName}
+          detail={puppyMetaLine}
+          href="/portal/mypuppy"
+          actionLabel="Open My Puppy"
+        />
+        <PortalMetricCard
+          label="Selected Day"
+          value={selectedDate ? formatDate(selectedDate) : "-"}
+          detail={
+            selectedDate
+              ? "This day will be reserved if it is still available when submitted."
+              : "Choose a date from the calendar."
+          }
+        />
+        <PortalMetricCard
+          label="Availability"
+          value={selectedAvailability.title}
+          detail={selectedAvailability.hint}
+          accent="from-[#dce9d6] via-[#b6cfaa] to-[#7e9c6f]"
+        />
+        <PortalMetricCard
+          label="Estimated Fee"
+          value={requestEstimate.label}
+          detail={requestEstimate.detail}
+          accent="from-[#f0dcc1] via-[#ddb68c] to-[#c98743]"
+        />
+      </PortalMetricGrid>
+
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.15fr)_400px]">
+        <div className="space-y-6">
+          <PortalPanel
+            title="Current Request"
+            subtitle="The latest transportation-related request saved under your account appears here."
+          >
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
               <PolicyCard
                 label="Request Date"
-                value={latestRequest?.request_date ? formatDate(latestRequest.request_date) : "—"}
+                value={latestRequest?.request_date ? formatDate(latestRequest.request_date) : "-"}
                 detail="Most recent saved request"
               />
               <PolicyCard
                 label="Type"
-                value={latestRequest?.request_type ? latestRequest.request_type.replace(/^./, (c) => c.toUpperCase()) : "—"}
-                detail="Pickup, meet, drop-off, or transportation"
+                value={formatRequestType(latestRequest?.request_type || "")}
+                detail="Pickup, meet-up, drop-off, or transportation"
               />
               <PolicyCard
                 label="Miles"
                 value={
                   latestRequest?.miles !== null && latestRequest?.miles !== undefined
                     ? String(latestRequest.miles)
-                    : "—"
+                    : "-"
                 }
                 detail="One-way mileage"
               />
               <PolicyCard
                 label="Estimated Fee"
-                value={currentRequestEstimate?.label || "—"}
-                detail="Based on current pricing policy"
+                value={currentRequestEstimate?.label || "-"}
+                detail="Based on the current transportation policy"
               />
             </div>
 
             {latestRequest?.location_text || latestRequest?.address_text || latestRequest?.notes ? (
-              <div className="rounded-[24px] border border-[#e6ddd1] bg-[linear-gradient(180deg,#fbfaf8_0%,#f4f5f8_100%)] p-5">
+              <div className="mt-5 rounded-[24px] border border-[#ead9c7] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] p-5">
                 <div className="grid gap-4 md:grid-cols-2">
                   <InfoDetail
                     label="Location"
-                    value={latestRequest.location_text || latestRequest.address_text || "—"}
+                    value={latestRequest.location_text || latestRequest.address_text || "-"}
                   />
                   <InfoDetail
                     label="Status"
-                    value={latestRequest.status || "pending"}
+                    value={formatRequestStatus(latestRequest.status)}
                   />
                 </div>
+
                 {latestRequest.notes ? (
-                  <div className="mt-4 text-sm font-medium leading-6 text-slate-700">
-                    {latestRequest.notes}
-                  </div>
+                  <div className="mt-4 text-sm leading-7 text-[#73583f]">{latestRequest.notes}</div>
                 ) : null}
               </div>
             ) : null}
-          </div>
+          </PortalPanel>
 
-          <div className="rounded-[28px] border border-[#e2cfba] bg-[linear-gradient(180deg,#fffaf3_0%,#fff_100%)] p-6 xl:col-span-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
-              Pricing Policy
+          <PortalPanel
+            title="Choose a Day"
+            subtitle="Blocked dates already have a pending or approved request, so only open dates can be selected."
+          >
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="text-sm font-semibold text-[#2f2218]">
+                {month.toLocaleDateString("en-US", {
+                  month: "long",
+                  year: "numeric",
+                })}
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    loadBlockedDates(firstOfMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1)))
+                  }
+                  className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#e4d3c2] bg-white px-4 text-[#5d4330] transition hover:border-[#d4b48b]"
+                >
+                  Prev
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    loadBlockedDates(firstOfMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1)))
+                  }
+                  className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#e4d3c2] bg-white px-4 text-[#5d4330] transition hover:border-[#d4b48b]"
+                >
+                  Next
+                </button>
+              </div>
             </div>
-            <h3 className="mt-2 font-serif text-2xl font-bold text-[#3b271b]">
-              Transportation pricing
-            </h3>
 
-            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="mt-5 grid grid-cols-7 gap-2 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-[#a47946]">
+              <div>Sun</div>
+              <div>Mon</div>
+              <div>Tue</div>
+              <div>Wed</div>
+              <div>Thu</div>
+              <div>Fri</div>
+              <div>Sat</div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-7 gap-2">
+              {calendarDays.map((cell) => {
+                if (cell.type === "blank") {
+                  return <div key={cell.key} className="h-12" />;
+                }
+
+                const disabled = cell.past || cell.blocked;
+                const className = [
+                  "h-12 rounded-2xl border text-sm font-semibold transition",
+                  cell.selected
+                    ? "border-[#b5752f] bg-[linear-gradient(135deg,#d3a056_0%,#b5752f_100%)] text-white shadow-[0_0_0_4px_rgba(181,117,47,0.16)]"
+                    : cell.blocked
+                      ? "cursor-not-allowed border-[#e4d8cb] bg-[#f0ebe6] text-[#9f8c78]"
+                      : cell.past
+                        ? "cursor-not-allowed border-[#efe7de] bg-[#faf6f1] text-[#c5b8aa]"
+                        : "border-[#e4d3c2] bg-white text-[#2f2218] hover:border-[#d4b48b]",
+                ].join(" ");
+
+                return (
+                  <button
+                    key={cell.key}
+                    type="button"
+                    disabled={disabled}
+                    className={className}
+                    onClick={() => handleDayClick(cell.iso)}
+                    title={cell.past ? "Past date" : cell.blocked ? "Already requested" : "Available"}
+                  >
+                    {cell.day}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-5 rounded-[22px] border border-[#ead9c7] bg-[#fff9f2] px-4 py-4 text-sm text-[#73583f]">
+              Today: <span className="font-semibold text-[#2f2218]">{formatDate(todayIso())}</span>
+            </div>
+          </PortalPanel>
+        </div>
+
+        <div className="space-y-6">
+          <PortalPanel
+            title="Transportation Request"
+            subtitle="Complete the form below to request pickup, a public meet-up, drop-off, or transportation planning."
+          >
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <Field>
+                <Label>Request Type</Label>
+                <select
+                  value={requestType}
+                  onChange={(e) => setRequestType(e.target.value as PickupRequestType | "")}
+                  className={inputClass}
+                  required
+                >
+                  <option value="">Select...</option>
+                  <option value="pickup">Pickup (at our location)</option>
+                  <option value="meet">Meet-up (public location)</option>
+                  <option value="dropoff">Drop-off (to your area)</option>
+                  <option value="transportation">Transportation / Flight Nanny / Courier</option>
+                </select>
+              </Field>
+
+              <Field>
+                <Label>Selected Day</Label>
+                <input type="date" value={selectedDate} readOnly className={`${inputClass} bg-[#faf6f1]`} />
+                <HelperText>Choose a date from the calendar to fill this in automatically.</HelperText>
+              </Field>
+
+              {showMeetDropFields ? (
+                <div className="rounded-[24px] border border-[#ead9c7] bg-[#fff9f2] p-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <Field>
+                      <Label>Miles (one-way)</Label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        value={miles}
+                        onChange={(e) => setMiles(e.target.value)}
+                        className={inputClass}
+                        placeholder="e.g. 25"
+                        required={showMeetDropFields}
+                      />
+                    </Field>
+
+                    <Field>
+                      <Label>Meet / Drop Location</Label>
+                      <input
+                        type="text"
+                        value={locationText}
+                        onChange={(e) => setLocationText(e.target.value)}
+                        className={inputClass}
+                        placeholder="e.g. Exit 17 Park & Ride, Bristol"
+                        required={showMeetDropFields}
+                      />
+                    </Field>
+                  </div>
+
+                  <div className="mt-4">
+                    <Field>
+                      <Label>Address (optional)</Label>
+                      <input
+                        type="text"
+                        value={addressText}
+                        onChange={(e) => setAddressText(e.target.value)}
+                        className={inputClass}
+                        placeholder="Street / City / State"
+                      />
+                    </Field>
+                  </div>
+                </div>
+              ) : null}
+
+              {showTransportationFields ? (
+                <div className="rounded-[24px] border border-[#ead9c7] bg-[#fff9f2] p-4 text-sm leading-7 text-[#73583f]">
+                  For transportation requests, include helpful details below such as airport, nearest major city, preferred carrier, or timing needs. Transportation pricing is arranged separately and must be confirmed before scheduling.
+                </div>
+              ) : null}
+
+              <div className="rounded-[24px] border border-[#e2cfba] bg-[linear-gradient(180deg,#fffaf3_0%,#fff_100%)] p-5">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#a47946]">
+                  Estimated Transportation Fee
+                </div>
+                <div className="mt-2 text-2xl font-semibold text-[#2f2218]">{requestEstimate.label}</div>
+                <div className="mt-2 text-sm leading-6 text-[#73583f]">{requestEstimate.detail}</div>
+              </div>
+
+              <Field>
+                <Label>Notes</Label>
+                <textarea
+                  rows={5}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className={`${inputClass} resize-none`}
+                  placeholder="Timing, logistics, or any travel details you want us to know."
+                />
+              </Field>
+
+              <button
+                type="submit"
+                disabled={busy}
+                className="w-full rounded-[18px] bg-[#6b4d33] px-5 py-4 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-[0_14px_30px_rgba(88,63,37,0.18)] transition hover:bg-[#5b412c] disabled:opacity-60"
+              >
+                {busy ? "Submitting..." : "Submit Request"}
+              </button>
+            </form>
+          </PortalPanel>
+
+          <PortalPanel
+            title="Pricing Policy"
+            subtitle="Travel pricing is presented clearly here so you can estimate local requests before submitting."
+          >
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <PolicyCard label="Free Mileage" value="First 50 miles" detail="One-way from Marion, VA" />
               <PolicyCard label="After 50 Miles" value="$1.25 / mile" detail="One-way rate" />
               <PolicyCard label="Minimum Fee" value="$75" detail="Beyond the free-mile zone" />
               <PolicyCard label="Local Range" value="200 miles" detail="Longer trips by approval" />
             </div>
 
-            <div className="mt-5 space-y-2 text-sm font-medium leading-6 text-slate-700">
-              <p>One request per day total is allowed across all portal clients.</p>
-              <p>Pending and approved requests block the day for other clients.</p>
+            <div className="mt-5 space-y-2 text-sm leading-7 text-[#73583f]">
+              <p>Pending and approved requests block the day for other portal families.</p>
               <p>Pickup at our location does not include a transportation fee.</p>
               <p>Meet-up and drop-off pricing uses the mileage policy above.</p>
               <p>Longer distances may require added travel costs or breeder approval.</p>
-              <p>Transportation, flight nanny, or courier arrangements are quoted separately.</p>
+              <p>Transportation, flight nanny, and courier arrangements are quoted separately.</p>
             </div>
-          </div>
+          </PortalPanel>
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <section className="xl:col-span-6 rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_24px_80px_rgba(36,24,15,0.10)] sm:p-7">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
-                Calendar
-              </div>
-              <h2 className="mt-2 font-serif text-2xl text-slate-900">
-                Choose a Day
-              </h2>
-              <p className="mt-2 text-sm font-medium text-slate-600">
-                Blocked dates already have a pending or approved request.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  loadBlockedDates(
-                    firstOfMonth(
-                      new Date(month.getFullYear(), month.getMonth() - 1, 1)
-                    )
-                  )
-                }
-                className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  loadBlockedDates(
-                    firstOfMonth(
-                      new Date(month.getFullYear(), month.getMonth() + 1, 1)
-                    )
-                  )
-                }
-                className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50"
-              >
-                <ChevronRight className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-5 flex items-center justify-between gap-3">
-            <div className="text-sm font-bold text-slate-900">
-              {month.toLocaleDateString("en-US", {
-                month: "long",
-                year: "numeric",
-              })}
-            </div>
-            <div className="text-xs font-semibold text-slate-500">
-              Today: <span className="text-slate-700">{formatDate(todayIso())}</span>
-            </div>
-          </div>
-
-          <div className="mt-4 grid grid-cols-7 gap-2 text-center text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">
-            <div>Sun</div>
-            <div>Mon</div>
-            <div>Tue</div>
-            <div>Wed</div>
-            <div>Thu</div>
-            <div>Fri</div>
-            <div>Sat</div>
-          </div>
-
-          <div className="mt-3 grid grid-cols-7 gap-2">
-            {calendarDays.map((cell) => {
-              if (cell.type === "blank") {
-                return <div key={cell.key} className="h-12" />;
-              }
-
-              const disabled = cell.past || cell.blocked;
-              const className = [
-                "h-12 rounded-2xl border text-sm font-semibold transition",
-                cell.selected
-                  ? "border-emerald-700 bg-emerald-600 text-white shadow-[0_0_0_4px_rgba(16,185,129,0.16)]"
-                  : cell.blocked
-                  ? "cursor-not-allowed border-slate-300 bg-slate-200 text-slate-500"
-                  : cell.past
-                  ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-300"
-                  : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50",
-              ].join(" ");
-
-              return (
-                <button
-                  key={cell.key}
-                  type="button"
-                  disabled={disabled}
-                  className={className}
-                  onClick={() => handleDayClick(cell.iso)}
-                  title={
-                    cell.past
-                      ? "Past date"
-                      : cell.blocked
-                      ? "Already requested"
-                      : "Available"
-                  }
-                >
-                  {cell.day}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="mt-5 flex flex-wrap items-center gap-5 rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-700">
-            <div className="flex items-center gap-2">
-              <span className="inline-block h-3 w-3 rounded-full bg-emerald-500" />
-              Selected
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="inline-block h-3 w-3 rounded-full bg-slate-300" />
-              Blocked
-            </div>
-          </div>
-        </section>
-
-        <section className="xl:col-span-6 rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_24px_80px_rgba(36,24,15,0.10)] sm:p-7">
-          <div>
-            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
-              Request
-            </div>
-            <h2 className="mt-2 font-serif text-2xl text-slate-900">
-              Transportation Details
-            </h2>
-            <p className="mt-2 text-sm font-medium text-slate-600">
-              Complete the form below to request pickup, a meet-up, drop-off, or transportation planning.
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="mt-6 space-y-5">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field>
-                <Label>Request Type</Label>
-                <select
-                  value={requestType}
-                  onChange={(e) =>
-                    setRequestType(e.target.value as PickupRequestType | "")
-                  }
-                  className={inputClass}
-                  required
-                >
-                  <option value="">Select…</option>
-                  <option value="pickup">Pickup (at our location)</option>
-                  <option value="meet">Meet-up (public location)</option>
-                  <option value="dropoff">Drop-off (to your area)</option>
-                  <option value="transportation">
-                    Transportation / Flight Nanny / Courier
-                  </option>
-                </select>
-              </Field>
-
-              <Field>
-                <Label>Selected Day</Label>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  readOnly
-                  className={`${inputClass} bg-slate-50`}
-                />
-                <HelperText>
-                  Choose a date from the calendar to fill this in automatically.
-                </HelperText>
-              </Field>
-            </div>
-
-            {showMeetDropFields ? (
-              <div className="rounded-[24px] border border-slate-200 bg-slate-50/70 p-4">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Field>
-                    <Label>Miles (one-way)</Label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      value={miles}
-                      onChange={(e) => setMiles(e.target.value)}
-                      className={inputClass}
-                      placeholder="e.g. 25"
-                      required={showMeetDropFields}
-                    />
-                  </Field>
-
-                  <Field>
-                    <Label>Proposed Meet / Drop Location</Label>
-                    <input
-                      type="text"
-                      value={locationText}
-                      onChange={(e) => setLocationText(e.target.value)}
-                      className={inputClass}
-                      placeholder="e.g. Exit 17 Park & Ride, Bristol"
-                      required={showMeetDropFields}
-                    />
-                  </Field>
-                </div>
-
-                <div className="mt-4">
-                  <Field>
-                    <Label>Address (optional)</Label>
-                    <input
-                      type="text"
-                      value={addressText}
-                      onChange={(e) => setAddressText(e.target.value)}
-                      className={inputClass}
-                      placeholder="Street / City / State"
-                    />
-                  </Field>
-                </div>
-              </div>
-            ) : null}
-
-            {showTransportationFields ? (
-              <div className="rounded-[24px] border border-slate-200 bg-slate-50/70 p-4 text-sm font-medium leading-6 text-slate-700">
-                For transportation requests, include helpful details in the notes below,
-                such as airport, nearest major city, preferred carrier, or any timing limits. Transportation pricing is arranged separately and must be confirmed before scheduling.
-              </div>
-            ) : null}
-
-            <div className="rounded-[24px] border border-[#e2cfba] bg-[#fffaf3] p-5">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
-                Estimated Transportation Fee
-              </div>
-              <div className="mt-2 text-2xl font-extrabold text-slate-900">
-                {requestEstimate.label}
-              </div>
-              <div className="mt-2 text-[12px] font-semibold leading-6 text-slate-600">
-                {requestEstimate.detail}
-              </div>
-            </div>
-
-            <Field>
-              <Label>Notes</Label>
-              <textarea
-                rows={5}
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className={`${inputClass} resize-none`}
-                placeholder="Any details you want us to know..."
-              />
-            </Field>
-
-            <div className="flex flex-col gap-4 rounded-[24px] border border-slate-200 bg-slate-50/70 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm font-medium text-slate-600">
-                Submitting creates a pending request and reserves the selected day if it is still open.
-              </p>
-
-              <button
-                type="submit"
-                disabled={busy}
-                className="inline-flex items-center justify-center gap-2 rounded-[16px] bg-[#0f1938] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(15,25,56,0.24)] transition hover:bg-[#15214a] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {busy ? "Submitting..." : "Submit Request"}
-              </button>
-            </div>
-          </form>
-        </section>
-      </div>
-
-      <div className="flex flex-col items-center justify-between gap-3 rounded-[24px] border border-slate-200 bg-white px-5 py-4 text-sm text-slate-500 shadow-sm sm:flex-row">
-        <span>Southwest Virginia Chihuahua • Pickup / Meet / Delivery</span>
-
-        <button
-          onClick={handleSignOutRedirect}
-          className="text-sm font-semibold text-slate-700 transition hover:text-slate-900"
-        >
-          Sign out
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function StatusCard({
-  label,
-  title,
-  subtitle,
-  icon,
-}: {
-  label: string;
-  title: string;
-  subtitle: string;
-  icon: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-[24px] border border-[#e5dbcf] bg-[linear-gradient(180deg,#fffdfa_0%,#f8f4ee_100%)] p-5 shadow-[0_8px_22px_rgba(58,43,26,0.06)]">
-      <div className="flex items-start gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-[#5a4634] shadow-[0_8px_18px_rgba(58,43,26,0.08)]">
-          {icon}
-        </div>
-
-        <div className="min-w-0">
-          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[#8f7457]">
-            {label}
-          </div>
-          <div className="mt-1 text-lg font-bold text-[#22170f]">{title}</div>
-          <div className="mt-1 text-sm font-medium leading-6 text-[#6f5a45]">
-            {subtitle}
+      <PortalPanel
+        title="Need help?"
+        subtitle="If plans shift or you need to coordinate a change, use the links below so your travel details stay organized inside the portal."
+      >
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <PortalInfoTile label="Support" value="Open Messages" detail="Message us directly if your plans need to change." />
+          <PortalInfoTile label="Reference" value="Open Resources" detail="Helpful travel and puppy guidance stays easy to revisit." />
+          <div className="rounded-[24px] border border-[#ead9c7] bg-white p-4 shadow-[0_12px_32px_rgba(106,76,45,0.06)]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a47946]">Portal Access</div>
+            <div className="mt-2 text-2xl font-semibold text-[#2f2218]">Sign Out</div>
+            <button
+              type="button"
+              onClick={handleSignOutRedirect}
+              className="mt-4 inline-flex rounded-full border border-[#e5d2bc] bg-[#fff9f2] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#b8772f] transition hover:border-[#d8b48b]"
+            >
+              Sign Out
+            </button>
           </div>
         </div>
-      </div>
+      </PortalPanel>
     </div>
   );
 }
@@ -1201,11 +1048,11 @@ function PolicyCard({
 }) {
   return (
     <div className="rounded-[22px] border border-[#e2cfba] bg-[linear-gradient(180deg,#ffffff_0%,#fffaf3_100%)] p-4 shadow-[0_10px_26px_rgba(58,43,26,0.06)]">
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#a47946]">
         {label}
       </div>
-      <div className="mt-1 text-lg font-extrabold text-[#22170f]">{value}</div>
-      <div className="mt-1 text-[12px] font-semibold leading-5 text-[#7a6652]">{detail}</div>
+      <div className="mt-1 text-lg font-semibold text-[#2f2218]">{value}</div>
+      <div className="mt-1 text-[12px] leading-5 text-[#7a6652]">{detail}</div>
     </div>
   );
 }
@@ -1213,10 +1060,10 @@ function PolicyCard({
 function InfoDetail({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9c7b58]">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#a47946]">
         {label}
       </div>
-      <div className="mt-1 text-sm font-semibold text-slate-800">{value}</div>
+      <div className="mt-1 text-sm font-semibold text-[#2f2218]">{value}</div>
     </div>
   );
 }
@@ -1227,12 +1074,12 @@ function Field({ children }: { children: React.ReactNode }) {
 
 function Label({ children }: { children: React.ReactNode }) {
   return (
-    <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+    <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#a47946]">
       {children}
     </label>
   );
 }
 
 function HelperText({ children }: { children: React.ReactNode }) {
-  return <p className="mt-2 text-xs font-medium text-slate-500">{children}</p>;
+  return <p className="mt-2 text-xs text-[#8a6a49]">{children}</p>;
 }
