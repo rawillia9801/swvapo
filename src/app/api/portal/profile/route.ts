@@ -105,7 +105,17 @@ export async function POST(req: Request) {
     const pictureEntry = formData.get("profile_picture");
     const profilePicture = pictureEntry instanceof File && pictureEntry.size > 0 ? pictureEntry : null;
 
-    if (!fullName && !email && !phone && !profilePicture && !addressLine1 && !addressLine2 && !city && !state && !postalCode) {
+    if (
+      !fullName &&
+      !email &&
+      !phone &&
+      !profilePicture &&
+      !addressLine1 &&
+      !addressLine2 &&
+      !city &&
+      !state &&
+      !postalCode
+    ) {
       return jsonError("Nothing was submitted to save.");
     }
 
