@@ -309,7 +309,7 @@ export default function PortalMessagesPage() {
                               className={`rounded-[24px] border px-4 py-4 text-sm leading-7 shadow-[0_12px_28px_rgba(23,35,56,0.05)] ${
                                 fromBreeder
                                   ? "border-[var(--portal-border)] bg-white text-[var(--portal-text)]"
-                                  : "border-[rgba(93,121,255,0.18)] bg-[linear-gradient(135deg,rgba(234,240,255,0.98)_0%,rgba(225,234,255,0.96)_100%)] text-[var(--portal-text)]"
+                                  : "border-amber-200 bg-[linear-gradient(135deg,rgba(255,248,240,0.98)_0%,rgba(255,243,229,0.96)_100%)] text-[var(--portal-text)]"
                               }`}
                             >
                               {entry.message || "No message body."}

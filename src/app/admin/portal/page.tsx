@@ -147,46 +147,60 @@ export default function AdminPortalPage() {
           }
           aside={
             <div className="space-y-4">
-              <AdminInfoTile
-                label="Portal Users"
-                value={String(stats.users)}
-                detail="Signed-up portal accounts currently recognized by the owner admin routes."
-              />
-              <AdminInfoTile
-                label="Recorded Revenue"
-                value={stats.totalRevenue ? fmtMoney(stats.totalRevenue) : "-"}
-                detail="Recorded payment total from buyer payment history."
-              />
+              <OverviewInfoLink href="/admin/portal/users">
+                <AdminInfoTile
+                  label="Portal Users"
+                  value={String(stats.users)}
+                  detail="Signed-up portal accounts currently recognized by the owner admin routes."
+                />
+              </OverviewInfoLink>
+              <OverviewInfoLink href="/admin/portal/payments">
+                <AdminInfoTile
+                  label="Recorded Revenue"
+                  value={stats.totalRevenue ? fmtMoney(stats.totalRevenue) : "-"}
+                  detail="Recorded payment total from buyer payment history."
+                />
+              </OverviewInfoLink>
             </div>
           }
         />
 
         <AdminMetricGrid>
-          <AdminMetricCard label="Total Buyers" value={String(stats.buyers)} detail="Buyer records currently in the system." />
-          <AdminMetricCard
-            label="Applications"
-            value={String(stats.applications)}
-            detail="Submitted application records awaiting review or follow-up."
-            accent="from-[#ece3d5] via-[#d7c1a3] to-[#b18d62]"
-          />
-          <AdminMetricCard
-            label="Payments"
-            value={String(stats.payments)}
-            detail="Recorded buyer payment entries across all accounts."
-            accent="from-[#dce9d6] via-[#b6cfaa] to-[#7e9c6f]"
-          />
-          <AdminMetricCard
-            label="Documents"
-            value={String(stats.documents)}
-            detail="Combined portal forms and shared document records."
-            accent="from-[#e6def0] via-[#c8b6e3] to-[#8b6fbc]"
-          />
-          <AdminMetricCard
-            label="Puppy Payment Plans"
-            value={String(stats.paymentPlans)}
-            detail="Buyer accounts currently marked with financing enabled."
-            accent="from-[#f0dcc1] via-[#ddb68c] to-[#c98743]"
-          />
+          <OverviewMetricLink href="/admin/portal/users">
+            <AdminMetricCard label="Total Buyers" value={String(stats.buyers)} detail="Buyer records currently in the system." />
+          </OverviewMetricLink>
+          <OverviewMetricLink href="/admin/portal/applications">
+            <AdminMetricCard
+              label="Applications"
+              value={String(stats.applications)}
+              detail="Submitted application records awaiting review or follow-up."
+              accent="from-[#ece3d5] via-[#d7c1a3] to-[#b18d62]"
+            />
+          </OverviewMetricLink>
+          <OverviewMetricLink href="/admin/portal/payments">
+            <AdminMetricCard
+              label="Payments"
+              value={String(stats.payments)}
+              detail="Recorded buyer payment entries across all accounts."
+              accent="from-[#dce9d6] via-[#b6cfaa] to-[#7e9c6f]"
+            />
+          </OverviewMetricLink>
+          <OverviewMetricLink href="/admin/portal/documents">
+            <AdminMetricCard
+              label="Documents"
+              value={String(stats.documents)}
+              detail="Combined portal forms and shared document records."
+              accent="from-[#e6def0] via-[#c8b6e3] to-[#8b6fbc]"
+            />
+          </OverviewMetricLink>
+          <OverviewMetricLink href="/admin/portal/payments">
+            <AdminMetricCard
+              label="Puppy Payment Plans"
+              value={String(stats.paymentPlans)}
+              detail="Buyer accounts currently marked with financing enabled."
+              accent="from-[#f0dcc1] via-[#ddb68c] to-[#c98743]"
+            />
+          </OverviewMetricLink>
         </AdminMetricGrid>
 
         <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
@@ -221,43 +235,57 @@ export default function AdminPortalPage() {
             >
               {stats.latestDigest ? (
                 <div className="space-y-5">
-                  <AdminInfoTile
-                    label="Latest Brief"
-                    value={fmtDate(stats.latestDigest.digest_date)}
-                    detail={stats.latestDigest.summary}
-                  />
+                  <OverviewInfoLink href="/admin/portal/assistant">
+                    <AdminInfoTile
+                      label="Latest Brief"
+                      value={fmtDate(stats.latestDigest.digest_date)}
+                      detail={stats.latestDigest.summary}
+                    />
+                  </OverviewInfoLink>
 
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    <AdminInfoTile
-                      label="Visitors (24h)"
-                      value={String(stats.visitors24h)}
-                      detail="Website visitors seen by ChiChi in the last day."
-                    />
-                    <AdminInfoTile
-                      label="Returning Visitors"
-                      value={String(stats.returningVisitors24h)}
-                      detail="Visitors marked as returning during the last 24 hours."
-                    />
-                    <AdminInfoTile
-                      label="Public Chats (24h)"
-                      value={String(stats.publicThreads24h)}
-                      detail="Public ChiChi conversation threads active in the last day."
-                    />
-                    <AdminInfoTile
-                      label="Public Messages (24h)"
-                      value={String(stats.publicMessages24h)}
-                      detail="Total public ChiChi messages saved in the last day."
-                    />
-                    <AdminInfoTile
-                      label="Hot Leads"
-                      value={String(stats.hotLeads)}
-                      detail="Public conversations currently marked hot."
-                    />
-                    <AdminInfoTile
-                      label="Open Follow-Ups"
-                      value={String(stats.openFollowUps)}
-                      detail="Open or scheduled follow-up tasks still needing review."
-                    />
+                    <OverviewInfoLink href="/admin/portal/assistant">
+                      <AdminInfoTile
+                        label="Visitors (24h)"
+                        value={String(stats.visitors24h)}
+                        detail="Website visitors seen by ChiChi in the last day."
+                      />
+                    </OverviewInfoLink>
+                    <OverviewInfoLink href="/admin/portal/assistant">
+                      <AdminInfoTile
+                        label="Returning Visitors"
+                        value={String(stats.returningVisitors24h)}
+                        detail="Visitors marked as returning during the last 24 hours."
+                      />
+                    </OverviewInfoLink>
+                    <OverviewInfoLink href="/admin/portal/assistant">
+                      <AdminInfoTile
+                        label="Public Chats (24h)"
+                        value={String(stats.publicThreads24h)}
+                        detail="Public ChiChi conversation threads active in the last day."
+                      />
+                    </OverviewInfoLink>
+                    <OverviewInfoLink href="/admin/portal/assistant">
+                      <AdminInfoTile
+                        label="Public Messages (24h)"
+                        value={String(stats.publicMessages24h)}
+                        detail="Total public ChiChi messages saved in the last day."
+                      />
+                    </OverviewInfoLink>
+                    <OverviewInfoLink href="/admin/portal/assistant">
+                      <AdminInfoTile
+                        label="Hot Leads"
+                        value={String(stats.hotLeads)}
+                        detail="Public conversations currently marked hot."
+                      />
+                    </OverviewInfoLink>
+                    <OverviewInfoLink href="/admin/portal/assistant">
+                      <AdminInfoTile
+                        label="Open Follow-Ups"
+                        value={String(stats.openFollowUps)}
+                        detail="Open or scheduled follow-up tasks still needing review."
+                      />
+                    </OverviewInfoLink>
                   </div>
 
                   {stats.latestDigest.priorities?.length ? (
@@ -267,12 +295,16 @@ export default function AdminPortalPage() {
                       </div>
                       <div className="mt-4 space-y-3">
                         {stats.latestDigest.priorities.map((item, index) => (
-                          <div key={`${index}-${item}`} className="flex items-start gap-3 rounded-[20px] border border-[#ead9c7] bg-white px-4 py-4">
+                          <Link
+                            key={`${index}-${item}`}
+                            href="/admin/portal/assistant"
+                            className="group flex items-start gap-3 rounded-[20px] border border-[#ead9c7] bg-white px-4 py-4 transition hover:-translate-y-0.5 hover:border-[#d8b48b] hover:shadow-[0_14px_28px_rgba(106,76,45,0.08)]"
+                          >
                             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#fff1df] text-[11px] font-semibold text-[#a66f2f]">
                               {index + 1}
                             </div>
                             <div className="text-sm leading-6 text-[#644b35]">{item}</div>
-                          </div>
+                          </Link>
                         ))}
                       </div>
                     </div>
@@ -302,6 +334,7 @@ export default function AdminPortalPage() {
                         stats.publicConversationSummaries.map((item) => (
                           <ConversationSummaryRow
                             key={item.id}
+                            href="/admin/portal/assistant"
                             title={item.title}
                             preview={item.preview}
                             meta={[
@@ -344,16 +377,20 @@ export default function AdminPortalPage() {
               }
             >
               <div className="grid gap-4 md:grid-cols-2">
-                <AdminInfoTile
-                  label="Unread Buyer Messages"
-                  value={String(stats.unreadBuyerMessages)}
-                  detail="Buyer replies that still need an admin read."
-                />
-                <AdminInfoTile
-                  label="Shared Contacts"
-                  value={String(stats.sharedContacts)}
-                  detail="Public leads who shared email or phone in the last day."
-                />
+                <OverviewInfoLink href="/admin/portal/messages">
+                  <AdminInfoTile
+                    label="Unread Buyer Messages"
+                    value={String(stats.unreadBuyerMessages)}
+                    detail="Buyer replies that still need an admin read."
+                  />
+                </OverviewInfoLink>
+                <OverviewInfoLink href="/admin/portal/assistant">
+                  <AdminInfoTile
+                    label="Shared Contacts"
+                    value={String(stats.sharedContacts)}
+                    detail="Public leads who shared email or phone in the last day."
+                  />
+                </OverviewInfoLink>
               </div>
 
               <div className="mt-5 space-y-3">
@@ -361,6 +398,7 @@ export default function AdminPortalPage() {
                   stats.buyerConversationSummaries.map((item) => (
                     <BuyerConversationRow
                       key={item.key}
+                      href="/admin/portal/messages"
                       title={item.subject}
                       email={item.email || "No email on file"}
                       preview={item.preview}
@@ -382,26 +420,34 @@ export default function AdminPortalPage() {
               subtitle="A smaller pulse of the activity that usually matters first."
             >
               <div className="grid gap-4 md:grid-cols-2">
-                <AdminInfoTile
-                  label="Warm Leads"
-                  value={String(stats.warmLeads)}
-                  detail="Public conversations currently tagged warm."
-                />
-                <AdminInfoTile
-                  label="Payment Plans"
-                  value={String(stats.paymentPlans)}
-                  detail="Buyer accounts marked with financing enabled."
-                />
-                <AdminInfoTile
-                  label="Portal Users"
-                  value={String(stats.users)}
-                  detail="Total signed-up portal accounts."
-                />
-                <AdminInfoTile
-                  label="Documents"
-                  value={String(stats.documents)}
-                  detail="Forms and portal documents combined."
-                />
+                <OverviewInfoLink href="/admin/portal/assistant">
+                  <AdminInfoTile
+                    label="Warm Leads"
+                    value={String(stats.warmLeads)}
+                    detail="Public conversations currently tagged warm."
+                  />
+                </OverviewInfoLink>
+                <OverviewInfoLink href="/admin/portal/payments">
+                  <AdminInfoTile
+                    label="Payment Plans"
+                    value={String(stats.paymentPlans)}
+                    detail="Buyer accounts marked with financing enabled."
+                  />
+                </OverviewInfoLink>
+                <OverviewInfoLink href="/admin/portal/users">
+                  <AdminInfoTile
+                    label="Portal Users"
+                    value={String(stats.users)}
+                    detail="Total signed-up portal accounts."
+                  />
+                </OverviewInfoLink>
+                <OverviewInfoLink href="/admin/portal/documents">
+                  <AdminInfoTile
+                    label="Documents"
+                    value={String(stats.documents)}
+                    detail="Forms and portal documents combined."
+                  />
+                </OverviewInfoLink>
               </div>
             </AdminPanel>
           </div>
@@ -412,18 +458,23 @@ export default function AdminPortalPage() {
 }
 
 function ConversationSummaryRow({
+  href,
   title,
   preview,
   meta,
   status,
 }: {
+  href: string;
   title: string;
   preview: string;
   meta: Array<string | null>;
   status: string;
 }) {
   return (
-    <div className="rounded-[24px] border border-[#ead9c7] bg-[#fffaf5] p-4">
+    <Link
+      href={href}
+      className="group block rounded-[24px] border border-[#ead9c7] bg-[#fffaf5] p-4 transition hover:-translate-y-0.5 hover:border-[#d8b48b] hover:bg-white hover:shadow-[0_14px_28px_rgba(106,76,45,0.08)]"
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-sm font-semibold text-[#2f2218]">{title}</div>
@@ -440,17 +491,19 @@ function ConversationSummaryRow({
       <div className="mt-3 text-xs font-semibold text-[#9c7a57]">
         {meta.filter(Boolean).join(" - ")}
       </div>
-    </div>
+    </Link>
   );
 }
 
 function BuyerConversationRow({
+  href,
   title,
   email,
   preview,
   updatedAt,
   unreadCount,
 }: {
+  href: string;
   title: string;
   email: string;
   preview: string;
@@ -458,7 +511,10 @@ function BuyerConversationRow({
   unreadCount: number;
 }) {
   return (
-    <div className="rounded-[24px] border border-[#ead9c7] bg-[#fffaf5] p-4">
+    <Link
+      href={href}
+      className="group block rounded-[24px] border border-[#ead9c7] bg-[#fffaf5] p-4 transition hover:-translate-y-0.5 hover:border-[#d8b48b] hover:bg-white hover:shadow-[0_14px_28px_rgba(106,76,45,0.08)]"
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-sm font-semibold text-[#2f2218]">{title}</div>
@@ -478,6 +534,40 @@ function BuyerConversationRow({
       <div className="mt-3 text-xs font-semibold text-[#9c7a57]">
         {updatedAt ? `Updated ${fmtDate(updatedAt)}` : "Time unavailable"}
       </div>
-    </div>
+    </Link>
+  );
+}
+
+function OverviewMetricLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group block rounded-[28px] transition hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cda470] focus-visible:ring-offset-2"
+    >
+      {children}
+    </Link>
+  );
+}
+
+function OverviewInfoLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group block rounded-[24px] transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#cda470] focus-visible:ring-offset-2"
+    >
+      {children}
+    </Link>
   );
 }

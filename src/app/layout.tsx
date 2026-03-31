@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Manrope } from "next/font/google";
+import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({
@@ -7,9 +7,10 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
-const manrope = Manrope({
+const playfair = Playfair_Display({
   variable: "--font-merriweather",
   subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -25,7 +26,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${inter.variable} ${manrope.variable} bg-[#edf2f8] text-[#162033] antialiased [font-family:var(--font-open-sans)]`}
+        className={`${inter.variable} ${playfair.variable} bg-[#fafaf9] text-[#1c1917] antialiased [font-family:var(--font-open-sans)]`}
       >
         {children}
       </body>

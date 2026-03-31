@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Bot, PawPrint, SendHorizonal, Shield, Sparkles, X } from "lucide-react";
+import { Bot, PawPrint, SendHorizonal, Shield, X } from "lucide-react";
 
 type ChatRole = "user" | "assistant";
 
@@ -93,115 +93,120 @@ export function PortalChiChiWidget({
     }
   }
 
+  const modeLabel = isAdmin ? "Owner" : "Portal";
+  const headerStatus = isSending ? "Reading your records..." : "Online";
+
   return (
     <div className="pointer-events-none fixed inset-0 z-[9999]">
-      <div className="pointer-events-none absolute bottom-[92px] right-3 flex flex-col items-end gap-4 sm:bottom-[102px] sm:right-6">
+      <div className="absolute bottom-[88px] right-3 flex flex-col items-end gap-4 sm:bottom-[98px] sm:right-6">
         {isOpen ? (
-          <div className="pointer-events-auto flex h-[min(760px,calc(100vh-118px))] w-[calc(100vw-24px)] max-w-[430px] flex-col overflow-hidden rounded-[30px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96)_0%,rgba(246,250,255,0.95)_100%)] shadow-[0_34px_86px_rgba(16,24,38,0.18)] backdrop-blur-xl">
-            <div className="relative overflow-hidden border-b border-[var(--portal-border)] px-4 py-4">
-              <div className="pointer-events-none absolute inset-0 portal-grid-bg opacity-60" />
-              <div className="pointer-events-none absolute -left-6 top-2 h-28 w-28 rounded-full bg-[rgba(93,121,255,0.14)] blur-3xl" />
+          <div className="pointer-events-auto flex h-[min(760px,calc(100vh-112px))] w-[calc(100vw-24px)] max-w-[430px] flex-col overflow-hidden rounded-[28px] border border-[#dfcfbd] bg-[#fbf6f0] shadow-[0_28px_70px_rgba(45,28,16,0.22)]">
+            <div className="flex items-start gap-3 border-b border-white/10 bg-[linear-gradient(135deg,#a87848_0%,#8f6945_100%)] px-4 py-4 text-white">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/15">
+                <Bot className="h-5 w-5" />
+              </div>
 
-              <div className="relative flex items-start gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-[linear-gradient(135deg,#dce6ff_0%,#c7d6ff_100%)] text-[var(--portal-accent-strong)] shadow-[0_16px_34px_rgba(47,88,227,0.14)]">
-                  <Bot className="h-5 w-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold tracking-[-0.02em] text-[var(--portal-text)]">
-                        ChiChi
-                      </div>
-                      <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
-                        Autonomous account agent with direct access to your portal records, puppy updates, documents, payments, and next steps.
-                      </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-serif text-[1.7rem] font-bold leading-none">ChiChi</div>
+                    <div className="mt-1 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-white/75">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+                      {headerStatus}
                     </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {isAdmin && adminAuth?.canWriteCore ? (
+                      <Link
+                        href="/admin/portal/assistant"
+                        className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-white/12 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white transition hover:bg-white/20"
+                      >
+                        <Shield className="h-3 w-3" />
+                        Console
+                      </Link>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => setIsOpen(false)}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--portal-border)] bg-white text-[var(--portal-text-soft)] transition hover:text-[var(--portal-text)]"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
                       aria-label="Close ChiChi"
                     >
                       <X className="h-4 w-4" />
                     </button>
                   </div>
-
-                  <div className="mt-4 grid grid-cols-3 gap-2">
-                    <InfoChip label="Account" value={displayName} />
-                    <InfoChip label="Puppy" value={puppyName} />
-                    <InfoChip label="Mode" value={isAdmin ? "Owner" : "Portal"} />
-                  </div>
-
-                  {isAdmin && adminAuth?.canWriteCore ? (
-                    <div className="mt-3 flex items-center justify-between rounded-[18px] border border-[rgba(93,121,255,0.16)] bg-[rgba(93,121,255,0.08)] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-accent-strong)]">
-                      <span className="flex items-center gap-2">
-                        <Shield className="h-3.5 w-3.5" />
-                        Owner write access enabled
-                      </span>
-                      <Link href="/admin/portal/assistant" className="rounded-full border border-[rgba(93,121,255,0.18)] bg-white/80 px-2.5 py-1 text-[10px]">
-                        Console
-                      </Link>
-                    </div>
-                  ) : null}
                 </div>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-4 py-4">
-              <div className="flex flex-col gap-4">
+            <div className="border-b border-[#eadfce] bg-[#fffaf4] px-4 py-4">
+              <div className="rounded-[22px] border border-[#dfcfbd] bg-white p-4 text-[14px] leading-7 text-[#6d5037] shadow-[0_8px_20px_rgba(45,28,16,0.05)]">
+                Ask ChiChi about updates, documents, payments, messages, transportation, and next steps connected to this portal.
+                <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#8f7257]">
+                  <span className="rounded-full border border-[#eadfce] bg-[#fffaf4] px-3 py-1.5">
+                    Account: {displayName}
+                  </span>
+                  <span className="rounded-full border border-[#eadfce] bg-[#fffaf4] px-3 py-1.5">
+                    Puppy: {puppyName}
+                  </span>
+                  <span className="rounded-full border border-[#eadfce] bg-[#fffaf4] px-3 py-1.5">
+                    Mode: {modeLabel}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto bg-[#fbf6f0] px-4 py-4">
+              <div className="flex flex-col gap-3">
                 {messages.map((message) => {
                   const isUser = message.role === "user";
+
                   return (
                     <div
                       key={message.id}
-                      className={`flex max-w-[88%] items-end gap-2 ${
-                        isUser ? "ml-auto flex-row-reverse" : "mr-auto"
-                      }`}
+                      className={`flex items-end gap-2 ${isUser ? "justify-end" : "justify-start"}`}
                     >
-                      <div
-                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                          isUser
-                            ? "bg-[rgba(93,121,255,0.14)] text-[var(--portal-accent-strong)]"
-                            : "bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]"
-                        }`}
-                      >
-                        {isUser ? (
-                          <span className="text-[11px] font-bold">{userInitial}</span>
-                        ) : (
-                          <Sparkles className="h-3.5 w-3.5" />
-                        )}
-                      </div>
-                      <div className="min-w-0">
+                      {!isUser ? (
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f2c47e] text-[#5a4330]">
+                          <PawPrint className="h-3.5 w-3.5" />
+                        </div>
+                      ) : null}
+
+                      <div className={`${isUser ? "max-w-[84%]" : "max-w-[88%]"}`}>
                         <div
                           className={[
-                            "rounded-[22px] px-4 py-3 text-sm leading-6 shadow-[0_12px_26px_rgba(23,35,56,0.06)]",
+                            "rounded-[20px] px-4 py-3 text-sm leading-7 shadow-[0_6px_16px_rgba(45,28,16,0.06)]",
                             isUser
-                              ? "rounded-br-md bg-[linear-gradient(135deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] text-white"
-                              : "rounded-bl-md border border-[var(--portal-border)] bg-white text-[var(--portal-text)]",
+                              ? "rounded-br-md bg-[linear-gradient(135deg,#a87848_0%,#8f6945_100%)] text-white"
+                              : "rounded-bl-md border border-[#eadfce] bg-white text-[#5a4330]",
                           ].join(" ")}
                         >
                           {renderChatText(message.text)}
                         </div>
                         <div
                           className={`mt-1 px-1 text-[10px] ${
-                            isUser
-                              ? "text-right text-[var(--portal-text-muted)]"
-                              : "text-[var(--portal-text-muted)]"
+                            isUser ? "text-right text-[#8f7257]" : "text-[#8f7257]"
                           }`}
                         >
                           {message.createdAt}
                         </div>
                       </div>
+
+                      {isUser ? (
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fdf1e8] text-[11px] font-bold text-[#8f6945]">
+                          {userInitial}
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })}
 
                 {isSending ? (
-                  <div className="mr-auto flex max-w-[88%] items-end gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
+                  <div className="flex items-end gap-2">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f2c47e] text-[#5a4330]">
                       <PawPrint className="h-3.5 w-3.5" />
                     </div>
-                    <div className="rounded-[22px] rounded-bl-md border border-[var(--portal-border)] bg-white px-4 py-3 text-sm text-[var(--portal-text-soft)] shadow-[0_12px_26px_rgba(23,35,56,0.06)]">
+                    <div className="rounded-[20px] rounded-bl-md border border-[#eadfce] bg-white px-4 py-3 text-sm text-[#8f7257] shadow-[0_6px_16px_rgba(45,28,16,0.06)]">
                       Reading your portal records...
                     </div>
                   </div>
@@ -211,27 +216,28 @@ export function PortalChiChiWidget({
               </div>
             </div>
 
-            <div className="border-t border-[var(--portal-border)] bg-[rgba(248,251,255,0.88)] px-4 py-4">
+            <div className="border-t border-[#eadfce] bg-[rgba(255,255,255,0.75)] px-4 py-4">
               <form onSubmit={handleSend} className="space-y-3">
-                <div className="rounded-[24px] border border-[var(--portal-border)] bg-white p-2 shadow-[0_12px_28px_rgba(23,35,56,0.05)]">
+                <div className="rounded-[24px] border border-[#e3d3c2] bg-[#fffaf4] p-3 shadow-[inset_0_1px_2px_rgba(45,28,16,0.05)]">
                   <textarea
                     value={chatDraft}
                     onChange={(event) => onDraftChange(event.target.value)}
                     onKeyDown={handleTextareaKeyDown}
                     rows={3}
-                    placeholder="Ask ChiChi to check updates, find documents, review payments, explain a milestone, or tell you the next step."
-                    className="min-h-[98px] w-full resize-none rounded-[18px] border-0 bg-transparent px-3 py-3 text-sm leading-6 text-[var(--portal-text)] outline-none placeholder:text-[var(--portal-text-muted)]"
+                    placeholder="Ask ChiChi to check updates, find documents, review payments, or explain the next step."
+                    className="min-h-[94px] w-full resize-none border-0 bg-transparent px-1 py-1 text-sm leading-7 text-[#4d3b2b] outline-none placeholder:text-[#af8f70]"
                     disabled={isSending}
                   />
                 </div>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-[11px] leading-5 text-[var(--portal-text-muted)]">
-                    ChiChi answers from the records on this account and says plainly when something is not on file.
+
+                <div className="flex items-center justify-between gap-4">
+                  <div className="text-[11px] leading-5 text-[#8f7257]">
+                    ChiChi answers from the records already linked to this portal.
                   </div>
                   <button
                     type="submit"
                     disabled={!chatDraft.trim() || isSending}
-                    className="inline-flex shrink-0 items-center gap-2 rounded-[18px] bg-[linear-gradient(135deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(47,88,227,0.22)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex shrink-0 items-center gap-2 rounded-[14px] bg-[#8f6945] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(123,91,63,0.24)] transition hover:bg-[#7d5b3c] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <SendHorizonal className="h-4 w-4" />
                     Send
@@ -245,33 +251,20 @@ export function PortalChiChiWidget({
         <button
           type="button"
           onClick={() => setIsOpen((value) => !value)}
-          className="pointer-events-auto inline-flex items-center gap-3 rounded-full border border-[var(--portal-border)] bg-[linear-gradient(135deg,rgba(255,255,255,0.96)_0%,rgba(242,247,253,0.96)_100%)] px-4 py-3 text-sm font-semibold text-[var(--portal-text)] shadow-[0_18px_38px_rgba(16,24,38,0.14)] backdrop-blur-xl transition hover:-translate-y-0.5"
+          className="pointer-events-auto inline-flex items-center gap-3 rounded-full border border-white/20 bg-[linear-gradient(135deg,#a87848_0%,#8f6945_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_18px_44px_rgba(95,70,50,0.34)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_48px_rgba(95,70,50,0.38)]"
           aria-label={isOpen ? "Close ChiChi" : "Open ChiChi"}
         >
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[linear-gradient(135deg,#dce6ff_0%,#c7d6ff_100%)] text-[var(--portal-accent-strong)]">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15">
             <Bot className="h-4.5 w-4.5" />
           </span>
-          <span className="hidden sm:block">
-            <span className="block text-left text-[11px] uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+          <span className="hidden sm:block text-left">
+            <span className="block text-[11px] font-bold uppercase tracking-[0.18em] text-white/70">
               AI Agent
             </span>
-            <span className="block text-left text-sm font-semibold text-[var(--portal-text)]">
-              ChiChi
-            </span>
+            <span className="block text-sm font-semibold text-white">ChiChi</span>
           </span>
         </button>
       </div>
-    </div>
-  );
-}
-
-function InfoChip({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[18px] border border-[var(--portal-border)] bg-[rgba(255,255,255,0.82)] px-3 py-3 shadow-[0_8px_18px_rgba(23,35,56,0.04)]">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
-        {label}
-      </div>
-      <div className="mt-1 truncate text-sm font-semibold text-[var(--portal-text)]">{value}</div>
     </div>
   );
 }

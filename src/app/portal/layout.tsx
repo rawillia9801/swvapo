@@ -90,7 +90,7 @@ const navDefinitions: NavDefinition[] = [
 const defaultChiChiMessage: PortalChatMessage = {
   id: makeId("assistant"),
   role: "assistant",
-  text: "I can check the records tied to this portal, answer account questions directly, and help you find the next step without sending you in circles.",
+  text: "I can check the records tied to this portal, answer account questions directly, and help you find the next step from the information already on file.",
   createdAt: formatTime(),
 };
 
@@ -428,7 +428,7 @@ export default function PortalLayout({
   return (
     <div className="min-h-screen bg-texturePaper text-[var(--portal-text)]">
       <div className="grid min-h-screen lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[336px_minmax(0,1fr)]">
-        <aside className="hidden border-r border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(247,250,255,0.76)_0%,rgba(239,245,252,0.88)_100%)] px-5 py-5 lg:block">
+        <aside className="hidden border-r border-stone-200/90 bg-white/70 px-5 py-5 backdrop-blur-sm lg:block">
           <div className="sticky top-5 h-[calc(100vh-2.5rem)]">
             <PortalSidebar
               brandTitle="My Puppy Portal"
@@ -467,7 +467,7 @@ export default function PortalLayout({
           />
 
           <main className="min-h-screen px-4 py-5 md:px-6 md:py-6 xl:px-8 xl:py-8">
-            <div className="mx-auto w-full max-w-[1660px]">{children}</div>
+            <div className="mx-auto w-full max-w-[1380px]">{children}</div>
           </main>
         </div>
       </div>
@@ -476,16 +476,16 @@ export default function PortalLayout({
         <div className="fixed inset-0 z-50 lg:hidden">
           <button
             type="button"
-            className="absolute inset-0 bg-[rgba(16,24,38,0.24)] backdrop-blur-[3px]"
+            className="absolute inset-0 bg-stone-900/55 backdrop-blur-sm"
             onClick={() => setIsDrawerOpen(false)}
             aria-label="Close portal navigation"
           />
-          <div className="absolute left-0 top-0 h-full w-[88%] max-w-[368px] border-r border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(249,252,255,0.98)_0%,rgba(241,246,253,0.98)_100%)] px-5 py-5 shadow-[0_30px_80px_rgba(16,24,38,0.18)]">
+          <div className="absolute left-0 top-0 h-full w-[88%] max-w-[368px] border-r border-stone-200 bg-[#fffcf9] px-5 py-5 shadow-[0_30px_80px_rgba(28,25,23,0.18)]">
             <div className="mb-4 flex justify-end">
               <button
                 type="button"
                 onClick={() => setIsDrawerOpen(false)}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-[18px] border border-[var(--portal-border)] bg-[rgba(255,255,255,0.9)] text-[var(--portal-text)]"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-900 shadow-sm"
                 aria-label="Close portal navigation"
               >
                 <X className="h-5 w-5" />

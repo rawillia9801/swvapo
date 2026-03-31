@@ -153,7 +153,7 @@ export default function PortalResourcesPage() {
                   rel="noreferrer"
                   className="group flex items-start gap-4 rounded-[28px] border border-[var(--portal-border)] bg-[rgba(255,255,255,0.92)] px-5 py-5 shadow-[0_18px_34px_rgba(23,35,56,0.05)] transition hover:-translate-y-0.5 hover:border-[var(--portal-border-strong)] hover:shadow-[0_22px_42px_rgba(23,35,56,0.08)]"
                 >
-                  <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-[linear-gradient(135deg,#eef3ff_0%,#dbe6ff_100%)] text-[var(--portal-accent-strong)] shadow-[0_10px_22px_rgba(47,88,227,0.14)]">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-[linear-gradient(135deg,#fff4df_0%,#fde7bf_100%)] text-[var(--portal-accent-strong)] shadow-[0_10px_22px_rgba(168,120,72,0.14)]">
                     <Compass className="h-4 w-4" />
                   </div>
 
@@ -162,7 +162,7 @@ export default function PortalResourcesPage() {
                       <h3 className="text-lg font-semibold tracking-[-0.03em] text-[var(--portal-text)]">
                         {site.title}
                       </h3>
-                      <span className="inline-flex items-center rounded-full border border-[rgba(93,121,255,0.18)] bg-[rgba(93,121,255,0.08)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-accent-strong)]">
+                      <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-accent-strong)]">
                         {site.tag}
                       </span>
                     </div>
@@ -188,7 +188,7 @@ export default function PortalResourcesPage() {
               {knowledgeModules.map((module) => (
                 <div
                   key={module.title}
-                  className="rounded-[28px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96)_0%,rgba(245,249,255,0.86)_100%)] p-5 shadow-[0_16px_32px_rgba(23,35,56,0.05)]"
+                  className="rounded-[28px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96)_0%,rgba(250,250,249,0.9)_100%)] p-5 shadow-[0_16px_32px_rgba(23,35,56,0.05)]"
                 >
                   <div className="flex items-center gap-3">
                     <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
