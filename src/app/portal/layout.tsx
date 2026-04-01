@@ -53,16 +53,6 @@ type NavDefinition = {
   match?: (pathname: string) => boolean;
 };
 
-type ChiChiResponse = {
-  text?: string;
-  threadId?: string | null;
-  adminAuth?: {
-    userId?: string | null;
-    email?: string | null;
-    canWriteCore?: boolean;
-  };
-};
-
 type SidebarNavItem = {
   href: string;
   label: string;
@@ -107,6 +97,16 @@ type ProfileFormState = {
   city: string;
   state: string;
   postal_code: string;
+};
+
+type ChiChiResponse = {
+  text?: string;
+  threadId?: string | null;
+  adminAuth?: {
+    userId?: string | null;
+    email?: string | null;
+    canWriteCore?: boolean;
+  };
 };
 
 const navDefinitions: NavDefinition[] = [
@@ -217,7 +217,6 @@ function pageTitleFromPath(pathname: string) {
   );
 
   if (direct) return direct.label;
-  if (pathname.startsWith("/portal/mypuppy")) return "My Puppy";
   if (pathname.startsWith("/portal/profile")) return "Profile";
   if (pathname.startsWith("/portal/help")) return "Help and Support";
   if (pathname.startsWith("/portal/notifications")) return "Notifications";
@@ -226,9 +225,9 @@ function pageTitleFromPath(pathname: string) {
 
 function formatNotificationDate(value: string | null | undefined) {
   if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleDateString([], {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toLocaleDateString([], {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -237,6 +236,10 @@ function formatNotificationDate(value: string | null | undefined) {
 
 function makeNotificationKey(prefix: string, id: string | number, value?: string | null) {
   return `${prefix}:${id}:${value || "na"}`;
+}
+
+function requestText(request: PortalPickupRequest | null, keys: string[]) {
+  return String(readRecordValue(request, keys) || "").trim();
 }
 
 function buildNotifications(params: {
@@ -303,13 +306,11 @@ function buildNotifications(params: {
       .filter((entry) => String(entry.status || "").toLowerCase() === "draft")
       .slice(0, 3)
       .map((entry) => ({
-        key: makeNotificationKey("form", entry.id, entry.submitted_at || entry.signed_at || entry.signed_date),
+        key: makeNotificationKey("form", entry.id, String(entry.submitted_at || entry.signed_at || entry.signed_date || "")),
         title: entry.form_title || entry.form_key || "Draft form saved",
         body: "A form is still in draft and can be completed from your portal.",
         dateValue: String(entry.submitted_at || entry.signed_at || entry.signed_date || ""),
-        dateLabel: formatNotificationDate(
-          String(entry.submitted_at || entry.signed_at || entry.signed_date || "")
-        ),
+        dateLabel: formatNotificationDate(String(entry.submitted_at || entry.signed_at || entry.signed_date || "")),
         href: "/portal/documents",
         tone: "document" as const,
       })),
@@ -319,18 +320,15 @@ function buildNotifications(params: {
           {
             key: makeNotificationKey(
               "transport",
-              params.pickupRequest.id,
-              params.pickupRequest.created_at || params.pickupRequest.request_date
+              String(readRecordValue(params.pickupRequest, ["id"]) || "pickup"),
+              requestText(params.pickupRequest, ["created_at", "request_date"])
             ),
             title: "Transportation request on file",
             body:
-              params.pickupRequest.location_text ||
-              params.pickupRequest.address_text ||
+              requestText(params.pickupRequest, ["location_text", "address_text"]) ||
               "A transportation request was created for this portal account.",
-            dateValue: String(params.pickupRequest.request_date || params.pickupRequest.created_at || ""),
-            dateLabel: formatNotificationDate(
-              String(params.pickupRequest.request_date || params.pickupRequest.created_at || "")
-            ),
+            dateValue: requestText(params.pickupRequest, ["request_date", "created_at"]),
+            dateLabel: formatNotificationDate(requestText(params.pickupRequest, ["request_date", "created_at"])),
             href: "/portal/transportation",
             tone: "transport" as const,
           },
@@ -346,11 +344,22 @@ function buildNotifications(params: {
 
 function navItemClassName(active: boolean) {
   return [
-    "group flex w-full items-center justify-between rounded-[16px] border px-3 py-2.5 transition-all duration-200",
+    "group flex w-full items-center justify-between rounded-[14px] border px-3 py-2 transition-all duration-200",
     active
       ? "border-slate-300 bg-white text-slate-900 shadow-sm"
       : "border-slate-200 bg-white/90 text-slate-700 hover:border-slate-300 hover:bg-white",
   ].join(" ");
+}
+
+function InfoBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[14px] border border-slate-200 bg-slate-50/70 px-3 py-2">
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
+        {label}
+      </div>
+      <div className="mt-0.5 text-sm font-semibold text-slate-800">{value}</div>
+    </div>
+  );
 }
 
 function SidebarChrome({
@@ -370,10 +379,10 @@ function SidebarChrome({
   onSignOut,
 }: SidebarChromeProps) {
   return (
-    <div className="flex h-full flex-col gap-3">
-      <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="flex h-full flex-col gap-2.5">
+      <div className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="flex h-[72px] w-[92px] shrink-0 items-center justify-center overflow-hidden rounded-[20px] border border-slate-200 bg-slate-50 p-2">
+          <div className="flex h-[66px] w-[82px] shrink-0 items-center justify-center overflow-hidden rounded-[18px] border border-slate-200 bg-slate-50 p-2">
             <img
               src="https://www.swvachihuahua.com/pics/logo.jpg"
               alt="Southwest Virginia Chihuahua logo"
@@ -382,33 +391,33 @@ function SidebarChrome({
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="font-serif text-[1rem] font-bold leading-tight tracking-tight text-slate-900">
+            <div className="font-serif text-[0.98rem] font-bold leading-tight tracking-tight text-slate-900">
               My Puppy Portal Page
             </div>
-            <div className="mt-1 text-sm font-semibold leading-snug text-slate-700">
+            <div className="mt-0.5 text-sm font-semibold leading-snug text-slate-700">
               Southwest Virginia Chihuahua
             </div>
-            <div className="mt-1 text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
+            <div className="mt-0.5 text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
               Virginia’s Premier Chihuahua Breeder
             </div>
           </div>
         </div>
       </div>
 
-      <div className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="rounded-[20px] border border-slate-200 bg-white p-4 shadow-sm">
         <div className="font-serif text-[1rem] font-bold tracking-tight text-slate-900">
           Welcome {displayName}
         </div>
 
-        <div className="mt-3 space-y-2.5">
+        <div className="mt-2.5 space-y-1.5">
           <InfoBox label="Puppy" value={puppyName} />
           <InfoBox label="Sign-up Date" value={signupDate} />
           <InfoBox label="Application Date" value={applicationDate} />
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 rounded-[22px] border border-slate-200 bg-white p-3 shadow-sm">
-        <nav className="space-y-2">
+      <div className="min-h-0 flex-1 rounded-[20px] border border-slate-200 bg-white p-2.5 shadow-sm">
+        <nav className="space-y-1.5">
           {navItems.map((item) => (
             <Link key={item.href} href={item.href} className={navItemClassName(item.active)}>
               <span className="flex min-w-0 items-center gap-2.5">
@@ -427,7 +436,7 @@ function SidebarChrome({
               </span>
 
               {typeof item.badge === "number" && item.badge > 0 ? (
-                <span className="inline-flex min-w-[26px] items-center justify-center rounded-full bg-slate-900 px-2 py-1 text-[10px] font-black text-white">
+                <span className="inline-flex min-w-[24px] items-center justify-center rounded-full bg-slate-900 px-2 py-1 text-[10px] font-black text-white">
                   {item.badge}
                 </span>
               ) : null}
@@ -453,17 +462,6 @@ function SidebarChrome({
   );
 }
 
-function InfoBox({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[16px] border border-slate-200 bg-slate-50/70 px-3.5 py-2.5">
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
-        {label}
-      </div>
-      <div className="mt-1 text-sm font-semibold text-slate-800">{value}</div>
-    </div>
-  );
-}
-
 function FieldCard({
   label,
   value,
@@ -476,7 +474,7 @@ function FieldCard({
   type?: string;
 }) {
   return (
-    <div className="rounded-[20px] border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="rounded-[18px] border border-slate-200 bg-white p-4 shadow-sm">
       <label className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700">
         {label}
       </label>
@@ -1013,7 +1011,7 @@ export default function PortalLayout({
 
   return (
     <div className="min-h-screen bg-[#fbfbfa] text-slate-900">
-      <div className="grid min-h-screen lg:grid-cols-[332px_minmax(0,1fr)] xl:grid-cols-[352px_minmax(0,1fr)]">
+      <div className="grid min-h-screen lg:grid-cols-[312px_minmax(0,1fr)] xl:grid-cols-[328px_minmax(0,1fr)]">
         <aside className="hidden border-r border-slate-200 bg-[#fcfcfb] px-4 py-4 lg:block">
           <div className="sticky top-4 h-[calc(100vh-2rem)]">
             <SidebarChrome
@@ -1047,13 +1045,13 @@ export default function PortalLayout({
 
           <main className="min-h-screen px-4 py-5 md:px-6 md:py-6 xl:px-8 xl:py-8">
             <div className="mx-auto flex w-full max-w-[1380px] flex-col gap-6">
-              <div className="rounded-[24px] border border-slate-200 bg-white px-5 py-4 shadow-sm">
+              <div className="rounded-[22px] border border-slate-200 bg-white px-5 py-4 shadow-sm">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                   <div className="min-w-0">
                     <div className="text-[11px] font-black uppercase tracking-[0.2em] text-amber-700">
                       Southwest Virginia Chihuahua
                     </div>
-                    <h1 className="mt-1 truncate font-serif text-[1.8rem] font-bold tracking-tight text-slate-900">
+                    <h1 className="mt-1 font-serif text-[1.75rem] font-bold tracking-tight text-slate-900">
                       {pageTitle}
                     </h1>
                   </div>
@@ -1122,7 +1120,7 @@ export default function PortalLayout({
             onClick={() => setIsDrawerOpen(false)}
             aria-label="Close portal navigation"
           />
-          <div className="absolute left-0 top-0 h-full w-[90%] max-w-[356px] border-r border-slate-200 bg-[#fcfcfb] px-4 py-4 shadow-[0_30px_80px_rgba(15,23,42,0.22)]">
+          <div className="absolute left-0 top-0 h-full w-[90%] max-w-[340px] border-r border-slate-200 bg-[#fcfcfb] px-4 py-4 shadow-[0_30px_80px_rgba(15,23,42,0.22)]">
             <div className="mb-4 flex justify-end">
               <button
                 type="button"
@@ -1209,7 +1207,7 @@ export default function PortalLayout({
                     {notifications.map((item) => (
                       <div
                         key={item.key}
-                        className="rounded-[20px] border border-slate-200 bg-white p-4 shadow-sm"
+                        className="rounded-[18px] border border-slate-200 bg-white p-4 shadow-sm"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <button
@@ -1254,7 +1252,7 @@ export default function PortalLayout({
                     ))}
                   </div>
                 ) : (
-                  <div className="rounded-[22px] border border-slate-200 bg-white p-6 text-center shadow-sm">
+                  <div className="rounded-[18px] border border-slate-200 bg-white p-6 text-center shadow-sm">
                     <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-2xl">
                       🐾
                     </div>
@@ -1304,7 +1302,7 @@ export default function PortalLayout({
               </div>
 
               <div className="flex-1 overflow-y-auto px-5 py-5">
-                <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="rounded-[20px] border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="flex items-center gap-4">
                     <div className="inline-flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-xl font-black text-slate-700">
                       {profilePicturePreviewUrl ? (
