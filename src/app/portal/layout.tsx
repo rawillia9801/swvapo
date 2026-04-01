@@ -4,21 +4,7 @@ import Link from "next/link";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
-import {
-  Bell,
-  BookOpen,
-  CalendarDays,
-  CarFront,
-  ClipboardList,
-  CreditCard,
-  FileText,
-  HelpCircle,
-  Home,
-  Loader2,
-  MessageCircle,
-  Sparkles,
-  X,
-} from "lucide-react";
+import { Bell, HelpCircle, Loader2, X } from "lucide-react";
 import { sb } from "@/lib/utils";
 import {
   PortalChiChiWidget,
@@ -224,9 +210,12 @@ function formatPortalDateValue(value: unknown) {
 }
 
 function pageTitleFromPath(pathname: string) {
+  if (pathname === "/portal") return "My Puppy Portal";
+
   const direct = navDefinitions.find((item) =>
     item.match ? item.match(pathname) : pathname === item.href || pathname.startsWith(`${item.href}/`)
   );
+
   if (direct) return direct.label;
   if (pathname.startsWith("/portal/mypuppy")) return "My Puppy";
   if (pathname.startsWith("/portal/profile")) return "Profile";
@@ -357,10 +346,10 @@ function buildNotifications(params: {
 
 function navItemClassName(active: boolean) {
   return [
-    "group flex w-full items-center justify-between rounded-[18px] border px-3 py-2.5 transition-all duration-200",
+    "group flex w-full items-center justify-between rounded-[16px] border px-3 py-2.5 transition-all duration-200",
     active
-      ? "border-[#b48755] bg-[linear-gradient(135deg,rgba(190,150,99,0.18),rgba(255,255,255,0.94))] text-[#4d3422] shadow-[0_10px_22px_rgba(126,92,56,0.14)]"
-      : "border-white/80 bg-white/70 text-[#6f5440] hover:border-[#d9c0a3] hover:bg-white hover:text-[#4d3422] hover:shadow-[0_10px_22px_rgba(126,92,56,0.08)]",
+      ? "border-slate-300 bg-white text-slate-900 shadow-sm"
+      : "border-slate-200 bg-white/90 text-slate-700 hover:border-slate-300 hover:bg-white",
   ].join(" ");
 }
 
@@ -381,10 +370,10 @@ function SidebarChrome({
   onSignOut,
 }: SidebarChromeProps) {
   return (
-    <div className="flex h-full flex-col gap-3.5">
-      <div className="rounded-[28px] border border-[#e7d7c4] bg-[linear-gradient(135deg,rgba(255,252,247,0.96),rgba(247,238,228,0.94))] p-4 shadow-[0_22px_56px_rgba(120,88,56,0.13)]">
-        <div className="flex items-center gap-3.5">
-          <div className="flex h-[76px] w-[98px] shrink-0 items-center justify-center overflow-hidden rounded-[22px] border border-[#e7d7c4] bg-white p-2 shadow-[0_10px_24px_rgba(120,88,56,0.1)]">
+    <div className="flex h-full flex-col gap-3">
+      <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="flex h-[72px] w-[92px] shrink-0 items-center justify-center overflow-hidden rounded-[20px] border border-slate-200 bg-slate-50 p-2">
             <img
               src="https://www.swvachihuahua.com/pics/logo.jpg"
               alt="Southwest Virginia Chihuahua logo"
@@ -393,69 +382,52 @@ function SidebarChrome({
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="text-[1rem] font-extrabold leading-tight tracking-[-0.02em] text-[#3d2a1f]">
+            <div className="font-serif text-[1rem] font-bold leading-tight tracking-tight text-slate-900">
               My Puppy Portal Page
             </div>
-            <div className="mt-1 text-sm font-semibold leading-snug text-[#6d5341]">
+            <div className="mt-1 text-sm font-semibold leading-snug text-slate-700">
               Southwest Virginia Chihuahua
             </div>
-            <div className="mt-1 text-[11px] font-bold uppercase tracking-[0.16em] text-[#a2784f]">
+            <div className="mt-1 text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
               Virginia’s Premier Chihuahua Breeder
             </div>
           </div>
         </div>
       </div>
 
-      <div className="rounded-[26px] border border-[#eadbc9] bg-white/80 p-4 shadow-[0_14px_34px_rgba(120,88,56,0.08)] backdrop-blur-sm">
-        <div className="text-[1rem] font-extrabold tracking-[-0.02em] text-[#3d2a1f]">
+      <div className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="font-serif text-[1rem] font-bold tracking-tight text-slate-900">
           Welcome {displayName}
         </div>
 
         <div className="mt-3 space-y-2.5">
-          <div className="rounded-[18px] border border-[#f0e4d7] bg-[#fffaf5] px-3.5 py-2.5">
-            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#b18459]">
-              Puppy
-            </div>
-            <div className="mt-1 text-sm font-semibold text-[#5b4331]">{puppyName}</div>
-          </div>
-
-          <div className="rounded-[18px] border border-[#f0e4d7] bg-[#fffaf5] px-3.5 py-2.5">
-            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#b18459]">
-              Sign-up Date
-            </div>
-            <div className="mt-1 text-sm font-semibold text-[#5b4331]">{signupDate}</div>
-          </div>
-
-          <div className="rounded-[18px] border border-[#f0e4d7] bg-[#fffaf5] px-3.5 py-2.5">
-            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#b18459]">
-              Application Date
-            </div>
-            <div className="mt-1 text-sm font-semibold text-[#5b4331]">{applicationDate}</div>
-          </div>
+          <InfoBox label="Puppy" value={puppyName} />
+          <InfoBox label="Sign-up Date" value={signupDate} />
+          <InfoBox label="Application Date" value={applicationDate} />
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 rounded-[26px] border border-[#eadbc9] bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(250,244,236,0.92))] p-3 shadow-[0_14px_36px_rgba(120,88,56,0.08)] backdrop-blur-sm">
+      <div className="min-h-0 flex-1 rounded-[22px] border border-slate-200 bg-white p-3 shadow-sm">
         <nav className="space-y-2">
           {navItems.map((item) => (
             <Link key={item.href} href={item.href} className={navItemClassName(item.active)}>
               <span className="flex min-w-0 items-center gap-2.5">
                 <span
                   className={[
-                    "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border text-sm transition-colors",
+                    "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl border text-sm",
                     item.active
-                      ? "border-[#d8b28a] bg-white/90"
-                      : "border-[#f0e4d7] bg-[#fffaf5] group-hover:border-[#e6c7a7]",
+                      ? "border-slate-300 bg-slate-50"
+                      : "border-slate-200 bg-slate-50/80",
                   ].join(" ")}
                   aria-hidden="true"
                 >
                   {item.mascot}
                 </span>
-                <span className="truncate text-[13px] font-bold leading-tight">{item.label}</span>
+                <span className="truncate text-[13px] font-bold text-slate-800">{item.label}</span>
               </span>
 
               {typeof item.badge === "number" && item.badge > 0 ? (
-                <span className="inline-flex min-w-[28px] items-center justify-center rounded-full bg-[#8f6945] px-2 py-1 text-[10px] font-black text-white shadow-sm">
+                <span className="inline-flex min-w-[26px] items-center justify-center rounded-full bg-slate-900 px-2 py-1 text-[10px] font-black text-white">
                   {item.badge}
                 </span>
               ) : null}
@@ -477,6 +449,43 @@ function SidebarChrome({
           onSignOut={onSignOut}
         />
       </div>
+    </div>
+  );
+}
+
+function InfoBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[16px] border border-slate-200 bg-slate-50/70 px-3.5 py-2.5">
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
+        {label}
+      </div>
+      <div className="mt-1 text-sm font-semibold text-slate-800">{value}</div>
+    </div>
+  );
+}
+
+function FieldCard({
+  label,
+  value,
+  onChange,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+}) {
+  return (
+    <div className="rounded-[20px] border border-slate-200 bg-white p-4 shadow-sm">
+      <label className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700">
+        {label}
+      </label>
+      <input
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-slate-400"
+      />
     </div>
   );
 }
@@ -694,11 +703,7 @@ export default function PortalLayout({
 
     if (!profilePictureFile) {
       setProfilePicturePreviewUrl(
-        String(
-          readRecordValue(buyer, ["portal_profile_photo_url"]) ||
-            user?.user_metadata?.avatar_url ||
-            ""
-        )
+        String(readRecordValue(buyer, ["portal_profile_photo_url"]) || user?.user_metadata?.avatar_url || "")
       );
     }
   }, [application, buyer, profilePictureFile, user]);
@@ -902,7 +907,8 @@ export default function PortalLayout({
     }
 
     const fallback = Array.from(document.querySelectorAll("button")).find((button) => {
-      const text = `${button.textContent || ""} ${button.getAttribute("aria-label") || ""} ${button.getAttribute("title") || ""}`.toLowerCase();
+      const text =
+        `${button.textContent || ""} ${button.getAttribute("aria-label") || ""} ${button.getAttribute("title") || ""}`.toLowerCase();
       return text.includes("chichi") || text.includes("chat");
     }) as HTMLButtonElement | undefined;
 
@@ -1006,9 +1012,9 @@ export default function PortalLayout({
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(255,250,244,0.95),rgba(249,244,236,0.92)_34%,rgba(244,236,226,0.88)_100%)] text-[var(--portal-text)]">
-      <div className="grid min-h-screen lg:grid-cols-[352px_minmax(0,1fr)] xl:grid-cols-[382px_minmax(0,1fr)]">
-        <aside className="hidden border-r border-[#eadbc9] bg-[linear-gradient(180deg,rgba(255,252,248,0.88),rgba(248,240,231,0.82))] px-4 py-4 backdrop-blur-sm lg:block">
+    <div className="min-h-screen bg-[#fbfbfa] text-slate-900">
+      <div className="grid min-h-screen lg:grid-cols-[332px_minmax(0,1fr)] xl:grid-cols-[352px_minmax(0,1fr)]">
+        <aside className="hidden border-r border-slate-200 bg-[#fcfcfb] px-4 py-4 lg:block">
           <div className="sticky top-4 h-[calc(100vh-2rem)]">
             <SidebarChrome
               displayName={displayName}
@@ -1041,13 +1047,13 @@ export default function PortalLayout({
 
           <main className="min-h-screen px-4 py-5 md:px-6 md:py-6 xl:px-8 xl:py-8">
             <div className="mx-auto flex w-full max-w-[1380px] flex-col gap-6">
-              <div className="rounded-[28px] border border-[#eadbc9] bg-[linear-gradient(135deg,rgba(255,255,255,0.94),rgba(250,244,236,0.96))] px-5 py-4 shadow-[0_14px_34px_rgba(120,88,56,0.1)]">
+              <div className="rounded-[24px] border border-slate-200 bg-white px-5 py-4 shadow-sm">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                   <div className="min-w-0">
-                    <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#b18459]">
+                    <div className="text-[11px] font-black uppercase tracking-[0.2em] text-amber-700">
                       Southwest Virginia Chihuahua
                     </div>
-                    <h1 className="mt-1 truncate text-[1.8rem] font-extrabold tracking-[-0.04em] text-[#3d2a1f]">
+                    <h1 className="mt-1 truncate font-serif text-[1.8rem] font-bold tracking-tight text-slate-900">
                       {pageTitle}
                     </h1>
                   </div>
@@ -1056,13 +1062,13 @@ export default function PortalLayout({
                     <button
                       type="button"
                       onClick={() => setIsNotificationsOpen(true)}
-                      className="relative inline-flex h-12 w-12 items-center justify-center rounded-full border border-[#eadbc9] bg-white text-[#5f4634] shadow-sm transition hover:border-[#d8b28a] hover:bg-[#fffaf5]"
+                      className="relative inline-flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-slate-300"
                       aria-label="Open notifications"
                       title="Notifications"
                     >
                       <Bell className="h-5 w-5" />
                       {notifications.length > 0 ? (
-                        <span className="absolute -right-1 -top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#d11f2f] text-[10px] shadow-[0_0_18px_rgba(209,31,47,0.5)] animate-pulse">
+                        <span className="absolute -right-1 -top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] shadow-[0_0_18px_rgba(220,38,38,0.45)] animate-pulse">
                           🐾
                         </span>
                       ) : null}
@@ -1071,7 +1077,7 @@ export default function PortalLayout({
                     <button
                       type="button"
                       onClick={openChiChiFromHelp}
-                      className="inline-flex items-center gap-2 rounded-full border border-[#eadbc9] bg-white px-4 py-3 text-sm font-bold text-[#5f4634] shadow-sm transition hover:border-[#d8b28a] hover:bg-[#fffaf5]"
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 shadow-sm transition hover:border-slate-300"
                     >
                       <HelpCircle className="h-4 w-4" />
                       Help and Support
@@ -1084,9 +1090,9 @@ export default function PortalLayout({
                         setProfileErrorText("");
                         setIsProfileOpen(true);
                       }}
-                      className="inline-flex items-center gap-3 rounded-full border border-[#eadbc9] bg-white px-3 py-2 text-left shadow-sm transition hover:border-[#d8b28a] hover:bg-[#fffaf5]"
+                      className="inline-flex items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-2 text-left shadow-sm transition hover:border-slate-300"
                     >
-                      <span className="inline-flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border border-[#e6d2bc] bg-[linear-gradient(135deg,#fffaf5,#f6eadc)] text-sm font-black text-[#6a4f3a]">
+                      <span className="inline-flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-sm font-black text-slate-700">
                         {profilePhotoUrl ? (
                           <img
                             src={profilePhotoUrl}
@@ -1112,16 +1118,16 @@ export default function PortalLayout({
         <div className="fixed inset-0 z-50 lg:hidden">
           <button
             type="button"
-            className="absolute inset-0 bg-stone-900/45 backdrop-blur-sm"
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
             onClick={() => setIsDrawerOpen(false)}
             aria-label="Close portal navigation"
           />
-          <div className="absolute left-0 top-0 h-full w-[90%] max-w-[376px] border-r border-[#eadbc9] bg-[linear-gradient(180deg,rgba(255,252,248,0.98),rgba(248,240,231,0.98))] px-4 py-4 shadow-[0_30px_80px_rgba(40,28,20,0.2)]">
+          <div className="absolute left-0 top-0 h-full w-[90%] max-w-[356px] border-r border-slate-200 bg-[#fcfcfb] px-4 py-4 shadow-[0_30px_80px_rgba(15,23,42,0.22)]">
             <div className="mb-4 flex justify-end">
               <button
                 type="button"
                 onClick={() => setIsDrawerOpen(false)}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#eadbc9] bg-white text-[#5b4331] shadow-sm"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm"
                 aria-label="Close portal navigation"
               >
                 <X className="h-5 w-5" />
@@ -1156,19 +1162,19 @@ export default function PortalLayout({
         <div className="fixed inset-0 z-[70]">
           <button
             type="button"
-            className="absolute inset-0 bg-stone-900/45 backdrop-blur-sm"
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
             onClick={() => setIsNotificationsOpen(false)}
             aria-label="Close notifications"
           />
 
-          <aside className="absolute right-0 top-0 h-full w-full max-w-[460px] border-l border-[#eadbc9] bg-[linear-gradient(180deg,rgba(255,252,248,0.98),rgba(248,240,231,0.98))] shadow-[0_30px_80px_rgba(40,28,20,0.22)]">
+          <aside className="absolute right-0 top-0 h-full w-full max-w-[460px] border-l border-slate-200 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.22)]">
             <div className="flex h-full flex-col">
-              <div className="flex items-center justify-between border-b border-[#eadbc9] px-5 py-4">
+              <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                 <div>
-                  <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[#b18459]">
+                  <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700">
                     Buyer Notifications
                   </div>
-                  <div className="mt-1 text-xl font-extrabold tracking-[-0.03em] text-[#3d2a1f]">
+                  <div className="mt-1 font-serif text-xl font-bold tracking-tight text-slate-900">
                     Notifications
                   </div>
                 </div>
@@ -1176,22 +1182,22 @@ export default function PortalLayout({
                 <button
                   type="button"
                   onClick={() => setIsNotificationsOpen(false)}
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#eadbc9] bg-white text-[#5b4331] shadow-sm"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm"
                   aria-label="Close notifications"
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
 
-              <div className="flex items-center justify-between border-b border-[#f0e4d7] px-5 py-3">
-                <div className="text-sm font-semibold text-[#6a4f3a]">
+              <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+                <div className="text-sm font-semibold text-slate-700">
                   {notifications.length} active notification{notifications.length === 1 ? "" : "s"}
                 </div>
 
                 <button
                   type="button"
                   onClick={() => void clearAllNotifications()}
-                  className="text-sm font-bold text-[#8f6945] transition hover:text-[#6f4f35]"
+                  className="text-sm font-bold text-slate-700 transition hover:text-slate-900"
                 >
                   Clear all
                 </button>
@@ -1203,7 +1209,7 @@ export default function PortalLayout({
                     {notifications.map((item) => (
                       <div
                         key={item.key}
-                        className="rounded-[24px] border border-[#eadbc9] bg-white/92 p-4 shadow-[0_10px_28px_rgba(120,88,56,0.08)]"
+                        className="rounded-[20px] border border-slate-200 bg-white p-4 shadow-sm"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <button
@@ -1215,7 +1221,7 @@ export default function PortalLayout({
                             className="min-w-0 flex-1 text-left"
                           >
                             <div className="flex items-center gap-2">
-                              <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-[#f0e4d7] bg-[#fffaf5] text-base">
+                              <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-base">
                                 {item.tone === "message" ? "💌" : null}
                                 {item.tone === "health" ? "🦴" : null}
                                 {item.tone === "update" ? "🐾" : null}
@@ -1223,21 +1229,21 @@ export default function PortalLayout({
                                 {item.tone === "transport" ? "🚗" : null}
                               </span>
                               <div className="min-w-0">
-                                <div className="truncate text-sm font-extrabold text-[#3d2a1f]">
+                                <div className="truncate text-sm font-extrabold text-slate-900">
                                   {item.title}
                                 </div>
-                                <div className="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-[#b18459]">
+                                <div className="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-amber-700">
                                   {item.dateLabel}
                                 </div>
                               </div>
                             </div>
-                            <div className="mt-3 text-sm leading-6 text-[#6a4f3a]">{item.body}</div>
+                            <div className="mt-3 text-sm leading-6 text-slate-600">{item.body}</div>
                           </button>
 
                           <button
                             type="button"
                             onClick={() => void dismissNotification(item.key)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#eadbc9] bg-white text-[#8b6a52] transition hover:bg-[#fff7ef]"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
                             aria-label="Dismiss notification"
                             title="Dismiss"
                           >
@@ -1248,14 +1254,14 @@ export default function PortalLayout({
                     ))}
                   </div>
                 ) : (
-                  <div className="rounded-[26px] border border-[#eadbc9] bg-white/90 p-6 text-center shadow-[0_10px_28px_rgba(120,88,56,0.08)]">
-                    <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-full border border-[#f0e4d7] bg-[#fffaf5] text-2xl">
+                  <div className="rounded-[22px] border border-slate-200 bg-white p-6 text-center shadow-sm">
+                    <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-2xl">
                       🐾
                     </div>
-                    <div className="mt-4 text-lg font-extrabold tracking-[-0.02em] text-[#3d2a1f]">
+                    <div className="mt-4 font-serif text-lg font-bold tracking-tight text-slate-900">
                       No new notifications
                     </div>
-                    <div className="mt-2 text-sm leading-6 text-[#6a4f3a]">
+                    <div className="mt-2 text-sm leading-6 text-slate-600">
                       New breeder messages, pupdates, health records, open documents, and transportation items will appear here.
                     </div>
                   </div>
@@ -1270,19 +1276,19 @@ export default function PortalLayout({
         <div className="fixed inset-0 z-[72]">
           <button
             type="button"
-            className="absolute inset-0 bg-stone-900/45 backdrop-blur-sm"
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
             onClick={() => setIsProfileOpen(false)}
             aria-label="Close profile panel"
           />
 
-          <aside className="absolute right-0 top-0 h-full w-full max-w-[520px] border-l border-[#eadbc9] bg-[linear-gradient(180deg,rgba(255,252,248,0.98),rgba(248,240,231,0.98))] shadow-[0_30px_80px_rgba(40,28,20,0.22)]">
+          <aside className="absolute right-0 top-0 h-full w-full max-w-[520px] border-l border-slate-200 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.22)]">
             <div className="flex h-full flex-col">
-              <div className="flex items-center justify-between border-b border-[#eadbc9] px-5 py-4">
+              <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                 <div>
-                  <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[#b18459]">
+                  <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700">
                     Buyer Profile
                   </div>
-                  <div className="mt-1 text-xl font-extrabold tracking-[-0.03em] text-[#3d2a1f]">
+                  <div className="mt-1 font-serif text-xl font-bold tracking-tight text-slate-900">
                     Profile
                   </div>
                 </div>
@@ -1290,7 +1296,7 @@ export default function PortalLayout({
                 <button
                   type="button"
                   onClick={() => setIsProfileOpen(false)}
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#eadbc9] bg-white text-[#5b4331] shadow-sm"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm"
                   aria-label="Close profile"
                 >
                   <X className="h-5 w-5" />
@@ -1298,9 +1304,9 @@ export default function PortalLayout({
               </div>
 
               <div className="flex-1 overflow-y-auto px-5 py-5">
-                <div className="rounded-[28px] border border-[#eadbc9] bg-white/92 p-5 shadow-[0_14px_34px_rgba(120,88,56,0.08)]">
+                <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="flex items-center gap-4">
-                    <div className="inline-flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-[#eadbc9] bg-[linear-gradient(135deg,#fffaf5,#f1e3d3)] text-xl font-black text-[#6a4f3a]">
+                    <div className="inline-flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-xl font-black text-slate-700">
                       {profilePicturePreviewUrl ? (
                         <img
                           src={profilePicturePreviewUrl}
@@ -1308,17 +1314,17 @@ export default function PortalLayout({
                           className="h-full w-full object-cover"
                         />
                       ) : (
-                        displayName?.[0] || "U"
+                        userInitial
                       )}
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <div className="text-lg font-extrabold tracking-[-0.03em] text-[#3d2a1f]">
+                      <div className="font-serif text-lg font-bold tracking-tight text-slate-900">
                         {displayName}
                       </div>
-                      <div className="mt-1 text-sm text-[#6a4f3a]">{displayEmail}</div>
+                      <div className="mt-1 text-sm text-slate-600">{displayEmail}</div>
 
-                      <label className="mt-3 inline-flex cursor-pointer items-center rounded-full border border-[#eadbc9] bg-[#fffaf5] px-4 py-2 text-sm font-bold text-[#6a4f3a] transition hover:border-[#d7b998]">
+                      <label className="mt-3 inline-flex cursor-pointer items-center rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-slate-700 transition hover:border-slate-300">
                         Upload picture
                         <input
                           type="file"
@@ -1383,25 +1389,25 @@ export default function PortalLayout({
                   </div>
 
                   {profileErrorText ? (
-                    <div className="rounded-2xl border border-[#efc7c7] bg-[#fff3f3] px-4 py-3 text-sm font-semibold text-[#9b3e3e]">
+                    <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
                       {profileErrorText}
                     </div>
                   ) : null}
 
                   {profileSaveText ? (
-                    <div className="rounded-2xl border border-[#d5e6cf] bg-[#f6fff2] px-4 py-3 text-sm font-semibold text-[#486d39]">
+                    <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">
                       {profileSaveText}
                     </div>
                   ) : null}
                 </div>
               </div>
 
-              <div className="border-t border-[#eadbc9] px-5 py-4">
+              <div className="border-t border-slate-200 px-5 py-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
                   <button
                     type="button"
                     onClick={() => setIsProfileOpen(false)}
-                    className="inline-flex items-center justify-center rounded-full border border-[#eadbc9] bg-white px-5 py-3 text-sm font-bold text-[#5f4634] shadow-sm transition hover:bg-[#fffaf5]"
+                    className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
                   >
                     Close
                   </button>
@@ -1410,7 +1416,7 @@ export default function PortalLayout({
                     type="button"
                     onClick={() => void saveProfile()}
                     disabled={isSavingProfile}
-                    className="inline-flex items-center justify-center gap-2 rounded-full bg-[#8f6945] px-5 py-3 text-sm font-black text-white shadow-[0_12px_30px_rgba(111,79,53,0.22)] transition hover:bg-[#775438] disabled:cursor-not-allowed disabled:opacity-70"
+                    className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-900 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     {isSavingProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                     Save Profile
@@ -1433,32 +1439,6 @@ export default function PortalLayout({
         chatDraft={chatDraft}
         onDraftChange={setChatDraft}
         onSend={handleSendChiChiMessage}
-      />
-    </div>
-  );
-}
-
-function FieldCard({
-  label,
-  value,
-  onChange,
-  type = "text",
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  type?: string;
-}) {
-  return (
-    <div className="rounded-[24px] border border-[#eadbc9] bg-white/92 p-4 shadow-[0_10px_24px_rgba(120,88,56,0.06)]">
-      <label className="text-[11px] font-black uppercase tracking-[0.18em] text-[#b18459]">
-        {label}
-      </label>
-      <input
-        type={type}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="mt-2 w-full rounded-2xl border border-[#eadbc9] bg-[#fffaf5] px-4 py-3 text-sm font-semibold text-[#4d3422] outline-none transition focus:border-[#c69f76]"
       />
     </div>
   );
