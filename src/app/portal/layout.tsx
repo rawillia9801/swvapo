@@ -16,7 +16,6 @@ import {
   Home,
   Loader2,
   MessageCircle,
-  PawPrint,
   Sparkles,
   X,
 } from "lucide-react";
@@ -64,7 +63,6 @@ type PortalUser = {
 type NavDefinition = {
   href: string;
   label: string;
-  icon: React.ReactNode;
   mascot: string;
   match?: (pathname: string) => boolean;
 };
@@ -82,7 +80,6 @@ type ChiChiResponse = {
 type SidebarNavItem = {
   href: string;
   label: string;
-  icon: React.ReactNode;
   mascot: string;
   active: boolean;
   badge?: number;
@@ -130,56 +127,47 @@ const navDefinitions: NavDefinition[] = [
   {
     href: "/portal",
     label: "Overview",
-    icon: <Home className="h-4 w-4" />,
     mascot: "🐶",
     match: (pathname) => pathname === "/portal",
   },
   {
     href: "/portal/application",
     label: "Application",
-    icon: <ClipboardList className="h-4 w-4" />,
     mascot: "📝",
   },
   {
     href: "/portal/available-puppies",
     label: "Available Puppies",
-    icon: <Sparkles className="h-4 w-4" />,
     mascot: "🐕",
   },
   {
     href: "/portal/documents",
     label: "Documents/Contracts",
-    icon: <FileText className="h-4 w-4" />,
     mascot: "📄",
   },
   {
     href: "/portal/resources",
     label: "Health/Resources",
-    icon: <BookOpen className="h-4 w-4" />,
     mascot: "🦴",
   },
   {
     href: "/portal/payments",
     label: "Payments",
-    icon: <CreditCard className="h-4 w-4" />,
     mascot: "💳",
   },
   {
     href: "/portal/messages",
     label: "Portal Messages",
-    icon: <MessageCircle className="h-4 w-4" />,
     mascot: "💌",
   },
   {
     href: "/portal/updates",
     label: "Pupdates",
-    icon: <CalendarDays className="h-4 w-4" />,
     mascot: "🐾",
   },
   {
     href: "/portal/transportation",
     label: "Transportation Request",
-    icon: <CarFront className="h-4 w-4" />,
     mascot: "🚗",
   },
 ];
@@ -323,10 +311,7 @@ function buildNotifications(params: {
       })),
 
     ...params.forms
-      .filter((entry) => {
-        const status = String(entry.status || "").toLowerCase();
-        return status === "draft";
-      })
+      .filter((entry) => String(entry.status || "").toLowerCase() === "draft")
       .slice(0, 3)
       .map((entry) => ({
         key: makeNotificationKey("form", entry.id, entry.submitted_at || entry.signed_at || entry.signed_date),
@@ -372,10 +357,10 @@ function buildNotifications(params: {
 
 function navItemClassName(active: boolean) {
   return [
-    "group flex w-full items-center justify-between rounded-[22px] border px-4 py-3.5 transition-all duration-200",
+    "group flex w-full items-center justify-between rounded-[18px] border px-3 py-2.5 transition-all duration-200",
     active
-      ? "border-[#b48755] bg-[linear-gradient(135deg,rgba(190,150,99,0.18),rgba(255,255,255,0.92))] text-[#4d3422] shadow-[0_14px_30px_rgba(126,92,56,0.16)]"
-      : "border-white/80 bg-white/70 text-[#6f5440] hover:border-[#d9c0a3] hover:bg-white hover:text-[#4d3422] hover:shadow-[0_12px_26px_rgba(126,92,56,0.1)]",
+      ? "border-[#b48755] bg-[linear-gradient(135deg,rgba(190,150,99,0.18),rgba(255,255,255,0.94))] text-[#4d3422] shadow-[0_10px_22px_rgba(126,92,56,0.14)]"
+      : "border-white/80 bg-white/70 text-[#6f5440] hover:border-[#d9c0a3] hover:bg-white hover:text-[#4d3422] hover:shadow-[0_10px_22px_rgba(126,92,56,0.08)]",
   ].join(" ");
 }
 
@@ -396,53 +381,53 @@ function SidebarChrome({
   onSignOut,
 }: SidebarChromeProps) {
   return (
-    <div className="flex h-full flex-col gap-4">
-      <div className="rounded-[30px] border border-[#e7d7c4] bg-[linear-gradient(135deg,rgba(255,252,247,0.96),rgba(247,238,228,0.94))] p-5 shadow-[0_24px_60px_rgba(120,88,56,0.14)]">
-        <div className="flex items-center gap-4">
-          <div className="flex h-20 w-[108px] shrink-0 items-center justify-center overflow-hidden rounded-[24px] border border-[#e7d7c4] bg-white px-2 shadow-[0_10px_24px_rgba(120,88,56,0.12)]">
+    <div className="flex h-full flex-col gap-3.5">
+      <div className="rounded-[28px] border border-[#e7d7c4] bg-[linear-gradient(135deg,rgba(255,252,247,0.96),rgba(247,238,228,0.94))] p-4 shadow-[0_22px_56px_rgba(120,88,56,0.13)]">
+        <div className="flex items-center gap-3.5">
+          <div className="flex h-[76px] w-[98px] shrink-0 items-center justify-center overflow-hidden rounded-[22px] border border-[#e7d7c4] bg-white p-2 shadow-[0_10px_24px_rgba(120,88,56,0.1)]">
             <img
               src="https://www.swvachihuahua.com/pics/logo.jpg"
               alt="Southwest Virginia Chihuahua logo"
-              className="max-h-full max-w-full object-contain"
+              className="h-full w-full object-contain"
             />
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="text-[1.05rem] font-extrabold leading-tight tracking-[-0.02em] text-[#3d2a1f]">
+            <div className="text-[1rem] font-extrabold leading-tight tracking-[-0.02em] text-[#3d2a1f]">
               My Puppy Portal Page
             </div>
             <div className="mt-1 text-sm font-semibold leading-snug text-[#6d5341]">
               Southwest Virginia Chihuahua
             </div>
-            <div className="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-[#a2784f]">
+            <div className="mt-1 text-[11px] font-bold uppercase tracking-[0.16em] text-[#a2784f]">
               Virginia’s Premier Chihuahua Breeder
             </div>
           </div>
         </div>
       </div>
 
-      <div className="rounded-[28px] border border-[#eadbc9] bg-white/80 p-5 shadow-[0_16px_40px_rgba(120,88,56,0.1)] backdrop-blur-sm">
-        <div className="text-[1.02rem] font-extrabold tracking-[-0.02em] text-[#3d2a1f]">
+      <div className="rounded-[26px] border border-[#eadbc9] bg-white/80 p-4 shadow-[0_14px_34px_rgba(120,88,56,0.08)] backdrop-blur-sm">
+        <div className="text-[1rem] font-extrabold tracking-[-0.02em] text-[#3d2a1f]">
           Welcome {displayName}
         </div>
 
-        <div className="mt-4 space-y-3">
-          <div className="rounded-2xl border border-[#f0e4d7] bg-[#fffaf5] px-4 py-3">
-            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[#b18459]">
+        <div className="mt-3 space-y-2.5">
+          <div className="rounded-[18px] border border-[#f0e4d7] bg-[#fffaf5] px-3.5 py-2.5">
+            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#b18459]">
               Puppy
             </div>
             <div className="mt-1 text-sm font-semibold text-[#5b4331]">{puppyName}</div>
           </div>
 
-          <div className="rounded-2xl border border-[#f0e4d7] bg-[#fffaf5] px-4 py-3">
-            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[#b18459]">
+          <div className="rounded-[18px] border border-[#f0e4d7] bg-[#fffaf5] px-3.5 py-2.5">
+            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#b18459]">
               Sign-up Date
             </div>
             <div className="mt-1 text-sm font-semibold text-[#5b4331]">{signupDate}</div>
           </div>
 
-          <div className="rounded-2xl border border-[#f0e4d7] bg-[#fffaf5] px-4 py-3">
-            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[#b18459]">
+          <div className="rounded-[18px] border border-[#f0e4d7] bg-[#fffaf5] px-3.5 py-2.5">
+            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#b18459]">
               Application Date
             </div>
             <div className="mt-1 text-sm font-semibold text-[#5b4331]">{applicationDate}</div>
@@ -450,14 +435,14 @@ function SidebarChrome({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 rounded-[28px] border border-[#eadbc9] bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(250,244,236,0.9))] p-4 shadow-[0_16px_44px_rgba(120,88,56,0.1)] backdrop-blur-sm">
+      <div className="min-h-0 flex-1 rounded-[26px] border border-[#eadbc9] bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(250,244,236,0.92))] p-3 shadow-[0_14px_36px_rgba(120,88,56,0.08)] backdrop-blur-sm">
         <nav className="space-y-2">
           {navItems.map((item) => (
             <Link key={item.href} href={item.href} className={navItemClassName(item.active)}>
-              <span className="flex min-w-0 items-center gap-3">
+              <span className="flex min-w-0 items-center gap-2.5">
                 <span
                   className={[
-                    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border text-base transition-colors",
+                    "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border text-sm transition-colors",
                     item.active
                       ? "border-[#d8b28a] bg-white/90"
                       : "border-[#f0e4d7] bg-[#fffaf5] group-hover:border-[#e6c7a7]",
@@ -466,18 +451,14 @@ function SidebarChrome({
                 >
                   {item.mascot}
                 </span>
-                <span className="truncate text-sm font-bold">{item.label}</span>
+                <span className="truncate text-[13px] font-bold leading-tight">{item.label}</span>
               </span>
 
               {typeof item.badge === "number" && item.badge > 0 ? (
-                <span className="inline-flex min-w-[30px] items-center justify-center rounded-full bg-[#8f6945] px-2.5 py-1 text-xs font-black text-white shadow-sm">
+                <span className="inline-flex min-w-[28px] items-center justify-center rounded-full bg-[#8f6945] px-2 py-1 text-[10px] font-black text-white shadow-sm">
                   {item.badge}
                 </span>
-              ) : (
-                <span className="text-xs font-bold uppercase tracking-[0.14em] text-[#b49473]">
-                  Open
-                </span>
-              )}
+              ) : null}
             </Link>
           ))}
         </nav>
@@ -562,7 +543,6 @@ export default function PortalLayout({
       } = await sb.auth.getSession();
 
       if (!mounted) return;
-
       setUser((session?.user as PortalUser) ?? null);
       setAccessToken(session?.access_token ?? null);
     }
@@ -775,12 +755,12 @@ export default function PortalLayout({
   const navItems: SidebarNavItem[] = navDefinitions.map((item) => ({
     href: item.href,
     label: item.label,
-    icon: item.icon,
     mascot: item.mascot,
     active: item.match ? item.match(pathname) : pathname === item.href || pathname.startsWith(`${item.href}/`),
-    badge: item.href === "/portal/messages"
-      ? portalMessages.filter((entry) => entry.sender === "admin" && !entry.read_by_user).length
-      : undefined,
+    badge:
+      item.href === "/portal/messages"
+        ? portalMessages.filter((entry) => entry.sender === "admin" && !entry.read_by_user).length
+        : undefined,
   }));
 
   const profilePhotoUrl =
@@ -1027,9 +1007,9 @@ export default function PortalLayout({
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(255,250,244,0.95),rgba(249,244,236,0.92)_34%,rgba(244,236,226,0.88)_100%)] text-[var(--portal-text)]">
-      <div className="grid min-h-screen lg:grid-cols-[390px_minmax(0,1fr)] xl:grid-cols-[420px_minmax(0,1fr)]">
-        <aside className="hidden border-r border-[#eadbc9] bg-[linear-gradient(180deg,rgba(255,252,248,0.88),rgba(248,240,231,0.82))] px-5 py-5 backdrop-blur-sm lg:block">
-          <div className="sticky top-5 h-[calc(100vh-2.5rem)]">
+      <div className="grid min-h-screen lg:grid-cols-[352px_minmax(0,1fr)] xl:grid-cols-[382px_minmax(0,1fr)]">
+        <aside className="hidden border-r border-[#eadbc9] bg-[linear-gradient(180deg,rgba(255,252,248,0.88),rgba(248,240,231,0.82))] px-4 py-4 backdrop-blur-sm lg:block">
+          <div className="sticky top-4 h-[calc(100vh-2rem)]">
             <SidebarChrome
               displayName={displayName}
               puppyName={puppyName}
@@ -1061,13 +1041,13 @@ export default function PortalLayout({
 
           <main className="min-h-screen px-4 py-5 md:px-6 md:py-6 xl:px-8 xl:py-8">
             <div className="mx-auto flex w-full max-w-[1380px] flex-col gap-6">
-              <div className="rounded-[30px] border border-[#eadbc9] bg-[linear-gradient(135deg,rgba(255,255,255,0.94),rgba(250,244,236,0.96))] px-5 py-4 shadow-[0_16px_48px_rgba(120,88,56,0.11)]">
+              <div className="rounded-[28px] border border-[#eadbc9] bg-[linear-gradient(135deg,rgba(255,255,255,0.94),rgba(250,244,236,0.96))] px-5 py-4 shadow-[0_14px_34px_rgba(120,88,56,0.1)]">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                   <div className="min-w-0">
                     <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#b18459]">
                       Southwest Virginia Chihuahua
                     </div>
-                    <h1 className="mt-1 truncate text-2xl font-extrabold tracking-[-0.04em] text-[#3d2a1f]">
+                    <h1 className="mt-1 truncate text-[1.8rem] font-extrabold tracking-[-0.04em] text-[#3d2a1f]">
                       {pageTitle}
                     </h1>
                   </div>
@@ -1082,12 +1062,9 @@ export default function PortalLayout({
                     >
                       <Bell className="h-5 w-5" />
                       {notifications.length > 0 ? (
-                        <>
-                          <span className="absolute -right-1 -top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#d11f2f] text-[10px] shadow-[0_0_18px_rgba(209,31,47,0.5)] animate-pulse">
-                            🐾
-                          </span>
-                          <span className="sr-only">{notifications.length} notifications</span>
-                        </>
+                        <span className="absolute -right-1 -top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#d11f2f] text-[10px] shadow-[0_0_18px_rgba(209,31,47,0.5)] animate-pulse">
+                          🐾
+                        </span>
                       ) : null}
                     </button>
 
@@ -1139,7 +1116,7 @@ export default function PortalLayout({
             onClick={() => setIsDrawerOpen(false)}
             aria-label="Close portal navigation"
           />
-          <div className="absolute left-0 top-0 h-full w-[92%] max-w-[420px] border-r border-[#eadbc9] bg-[linear-gradient(180deg,rgba(255,252,248,0.98),rgba(248,240,231,0.98))] px-5 py-5 shadow-[0_30px_80px_rgba(40,28,20,0.2)]">
+          <div className="absolute left-0 top-0 h-full w-[90%] max-w-[376px] border-r border-[#eadbc9] bg-[linear-gradient(180deg,rgba(255,252,248,0.98),rgba(248,240,231,0.98))] px-4 py-4 shadow-[0_30px_80px_rgba(40,28,20,0.2)]">
             <div className="mb-4 flex justify-end">
               <button
                 type="button"
@@ -1331,7 +1308,7 @@ export default function PortalLayout({
                           className="h-full w-full object-cover"
                         />
                       ) : (
-                        userInitial
+                        displayName?.[0] || "U"
                       )}
                     </div>
 
@@ -1360,118 +1337,49 @@ export default function PortalLayout({
                 </div>
 
                 <div className="mt-5 grid gap-4">
-                  <div className="rounded-[24px] border border-[#eadbc9] bg-white/92 p-4 shadow-[0_10px_24px_rgba(120,88,56,0.06)]">
-                    <label className="text-[11px] font-black uppercase tracking-[0.18em] text-[#b18459]">
-                      Full Name
-                    </label>
-                    <input
-                      type="text"
-                      value={profileForm.full_name}
-                      onChange={(event) =>
-                        setProfileForm((prev) => ({ ...prev, full_name: event.target.value }))
-                      }
-                      className="mt-2 w-full rounded-2xl border border-[#eadbc9] bg-[#fffaf5] px-4 py-3 text-sm font-semibold text-[#4d3422] outline-none transition focus:border-[#c69f76]"
-                    />
-                  </div>
-
-                  <div className="rounded-[24px] border border-[#eadbc9] bg-white/92 p-4 shadow-[0_10px_24px_rgba(120,88,56,0.06)]">
-                    <label className="text-[11px] font-black uppercase tracking-[0.18em] text-[#b18459]">
-                      Email Address
-                    </label>
-                    <input
-                      type="email"
-                      value={profileForm.email}
-                      onChange={(event) =>
-                        setProfileForm((prev) => ({ ...prev, email: event.target.value }))
-                      }
-                      className="mt-2 w-full rounded-2xl border border-[#eadbc9] bg-[#fffaf5] px-4 py-3 text-sm font-semibold text-[#4d3422] outline-none transition focus:border-[#c69f76]"
-                    />
-                  </div>
-
-                  <div className="rounded-[24px] border border-[#eadbc9] bg-white/92 p-4 shadow-[0_10px_24px_rgba(120,88,56,0.06)]">
-                    <label className="text-[11px] font-black uppercase tracking-[0.18em] text-[#b18459]">
-                      Phone Number
-                    </label>
-                    <input
-                      type="text"
-                      value={profileForm.phone}
-                      onChange={(event) =>
-                        setProfileForm((prev) => ({ ...prev, phone: event.target.value }))
-                      }
-                      className="mt-2 w-full rounded-2xl border border-[#eadbc9] bg-[#fffaf5] px-4 py-3 text-sm font-semibold text-[#4d3422] outline-none transition focus:border-[#c69f76]"
-                    />
-                  </div>
-
-                  <div className="rounded-[24px] border border-[#eadbc9] bg-white/92 p-4 shadow-[0_10px_24px_rgba(120,88,56,0.06)]">
-                    <label className="text-[11px] font-black uppercase tracking-[0.18em] text-[#b18459]">
-                      Address Line 1
-                    </label>
-                    <input
-                      type="text"
-                      value={profileForm.address_line1}
-                      onChange={(event) =>
-                        setProfileForm((prev) => ({ ...prev, address_line1: event.target.value }))
-                      }
-                      className="mt-2 w-full rounded-2xl border border-[#eadbc9] bg-[#fffaf5] px-4 py-3 text-sm font-semibold text-[#4d3422] outline-none transition focus:border-[#c69f76]"
-                    />
-                  </div>
-
-                  <div className="rounded-[24px] border border-[#eadbc9] bg-white/92 p-4 shadow-[0_10px_24px_rgba(120,88,56,0.06)]">
-                    <label className="text-[11px] font-black uppercase tracking-[0.18em] text-[#b18459]">
-                      Address Line 2
-                    </label>
-                    <input
-                      type="text"
-                      value={profileForm.address_line2}
-                      onChange={(event) =>
-                        setProfileForm((prev) => ({ ...prev, address_line2: event.target.value }))
-                      }
-                      className="mt-2 w-full rounded-2xl border border-[#eadbc9] bg-[#fffaf5] px-4 py-3 text-sm font-semibold text-[#4d3422] outline-none transition focus:border-[#c69f76]"
-                    />
-                  </div>
+                  <FieldCard
+                    label="Full Name"
+                    value={profileForm.full_name}
+                    onChange={(value) => setProfileForm((prev) => ({ ...prev, full_name: value }))}
+                  />
+                  <FieldCard
+                    label="Email Address"
+                    type="email"
+                    value={profileForm.email}
+                    onChange={(value) => setProfileForm((prev) => ({ ...prev, email: value }))}
+                  />
+                  <FieldCard
+                    label="Phone Number"
+                    value={profileForm.phone}
+                    onChange={(value) => setProfileForm((prev) => ({ ...prev, phone: value }))}
+                  />
+                  <FieldCard
+                    label="Address Line 1"
+                    value={profileForm.address_line1}
+                    onChange={(value) => setProfileForm((prev) => ({ ...prev, address_line1: value }))}
+                  />
+                  <FieldCard
+                    label="Address Line 2"
+                    value={profileForm.address_line2}
+                    onChange={(value) => setProfileForm((prev) => ({ ...prev, address_line2: value }))}
+                  />
 
                   <div className="grid gap-4 md:grid-cols-3">
-                    <div className="rounded-[24px] border border-[#eadbc9] bg-white/92 p-4 shadow-[0_10px_24px_rgba(120,88,56,0.06)]">
-                      <label className="text-[11px] font-black uppercase tracking-[0.18em] text-[#b18459]">
-                        City
-                      </label>
-                      <input
-                        type="text"
-                        value={profileForm.city}
-                        onChange={(event) =>
-                          setProfileForm((prev) => ({ ...prev, city: event.target.value }))
-                        }
-                        className="mt-2 w-full rounded-2xl border border-[#eadbc9] bg-[#fffaf5] px-4 py-3 text-sm font-semibold text-[#4d3422] outline-none transition focus:border-[#c69f76]"
-                      />
-                    </div>
-
-                    <div className="rounded-[24px] border border-[#eadbc9] bg-white/92 p-4 shadow-[0_10px_24px_rgba(120,88,56,0.06)]">
-                      <label className="text-[11px] font-black uppercase tracking-[0.18em] text-[#b18459]">
-                        State
-                      </label>
-                      <input
-                        type="text"
-                        value={profileForm.state}
-                        onChange={(event) =>
-                          setProfileForm((prev) => ({ ...prev, state: event.target.value }))
-                        }
-                        className="mt-2 w-full rounded-2xl border border-[#eadbc9] bg-[#fffaf5] px-4 py-3 text-sm font-semibold uppercase text-[#4d3422] outline-none transition focus:border-[#c69f76]"
-                      />
-                    </div>
-
-                    <div className="rounded-[24px] border border-[#eadbc9] bg-white/92 p-4 shadow-[0_10px_24px_rgba(120,88,56,0.06)]">
-                      <label className="text-[11px] font-black uppercase tracking-[0.18em] text-[#b18459]">
-                        ZIP Code
-                      </label>
-                      <input
-                        type="text"
-                        value={profileForm.postal_code}
-                        onChange={(event) =>
-                          setProfileForm((prev) => ({ ...prev, postal_code: event.target.value }))
-                        }
-                        className="mt-2 w-full rounded-2xl border border-[#eadbc9] bg-[#fffaf5] px-4 py-3 text-sm font-semibold text-[#4d3422] outline-none transition focus:border-[#c69f76]"
-                      />
-                    </div>
+                    <FieldCard
+                      label="City"
+                      value={profileForm.city}
+                      onChange={(value) => setProfileForm((prev) => ({ ...prev, city: value }))}
+                    />
+                    <FieldCard
+                      label="State"
+                      value={profileForm.state}
+                      onChange={(value) => setProfileForm((prev) => ({ ...prev, state: value }))}
+                    />
+                    <FieldCard
+                      label="ZIP Code"
+                      value={profileForm.postal_code}
+                      onChange={(value) => setProfileForm((prev) => ({ ...prev, postal_code: value }))}
+                    />
                   </div>
 
                   {profileErrorText ? (
@@ -1525,6 +1433,32 @@ export default function PortalLayout({
         chatDraft={chatDraft}
         onDraftChange={setChatDraft}
         onSend={handleSendChiChiMessage}
+      />
+    </div>
+  );
+}
+
+function FieldCard({
+  label,
+  value,
+  onChange,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+}) {
+  return (
+    <div className="rounded-[24px] border border-[#eadbc9] bg-white/92 p-4 shadow-[0_10px_24px_rgba(120,88,56,0.06)]">
+      <label className="text-[11px] font-black uppercase tracking-[0.18em] text-[#b18459]">
+        {label}
+      </label>
+      <input
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-2 w-full rounded-2xl border border-[#eadbc9] bg-[#fffaf5] px-4 py-3 text-sm font-semibold text-[#4d3422] outline-none transition focus:border-[#c69f76]"
       />
     </div>
   );
