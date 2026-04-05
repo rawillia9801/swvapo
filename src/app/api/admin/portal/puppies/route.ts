@@ -9,9 +9,32 @@ type BuyerRow = {
   status?: string | null;
 };
 
+type BreedingDogRow = {
+  id: number;
+  role?: string | null;
+  display_name?: string | null;
+  call_name?: string | null;
+  registered_name?: string | null;
+  status?: string | null;
+};
+
+type LitterRow = {
+  id: number;
+  litter_code?: string | null;
+  litter_name?: string | null;
+  dam_id?: number | null;
+  sire_id?: number | null;
+  whelp_date?: string | null;
+  status?: string | null;
+};
+
 type PuppyRow = {
   id: number;
   buyer_id?: number | null;
+  litter_id?: number | null;
+  litter_name?: string | null;
+  dam_id?: number | null;
+  sire_id?: number | null;
   call_name?: string | null;
   puppy_name?: string | null;
   name?: string | null;
@@ -25,6 +48,7 @@ type PuppyRow = {
   dob?: string | null;
   registry?: string | null;
   price?: number | null;
+  list_price?: number | null;
   deposit?: number | null;
   balance?: number | null;
   status?: string | null;
@@ -57,6 +81,11 @@ function toNumberOrNull(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function toIntegerOrNull(value: unknown) {
+  const parsed = Number(value || 0);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : null;
+}
+
 function toStringOrNull(value: unknown) {
   const text = String(value ?? "").trim();
   return text || null;
@@ -65,6 +94,18 @@ function toStringOrNull(value: unknown) {
 function normalizeEmail(value: unknown) {
   const text = String(value ?? "").trim().toLowerCase();
   return text || null;
+}
+
+async function safeRows<T>(
+  query: PromiseLike<{ data: T[] | null; error: unknown }>
+): Promise<T[]> {
+  try {
+    const result = await query;
+    if (result.error) return [];
+    return result.data || [];
+  } catch {
+    return [];
+  }
 }
 
 async function refreshBuyerFallbackPuppy(
@@ -115,7 +156,7 @@ async function getExistingPuppy(
   const { data, error } = await service
     .from("puppies")
     .select(
-      "id,buyer_id,call_name,puppy_name,name,sire,dam,sex,color,coat_type,coat,pattern,dob,registry,price,deposit,balance,status,birth_weight,current_weight,weight_unit,weight_date,image_url,photo_url,owner_email,description,notes,microchip,registration_no,w_1,w_2,w_3,w_4,w_5,w_6,w_7,w_8,created_at"
+      "id,buyer_id,litter_id,litter_name,dam_id,sire_id,call_name,puppy_name,name,sire,dam,sex,color,coat_type,coat,pattern,dob,registry,price,list_price,deposit,balance,status,birth_weight,current_weight,weight_unit,weight_date,image_url,photo_url,owner_email,description,notes,microchip,registration_no,w_1,w_2,w_3,w_4,w_5,w_6,w_7,w_8,created_at"
     )
     .eq("id", puppyId)
     .maybeSingle<PuppyRow>();
@@ -124,26 +165,86 @@ async function getExistingPuppy(
   return data || null;
 }
 
+async function resolveLineageFields(
+  service: ReturnType<typeof createServiceSupabase>,
+  body: Record<string, unknown>,
+  existing?: PuppyRow | null
+) {
+  const litterId = toIntegerOrNull(body.litter_id ?? existing?.litter_id);
+  const directDamId = toIntegerOrNull(body.dam_id ?? existing?.dam_id);
+  const directSireId = toIntegerOrNull(body.sire_id ?? existing?.sire_id);
+  let litter: LitterRow | null = null;
+
+  if (litterId) {
+    const { data, error } = await service
+      .from("litters")
+      .select("id,litter_code,litter_name,dam_id,sire_id,whelp_date,status")
+      .eq("id", litterId)
+      .maybeSingle<LitterRow>();
+
+    if (error) throw error;
+    litter = data || null;
+  }
+
+  const damId = litter?.dam_id ?? directDamId;
+  const sireId = litter?.sire_id ?? directSireId;
+  const dogIds = [damId, sireId].filter((value) => Number(value || 0) > 0) as number[];
+  const dogs = dogIds.length
+    ? await safeRows<BreedingDogRow>(
+        service
+          .from("breeding_dogs")
+          .select("id,role,display_name,call_name,registered_name,status")
+          .in("id", dogIds)
+      )
+    : [];
+  const dogNameMap = new Map(
+    dogs.map((dog) => [
+      Number(dog.id),
+      firstValue(dog.display_name, dog.call_name, dog.registered_name),
+    ] as const)
+  );
+
+  return {
+    litter_id: litterId,
+    litter_name:
+      toStringOrNull(body.litter_name) ||
+      firstValue(litter?.litter_name, litter?.litter_code, existing?.litter_name) ||
+      null,
+    dam_id: damId,
+    sire_id: sireId,
+    dam:
+      toStringOrNull(body.dam) ||
+      dogNameMap.get(Number(damId || 0)) ||
+      existing?.dam ||
+      null,
+    sire:
+      toStringOrNull(body.sire) ||
+      dogNameMap.get(Number(sireId || 0)) ||
+      existing?.sire ||
+      null,
+  };
+}
+
 async function asPuppyPayload(
   service: ReturnType<typeof createServiceSupabase>,
   body: Record<string, unknown>,
   existing?: PuppyRow | null
 ) {
-  const buyerId = Number(body.buyer_id || 0) || null;
+  const buyerId = toIntegerOrNull(body.buyer_id);
   const buyerEmail = await getBuyerEmail(service, buyerId);
   const ownerEmail =
     normalizeEmail(body.owner_email) ||
     buyerEmail ||
     normalizeEmail(existing?.owner_email) ||
     null;
+  const lineage = await resolveLineageFields(service, body, existing);
 
   return {
     buyer_id: buyerId,
+    ...lineage,
     call_name: toStringOrNull(body.call_name),
     puppy_name: toStringOrNull(body.puppy_name),
     name: toStringOrNull(body.name),
-    sire: toStringOrNull(body.sire),
-    dam: toStringOrNull(body.dam),
     sex: toStringOrNull(body.sex),
     color: toStringOrNull(body.color),
     coat_type: toStringOrNull(body.coat_type),
@@ -152,6 +253,7 @@ async function asPuppyPayload(
     dob: toStringOrNull(body.dob),
     registry: toStringOrNull(body.registry),
     price: toNumberOrNull(body.price),
+    list_price: toNumberOrNull(body.list_price),
     deposit: toNumberOrNull(body.deposit),
     balance: toNumberOrNull(body.balance),
     status: firstValue(body.status as string | null, existing?.status || "available") || "available",
@@ -185,24 +287,36 @@ export async function GET(req: Request) {
     }
 
     const service = createServiceSupabase();
-    const [buyersRes, puppiesRes] = await Promise.all([
-      service
-        .from("buyers")
-        .select("id,full_name,name,email,status")
-        .order("created_at", { ascending: false }),
-      service
-        .from("puppies")
-        .select(
-          "id,buyer_id,call_name,puppy_name,name,sire,dam,sex,color,coat_type,coat,pattern,dob,registry,price,deposit,balance,status,birth_weight,current_weight,weight_unit,weight_date,image_url,photo_url,owner_email,description,notes,microchip,registration_no,w_1,w_2,w_3,w_4,w_5,w_6,w_7,w_8,created_at"
-        )
-        .order("created_at", { ascending: false }),
+    const [buyers, puppies, litters, breedingDogs] = await Promise.all([
+      safeRows<BuyerRow>(
+        service
+          .from("buyers")
+          .select("id,full_name,name,email,status")
+          .order("created_at", { ascending: false })
+      ),
+      safeRows<PuppyRow>(
+        service
+          .from("puppies")
+          .select(
+            "id,buyer_id,litter_id,litter_name,dam_id,sire_id,call_name,puppy_name,name,sire,dam,sex,color,coat_type,coat,pattern,dob,registry,price,list_price,deposit,balance,status,birth_weight,current_weight,weight_unit,weight_date,image_url,photo_url,owner_email,description,notes,microchip,registration_no,w_1,w_2,w_3,w_4,w_5,w_6,w_7,w_8,created_at"
+          )
+          .order("created_at", { ascending: false })
+      ),
+      safeRows<LitterRow>(
+        service
+          .from("litters")
+          .select("id,litter_code,litter_name,dam_id,sire_id,whelp_date,status")
+          .order("whelp_date", { ascending: false })
+          .order("created_at", { ascending: false })
+      ),
+      safeRows<BreedingDogRow>(
+        service
+          .from("breeding_dogs")
+          .select("id,role,display_name,call_name,registered_name,status")
+          .order("role", { ascending: true })
+          .order("display_name", { ascending: true })
+      ),
     ]);
-
-    if (buyersRes.error) throw buyersRes.error;
-    if (puppiesRes.error) throw puppiesRes.error;
-
-    const buyers = (buyersRes.data || []) as BuyerRow[];
-    const puppies = (puppiesRes.data || []) as PuppyRow[];
 
     const buyerById = new Map<number, BuyerRow>();
     buyers.forEach((buyer) => buyerById.set(Number(buyer.id), buyer));
@@ -212,6 +326,14 @@ export async function GET(req: Request) {
       buyers: buyers.map((buyer) => ({
         ...buyer,
         displayName: firstValue(buyer.full_name, buyer.name, buyer.email, `Buyer #${buyer.id}`),
+      })),
+      litters: litters.map((litter) => ({
+        ...litter,
+        displayName: firstValue(litter.litter_name, litter.litter_code, `Litter #${litter.id}`),
+      })),
+      breedingDogs: breedingDogs.map((dog) => ({
+        ...dog,
+        displayName: firstValue(dog.display_name, dog.call_name, dog.registered_name, `Dog #${dog.id}`),
       })),
       puppies: puppies.map((puppy) => {
         const buyer = buyerById.get(Number(puppy.buyer_id || 0));
@@ -294,7 +416,16 @@ export async function PATCH(req: Request) {
     }
 
     const payload = await asPuppyPayload(service, body, existing);
-    if (!firstValue(payload.call_name, payload.puppy_name, payload.name, existing.call_name, existing.puppy_name, existing.name)) {
+    if (
+      !firstValue(
+        payload.call_name,
+        payload.puppy_name,
+        payload.name,
+        existing.call_name,
+        existing.puppy_name,
+        existing.name
+      )
+    ) {
       return NextResponse.json(
         { ok: false, error: "A puppy name is required." },
         { status: 400 }

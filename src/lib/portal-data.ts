@@ -54,6 +54,10 @@ export type PortalApplication = {
 export type PortalPuppy = {
   id: number;
   buyer_id?: number | null;
+  litter_id?: number | null;
+  litter_name?: string | null;
+  dam_id?: number | null;
+  sire_id?: number | null;
   call_name?: string | null;
   puppy_name?: string | null;
   name?: string | null;
@@ -67,6 +71,7 @@ export type PortalPuppy = {
   dob?: string | null;
   registry?: string | null;
   price?: number | null;
+  list_price?: number | null;
   deposit?: number | null;
   balance?: number | null;
   status?: string | null;
@@ -225,7 +230,7 @@ const applicationSelect =
   "id,user_id,full_name,email,applicant_email,phone,street_address,city_state,zip,status,created_at,assigned_puppy_id";
 
 const puppySelect =
-  "id,buyer_id,call_name,puppy_name,name,sire,dam,sex,color,coat_type,coat,pattern,dob,registry,price,deposit,balance,status,w_1,w_2,w_3,w_4,w_5,w_6,w_7,w_8,birth_weight,current_weight,weight_unit,weight_date,image_url,photo_url,owner_email,description,notes,created_at";
+  "id,buyer_id,litter_id,litter_name,dam_id,sire_id,call_name,puppy_name,name,sire,dam,sex,color,coat_type,coat,pattern,dob,registry,price,list_price,deposit,balance,status,w_1,w_2,w_3,w_4,w_5,w_6,w_7,w_8,birth_weight,current_weight,weight_unit,weight_date,image_url,photo_url,owner_email,description,notes,created_at";
 
 function normalizeEmail(value: string | null | undefined) {
   return String(value || "").trim().toLowerCase();

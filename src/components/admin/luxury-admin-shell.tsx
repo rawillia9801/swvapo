@@ -5,11 +5,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   CreditCard,
+  Dog,
   FileCheck2,
   Files,
   LayoutDashboard,
+  Layers3,
+  MapPinned,
   MessageSquareText,
   PawPrint,
+  Settings2,
   Sparkles,
   Users,
 } from "lucide-react";
@@ -22,60 +26,104 @@ type AdminNavItem = {
   icon: React.ReactNode;
 };
 
-const ADMIN_NAV: AdminNavItem[] = [
+type AdminNavSection = {
+  label: string;
+  items: AdminNavItem[];
+};
+
+const ADMIN_NAV: AdminNavSection[] = [
   {
-    href: "/admin/portal",
-    label: "Overview",
-    helper: "Command center",
-    icon: <LayoutDashboard className="h-4 w-4" />,
+    label: "Operations",
+    items: [
+      {
+        href: "/admin/portal",
+        label: "Overview",
+        helper: "Queues, revenue, activity",
+        icon: <LayoutDashboard className="h-4 w-4" />,
+      },
+      {
+        href: "/admin/portal/users",
+        label: "Buyers",
+        helper: "Accounts, assignments, balances",
+        icon: <Users className="h-4 w-4" />,
+      },
+      {
+        href: "/admin/portal/applications",
+        label: "Applications",
+        helper: "Review and approvals",
+        icon: <FileCheck2 className="h-4 w-4" />,
+      },
+      {
+        href: "/admin/portal/messages",
+        label: "Messages",
+        helper: "Buyer inbox and follow-up",
+        icon: <MessageSquareText className="h-4 w-4" />,
+      },
+      {
+        href: "/admin/portal/documents",
+        label: "Documents",
+        helper: "Forms and signed files",
+        icon: <Files className="h-4 w-4" />,
+      },
+      {
+        href: "/admin/portal/settings",
+        label: "Settings",
+        helper: "System rules and config",
+        icon: <Settings2 className="h-4 w-4" />,
+      },
+    ],
   },
   {
-    href: "/admin/portal/users",
-    label: "Buyers",
-    helper: "Buyer records and linked accounts",
-    icon: <Users className="h-4 w-4" />,
+    label: "Breeding",
+    items: [
+      {
+        href: "/admin/portal/puppies",
+        label: "Puppies",
+        helper: "Listings, lineage, assignments",
+        icon: <PawPrint className="h-4 w-4" />,
+      },
+      {
+        href: "/admin/portal/litters",
+        label: "Litters",
+        helper: "Whelping, status, revenue",
+        icon: <Layers3 className="h-4 w-4" />,
+      },
+      {
+        href: "/admin/portal/dams-sires",
+        label: "Dams & Sires",
+        helper: "Lineage profiles and output",
+        icon: <Dog className="h-4 w-4" />,
+      },
+      {
+        href: "/admin/portal/puppy-financing",
+        label: "Puppy Financing",
+        helper: "Per-puppy pricing and plans",
+        icon: <CreditCard className="h-4 w-4" />,
+      },
+      {
+        href: "/admin/portal/payments",
+        label: "Payments",
+        helper: "Buyer revenue and balances",
+        icon: <CreditCard className="h-4 w-4" />,
+      },
+      {
+        href: "/admin/portal/transportation",
+        label: "Transportation",
+        helper: "Pickup, meet-up, delivery",
+        icon: <MapPinned className="h-4 w-4" />,
+      },
+    ],
   },
   {
-    href: "/admin/portal/puppies",
-    label: "Puppies",
-    helper: "Website, portal, assignments",
-    icon: <PawPrint className="h-4 w-4" />,
-  },
-  {
-    href: "/admin/portal/applications",
-    label: "Applications",
-    helper: "Review, assign, approve, deny",
-    icon: <FileCheck2 className="h-4 w-4" />,
-  },
-  {
-    href: "/admin/portal/payments",
-    label: "Payments",
-    helper: "Balances, finance, history",
-    icon: <CreditCard className="h-4 w-4" />,
-  },
-  {
-    href: "/admin/portal/puppy-payments",
-    label: "Puppy Payments",
-    helper: "Per-puppy financial control",
-    icon: <CreditCard className="h-4 w-4" />,
-  },
-  {
-    href: "/admin/portal/documents",
-    label: "Documents",
-    helper: "Forms, uploads, portal files",
-    icon: <Files className="h-4 w-4" />,
-  },
-  {
-    href: "/admin/portal/messages",
-    label: "Messages",
-    helper: "Grouped buyer inbox",
-    icon: <MessageSquareText className="h-4 w-4" />,
-  },
-  {
-    href: "/admin/portal/assistant",
-    label: "ChiChi Admin",
-    helper: "Natural-language changes",
-    icon: <Sparkles className="h-4 w-4" />,
+    label: "Assistant",
+    items: [
+      {
+        href: "/admin/portal/assistant",
+        label: "ChiChi Admin",
+        helper: "Natural-language updates",
+        icon: <Sparkles className="h-4 w-4" />,
+      },
+    ],
   },
 ];
 
@@ -87,52 +135,69 @@ export function AdminPageShell({
   const pathname = usePathname();
 
   return (
-    <div className="min-h-screen bg-[#f7f2eb] text-[#2f2218]">
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(214,184,146,0.18),transparent_28%),radial-gradient(circle_at_top_right,rgba(244,229,209,0.72),transparent_36%),linear-gradient(180deg,#fbf8f3_0%,#f6efe6_100%)]">
-        <div className="mx-auto grid min-h-screen w-full max-w-[1840px] grid-cols-1 xl:grid-cols-[300px_minmax(0,1fr)]">
-          <aside className="border-b border-[#ead9c7] bg-[linear-gradient(180deg,#fffdfb_0%,#f7eee2_100%)] px-5 py-6 xl:min-h-screen xl:border-b-0 xl:border-r">
-            <div className="rounded-[30px] border border-[#ead9c7] bg-white p-5 shadow-[0_24px_70px_rgba(106,76,45,0.10)]">
-              <div className="inline-flex rounded-full border border-[#ead8c1] bg-[#fff9f2] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#a47946]">
-                Owner Admin
+    <div className="min-h-screen bg-[#f6f0e8] text-[#2d2117]">
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(214,184,146,0.18),transparent_24%),radial-gradient(circle_at_top_right,rgba(247,239,229,0.88),transparent_34%),linear-gradient(180deg,#fbf8f3_0%,#f4ece2_100%)]">
+        <div className="mx-auto grid min-h-screen w-full max-w-[1880px] grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)]">
+          <aside className="border-b border-[#e5d4c2] bg-[linear-gradient(180deg,#fffdfb_0%,#f4ecdf_100%)] px-5 py-6 xl:sticky xl:top-0 xl:h-screen xl:overflow-y-auto xl:border-b-0 xl:border-r">
+            <div className="rounded-[30px] border border-[#e7d7c6] bg-white/90 p-5 shadow-[0_24px_70px_rgba(106,76,45,0.10)] backdrop-blur-sm">
+              <div className="inline-flex rounded-full border border-[#ead8c1] bg-[#fff8ef] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#9e7446]">
+                Breeder Ops
               </div>
-              <h1 className="mt-5 font-serif text-3xl font-bold leading-tight text-[#2f2218] [font-family:var(--font-merriweather)]">
+              <h1 className="mt-5 font-serif text-[28px] font-bold leading-tight text-[#2f2218] [font-family:var(--font-merriweather)]">
                 Southwest Virginia Chihuahua
               </h1>
               <p className="mt-3 text-sm leading-7 text-[#72553c]">
-                A cleaner owner workspace for buyers, payments, documents, messages, and approvals.
+                A tighter internal workspace for buyers, litters, lineage, payments,
+                messages, and breeder operations.
               </p>
             </div>
 
-            <nav className="mt-5 space-y-2">
-              {ADMIN_NAV.map((item) => {
-                const active =
-                  pathname === item.href ||
-                  (item.href !== "/admin/portal" && pathname?.startsWith(item.href));
+            <div className="mt-6 space-y-5">
+              {ADMIN_NAV.map((section) => (
+                <div key={section.label}>
+                  <div className="px-2 text-[10px] font-semibold uppercase tracking-[0.26em] text-[#9c7043]">
+                    {section.label}
+                  </div>
+                  <nav className="mt-2 space-y-2">
+                    {section.items.map((item) => {
+                      const active =
+                        pathname === item.href ||
+                        (item.href !== "/admin/portal" && pathname?.startsWith(item.href));
 
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={[
-                      "group flex items-start gap-3 rounded-[22px] border px-4 py-4 transition",
-                      active
-                        ? "border-[#d8b48b] bg-white shadow-[0_14px_40px_rgba(106,76,45,0.10)]"
-                        : "border-[#ead9c7] bg-white/70 hover:border-[#d8b48b] hover:bg-white",
-                    ].join(" ")}
-                  >
-                    <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[#ead9c7] bg-[#fff9f2] text-[#a47946]">
-                      {item.icon}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold text-[#2f2218]">{item.label}</div>
-                      <div className="mt-1 text-xs leading-5 text-[#8a6a49]">{item.helper}</div>
-                    </div>
-                  </Link>
-                );
-              })}
-            </nav>
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          className={[
+                            "group flex items-start gap-3 rounded-[22px] border px-4 py-4 transition",
+                            active
+                              ? "border-[#cfab84] bg-white shadow-[0_14px_40px_rgba(106,76,45,0.10)]"
+                              : "border-[#ead9c7] bg-white/72 hover:border-[#d8b48b] hover:bg-white",
+                          ].join(" ")}
+                        >
+                          <div
+                            className={[
+                              "mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border text-[#9a7143]",
+                              active
+                                ? "border-[#e2cfba] bg-[#fff8ef]"
+                                : "border-[#ead9c7] bg-[#fbf5ed]",
+                            ].join(" ")}
+                          >
+                            {item.icon}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-[#2f2218]">{item.label}</div>
+                            <div className="mt-1 text-xs leading-5 text-[#8a6a49]">{item.helper}</div>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </nav>
+                </div>
+              ))}
+            </div>
 
-            <div className="mt-5 rounded-[26px] border border-[#ead9c7] bg-white/85 p-5 shadow-[0_18px_50px_rgba(106,76,45,0.08)]">
+            <div className="mt-6 rounded-[26px] border border-[#ead9c7] bg-white/88 p-5 shadow-[0_18px_50px_rgba(106,76,45,0.08)]">
               <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#a47946]">
                 Approved Owner Emails
               </div>
@@ -149,7 +214,7 @@ export function AdminPageShell({
             </div>
           </aside>
 
-          <section className="min-w-0 px-4 py-5 md:px-8 md:py-8 xl:px-10 xl:py-9">
+          <section className="min-w-0 px-4 py-5 md:px-7 md:py-7 xl:px-8 xl:py-8">
             {children}
           </section>
         </div>
@@ -172,21 +237,19 @@ export function AdminPageHero({
   aside?: React.ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-[36px] border border-[#ead9c7] bg-[radial-gradient(circle_at_top_left,#fff8f0_0%,#fffdfa_45%,#f5ede4_100%)] p-6 shadow-[0_34px_90px_rgba(106,76,45,0.10)] md:p-8">
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_360px]">
+    <section className="overflow-hidden rounded-[34px] border border-[#ead9c7] bg-[radial-gradient(circle_at_top_left,#fff8f0_0%,#fffdfa_42%,#f3ebdf_100%)] p-6 shadow-[0_30px_90px_rgba(106,76,45,0.10)] md:p-7">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_340px]">
         <div className="max-w-4xl">
-          <span className="inline-flex rounded-full border border-[#ead8c1] bg-white/90 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#9e7446]">
+          <span className="inline-flex rounded-full border border-[#ead8c1] bg-white/92 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#9e7446]">
             {eyebrow}
           </span>
-          <h1 className="mt-6 max-w-3xl font-serif text-4xl font-bold leading-tight text-[#2f2218] [font-family:var(--font-merriweather)] md:text-6xl">
+          <h1 className="mt-5 max-w-3xl font-serif text-4xl font-bold leading-tight text-[#2f2218] [font-family:var(--font-merriweather)] md:text-[52px]">
             {title}
           </h1>
-          <p className="mt-4 max-w-2xl text-[15px] leading-7 text-[#72553c] md:text-base">
-            {description}
-          </p>
+          <p className="mt-4 max-w-2xl text-[15px] leading-7 text-[#72553c]">{description}</p>
           {actions ? <div className="mt-6 flex flex-wrap gap-3">{actions}</div> : null}
         </div>
-        {aside ? <div>{aside}</div> : null}
+        {aside ? <div className="space-y-4">{aside}</div> : null}
       </div>
     </section>
   );
@@ -202,7 +265,7 @@ export function AdminHeroPrimaryAction({
   return (
     <Link
       href={href}
-      className="inline-flex items-center rounded-2xl bg-[linear-gradient(135deg,#d3a056_0%,#b5752f_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(181,117,47,0.26)] transition hover:-translate-y-0.5 hover:brightness-105"
+      className="inline-flex items-center rounded-2xl bg-[linear-gradient(135deg,#c88c52_0%,#a56733_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(159,99,49,0.22)] transition hover:-translate-y-0.5 hover:brightness-105"
     >
       {children}
     </Link>
@@ -246,7 +309,7 @@ export function AdminMetricCard({
   accent?: string;
 }) {
   return (
-    <div className="overflow-hidden rounded-[28px] border border-[#ead8c6] bg-white shadow-[0_18px_48px_rgba(106,76,45,0.08)]">
+    <div className="overflow-hidden rounded-[26px] border border-[#ead8c6] bg-white shadow-[0_18px_48px_rgba(106,76,45,0.08)]">
       <div
         className={`h-1.5 w-full bg-gradient-to-r ${accent || "from-[#f2d9a8] via-[#d7a45d] to-[#b7712d]"}`}
       />
@@ -275,15 +338,13 @@ export function AdminPanel({
   children: React.ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-[32px] border border-[#ead8c4] bg-white p-5 shadow-[0_24px_70px_rgba(106,76,45,0.09)] md:p-6">
+    <section className="overflow-hidden rounded-[30px] border border-[#ead8c4] bg-white p-5 shadow-[0_22px_64px_rgba(106,76,45,0.08)] md:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#a47946]">
             {title}
           </div>
-          {subtitle ? (
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-[#73583f]">{subtitle}</p>
-          ) : null}
+          {subtitle ? <p className="mt-2 max-w-2xl text-sm leading-6 text-[#73583f]">{subtitle}</p> : null}
         </div>
         {action ? <div>{action}</div> : null}
       </div>
@@ -302,7 +363,7 @@ export function AdminInfoTile({
   detail?: string;
 }) {
   return (
-    <div className="rounded-[24px] border border-[#ead9c7] bg-white p-4 shadow-[0_12px_32px_rgba(106,76,45,0.06)]">
+    <div className="rounded-[22px] border border-[#ead9c7] bg-white p-4 shadow-[0_10px_26px_rgba(106,76,45,0.05)]">
       <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a47946]">
         {label}
       </div>
@@ -330,9 +391,9 @@ export function AdminListCard({
   const content = (
     <div
       className={[
-        "rounded-[24px] border px-4 py-4 text-left transition",
+        "rounded-[22px] border px-4 py-4 text-left transition",
         selected
-          ? "border-[#d8b48b] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] shadow-[0_12px_30px_rgba(106,76,45,0.08)]"
+          ? "border-[#d0ac84] bg-[linear-gradient(180deg,#fffdf9_0%,#f7eddf_100%)] shadow-[0_12px_30px_rgba(106,76,45,0.08)]"
           : "border-[#ead9c7] bg-[#fffaf5] hover:border-[#d8b48b] hover:bg-white",
       ].join(" ")}
     >
@@ -403,7 +464,11 @@ export function AdminRestrictedState({
 export function adminStatusBadge(statusRaw: string | null | undefined) {
   const status = String(statusRaw || "pending").trim().toLowerCase();
 
-  if (["approved", "active", "matched", "submitted", "complete", "completed", "paid", "read"].some((item) => status.includes(item))) {
+  if (
+    ["approved", "active", "matched", "submitted", "complete", "completed", "paid", "read", "available"].some(
+      (item) => status.includes(item)
+    )
+  ) {
     return "border-emerald-200 bg-emerald-50 text-emerald-700";
   }
 
@@ -411,5 +476,9 @@ export function adminStatusBadge(statusRaw: string | null | undefined) {
     return "border-rose-200 bg-rose-50 text-rose-700";
   }
 
-  return "border-amber-200 bg-amber-50 text-amber-700";
+  if (["reserved", "hold"].some((item) => status.includes(item))) {
+    return "border-amber-200 bg-amber-50 text-amber-700";
+  }
+
+  return "border-stone-200 bg-stone-50 text-stone-700";
 }

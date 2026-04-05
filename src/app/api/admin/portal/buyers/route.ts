@@ -42,11 +42,18 @@ type FormRow = {
 type PuppyRow = {
   id: number;
   buyer_id?: number | null;
+  litter_id?: number | null;
+  litter_name?: string | null;
+  dam_id?: number | null;
+  sire_id?: number | null;
   call_name?: string | null;
   puppy_name?: string | null;
   name?: string | null;
+  sire?: string | null;
+  dam?: string | null;
   status?: string | null;
   price?: number | null;
+  list_price?: number | null;
   deposit?: number | null;
   balance?: number | null;
   created_at?: string | null;
@@ -137,7 +144,7 @@ export async function GET(req: Request) {
         .order("created_at", { ascending: false }),
       service
         .from("puppies")
-        .select("id,buyer_id,call_name,puppy_name,name,status,price,deposit,balance,created_at")
+        .select("id,buyer_id,litter_id,litter_name,dam_id,sire_id,call_name,puppy_name,name,sire,dam,status,price,list_price,deposit,balance,created_at")
         .order("created_at", { ascending: false }),
     ]);
 

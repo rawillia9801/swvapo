@@ -5,6 +5,7 @@ import {
   normalizeEmail,
   verifyOwner,
 } from "@/lib/admin-api";
+import { loadAdminLineageWorkspace } from "@/lib/admin-lineage";
 
 type DigestRow = {
   id: number;
@@ -85,6 +86,7 @@ export async function GET(req: Request) {
     const service = createServiceSupabase();
     const since = sinceIso(1);
     const authUsers = await listAllAuthUsers();
+    const lineageWorkspacePromise = loadAdminLineageWorkspace(service);
 
     const [
       buyers,
@@ -106,6 +108,7 @@ export async function GET(req: Request) {
       latestDigestRows,
       publicThreadRows,
       buyerMessageRows,
+      lineageWorkspace,
     ] = await Promise.all([
       safeCount(() => service.from("buyers").select("*", { count: "exact", head: true })),
       safeCount(() => service.from("puppy_applications").select("*", { count: "exact", head: true })),
@@ -182,6 +185,7 @@ export async function GET(req: Request) {
           .order("created_at", { ascending: false })
           .limit(250)
       ),
+      lineageWorkspacePromise,
     ]);
 
     const documents = formSubmissions + portalDocuments;
@@ -275,6 +279,19 @@ export async function GET(req: Request) {
         warmLeads,
         sharedContacts,
         totalRevenue,
+        lineage: {
+          totalLitters: lineageWorkspace.summary.totalLitters,
+          totalDams: lineageWorkspace.summary.totalDams,
+          totalSires: lineageWorkspace.summary.totalSires,
+          totalPuppies: lineageWorkspace.summary.totalPuppies,
+          availablePuppies: lineageWorkspace.summary.availableCount,
+          reservedPuppies: lineageWorkspace.summary.reservedCount,
+          completedPuppies: lineageWorkspace.summary.completedCount,
+          totalRevenue: lineageWorkspace.summary.totalRevenue,
+          projectedRevenue: lineageWorkspace.summary.projectedRevenue,
+          realizedRevenue: lineageWorkspace.summary.realizedRevenue,
+          totalDeposits: lineageWorkspace.summary.totalDeposits,
+        },
         latestDigest,
         publicConversationSummaries,
         buyerConversationSummaries,
