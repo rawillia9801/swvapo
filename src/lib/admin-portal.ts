@@ -138,8 +138,14 @@ export type AdminLineageBuyer = {
 };
 
 export type AdminLineageDogRef = {
-  id: number;
+  id: string;
   role?: string | null;
+  dog_name?: string | null;
+  name?: string | null;
+  dob?: string | null;
+  coat?: string | null;
+  registry?: string | null;
+  is_active?: boolean | null;
   display_name?: string | null;
   registered_name?: string | null;
   call_name?: string | null;
@@ -157,8 +163,8 @@ export type AdminLineageLitterRef = {
   id: number;
   litter_code?: string | null;
   litter_name?: string | null;
-  dam_id?: number | null;
-  sire_id?: number | null;
+  dam_id?: string | null;
+  sire_id?: string | null;
   whelp_date?: string | null;
   status?: string | null;
   notes?: string | null;
@@ -171,14 +177,15 @@ export type AdminLineagePuppy = {
   buyer_id?: number | null;
   litter_id?: number | null;
   litter_name?: string | null;
-  dam_id?: number | null;
-  sire_id?: number | null;
+  dam_id?: string | null;
+  sire_id?: string | null;
   call_name?: string | null;
   puppy_name?: string | null;
   name?: string | null;
   sex?: string | null;
   color?: string | null;
   coat_type?: string | null;
+  coat?: string | null;
   pattern?: string | null;
   dob?: string | null;
   status?: string | null;

@@ -10,8 +10,10 @@ type BuyerRow = {
 };
 
 type BreedingDogRow = {
-  id: number;
+  id: string;
   role?: string | null;
+  dog_name?: string | null;
+  name?: string | null;
   display_name?: string | null;
   call_name?: string | null;
   registered_name?: string | null;
@@ -22,8 +24,8 @@ type LitterRow = {
   id: number;
   litter_code?: string | null;
   litter_name?: string | null;
-  dam_id?: number | null;
-  sire_id?: number | null;
+  dam_id?: string | null;
+  sire_id?: string | null;
   whelp_date?: string | null;
   status?: string | null;
 };
@@ -33,8 +35,8 @@ type PuppyRow = {
   buyer_id?: number | null;
   litter_id?: number | null;
   litter_name?: string | null;
-  dam_id?: number | null;
-  sire_id?: number | null;
+  dam_id?: string | null;
+  sire_id?: string | null;
   call_name?: string | null;
   puppy_name?: string | null;
   name?: string | null;
@@ -84,6 +86,13 @@ function toNumberOrNull(value: unknown) {
 function toIntegerOrNull(value: unknown) {
   const parsed = Number(value || 0);
   return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : null;
+}
+
+function toUuidOrNull(value: unknown) {
+  const text = String(value || "").trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text)
+    ? text
+    : null;
 }
 
 function toStringOrNull(value: unknown) {
@@ -171,8 +180,8 @@ async function resolveLineageFields(
   existing?: PuppyRow | null
 ) {
   const litterId = toIntegerOrNull(body.litter_id ?? existing?.litter_id);
-  const directDamId = toIntegerOrNull(body.dam_id ?? existing?.dam_id);
-  const directSireId = toIntegerOrNull(body.sire_id ?? existing?.sire_id);
+  const directDamId = toUuidOrNull(body.dam_id ?? existing?.dam_id);
+  const directSireId = toUuidOrNull(body.sire_id ?? existing?.sire_id);
   let litter: LitterRow | null = null;
 
   if (litterId) {
@@ -188,19 +197,19 @@ async function resolveLineageFields(
 
   const damId = litter?.dam_id ?? directDamId;
   const sireId = litter?.sire_id ?? directSireId;
-  const dogIds = [damId, sireId].filter((value) => Number(value || 0) > 0) as number[];
+  const dogIds = [damId, sireId].filter(Boolean) as string[];
   const dogs = dogIds.length
     ? await safeRows<BreedingDogRow>(
         service
-          .from("breeding_dogs")
-          .select("id,role,display_name,call_name,registered_name,status")
+          .from("bp_dogs")
+          .select("id,role,dog_name,name,call_name,status")
           .in("id", dogIds)
       )
     : [];
   const dogNameMap = new Map(
     dogs.map((dog) => [
-      Number(dog.id),
-      firstValue(dog.display_name, dog.call_name, dog.registered_name),
+      String(dog.id),
+      firstValue(dog.dog_name, dog.name, dog.call_name, dog.display_name, dog.registered_name),
     ] as const)
   );
 
@@ -214,12 +223,12 @@ async function resolveLineageFields(
     sire_id: sireId,
     dam:
       toStringOrNull(body.dam) ||
-      dogNameMap.get(Number(damId || 0)) ||
+      (damId ? dogNameMap.get(String(damId)) : null) ||
       existing?.dam ||
       null,
     sire:
       toStringOrNull(body.sire) ||
-      dogNameMap.get(Number(sireId || 0)) ||
+      (sireId ? dogNameMap.get(String(sireId)) : null) ||
       existing?.sire ||
       null,
   };
@@ -311,10 +320,11 @@ export async function GET(req: Request) {
       ),
       safeRows<BreedingDogRow>(
         service
-          .from("breeding_dogs")
-          .select("id,role,display_name,call_name,registered_name,status")
+          .from("bp_dogs")
+          .select("id,role,dog_name,name,call_name,status")
           .order("role", { ascending: true })
-          .order("display_name", { ascending: true })
+          .order("dog_name", { ascending: true })
+          .order("call_name", { ascending: true })
       ),
     ]);
 
@@ -333,7 +343,14 @@ export async function GET(req: Request) {
       })),
       breedingDogs: breedingDogs.map((dog) => ({
         ...dog,
-        displayName: firstValue(dog.display_name, dog.call_name, dog.registered_name, `Dog #${dog.id}`),
+        displayName: firstValue(
+          dog.dog_name,
+          dog.name,
+          dog.call_name,
+          dog.display_name,
+          dog.registered_name,
+          `Dog ${dog.id.slice(0, 8)}`
+        ),
       })),
       puppies: puppies.map((puppy) => {
         const buyer = buyerById.get(Number(puppy.buyer_id || 0));

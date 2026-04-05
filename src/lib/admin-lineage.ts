@@ -83,12 +83,13 @@ async function loadLineageRows(service: SupabaseClient): Promise<LineageRows> {
   const [dogs, litters, puppies, buyers, payments] = await Promise.all([
     safeRows<BreedingDogRecord>(
       service
-        .from("breeding_dogs")
+        .from("bp_dogs")
         .select(
-          "id,role,display_name,registered_name,call_name,status,date_of_birth,color,coat_type,registration_no,notes,created_at"
+          "id,role,dog_name,name,call_name,status,dob,date_of_birth,color,coat,registry,notes,created_at,is_active"
         )
         .order("role", { ascending: true })
-        .order("display_name", { ascending: true })
+        .order("dog_name", { ascending: true })
+        .order("call_name", { ascending: true })
     ),
     safeRows<LitterRecord>(
       service
@@ -101,7 +102,7 @@ async function loadLineageRows(service: SupabaseClient): Promise<LineageRows> {
       service
         .from("puppies")
         .select(
-          "id,buyer_id,litter_id,litter_name,dam_id,sire_id,call_name,puppy_name,name,sex,color,coat_type,pattern,dob,status,price,list_price,deposit,balance,photo_url,image_url,description,notes,owner_email,dam,sire,created_at"
+          "id,buyer_id,litter_id,litter_name,dam_id,sire_id,call_name,puppy_name,name,sex,color,coat_type,coat,pattern,dob,status,price,list_price,deposit,balance,photo_url,image_url,description,notes,owner_email,dam,sire,created_at"
         )
         .order("created_at", { ascending: false })
     ),
@@ -124,7 +125,11 @@ async function loadLineageRows(service: SupabaseClient): Promise<LineageRows> {
 }
 
 export function buildAdminLineageWorkspace(rows: LineageRows): AdminLineageWorkspace {
-  const dogsById = new Map(rows.dogs.map((dog) => [Number(dog.id), dog] as const));
+  const dogsById = new Map(
+    rows.dogs
+      .filter((dog) => String(dog.id || "").trim())
+      .map((dog) => [String(dog.id), dog] as const)
+  );
   const buyersById = new Map(rows.buyers.map((buyer) => [Number(buyer.id), buyer] as const));
   const buyersByPuppyId = new Map(
     rows.buyers
@@ -160,10 +165,10 @@ export function buildAdminLineageWorkspace(rows: LineageRows): AdminLineageWorks
       directLitter ||
       litterByName.get(String(puppy.litter_name || "").trim().toLowerCase()) ||
       null;
-    const damProfile =
-      dogsById.get(Number(puppy.dam_id || namedLitter?.dam_id || 0)) || null;
-    const sireProfile =
-      dogsById.get(Number(puppy.sire_id || namedLitter?.sire_id || 0)) || null;
+    const damId = String(puppy.dam_id || namedLitter?.dam_id || "").trim();
+    const sireId = String(puppy.sire_id || namedLitter?.sire_id || "").trim();
+    const damProfile = damId ? dogsById.get(damId) || null : null;
+    const sireProfile = sireId ? dogsById.get(sireId) || null : null;
     const payments = buyer ? paymentsByBuyerId.get(Number(buyer.id)) || [] : [];
     const paymentTotal = payments.reduce((sum, payment) => {
       const status = String(payment.status || "").trim().toLowerCase();
@@ -197,8 +202,8 @@ export function buildAdminLineageWorkspace(rows: LineageRows): AdminLineageWorks
       return {
         ...litter,
         displayName: resolveLitterName(litter),
-        damProfile: dogsById.get(Number(litter.dam_id || 0)) || null,
-        sireProfile: dogsById.get(Number(litter.sire_id || 0)) || null,
+        damProfile: litter.dam_id ? dogsById.get(String(litter.dam_id)) || null : null,
+        sireProfile: litter.sire_id ? dogsById.get(String(litter.sire_id)) || null : null,
         puppies,
         summary: buildRevenueSnapshot(
           puppies,
@@ -214,8 +219,8 @@ export function buildAdminLineageWorkspace(rows: LineageRows): AdminLineageWorks
       const role = normalizeLineageRole(dog.role);
       const littersForDog = litters.filter((litter) =>
         role === "dam"
-          ? Number(litter.dam_id || 0) === Number(dog.id)
-          : Number(litter.sire_id || 0) === Number(dog.id)
+          ? String(litter.dam_id || "") === String(dog.id)
+          : String(litter.sire_id || "") === String(dog.id)
       );
       const puppiesForDog = littersForDog.flatMap((litter) => litter.puppies);
       const summary = buildRevenueSnapshot(

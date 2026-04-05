@@ -27,15 +27,15 @@ import { buildPuppyPhotoUrl, fmtDate, fmtMoney } from "@/lib/utils";
 import { usePortalAdminSession } from "@/lib/use-portal-admin-session";
 
 type BuyerOption = { id: number; displayName?: string | null; email?: string | null };
-type BreedingDog = { id: number; role?: string | null; displayName?: string | null };
-type Litter = { id: number; displayName?: string | null; dam_id?: number | null; sire_id?: number | null };
+type BreedingDog = { id: string; role?: string | null; displayName?: string | null };
+type Litter = { id: number; displayName?: string | null; dam_id?: string | null; sire_id?: string | null };
 type PuppyRecord = {
   id: number;
   buyer_id?: number | null;
   litter_id?: number | null;
   litter_name?: string | null;
-  dam_id?: number | null;
-  sire_id?: number | null;
+  dam_id?: string | null;
+  sire_id?: string | null;
   call_name?: string | null;
   puppy_name?: string | null;
   name?: string | null;

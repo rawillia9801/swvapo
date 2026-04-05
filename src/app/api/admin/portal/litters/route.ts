@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { createServiceSupabase, firstValue, verifyOwner } from "@/lib/admin-api";
 
 function toDogId(value: unknown) {
-  const parsed = Number(value || 0);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  const text = String(value || "").trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text)
+    ? text
+    : null;
 }
 
 function asLitterPayload(body: Record<string, unknown>) {
@@ -23,16 +25,25 @@ async function syncLitterPuppies(
   litterId: number,
   payload: ReturnType<typeof asLitterPayload>
 ) {
-  const dogIds = [payload.dam_id, payload.sire_id].filter((value) => Number(value || 0) > 0) as number[];
-  const dogNameMap = new Map<number, string>();
+  const dogIds = [payload.dam_id, payload.sire_id].filter(Boolean) as string[];
+  const dogNameMap = new Map<string, string>();
 
   if (dogIds.length) {
     const { data, error } = await service
-      .from("breeding_dogs")
-      .select("id,display_name")
+      .from("bp_dogs")
+      .select("id,dog_name,name,call_name")
       .in("id", dogIds);
     if (error) throw error;
-    (data || []).forEach((row) => dogNameMap.set(Number(row.id), String(row.display_name || "").trim()));
+    (data || []).forEach((row) =>
+      dogNameMap.set(
+        String(row.id),
+        firstValue(
+          row.dog_name as string | null,
+          row.name as string | null,
+          row.call_name as string | null
+        ) || "Unnamed"
+      )
+    );
   }
 
   const { error } = await service
@@ -41,8 +52,8 @@ async function syncLitterPuppies(
       dam_id: payload.dam_id,
       sire_id: payload.sire_id,
       litter_name: payload.litter_name || payload.litter_code,
-      dam: payload.dam_id ? dogNameMap.get(payload.dam_id) || null : null,
-      sire: payload.sire_id ? dogNameMap.get(payload.sire_id) || null : null,
+      dam: payload.dam_id ? dogNameMap.get(String(payload.dam_id)) || null : null,
+      sire: payload.sire_id ? dogNameMap.get(String(payload.sire_id)) || null : null,
     })
     .eq("litter_id", litterId);
 

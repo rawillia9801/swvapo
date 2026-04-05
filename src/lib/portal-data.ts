@@ -56,8 +56,8 @@ export type PortalPuppy = {
   buyer_id?: number | null;
   litter_id?: number | null;
   litter_name?: string | null;
-  dam_id?: number | null;
-  sire_id?: number | null;
+  dam_id?: string | null;
+  sire_id?: string | null;
   call_name?: string | null;
   puppy_name?: string | null;
   name?: string | null;

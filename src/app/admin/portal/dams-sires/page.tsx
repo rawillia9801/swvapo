@@ -31,28 +31,28 @@ import { usePortalAdminSession } from "@/lib/use-portal-admin-session";
 
 type DogForm = {
   role: string;
-  display_name: string;
-  registered_name: string;
+  dog_name: string;
+  name: string;
   call_name: string;
   status: string;
   date_of_birth: string;
   color: string;
-  coat_type: string;
-  registration_no: string;
+  coat: string;
+  registry: string;
   notes: string;
 };
 
 function emptyForm(role = "dam"): DogForm {
   return {
     role,
-    display_name: "",
-    registered_name: "",
+    dog_name: "",
+    name: "",
     call_name: "",
     status: "active",
     date_of_birth: "",
     color: "",
-    coat_type: "",
-    registration_no: "",
+    coat: "",
+    registry: "",
     notes: "",
   };
 }
@@ -61,14 +61,14 @@ function populateForm(dog: AdminLineageDog | null): DogForm {
   if (!dog) return emptyForm();
   return {
     role: String(dog.role || "dam"),
-    display_name: String(dog.display_name || ""),
-    registered_name: String(dog.registered_name || ""),
+    dog_name: String(dog.dog_name || dog.displayName || ""),
+    name: String(dog.name || dog.registered_name || ""),
     call_name: String(dog.call_name || ""),
-    status: String(dog.status || "active"),
-    date_of_birth: String(dog.date_of_birth || ""),
+    status: String(dog.status || (dog.is_active === false ? "archived" : "active")),
+    date_of_birth: String(dog.date_of_birth || dog.dob || ""),
     color: String(dog.color || ""),
-    coat_type: String(dog.coat_type || ""),
-    registration_no: String(dog.registration_no || ""),
+    coat: String(dog.coat || dog.coat_type || ""),
+    registry: String(dog.registry || dog.registration_no || ""),
     notes: String(dog.notes || ""),
   };
 }
@@ -148,11 +148,12 @@ export default function AdminPortalDamsSiresPage() {
     return [
       dog.displayName,
       dog.call_name,
-      dog.registered_name,
+      dog.name,
       dog.status,
       dog.notes,
       dog.color,
-      dog.coat_type,
+      dog.coat,
+      dog.registry,
       ...dog.litters.map((litter) => litter.displayName),
       ...dog.puppies.map((puppy) => puppy.displayName),
     ]
@@ -206,7 +207,7 @@ export default function AdminPortalDamsSiresPage() {
         }),
       });
 
-      const payload = (await response.json()) as { ok?: boolean; error?: string; dogId?: number };
+      const payload = (await response.json()) as { ok?: boolean; error?: string; dogId?: string };
       if (!response.ok) {
         throw new Error(payload.error || "Could not save the breeding profile.");
       }
@@ -377,7 +378,7 @@ export default function AdminPortalDamsSiresPage() {
                               </span>
                             </div>
                             <div className="mt-1 text-xs text-[#8a6a49]">
-                              {dog.status || "active"} • {dog.color || "Color not set"} • {dog.coat_type || "Coat not set"}
+                              {dog.status || "active"} • {dog.color || "Color not set"} • {dog.coat || "Coat not set"}
                             </div>
                           </td>
                           <td className="px-4 py-3 text-[#73583f]">
@@ -470,9 +471,9 @@ export default function AdminPortalDamsSiresPage() {
                   />
                 </div>
                 <AdminTextInput
-                  label="Display Name"
-                  value={form.display_name}
-                  onChange={(value) => setForm((current) => ({ ...current, display_name: value }))}
+                  label="Dog Name"
+                  value={form.dog_name}
+                  onChange={(value) => setForm((current) => ({ ...current, dog_name: value }))}
                   placeholder="Cocoa Belle"
                 />
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -483,12 +484,12 @@ export default function AdminPortalDamsSiresPage() {
                     placeholder="Belle"
                   />
                   <AdminTextInput
-                    label="Registered Name"
-                    value={form.registered_name}
+                    label="Formal Name"
+                    value={form.name}
                     onChange={(value) =>
-                      setForm((current) => ({ ...current, registered_name: value }))
+                      setForm((current) => ({ ...current, name: value }))
                     }
-                    placeholder="Registered lineage name"
+                    placeholder="Formal or registered name"
                   />
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -500,12 +501,12 @@ export default function AdminPortalDamsSiresPage() {
                     }
                   />
                   <AdminTextInput
-                    label="Registration Number"
-                    value={form.registration_no}
+                    label="Registry"
+                    value={form.registry}
                     onChange={(value) =>
-                      setForm((current) => ({ ...current, registration_no: value }))
+                      setForm((current) => ({ ...current, registry: value }))
                     }
-                    placeholder="Optional registration no."
+                    placeholder="AKC, CKC, or registry details"
                   />
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -516,10 +517,10 @@ export default function AdminPortalDamsSiresPage() {
                     placeholder="Chocolate tri"
                   />
                   <AdminTextInput
-                    label="Coat Type"
-                    value={form.coat_type}
-                    onChange={(value) => setForm((current) => ({ ...current, coat_type: value }))}
-                    placeholder="Long coat"
+                    label="Coat"
+                    value={form.coat}
+                    onChange={(value) => setForm((current) => ({ ...current, coat: value }))}
+                    placeholder="Short Hair"
                   />
                 </div>
                 <AdminTextAreaInput
