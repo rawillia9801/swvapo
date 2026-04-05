@@ -9,6 +9,8 @@ type BuyerRow = {
   name?: string | null;
   email?: string | null;
   phone?: string | null;
+  sale_price?: number | null;
+  deposit_amount?: number | null;
   finance_enabled?: boolean | null;
   finance_admin_fee?: boolean | null;
   finance_rate?: number | null;
@@ -69,7 +71,7 @@ export async function GET(req: Request) {
     const [buyersRes, puppiesRes, paymentsRes] = await Promise.all([
       service
         .from("buyers")
-        .select("id,user_id,puppy_id,full_name,name,email,phone,finance_enabled,finance_admin_fee,finance_rate,finance_months,finance_monthly_amount,finance_next_due_date,finance_last_payment_date,status")
+        .select("id,user_id,puppy_id,full_name,name,email,phone,sale_price,deposit_amount,finance_enabled,finance_admin_fee,finance_rate,finance_months,finance_monthly_amount,finance_next_due_date,finance_last_payment_date,status")
         .order("created_at", { ascending: false }),
       service
         .from("puppies")
@@ -224,6 +226,8 @@ export async function PATCH(req: Request) {
     const buyerResult = await service
       .from("buyers")
       .update({
+        sale_price: toNumberOrNull(body.price),
+        deposit_amount: toNumberOrNull(body.deposit),
         finance_enabled: String(body.finance_enabled || "").toLowerCase() === "yes",
         finance_admin_fee: String(body.finance_admin_fee || "").toLowerCase() === "yes",
         finance_rate: toNumberOrNull(body.finance_rate),

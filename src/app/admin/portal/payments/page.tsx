@@ -27,6 +27,8 @@ type BuyerRow = {
   name?: string | null;
   email?: string | null;
   phone?: string | null;
+  sale_price?: number | null;
+  deposit_amount?: number | null;
   finance_enabled?: boolean | null;
   finance_admin_fee?: boolean | null;
   finance_rate?: number | null;
@@ -72,6 +74,19 @@ type BuyerAccount = {
   lastPaymentAt: string | null;
 };
 
+type BalanceSummary = {
+  price: number;
+  deposit: number;
+  paymentsApplied: number;
+  principalDue: number;
+  planTotal: number | null;
+  financeUplift: number;
+  balance: number;
+  apr: number | null;
+  financeEnabled: boolean;
+  adminFeeEnabled: boolean;
+};
+
 type EditForm = {
   price: string;
   deposit: string;
@@ -107,6 +122,13 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function toNumberOrNull(value: string | number | null | undefined) {
+  const cleaned = String(value ?? "").replace(/[^0-9.-]/g, "").trim();
+  if (!cleaned) return null;
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function toYesNo(value: boolean | null | undefined) {
   return value ? "yes" : "no";
 }
@@ -124,6 +146,43 @@ function emptyPaymentEntry(): PaymentEntryForm {
     status: "recorded",
     reference_number: "",
     note: "",
+  };
+}
+
+function calculateBalanceSummary(account: BuyerAccount, form: EditForm): BalanceSummary {
+  const price =
+    toNumberOrNull(form.price) ?? account.puppy?.price ?? account.buyer.sale_price ?? 0;
+  const deposit =
+    toNumberOrNull(form.deposit) ?? account.puppy?.deposit ?? account.buyer.deposit_amount ?? 0;
+  const paymentsApplied = Number(account.totalPaid || 0);
+  const principalDue = Math.max(0, price - deposit);
+  const financeEnabled = form.finance_enabled === "yes";
+  const adminFeeEnabled = form.finance_admin_fee === "yes";
+  const apr = toNumberOrNull(form.finance_rate);
+  const monthlyAmount = toNumberOrNull(form.finance_monthly_amount);
+  const financeMonths = toNumberOrNull(form.finance_months);
+  const rawPlanTotal =
+    financeEnabled && monthlyAmount !== null && financeMonths !== null
+      ? monthlyAmount * financeMonths
+      : null;
+  const planTotal = rawPlanTotal !== null ? Math.max(principalDue, rawPlanTotal) : null;
+  const financeUplift = planTotal !== null ? Math.max(0, planTotal - principalDue) : 0;
+  const balance =
+    planTotal !== null
+      ? Math.max(0, planTotal - paymentsApplied)
+      : Math.max(0, principalDue - paymentsApplied);
+
+  return {
+    price,
+    deposit,
+    paymentsApplied,
+    principalDue,
+    planTotal,
+    financeUplift,
+    balance,
+    apr,
+    financeEnabled,
+    adminFeeEnabled,
   };
 }
 
@@ -254,10 +313,14 @@ export default function AdminPortalPaymentsPage() {
       price:
         selectedAccount.puppy?.price !== null && selectedAccount.puppy?.price !== undefined
           ? String(selectedAccount.puppy.price)
+          : selectedAccount.buyer.sale_price !== null && selectedAccount.buyer.sale_price !== undefined
+            ? String(selectedAccount.buyer.sale_price)
           : "",
       deposit:
         selectedAccount.puppy?.deposit !== null && selectedAccount.puppy?.deposit !== undefined
           ? String(selectedAccount.puppy.deposit)
+          : selectedAccount.buyer.deposit_amount !== null && selectedAccount.buyer.deposit_amount !== undefined
+            ? String(selectedAccount.buyer.deposit_amount)
           : "",
       balance:
         selectedAccount.puppy?.balance !== null && selectedAccount.puppy?.balance !== undefined
@@ -286,6 +349,11 @@ export default function AdminPortalPaymentsPage() {
     setPaymentStatusText("");
   }, [selectedAccount]);
 
+  const balanceSummary = useMemo(
+    () => (selectedAccount ? calculateBalanceSummary(selectedAccount, form) : null),
+    [form, selectedAccount]
+  );
+
   async function refreshAccounts(nextSelectedKey?: string) {
     const nextAccounts = await fetchPaymentAccounts(accessToken);
     setAccounts(nextAccounts);
@@ -309,6 +377,7 @@ export default function AdminPortalPaymentsPage() {
           buyer_id: selectedAccount.buyer.id,
           puppy_id: selectedAccount.puppy?.id || null,
           ...form,
+          balance: balanceSummary ? balanceSummary.balance : toNumberOrNull(form.balance),
         }),
       });
 
@@ -318,7 +387,7 @@ export default function AdminPortalPaymentsPage() {
       }
 
       await refreshAccounts(selectedAccount.key);
-      setStatusText("Payment settings updated.");
+      setStatusText("Payment settings updated. Balance recalculated.");
     } catch (error) {
       console.error(error);
       setStatusText("Could not update payment settings.");
@@ -488,13 +557,24 @@ export default function AdminPortalPaymentsPage() {
                 title="Financial Snapshot"
                 subtitle="A clean read of the selected buyer’s current pricing, financing, and payment history."
               >
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                   <AdminInfoTile
                     label="Buyer"
                     value={firstValue(selectedAccount.buyer.full_name, selectedAccount.buyer.name, selectedAccount.buyer.email, "Buyer")}
                   />
                   <AdminInfoTile label="My Puppy" value={puppyName(selectedAccount.puppy)} />
                   <AdminInfoTile label="Total Paid" value={fmtMoney(selectedAccount.totalPaid)} />
+                  <AdminInfoTile
+                    label="Balance"
+                    value={fmtMoney(balanceSummary?.balance || 0)}
+                    detail={
+                      balanceSummary?.financeEnabled
+                        ? balanceSummary.planTotal !== null
+                          ? `${fmtMoney(balanceSummary.planTotal)} plan total${balanceSummary.apr !== null ? ` • ${balanceSummary.apr}% APR` : ""}${balanceSummary.adminFeeEnabled ? " • admin fee on" : ""}`
+                          : `${fmtMoney(balanceSummary.principalDue)} principal after deposit${balanceSummary.apr !== null ? ` • ${balanceSummary.apr}% APR noted` : ""}${balanceSummary.adminFeeEnabled ? " • admin fee on" : ""}`
+                        : `${fmtMoney(balanceSummary?.price || 0)} price • ${fmtMoney(balanceSummary?.deposit || 0)} deposit`
+                    }
+                  />
                   <AdminInfoTile
                     label="Last Payment"
                     value={selectedAccount.lastPaymentAt ? fmtDate(selectedAccount.lastPaymentAt) : "-"}
@@ -506,7 +586,7 @@ export default function AdminPortalPaymentsPage() {
               <section className="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,1.05fr)_420px]">
                 <AdminPanel
                   title="Payment Settings"
-                  subtitle="Edit price, deposit, balance, puppy status, and financing details."
+                  subtitle="Edit price, deposit, puppy status, and financing details. Balance is calculated automatically from the recorded payment history."
                 >
                   {statusText ? (
                     <div className="mb-4 rounded-[18px] border border-[#ead9c7] bg-[#fff9f2] px-4 py-3 text-sm font-semibold text-[#7a5a3a]">
@@ -517,7 +597,18 @@ export default function AdminPortalPaymentsPage() {
                   <div className="grid gap-4 md:grid-cols-2">
                     <PaymentField label="Price" value={form.price} onChange={(value) => setForm((prev) => ({ ...prev, price: value }))} />
                     <PaymentField label="Deposit" value={form.deposit} onChange={(value) => setForm((prev) => ({ ...prev, deposit: value }))} />
-                    <PaymentField label="Balance" value={form.balance} onChange={(value) => setForm((prev) => ({ ...prev, balance: value }))} />
+                    <PaymentField
+                      label="Balance"
+                      value={balanceSummary ? String(balanceSummary.balance.toFixed(2)) : form.balance}
+                      readOnly
+                      detail={
+                        balanceSummary?.financeEnabled
+                          ? balanceSummary.planTotal !== null
+                            ? `Auto-calculated from monthly amount × months, minus recorded payments.${balanceSummary.financeUplift > 0 ? ` Finance uplift over principal: ${fmtMoney(balanceSummary.financeUplift)}.` : ""}`
+                            : "Payment plan is enabled. Balance currently follows price, deposit, and recorded payments until a full monthly schedule total is saved."
+                          : `Auto-calculated as price - deposit - payments (${fmtMoney(balanceSummary?.paymentsApplied || 0)} recorded).`
+                      }
+                    />
                     <PaymentField label="Puppy Status" value={form.puppy_status} onChange={(value) => setForm((prev) => ({ ...prev, puppy_status: value }))} />
                     <PaymentSelect label="Financing Enabled" value={form.finance_enabled} onChange={(value) => setForm((prev) => ({ ...prev, finance_enabled: value }))} />
                     <PaymentSelect label="Admin Fee" value={form.finance_admin_fee} onChange={(value) => setForm((prev) => ({ ...prev, finance_admin_fee: value }))} />
@@ -655,19 +746,33 @@ function PaymentField({
   label,
   value,
   onChange,
+  readOnly = false,
+  detail,
 }: {
   label: string;
   value: string;
-  onChange: (value: string) => void;
+  onChange?: (value: string) => void;
+  readOnly?: boolean;
+  detail?: string;
 }) {
   return (
     <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#a47946]">
       {label}
       <input
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-2 w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm normal-case tracking-normal text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+        readOnly={readOnly}
+        onChange={(e) => onChange?.(e.target.value)}
+        className={`mt-2 w-full rounded-[18px] border px-4 py-3.5 text-sm normal-case tracking-normal text-[#3e2a1f] outline-none ${
+          readOnly
+            ? "border-[#ead9c7] bg-[#f8f1e7]"
+            : "border-[#e4d3c2] bg-[#fffdfb] focus:border-[#c8a884]"
+        }`}
       />
+      {detail ? (
+        <div className="mt-2 text-[12px] normal-case tracking-normal text-[#8a6a49]">
+          {detail}
+        </div>
+      ) : null}
     </label>
   );
 }
