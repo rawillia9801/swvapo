@@ -3,10 +3,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { fmtDate } from "@/lib/utils";
 import {
+  findBuyerFeeCreditRecords,
   findBuyerPayments,
   findLatestPickupRequestForUser,
   loadPortalContext,
   paymentCountsTowardBalance,
+  type PortalFeeCreditRecord,
   portalPuppyName,
   type PortalBuyer,
   type PortalPayment,
@@ -35,6 +37,7 @@ type PaymentPageState = {
   buyer: PortalBuyer | null;
   puppy: PortalPuppy | null;
   payments: PortalPayment[];
+  adjustments: PortalFeeCreditRecord[];
   pickupRequest: PortalPickupRequest | null;
 };
 
@@ -56,6 +59,8 @@ type FinanceSummary = {
   depositAmount: number;
   transportationCost: number;
   paymentsApplied: number;
+  adjustmentCharges: number;
+  adjustmentCredits: number;
   financeEnabled: boolean;
   adminFeeEnabled: boolean;
   apr: number | null;
@@ -63,6 +68,8 @@ type FinanceSummary = {
   months: number | null;
   nextDueDate: string | null;
   lastPostedPaymentDate: string | null;
+  principalAfterDeposit: number;
+  financeBaseTotal: number;
   planTotal: number | null;
   financeUplift: number;
   currentBalance: number;
@@ -75,6 +82,7 @@ function emptyState(): PaymentPageState {
     buyer: null,
     puppy: null,
     payments: [],
+    adjustments: [],
     pickupRequest: null,
   };
 }
@@ -117,6 +125,16 @@ function firstNumber(...values: Array<number | null | undefined>) {
 function paymentTypeLabel(payment: PortalPayment) {
   const raw = String(payment.payment_type || "").trim();
   return raw || "Payment";
+}
+
+function adjustmentTypeLabel(adjustment: PortalFeeCreditRecord) {
+  const label = String(adjustment.label || "").trim();
+  if (label) return label;
+
+  const entryType = String(adjustment.entry_type || "").trim().toLowerCase();
+  if (entryType === "transportation") return "Transportation Fee";
+  if (entryType === "credit") return "Credit";
+  return "Fee";
 }
 
 function includesKeyword(value: string | null | undefined, keywords: string[]) {
@@ -167,11 +185,33 @@ function entryTone(statusLabel: string, type: "charge" | "credit" | "neutral") {
   return "neutral";
 }
 
+function adjustmentCountsTowardBalance(status: string | null | undefined) {
+  const normalized = String(status || "").toLowerCase();
+  if (!normalized) return true;
+  return !["void", "cancelled", "canceled"].includes(normalized);
+}
+
+function classifyAdjustmentEffect(adjustment: PortalFeeCreditRecord) {
+  const amount = Math.abs(Number(adjustment.amount || 0));
+  const applied = adjustmentCountsTowardBalance(adjustment.status);
+  const entryType = String(adjustment.entry_type || "").trim().toLowerCase();
+
+  if (!applied || amount <= 0) {
+    return { charge: 0, credit: 0, applied };
+  }
+
+  if (entryType === "credit") {
+    return { charge: 0, credit: amount, applied };
+  }
+
+  return { charge: amount, credit: 0, applied };
+}
+
 function buildLedgerEntries(state: PaymentPageState): {
   entries: LedgerEntry[];
   summary: FinanceSummary;
 } {
-  const { buyer, puppy, payments, pickupRequest } = state;
+  const { buyer, puppy, payments, adjustments, pickupRequest } = state;
   const purchasePrice = firstNumber(buyer?.sale_price, puppy?.price);
   const depositAmount = firstNumber(buyer?.deposit_amount, puppy?.deposit);
   const requestEstimate = pickupRequest
@@ -202,8 +242,9 @@ function buildLedgerEntries(state: PaymentPageState): {
     financeEnabled && monthlyAmount !== null && months !== null
       ? Math.max(0, monthlyAmount * months)
       : null;
-  const financeUplift =
-    planTotal !== null ? Math.max(0, planTotal - Math.max(0, purchasePrice - depositAmount)) : 0;
+  const principalAfterDeposit = Math.max(0, purchasePrice - depositAmount);
+  const financeBaseTotal = planTotal !== null ? Math.max(principalAfterDeposit, planTotal) : principalAfterDeposit;
+  const financeUplift = Math.max(0, financeBaseTotal - principalAfterDeposit);
   const nextDueDate = buyer?.finance_next_due_date || null;
   const lastPostedPaymentDate = buyer?.finance_last_payment_date || payments[0]?.payment_date || null;
   const puppyName = portalPuppyName(puppy);
@@ -216,6 +257,11 @@ function buildLedgerEntries(state: PaymentPageState): {
     (payment) =>
       paymentCountsTowardBalance(payment.status) &&
       includesKeyword(payment.payment_type, ["transport", "delivery", "shipping"])
+  );
+  const hasTransportationAdjustment = adjustments.some(
+    (adjustment) =>
+      adjustmentCountsTowardBalance(adjustment.status) &&
+      String(adjustment.entry_type || "").trim().toLowerCase() === "transportation"
   );
 
   const drafted: Array<{
@@ -246,7 +292,7 @@ function buildLedgerEntries(state: PaymentPageState): {
     });
   }
 
-  if (transportationCost > 0 && !hasLoggedTransportation) {
+  if (transportationCost > 0 && !hasLoggedTransportation && !hasTransportationAdjustment) {
     drafted.push({
       key: "transportation-cost",
       sortDate: firstDate(
@@ -304,6 +350,34 @@ function buildLedgerEntries(state: PaymentPageState): {
       order: 40,
     });
   }
+
+  const ascendingAdjustments = [...adjustments].sort((a, b) => {
+    const aTime = new Date(firstDate(a.entry_date, a.created_at)).getTime();
+    const bTime = new Date(firstDate(b.entry_date, b.created_at)).getTime();
+    return aTime - bTime;
+  });
+
+  ascendingAdjustments.forEach((adjustment, index) => {
+    const effect = classifyAdjustmentEffect(adjustment);
+    const type = effect.charge > 0 ? "charge" : effect.credit > 0 ? "credit" : "neutral";
+
+    drafted.push({
+      key: `adjustment-${adjustment.id}`,
+      sortDate: firstDate(adjustment.entry_date, adjustment.created_at, accountOpenedDate),
+      label: adjustmentTypeLabel(adjustment),
+      detail: [
+        adjustment.description ? adjustment.description : "",
+        adjustment.reference_number ? `Ref ${adjustment.reference_number}` : "",
+      ]
+        .filter(Boolean)
+        .join(" • "),
+      charge: effect.charge,
+      credit: effect.credit,
+      statusLabel: displayText(adjustment.status, "Recorded"),
+      tone: entryTone(displayText(adjustment.status, "Recorded"), type),
+      order: 80 + index,
+    });
+  });
 
   const ascendingPayments = [...payments].sort((a, b) => {
     const aTime = new Date(firstDate(a.payment_date, a.created_at)).getTime();
@@ -366,6 +440,14 @@ function buildLedgerEntries(state: PaymentPageState): {
     const effect = classifyLedgerEffect(payment);
     return sum + effect.credit;
   }, 0);
+  const adjustmentCharges = ascendingAdjustments.reduce((sum, adjustment) => {
+    const effect = classifyAdjustmentEffect(adjustment);
+    return sum + effect.charge;
+  }, 0);
+  const adjustmentCredits = ascendingAdjustments.reduce((sum, adjustment) => {
+    const effect = classifyAdjustmentEffect(adjustment);
+    return sum + effect.credit;
+  }, 0);
 
   return {
     entries,
@@ -374,6 +456,8 @@ function buildLedgerEntries(state: PaymentPageState): {
       depositAmount,
       transportationCost,
       paymentsApplied,
+      adjustmentCharges,
+      adjustmentCredits,
       financeEnabled,
       adminFeeEnabled,
       apr,
@@ -381,6 +465,8 @@ function buildLedgerEntries(state: PaymentPageState): {
       months,
       nextDueDate,
       lastPostedPaymentDate,
+      principalAfterDeposit,
+      financeBaseTotal,
       planTotal,
       financeUplift,
       currentBalance: entries[entries.length - 1]?.runningBalance ?? 0,
@@ -435,8 +521,9 @@ export default function PortalPaymentsPage() {
 
       try {
         const context = await loadPortalContext(user);
-        const [payments, pickupRequest] = await Promise.all([
+        const [payments, adjustments, pickupRequest] = await Promise.all([
           findBuyerPayments(context.buyer?.id),
+          findBuyerFeeCreditRecords(context.buyer?.id),
           findLatestPickupRequestForUser(user),
         ]);
 
@@ -445,6 +532,7 @@ export default function PortalPaymentsPage() {
           buyer: context.buyer,
           puppy: context.puppy,
           payments,
+          adjustments,
           pickupRequest,
         });
       } catch (error) {
@@ -570,7 +658,7 @@ export default function PortalPaymentsPage() {
         <div className="space-y-6">
           <PortalPanel
             title="Itemized Account Ledger"
-            subtitle="Every charge, payment, transportation amount, fee, and credit appears here as its own line item with a running balance."
+            subtitle="Every charge, payment, transportation fee, manual fee, and credit appears here as its own line item with a running balance."
           >
             {entries.length ? (
               <PortalTable headers={["Date", "Entry", "Charge", "Credit", "Balance", "Status"]}>
@@ -589,11 +677,38 @@ export default function PortalPaymentsPage() {
 
         <div className="space-y-6">
           <PortalPanel
-            title="Payment Plan Details"
-            subtitle="APR, admin fee status, monthly payment, due date, and other payment-plan details stay together here."
+            title="Financing Breakdown"
+            subtitle="A clearer breakdown of the financed total, monthly terms, and how the remaining balance is being calculated."
           >
             {summary.financeEnabled ? (
               <div className="grid gap-4">
+                <PortalInfoTile
+                  label="Purchase Price"
+                  value={toMoney(summary.purchasePrice)}
+                  detail="Original purchase amount saved to your buyer account."
+                />
+                <PortalInfoTile
+                  label="Deposit"
+                  value={summary.depositAmount > 0 ? toMoney(summary.depositAmount) : "Not listed"}
+                  detail="Deposit already applied before financing and payments."
+                />
+                <PortalInfoTile
+                  label="Principal After Deposit"
+                  value={toMoney(summary.principalAfterDeposit)}
+                  detail="Purchase price minus deposit."
+                />
+                <PortalInfoTile
+                  label="Plan Base Total"
+                  value={toMoney(summary.financeBaseTotal)}
+                  detail="Financed total before transportation, fees, credits, and recorded payments are applied."
+                  tone="warning"
+                />
+                <PortalInfoTile
+                  label="Financing Cost"
+                  value={summary.financeUplift > 0 ? toMoney(summary.financeUplift) : "None added"}
+                  detail="Amount added above principal by the saved monthly plan."
+                  tone={summary.financeUplift > 0 ? "warning" : "neutral"}
+                />
                 <PortalInfoTile
                   label="APR"
                   value={summary.apr !== null ? `${summary.apr}%` : "Not listed"}
@@ -630,6 +745,12 @@ export default function PortalPaymentsPage() {
                       : "Payment-plan total based on the saved monthly amount and term."
                   }
                 />
+                <PortalInfoTile
+                  label="Remaining Balance"
+                  value={toMoney(summary.currentBalance)}
+                  detail="Current account balance after charges, credits, and recorded payments."
+                  tone={summary.currentBalance > 0 ? "warning" : "success"}
+                />
               </div>
             ) : (
               <PortalEmptyState
@@ -664,6 +785,18 @@ export default function PortalPaymentsPage() {
                 value={summary.transportationCost > 0 ? toMoney(summary.transportationCost) : "Not listed"}
                 detail="Pickup, delivery, or transportation fee currently tied to your account."
                 tone={summary.transportationCost > 0 ? "warning" : "neutral"}
+              />
+              <PortalInfoTile
+                label="Manual Fees"
+                value={summary.adjustmentCharges > 0 ? toMoney(summary.adjustmentCharges) : "None recorded"}
+                detail="Additional fees and transportation entries recorded to your account ledger."
+                tone={summary.adjustmentCharges > 0 ? "warning" : "neutral"}
+              />
+              <PortalInfoTile
+                label="Credits"
+                value={summary.adjustmentCredits > 0 ? toMoney(summary.adjustmentCredits) : "None recorded"}
+                detail="Credits or discounts recorded separately from logged payments."
+                tone={summary.adjustmentCredits > 0 ? "success" : "neutral"}
               />
               <PortalInfoTile
                 label="Last Posted Payment"

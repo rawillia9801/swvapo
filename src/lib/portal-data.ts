@@ -184,6 +184,20 @@ export type PortalPayment = {
   reference_number?: string | null;
 };
 
+export type PortalFeeCreditRecord = {
+  id: number;
+  created_at: string;
+  buyer_id: number;
+  puppy_id?: number | null;
+  entry_date: string;
+  entry_type?: string | null;
+  label?: string | null;
+  description?: string | null;
+  amount: number;
+  status?: string | null;
+  reference_number?: string | null;
+};
+
 export type PortalPickupRequest = {
   id: number;
   created_at?: string | null;
@@ -581,6 +595,23 @@ export async function findBuyerPayments(buyerId: number | null | undefined) {
         .select("id,created_at,buyer_id,puppy_id,payment_date,amount,payment_type,method,note,status,reference_number")
         .eq("buyer_id", buyerId)
         .order("payment_date", { ascending: false })
+        .order("created_at", { ascending: false })
+    )
+  );
+}
+
+export async function findBuyerFeeCreditRecords(buyerId: number | null | undefined) {
+  if (!buyerId) return [];
+
+  return safeList<PortalFeeCreditRecord>(() =>
+    Promise.resolve(
+      sb
+        .from("buyer_fee_credit_records")
+        .select(
+          "id,created_at,buyer_id,puppy_id,entry_date,entry_type,label,description,amount,status,reference_number"
+        )
+        .eq("buyer_id", buyerId)
+        .order("entry_date", { ascending: false })
         .order("created_at", { ascending: false })
     )
   );
