@@ -11,29 +11,29 @@ import {
 } from "lucide-react";
 
 export const portalInputClass =
-  "w-full rounded-2xl border border-stone-200 bg-white px-4 py-3.5 text-[15px] text-stone-900 shadow-sm outline-none transition placeholder:text-stone-400 focus:border-amber-400 focus:ring-4 focus:ring-amber-200/50 disabled:cursor-not-allowed disabled:bg-stone-50 disabled:text-stone-400";
+  "w-full rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3.5 text-[15px] text-[var(--portal-text)] shadow-sm outline-none transition placeholder:text-[var(--portal-text-muted)] focus:border-[var(--portal-accent)] focus:ring-4 focus:ring-[rgba(90,142,245,0.16)] disabled:cursor-not-allowed disabled:bg-[var(--portal-surface-muted)] disabled:text-[var(--portal-text-muted)]";
 
 export const portalSurfaceClass =
-  "premium-card relative overflow-hidden rounded-[2rem] bg-white";
+  "premium-card relative overflow-hidden rounded-[1.5rem] bg-white";
 
 export const portalButtonPrimaryClass =
-  "inline-flex items-center justify-center gap-2 rounded-full bg-stone-900 px-5 py-3 text-sm font-semibold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-stone-800 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(90deg,#7c5cff_0%,#f043a2_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(124,92,255,0.24)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60";
 
 export const portalButtonSecondaryClass =
-  "inline-flex items-center justify-center gap-2 rounded-full border border-stone-300 bg-white px-5 py-3 text-sm font-semibold text-stone-800 shadow-sm transition hover:-translate-y-0.5 hover:bg-stone-50";
+  "inline-flex items-center justify-center gap-2 rounded-2xl border border-[var(--portal-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--portal-text)] shadow-sm transition hover:-translate-y-0.5 hover:bg-[var(--portal-surface-muted)]";
 
 type Tone = "neutral" | "success" | "warning" | "danger";
 
 function toneClass(tone: Tone) {
   switch (tone) {
     case "success":
-      return "border-emerald-200 bg-emerald-50 text-emerald-800";
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
     case "warning":
-      return "border-amber-200 bg-amber-50 text-amber-900";
+      return "border-violet-200 bg-violet-50 text-violet-700";
     case "danger":
-      return "border-rose-200 bg-rose-50 text-rose-800";
+      return "border-rose-200 bg-rose-50 text-rose-700";
     default:
-      return "border-stone-200 bg-white text-stone-800";
+      return "border-[var(--portal-border)] bg-white text-[var(--portal-text)]";
   }
 }
 
@@ -47,7 +47,7 @@ function accentGlow(accent?: string) {
     return accent;
   }
 
-  return "from-amber-100/80 via-transparent to-orange-100/70";
+  return "from-[rgba(90,142,245,0.18)] via-transparent to-[rgba(240,67,162,0.16)]";
 }
 
 export function PortalPageHero({
@@ -64,15 +64,15 @@ export function PortalPageHero({
   aside?: React.ReactNode;
 }) {
   return (
-    <section className="hero-glow relative overflow-hidden rounded-[2rem] border border-stone-200 px-6 py-8 shadow-soft md:px-8 md:py-10 xl:px-10 xl:py-12">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(251,191,36,0.12),transparent_28%)]" />
+    <section className="hero-glow relative overflow-hidden rounded-[1.5rem] border border-[var(--portal-border)] px-6 py-8 shadow-soft md:px-8 md:py-10 xl:px-10 xl:py-12">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(240,67,162,0.12),transparent_28%)]" />
       <div className="relative grid gap-8 xl:grid-cols-[minmax(0,1.35fr)_360px] xl:items-start xl:gap-10">
         <div className="max-w-4xl">
           <PortalEyebrow>{eyebrow}</PortalEyebrow>
-          <h1 className="mt-6 font-serif text-4xl leading-[1.02] text-stone-900 md:text-5xl xl:text-6xl">
+          <h1 className="mt-6 text-4xl font-extrabold leading-[1.02] tracking-[-0.04em] text-[var(--portal-accent)] md:text-5xl xl:text-6xl">
             {title}
           </h1>
-          <p className="mt-5 max-w-3xl text-[15px] leading-7 text-stone-600 md:text-lg">
+          <p className="mt-5 max-w-3xl text-[15px] leading-7 text-[var(--portal-text-soft)] md:text-lg">
             {description}
           </p>
           {actions ? <div className="mt-8 flex flex-wrap gap-3">{actions}</div> : null}
@@ -85,7 +85,7 @@ export function PortalPageHero({
 
 export function PortalEyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-amber-900 shadow-sm">
+    <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-violet-700 shadow-sm">
       {children}
     </span>
   );
@@ -148,7 +148,7 @@ export function PortalMetricGrid({
 }: {
   children: React.ReactNode;
 }) {
-  return <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">{children}</section>;
+  return <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">{children}</section>;
 }
 
 export function PortalMetricCard({
@@ -167,17 +167,17 @@ export function PortalMetricCard({
   actionLabel?: string;
 }) {
   const content = (
-    <div className="relative overflow-hidden rounded-[2rem] border border-stone-200 bg-white p-5 shadow-soft">
+    <div className="relative overflow-hidden rounded-[1.5rem] border border-[var(--portal-border)] bg-white p-5 shadow-soft">
       <div className={`pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${accentGlow(accent)}`} />
-      <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-stone-400">
+      <div className="text-[11px] font-semibold tracking-[-0.01em] text-[var(--portal-text-muted)]">
         {label}
       </div>
-      <div className="mt-3 text-[1.9rem] font-semibold leading-tight text-stone-900">
+      <div className="mt-2 text-lg font-semibold leading-tight text-[var(--portal-text)]">
         {value}
       </div>
-      <div className="mt-3 text-sm leading-6 text-stone-600">{detail}</div>
+      <div className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
       {actionLabel ? (
-        <div className="mt-5 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-amber-700">
+        <div className="mt-4 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-accent)]">
           <span>{actionLabel}</span>
           <ArrowRight className="h-3.5 w-3.5" />
         </div>
@@ -188,10 +188,7 @@ export function PortalMetricCard({
   if (!href) return content;
 
   return (
-    <Link
-      href={href}
-      className="block rounded-[2rem] transition hover:-translate-y-1"
-    >
+    <Link href={href} className="block rounded-[1.5rem] transition hover:-translate-y-1">
       {content}
     </Link>
   );
@@ -213,21 +210,21 @@ export function PortalPanel({
   children: React.ReactNode;
 }) {
   return (
-    <section className="premium-card overflow-hidden rounded-[2rem] bg-white p-5 md:p-6">
+    <section className="premium-card overflow-hidden rounded-[1.5rem] bg-white p-5 md:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-2xl">
-          <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-stone-400">
+          <div className="text-[11px] font-bold tracking-[-0.01em] text-[var(--portal-accent)]">
             {title}
           </div>
           {subtitle ? (
-            <p className="mt-2 text-sm leading-6 text-stone-600">{subtitle}</p>
+            <p className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">{subtitle}</p>
           ) : null}
         </div>
         {action ? action : null}
         {!action && actionHref && actionLabel ? (
           <Link
             href={actionHref}
-            className="inline-flex items-center gap-2 rounded-full border border-stone-300 bg-white px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-stone-700 transition hover:bg-stone-50"
+            className="inline-flex items-center gap-2 rounded-full border border-[var(--portal-border)] bg-white px-4 py-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-accent)] transition hover:bg-[var(--portal-surface-muted)]"
           >
             {actionLabel}
             <ArrowRight className="h-3.5 w-3.5" />
@@ -251,12 +248,12 @@ export function PortalInfoTile({
   tone?: Tone;
 }) {
   return (
-    <div className={`rounded-[1.5rem] border p-4 shadow-sm ${toneClass(tone)}`}>
-      <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-stone-400">
+    <div className={`rounded-[1.25rem] border p-4 shadow-sm ${toneClass(tone)}`}>
+      <div className="text-[11px] font-semibold tracking-[-0.01em] text-[var(--portal-text-muted)]">
         {label}
       </div>
-      <div className="mt-2 text-2xl font-semibold text-stone-900">{value}</div>
-      {detail ? <div className="mt-2 text-sm leading-6 text-stone-600">{detail}</div> : null}
+      <div className="mt-2 text-xl font-semibold text-[var(--portal-text)]">{value}</div>
+      {detail ? <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div> : null}
     </div>
   );
 }
@@ -275,19 +272,19 @@ export function PortalListCard({
   tone?: Tone;
 }) {
   return (
-    <div className={`rounded-[1.5rem] border p-4 shadow-sm ${toneClass(tone)}`}>
+    <div className={`rounded-[1.25rem] border p-4 shadow-sm ${toneClass(tone)}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-stone-400">
+          <div className="text-[11px] font-semibold tracking-[-0.01em] text-[var(--portal-text-muted)]">
             {label}
           </div>
-          <div className="mt-2 text-sm font-semibold leading-6 text-stone-900">
+          <div className="mt-2 text-sm font-semibold leading-6 text-[var(--portal-text)]">
             {title}
           </div>
-          <div className="mt-1 text-sm leading-6 text-stone-600">{description}</div>
+          <div className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">{description}</div>
         </div>
         {rightLabel ? (
-          <div className="shrink-0 text-[11px] font-bold uppercase tracking-[0.14em] text-stone-500">
+          <div className="shrink-0 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">
             {rightLabel}
           </div>
         ) : null}
@@ -324,14 +321,14 @@ export function PortalNarrativeCard({
   accent?: string;
 }) {
   return (
-    <div className="hero-glow relative overflow-hidden rounded-[2rem] border border-stone-200 p-6 shadow-soft md:p-8">
+    <div className="hero-glow relative overflow-hidden rounded-[1.5rem] border border-[var(--portal-border)] p-6 shadow-soft md:p-8">
       <div className={`pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${accentGlow(accent)}`} />
       <div className="relative">
         <PortalEyebrow>{eyebrow}</PortalEyebrow>
-        <div className="mt-5 max-w-4xl font-serif text-4xl leading-[1.04] text-stone-900 md:text-5xl">
+        <div className="mt-5 max-w-4xl text-4xl font-extrabold leading-[1.04] tracking-[-0.04em] text-[var(--portal-accent)] md:text-5xl">
           {title}
         </div>
-        <div className="mt-4 max-w-3xl text-sm leading-7 text-stone-600 md:text-base">
+        <div className="mt-4 max-w-3xl text-sm leading-7 text-[var(--portal-text-soft)] md:text-base">
           {description}
         </div>
         {children ? <div className="mt-6">{children}</div> : null}
@@ -354,14 +351,14 @@ export function PortalActionLink({
   return (
     <Link
       href={href}
-      className="premium-card group block rounded-[1.75rem] p-5 transition hover:-translate-y-1"
+      className="premium-card group block rounded-[1.5rem] p-5 transition hover:-translate-y-1"
     >
-      <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-stone-400">
+      <div className="text-[11px] font-semibold tracking-[-0.01em] text-[var(--portal-text-muted)]">
         {eyebrow}
       </div>
-      <div className="mt-3 text-lg font-semibold text-stone-900">{title}</div>
-      <div className="mt-2 text-sm leading-6 text-stone-600">{detail}</div>
-      <div className="mt-5 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-amber-700">
+      <div className="mt-3 text-lg font-semibold text-[var(--portal-text)]">{title}</div>
+      <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
+      <div className="mt-5 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-accent)]">
         Open
         <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
       </div>
@@ -379,12 +376,12 @@ export function PortalEmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-[1.75rem] border border-dashed border-stone-300 bg-stone-50 px-5 py-12 text-center">
-      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-amber-200 bg-amber-50 text-amber-700 shadow-sm">
+    <div className="rounded-[1.5rem] border border-dashed border-[var(--portal-border-strong)] bg-[var(--portal-surface-muted)] px-5 py-12 text-center">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-violet-200 bg-violet-50 text-[var(--portal-accent)] shadow-sm">
         <Sparkles className="h-5 w-5" />
       </div>
-      <div className="mt-5 text-lg font-semibold text-stone-900">{title}</div>
-      <div className="mx-auto mt-2 max-w-md text-sm leading-6 text-stone-600">{description}</div>
+      <div className="mt-5 text-lg font-semibold text-[var(--portal-text)]">{title}</div>
+      <div className="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--portal-text-soft)]">{description}</div>
       {action ? <div className="mt-6 flex justify-center">{action}</div> : null}
     </div>
   );
@@ -392,26 +389,26 @@ export function PortalEmptyState({
 
 export function PortalLoadingState({ label = "Loading..." }: { label?: string }) {
   return (
-    <div className="rounded-[2rem] border border-stone-200 bg-white p-8 shadow-soft md:p-10">
+    <div className="rounded-[1.5rem] border border-[var(--portal-border)] bg-white p-8 shadow-soft md:p-10">
       <div className="mx-auto max-w-5xl">
-        <div className="flex items-center gap-3 text-sm font-semibold text-stone-600">
-          <LoaderCircle className="h-5 w-5 animate-spin text-amber-700" />
+        <div className="flex items-center gap-3 text-sm font-semibold text-[var(--portal-text-soft)]">
+          <LoaderCircle className="h-5 w-5 animate-spin text-[var(--portal-accent)]" />
           <span>{label}</span>
         </div>
         <div className="mt-8 space-y-5">
-          <div className="h-6 w-40 rounded-full bg-stone-200 animate-pulse" />
+          <div className="h-6 w-40 rounded-full bg-[var(--portal-surface-tint)] animate-pulse" />
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_320px]">
-            <div className="h-64 rounded-[2rem] bg-stone-100 animate-pulse" />
+            <div className="h-64 rounded-[2rem] bg-[var(--portal-surface-tint)] animate-pulse" />
             <div className="grid gap-5">
-              <div className="h-29 rounded-[1.75rem] bg-stone-100 animate-pulse" />
-              <div className="h-29 rounded-[1.75rem] bg-stone-100 animate-pulse" />
+              <div className="h-29 rounded-[1.75rem] bg-[var(--portal-surface-tint)] animate-pulse" />
+              <div className="h-29 rounded-[1.75rem] bg-[var(--portal-surface-tint)] animate-pulse" />
             </div>
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {Array.from({ length: 4 }).map((_, index) => (
               <div
                 key={index}
-                className="h-40 rounded-[1.75rem] bg-stone-100 animate-pulse"
+                className="h-40 rounded-[1.75rem] bg-[var(--portal-surface-tint)] animate-pulse"
               />
             ))}
           </div>
@@ -431,12 +428,12 @@ export function PortalErrorState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-[1.75rem] border border-rose-200 bg-rose-50 px-5 py-12 text-center shadow-sm">
+    <div className="rounded-[1.5rem] border border-rose-200 bg-rose-50 px-5 py-12 text-center shadow-sm">
       <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-rose-200 bg-white text-rose-700 shadow-sm">
         <CircleAlert className="h-5 w-5" />
       </div>
-      <div className="mt-5 text-lg font-semibold text-stone-900">{title}</div>
-      <div className="mx-auto mt-2 max-w-md text-sm leading-6 text-stone-600">{description}</div>
+      <div className="mt-5 text-lg font-semibold text-[var(--portal-text)]">{title}</div>
+      <div className="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--portal-text-soft)]">{description}</div>
       {action ? <div className="mt-6 flex justify-center">{action}</div> : null}
     </div>
   );
@@ -450,7 +447,7 @@ export function PortalField({
   children: React.ReactNode;
 }) {
   return (
-    <label className="block text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">
+    <label className="block text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
       {label}
       <div className="mt-2">{children}</div>
     </label>
@@ -484,14 +481,14 @@ export function PortalTable({
   children: React.ReactNode;
 }) {
   return (
-    <div className="overflow-hidden rounded-[1.75rem] border border-stone-200 bg-white shadow-soft">
+    <div className="overflow-hidden rounded-[1.5rem] border border-[var(--portal-border)] bg-white shadow-soft">
       <table className="min-w-full border-collapse">
         <thead>
-          <tr className="border-b border-stone-200 bg-stone-50">
+          <tr className="border-b border-[var(--portal-border)] bg-[var(--portal-surface-muted)]">
             {headers.map((header) => (
               <th
                 key={header}
-                className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500"
+                className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]"
               >
                 {header}
               </th>
@@ -507,10 +504,10 @@ export function PortalTable({
 export function PortalShellPlaceholder() {
   return (
     <div className="premium-card flex items-center gap-3 rounded-[1.5rem] p-4">
-      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
+      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-50 text-[var(--portal-accent)]">
         <LayoutGrid className="h-4 w-4" />
       </div>
-      <div className="text-sm text-stone-600">Shared portal component placeholder.</div>
+      <div className="text-sm text-[var(--portal-text-soft)]">Shared portal component placeholder.</div>
     </div>
   );
 }

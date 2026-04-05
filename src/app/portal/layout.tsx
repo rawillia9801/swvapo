@@ -4,7 +4,19 @@ import Link from "next/link";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
-import { Bell, HelpCircle, Loader2, X } from "lucide-react";
+import {
+  BookOpen,
+  ClipboardList,
+  CreditCard,
+  FileText,
+  Home,
+  Loader2,
+  MessageSquare,
+  PawPrint,
+  Truck,
+  UserCircle2,
+  X,
+} from "lucide-react";
 import { sb } from "@/lib/utils";
 import {
   PortalChiChiWidget,
@@ -49,14 +61,14 @@ type PortalUser = {
 type NavDefinition = {
   href: string;
   label: string;
-  mascot: string;
+  icon: React.ReactNode;
   match?: (pathname: string) => boolean;
 };
 
 type SidebarNavItem = {
   href: string;
   label: string;
-  mascot: string;
+  icon: React.ReactNode;
   active: boolean;
   badge?: number;
 };
@@ -112,49 +124,54 @@ type ChiChiResponse = {
 const navDefinitions: NavDefinition[] = [
   {
     href: "/portal",
-    label: "Overview",
-    mascot: "🐶",
+    label: "Dashboard",
+    icon: <Home className="h-4 w-4" />,
     match: (pathname) => pathname === "/portal",
   },
   {
     href: "/portal/application",
-    label: "Application",
-    mascot: "📝",
-  },
-  {
-    href: "/portal/available-puppies",
-    label: "Available Puppies",
-    mascot: "🐕",
+    label: "Puppy Application",
+    icon: <ClipboardList className="h-4 w-4" />,
   },
   {
     href: "/portal/documents",
-    label: "Documents/Contracts",
-    mascot: "📄",
-  },
-  {
-    href: "/portal/resources",
-    label: "Health/Resources",
-    mascot: "🦴",
+    label: "Contracts & Docs",
+    icon: <FileText className="h-4 w-4" />,
   },
   {
     href: "/portal/payments",
     label: "Payments",
-    mascot: "💳",
+    icon: <CreditCard className="h-4 w-4" />,
   },
   {
-    href: "/portal/messages",
-    label: "Portal Messages",
-    mascot: "💌",
-  },
-  {
-    href: "/portal/updates",
-    label: "Pupdates",
-    mascot: "🐾",
+    href: "/portal/mypuppy",
+    label: "My Puppy Info",
+    icon: <PawPrint className="h-4 w-4" />,
   },
   {
     href: "/portal/transportation",
-    label: "Transportation Request",
-    mascot: "🚗",
+    label: "Pickup / Delivery",
+    icon: <Truck className="h-4 w-4" />,
+  },
+  {
+    href: "/portal/updates",
+    label: "Puppy Updates",
+    icon: <PawPrint className="h-4 w-4" />,
+  },
+  {
+    href: "/portal/messages",
+    label: "Messages / Support",
+    icon: <MessageSquare className="h-4 w-4" />,
+  },
+  {
+    href: "/portal/profile",
+    label: "Account Info",
+    icon: <UserCircle2 className="h-4 w-4" />,
+  },
+  {
+    href: "/portal/resources",
+    label: "Resources & Care",
+    icon: <BookOpen className="h-4 w-4" />,
   },
 ];
 
@@ -344,20 +361,20 @@ function buildNotifications(params: {
 
 function navItemClassName(active: boolean) {
   return [
-    "group flex w-full items-center justify-between rounded-[14px] border px-3 py-2 transition-all duration-200",
+    "group flex w-full items-center justify-between rounded-[14px] border px-3 py-2.5 transition-all duration-200",
     active
-      ? "border-slate-300 bg-white text-slate-900 shadow-sm"
-      : "border-slate-200 bg-white/90 text-slate-700 hover:border-slate-300 hover:bg-white",
+      ? "border-transparent bg-[linear-gradient(90deg,#a855f7_0%,#ec4899_100%)] text-white shadow-[0_12px_26px_rgba(168,85,247,0.28)]"
+      : "border-transparent bg-transparent text-[var(--portal-text-soft)] hover:bg-white hover:text-[var(--portal-text)]",
   ].join(" ");
 }
 
 function InfoBox({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[14px] border border-slate-200 bg-slate-50/70 px-3 py-2">
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
+    <div className="rounded-[14px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-3 py-2.5">
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--portal-accent)]">
         {label}
       </div>
-      <div className="mt-0.5 text-sm font-semibold text-slate-800">{value}</div>
+      <div className="mt-0.5 text-sm font-semibold text-[var(--portal-text)]">{value}</div>
     </div>
   );
 }
@@ -379,64 +396,69 @@ function SidebarChrome({
   onSignOut,
 }: SidebarChromeProps) {
   return (
-    <div className="flex h-full flex-col gap-2.5">
-      <div className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="flex h-full flex-col gap-3">
+      <div className="rounded-[22px] border border-[var(--portal-border)] bg-white p-4 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="flex h-[66px] w-[82px] shrink-0 items-center justify-center overflow-hidden rounded-[18px] border border-slate-200 bg-slate-50 p-2">
-            <img
-              src="https://www.swvachihuahua.com/pics/logo.jpg"
-              alt="Southwest Virginia Chihuahua logo"
-              className="h-full w-full object-contain"
-            />
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#a855f7_0%,#ec4899_100%)] text-xl text-white shadow-[0_12px_24px_rgba(168,85,247,0.28)]">
+            ♡
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="font-serif text-[0.98rem] font-bold leading-tight tracking-tight text-slate-900">
-              My Puppy Portal Page
-            </div>
-            <div className="mt-0.5 text-sm font-semibold leading-snug text-slate-700">
+            <div className="text-xl font-extrabold tracking-[-0.03em] text-[var(--portal-accent)]">
               Southwest Virginia Chihuahua
             </div>
-            <div className="mt-0.5 text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
-              Virginia’s Premier Chihuahua Breeder
+            <div className="mt-0.5 text-sm font-medium text-[var(--portal-text-soft)]">
+              Puppy Portal
             </div>
           </div>
         </div>
       </div>
 
-      <div className="rounded-[20px] border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="font-serif text-[1rem] font-bold tracking-tight text-slate-900">
-          Welcome {displayName}
+      <div className="rounded-[18px] border border-[#f2d56a] bg-[#fff8df] px-4 py-3 text-sm font-semibold text-[#c88900] shadow-sm">
+        Portal session · {displayEmail === "No email on file" ? "No Session" : "Active"}
+      </div>
+
+      <div className="min-h-0 flex-1 rounded-[22px] border border-[var(--portal-border)] bg-white p-4 shadow-sm">
+        <div className="mb-4">
+          <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+            Buyer Snapshot
+          </div>
+          <div className="mt-2 text-lg font-bold tracking-[-0.03em] text-[var(--portal-text)]">
+            {displayName}
+          </div>
         </div>
 
-        <div className="mt-2.5 space-y-1.5">
+        <div className="mb-4 space-y-1.5">
           <InfoBox label="Puppy" value={puppyName} />
           <InfoBox label="Sign-up Date" value={signupDate} />
           <InfoBox label="Application Date" value={applicationDate} />
         </div>
-      </div>
 
-      <div className="min-h-0 flex-1 rounded-[20px] border border-slate-200 bg-white p-2.5 shadow-sm">
         <nav className="space-y-1.5">
           {navItems.map((item) => (
             <Link key={item.href} href={item.href} className={navItemClassName(item.active)}>
               <span className="flex min-w-0 items-center gap-2.5">
                 <span
                   className={[
-                    "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl border text-sm",
+                    "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-sm",
                     item.active
-                      ? "border-slate-300 bg-slate-50"
-                      : "border-slate-200 bg-slate-50/80",
+                      ? "bg-white/20 text-white"
+                      : "bg-[var(--portal-surface-muted)] text-[var(--portal-text-muted)] group-hover:bg-white group-hover:text-[var(--portal-accent)]",
                   ].join(" ")}
                   aria-hidden="true"
                 >
-                  {item.mascot}
+                  {item.icon}
                 </span>
-                <span className="truncate text-[13px] font-bold text-slate-800">{item.label}</span>
+                <span className="truncate text-[13px] font-semibold">{item.label}</span>
               </span>
 
               {typeof item.badge === "number" && item.badge > 0 ? (
-                <span className="inline-flex min-w-[24px] items-center justify-center rounded-full bg-slate-900 px-2 py-1 text-[10px] font-black text-white">
+                <span
+                  className={[
+                    "inline-flex min-w-[24px] items-center justify-center rounded-full px-2 py-1 text-[10px] font-black",
+                    item.active ? "bg-white/20 text-white" : "bg-white text-[var(--portal-accent)]",
+                  ].join(" ")}
+                >
                   {item.badge}
                 </span>
               ) : null}
@@ -758,17 +780,13 @@ export default function PortalLayout({
   const navItems: SidebarNavItem[] = navDefinitions.map((item) => ({
     href: item.href,
     label: item.label,
-    mascot: item.mascot,
+    icon: item.icon,
     active: item.match ? item.match(pathname) : pathname === item.href || pathname.startsWith(`${item.href}/`),
     badge:
       item.href === "/portal/messages"
         ? portalMessages.filter((entry) => entry.sender === "admin" && !entry.read_by_user).length
         : undefined,
   }));
-
-  const profilePhotoUrl =
-    profilePicturePreviewUrl ||
-    String(readRecordValue(buyer, ["portal_profile_photo_url"]) || user?.user_metadata?.avatar_url || "");
 
   async function handleSignOut() {
     await sb.auth.signOut();
@@ -887,32 +905,6 @@ export default function PortalLayout({
     }
   }
 
-  function openChiChiFromHelp() {
-    const selectors = [
-      '[data-chichi-launcher="true"]',
-      'button[aria-label*="ChiChi"]',
-      'button[aria-label*="chat"]',
-      'button[title*="ChiChi"]',
-      'button[title*="chat"]',
-    ];
-
-    for (const selector of selectors) {
-      const candidate = document.querySelector(selector) as HTMLButtonElement | null;
-      if (candidate) {
-        candidate.click();
-        return;
-      }
-    }
-
-    const fallback = Array.from(document.querySelectorAll("button")).find((button) => {
-      const text =
-        `${button.textContent || ""} ${button.getAttribute("aria-label") || ""} ${button.getAttribute("title") || ""}`.toLowerCase();
-      return text.includes("chichi") || text.includes("chat");
-    }) as HTMLButtonElement | undefined;
-
-    fallback?.click();
-  }
-
   async function saveProfile() {
     if (!accessToken || !user?.id) {
       setProfileErrorText("Please sign in again before saving your profile.");
@@ -1010,9 +1002,9 @@ export default function PortalLayout({
   }
 
   return (
-    <div className="min-h-screen bg-[#fbfbfa] text-slate-900">
+    <div className="min-h-screen bg-[var(--portal-bg)] text-[var(--portal-text)]">
       <div className="grid min-h-screen lg:grid-cols-[312px_minmax(0,1fr)] xl:grid-cols-[328px_minmax(0,1fr)]">
-        <aside className="hidden border-r border-slate-200 bg-[#fcfcfb] px-4 py-4 lg:block">
+        <aside className="hidden border-r border-[var(--portal-border)] bg-white/70 px-4 py-4 backdrop-blur-sm lg:block">
           <div className="sticky top-4 h-[calc(100vh-2rem)]">
             <SidebarChrome
               displayName={displayName}
@@ -1044,70 +1036,7 @@ export default function PortalLayout({
           />
 
           <main className="min-h-screen px-4 py-5 md:px-6 md:py-6 xl:px-8 xl:py-8">
-            <div className="mx-auto flex w-full max-w-[1380px] flex-col gap-6">
-              <div className="rounded-[22px] border border-slate-200 bg-white px-5 py-4 shadow-sm">
-                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                  <div className="min-w-0">
-                    <div className="text-[11px] font-black uppercase tracking-[0.2em] text-amber-700">
-                      Southwest Virginia Chihuahua
-                    </div>
-                    <h1 className="mt-1 font-serif text-[1.75rem] font-bold tracking-tight text-slate-900">
-                      {pageTitle}
-                    </h1>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-end gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setIsNotificationsOpen(true)}
-                      className="relative inline-flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-slate-300"
-                      aria-label="Open notifications"
-                      title="Notifications"
-                    >
-                      <Bell className="h-5 w-5" />
-                      {notifications.length > 0 ? (
-                        <span className="absolute -right-1 -top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] shadow-[0_0_18px_rgba(220,38,38,0.45)] animate-pulse">
-                          🐾
-                        </span>
-                      ) : null}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={openChiChiFromHelp}
-                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 shadow-sm transition hover:border-slate-300"
-                    >
-                      <HelpCircle className="h-4 w-4" />
-                      Help and Support
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProfileSaveText("");
-                        setProfileErrorText("");
-                        setIsProfileOpen(true);
-                      }}
-                      className="inline-flex items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-2 text-left shadow-sm transition hover:border-slate-300"
-                    >
-                      <span className="inline-flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-sm font-black text-slate-700">
-                        {profilePhotoUrl ? (
-                          <img
-                            src={profilePhotoUrl}
-                            alt={`${displayName} profile`}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          userInitial
-                        )}
-                      </span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div>{children}</div>
-            </div>
+            <div className="mx-auto w-full max-w-[1260px]">{children}</div>
           </main>
         </div>
       </div>

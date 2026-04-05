@@ -30,34 +30,34 @@ export function PortalUserMenu({
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full items-center gap-3 rounded-[1.6rem] border border-stone-200 bg-white px-3.5 py-3.5 shadow-sm transition hover:border-stone-300 hover:bg-stone-50"
+        className="flex w-full items-center gap-3 rounded-[18px] border border-[var(--portal-border)] bg-white px-3.5 py-3.5 shadow-sm transition hover:border-[var(--portal-border-strong)] hover:bg-[var(--portal-surface-muted)]"
       >
-        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-stone-900 text-sm font-black text-white shadow-sm">
+        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[linear-gradient(135deg,#6b7cff_0%,#ec4899_100%)] text-sm font-black text-white shadow-sm">
           {userInitial}
         </div>
         <div className="min-w-0 flex-1 text-left">
-          <div className="truncate text-sm font-semibold text-stone-900">{displayName}</div>
-          <div className="truncate text-xs text-stone-500">{displayEmail}</div>
+          <div className="truncate text-sm font-semibold text-[var(--portal-text)]">{displayName}</div>
+          <div className="truncate text-xs text-[var(--portal-text-muted)]">{displayEmail}</div>
         </div>
-        <ChevronDown className="h-4 w-4 text-stone-400" />
+        <ChevronDown className="h-4 w-4 text-[var(--portal-text-muted)]" />
       </button>
 
       {isOpen ? (
-        <div className="absolute bottom-[calc(100%+12px)] left-0 z-40 w-full rounded-[1.8rem] border border-stone-200 bg-white p-3 shadow-[0_24px_60px_rgba(28,25,23,0.12)]">
-          <div className="rounded-[1.45rem] border border-stone-200 bg-stone-50 px-4 py-4">
-            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-stone-400">
+        <div className="absolute bottom-[calc(100%+12px)] left-0 z-40 w-full rounded-[20px] border border-[var(--portal-border)] bg-white p-3 shadow-[0_24px_60px_rgba(96,110,148,0.16)]">
+          <div className="rounded-[16px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4">
+            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
               Account
             </div>
-            <div className="mt-3 text-sm font-semibold text-stone-900">{displayName}</div>
-            <div className="mt-1 text-xs text-stone-500">{displayEmail}</div>
-            <div className="mt-1 text-xs text-stone-500">{displayPhone}</div>
+            <div className="mt-3 text-sm font-semibold text-[var(--portal-text)]">{displayName}</div>
+            <div className="mt-1 text-xs text-[var(--portal-text-soft)]">{displayEmail}</div>
+            <div className="mt-1 text-xs text-[var(--portal-text-soft)]">{displayPhone}</div>
           </div>
 
           <div className="mt-3 space-y-2">
             <Link
               href="/portal/profile"
               onClick={onClose}
-              className="block rounded-[1.1rem] border border-stone-200 bg-white px-4 py-3 text-sm font-semibold text-stone-800 transition hover:bg-stone-50"
+              className="block rounded-[14px] border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:bg-[var(--portal-surface-muted)]"
             >
               View profile
             </Link>
@@ -66,7 +66,7 @@ export function PortalUserMenu({
               <Link
                 href="/admin/portal"
                 onClick={onClose}
-                className="flex items-center gap-2 rounded-[1.1rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 transition hover:bg-amber-100"
+                className="flex items-center gap-2 rounded-[14px] border border-violet-200 bg-violet-50 px-4 py-3 text-sm font-semibold text-violet-700 transition hover:bg-violet-100"
               >
                 <Shield className="h-4 w-4" />
                 Open admin portal
@@ -76,7 +76,7 @@ export function PortalUserMenu({
             <button
               type="button"
               onClick={onSignOut}
-              className="w-full rounded-[1.1rem] bg-stone-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-stone-800"
+              className="w-full rounded-[14px] bg-[linear-gradient(90deg,#7c5cff_0%,#f043a2_100%)] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-95"
             >
               Sign out
             </button>
