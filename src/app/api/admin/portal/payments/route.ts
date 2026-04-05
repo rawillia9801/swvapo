@@ -143,19 +143,24 @@ export async function GET(req: Request) {
             })()
           : ((adjustmentsRes.data || []) as BuyerAdjustment[]);
 
-    const puppyByBuyerId = new Map<number, PuppyRow>();
+    const puppiesByBuyerId = new Map<number, PuppyRow[]>();
     puppies.forEach((puppy) => {
       const buyerId = Number(puppy.buyer_id || 0);
-      if (buyerId && !puppyByBuyerId.has(buyerId)) {
-        puppyByBuyerId.set(buyerId, puppy);
-      }
+      if (!buyerId) return;
+      const group = puppiesByBuyerId.get(buyerId) || [];
+      group.push(puppy);
+      puppiesByBuyerId.set(buyerId, group);
     });
 
     buyers.forEach((buyer) => {
       const fallbackPuppyId = Number(buyer.puppy_id || 0);
-      if (!fallbackPuppyId || puppyByBuyerId.has(buyer.id)) return;
+      if (!fallbackPuppyId) return;
+      const group = puppiesByBuyerId.get(buyer.id) || [];
+      if (group.some((puppy) => puppy.id === fallbackPuppyId)) return;
       const fallbackPuppy = puppies.find((puppy) => puppy.id === fallbackPuppyId) || null;
-      if (fallbackPuppy) puppyByBuyerId.set(buyer.id, fallbackPuppy);
+      if (fallbackPuppy) {
+        puppiesByBuyerId.set(buyer.id, [fallbackPuppy, ...group]);
+      }
     });
 
     const paymentsByBuyerId = new Map<number, BuyerPayment[]>();
@@ -187,7 +192,8 @@ export async function GET(req: Request) {
         return {
           key: String(buyer.id),
           buyer,
-          puppy: puppyByBuyerId.get(buyer.id) || null,
+          puppy: (puppiesByBuyerId.get(buyer.id) || [])[0] || null,
+          linkedPuppies: puppiesByBuyerId.get(buyer.id) || [],
           payments: paymentGroup,
           adjustments: adjustmentGroup,
           totalPaid,

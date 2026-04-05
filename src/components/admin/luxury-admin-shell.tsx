@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   MessageSquareText,
   PawPrint,
+  Sparkles,
   Users,
 } from "lucide-react";
 import { getPortalAdminEmails } from "@/lib/portal-admin";
@@ -47,6 +48,12 @@ const ADMIN_NAV: AdminNavItem[] = [
     icon: <CreditCard className="h-4 w-4" />,
   },
   {
+    href: "/admin/portal/puppy-payments",
+    label: "Puppy Payments",
+    helper: "Per-puppy financial control",
+    icon: <PawPrint className="h-4 w-4" />,
+  },
+  {
     href: "/admin/portal/documents",
     label: "Documents",
     helper: "Forms, uploads, portal files",
@@ -62,7 +69,7 @@ const ADMIN_NAV: AdminNavItem[] = [
     href: "/admin/portal/assistant",
     label: "ChiChi Admin",
     helper: "Natural-language changes",
-    icon: <PawPrint className="h-4 w-4" />,
+    icon: <Sparkles className="h-4 w-4" />,
   },
 ];
 

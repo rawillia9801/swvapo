@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import type { User } from "@supabase/supabase-js";
 import {
   AdminEmptyState,
@@ -33,6 +34,23 @@ type BuyerRow = {
   created_at?: string | null;
 };
 
+type LinkedPuppy = {
+  id: number;
+  buyer_id?: number | null;
+  call_name?: string | null;
+  puppy_name?: string | null;
+  name?: string | null;
+  status?: string | null;
+  price?: number | null;
+  deposit?: number | null;
+  balance?: number | null;
+  created_at?: string | null;
+};
+
+type PuppyOption = LinkedPuppy & {
+  buyerName?: string | null;
+};
+
 type BuyerCard = {
   key: string;
   buyer: BuyerRow;
@@ -49,6 +67,7 @@ type BuyerCard = {
   applicationCount: number;
   latestApplicationStatus?: string | null;
   formCount: number;
+  linkedPuppies: LinkedPuppy[];
 };
 
 type BuyerForm = {
@@ -60,6 +79,8 @@ type BuyerForm = {
   city: string;
   state: string;
 };
+
+type StatusView = "all" | "active" | "completed";
 
 function emptyBuyerForm(): BuyerForm {
   return {
@@ -73,8 +94,24 @@ function emptyBuyerForm(): BuyerForm {
   };
 }
 
+function puppyLabel(puppy: LinkedPuppy | PuppyOption) {
+  return puppy.call_name || puppy.puppy_name || puppy.name || `Puppy #${puppy.id}`;
+}
+
+function isCompletedStatus(status: string | null | undefined) {
+  const normalized = String(status || "").trim().toLowerCase();
+  return normalized.includes("completed") || normalized === "complete";
+}
+
+function isActiveStatus(status: string | null | undefined) {
+  const normalized = String(status || "").trim().toLowerCase();
+  return ["active", "approved", "matched", "pending", "submitted", "waitlist"].some((value) =>
+    normalized.includes(value)
+  );
+}
+
 async function fetchAdminBuyers(accessToken: string) {
-  if (!accessToken) return [] as BuyerCard[];
+  if (!accessToken) return { buyers: [] as BuyerCard[], puppies: [] as PuppyOption[] };
 
   const response = await fetch("/api/admin/portal/buyers", {
     headers: {
@@ -83,11 +120,14 @@ async function fetchAdminBuyers(accessToken: string) {
   });
 
   if (!response.ok) {
-    return [] as BuyerCard[];
+    return { buyers: [] as BuyerCard[], puppies: [] as PuppyOption[] };
   }
 
-  const payload = (await response.json()) as { buyers?: BuyerCard[] };
-  return Array.isArray(payload.buyers) ? payload.buyers : [];
+  const payload = (await response.json()) as { buyers?: BuyerCard[]; puppies?: PuppyOption[] };
+  return {
+    buyers: Array.isArray(payload.buyers) ? payload.buyers : [],
+    puppies: Array.isArray(payload.puppies) ? payload.puppies : [],
+  };
 }
 
 export default function AdminPortalBuyersPage() {
@@ -99,9 +139,13 @@ export default function AdminPortalBuyersPage() {
   const [statusText, setStatusText] = useState("");
   const [createStatusText, setCreateStatusText] = useState("");
   const [search, setSearch] = useState("");
+  const [puppySearch, setPuppySearch] = useState("");
+  const [statusView, setStatusView] = useState<StatusView>("all");
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [buyers, setBuyers] = useState<BuyerCard[]>([]);
+  const [allPuppies, setAllPuppies] = useState<PuppyOption[]>([]);
   const [selectedKey, setSelectedKey] = useState("");
+  const [selectedPuppyIds, setSelectedPuppyIds] = useState<number[]>([]);
   const [form, setForm] = useState<BuyerForm>(emptyBuyerForm);
   const [createForm, setCreateForm] = useState<BuyerForm>(emptyBuyerForm);
 
@@ -121,10 +165,11 @@ export default function AdminPortalBuyersPage() {
         setAccessToken(token);
 
         if (currentUser && isPortalAdminEmail(currentUser.email)) {
-          const nextBuyers = await fetchAdminBuyers(token);
+          const payload = await fetchAdminBuyers(token);
           if (!mounted) return;
-          setBuyers(nextBuyers);
-          setSelectedKey(nextBuyers[0]?.key || "");
+          setBuyers(payload.buyers);
+          setAllPuppies(payload.puppies);
+          setSelectedKey(payload.buyers[0]?.key || "");
         }
       } finally {
         if (mounted) setLoading(false);
@@ -142,12 +187,16 @@ export default function AdminPortalBuyersPage() {
       setAccessToken(token);
 
       if (currentUser && isPortalAdminEmail(currentUser.email)) {
-        const nextBuyers = await fetchAdminBuyers(token);
+        const payload = await fetchAdminBuyers(token);
         if (!mounted) return;
-        setBuyers(nextBuyers);
-        setSelectedKey((prev) => nextBuyers.find((buyer) => buyer.key === prev)?.key || nextBuyers[0]?.key || "");
+        setBuyers(payload.buyers);
+        setAllPuppies(payload.puppies);
+        setSelectedKey(
+          (prev) => payload.buyers.find((buyer) => buyer.key === prev)?.key || payload.buyers[0]?.key || ""
+        );
       } else {
         setBuyers([]);
+        setAllPuppies([]);
         setSelectedKey("");
       }
 
@@ -162,10 +211,14 @@ export default function AdminPortalBuyersPage() {
 
   const filteredBuyers = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return buyers;
 
-    return buyers.filter((record) =>
-      [
+    return buyers.filter((record) => {
+      if (statusView === "completed" && !isCompletedStatus(record.buyer.status)) return false;
+      if (statusView === "active" && !isActiveStatus(record.buyer.status)) return false;
+
+      if (!q) return true;
+
+      return [
         record.displayName,
         record.email,
         record.phone,
@@ -173,17 +226,43 @@ export default function AdminPortalBuyersPage() {
         record.buyer.city,
         record.buyer.state,
         record.buyer.notes,
+        ...record.linkedPuppies.map((puppy) => puppyLabel(puppy)),
       ]
         .map((value) => String(value || "").toLowerCase())
         .join(" ")
-        .includes(q)
-    );
-  }, [buyers, search]);
+        .includes(q);
+    });
+  }, [buyers, search, statusView]);
 
   const selectedBuyer =
     filteredBuyers.find((record) => record.key === selectedKey) ||
     buyers.find((record) => record.key === selectedKey) ||
     null;
+
+  useEffect(() => {
+    if (!filteredBuyers.length) {
+      setSelectedKey("");
+      return;
+    }
+    if (!filteredBuyers.some((record) => record.key === selectedKey)) {
+      setSelectedKey(filteredBuyers[0].key);
+    }
+  }, [filteredBuyers, selectedKey]);
+
+  const filteredPuppies = useMemo(() => {
+    const q = puppySearch.trim().toLowerCase();
+    if (!q) return allPuppies;
+    return allPuppies.filter((puppy) =>
+      [
+        puppyLabel(puppy),
+        puppy.status,
+        puppy.buyerName,
+      ]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ")
+        .includes(q)
+    );
+  }, [allPuppies, puppySearch]);
 
   useEffect(() => {
     if (!selectedBuyer) return;
@@ -197,13 +276,15 @@ export default function AdminPortalBuyersPage() {
       city: String(selectedBuyer.buyer.city || ""),
       state: String(selectedBuyer.buyer.state || ""),
     });
+    setSelectedPuppyIds(selectedBuyer.linkedPuppies.map((puppy) => puppy.id));
     setStatusText("");
   }, [selectedBuyer]);
 
   async function refreshBuyers(nextSelectedKey?: string) {
-    const nextBuyers = await fetchAdminBuyers(accessToken);
-    setBuyers(nextBuyers);
-    setSelectedKey(nextSelectedKey || nextBuyers[0]?.key || "");
+    const payload = await fetchAdminBuyers(accessToken);
+    setBuyers(payload.buyers);
+    setAllPuppies(payload.puppies);
+    setSelectedKey(nextSelectedKey || payload.buyers[0]?.key || "");
   }
 
   async function saveBuyer() {
@@ -221,16 +302,18 @@ export default function AdminPortalBuyersPage() {
         },
         body: JSON.stringify({
           id: selectedBuyer.buyer.id,
+          linked_puppy_ids: selectedPuppyIds,
           ...form,
         }),
       });
 
+      const payload = (await response.json()) as { error?: string };
       if (!response.ok) {
-        throw new Error("Could not update the buyer record.");
+        throw new Error(payload.error || "Could not update the buyer record.");
       }
 
       await refreshBuyers(selectedBuyer.key);
-      setStatusText("Buyer record updated.");
+      setStatusText("Buyer record and linked puppies updated.");
     } catch (error) {
       console.error(error);
       setStatusText("Could not update the buyer record.");
@@ -270,6 +353,12 @@ export default function AdminPortalBuyersPage() {
     }
   }
 
+  function togglePuppySelection(puppyId: number) {
+    setSelectedPuppyIds((prev) =>
+      prev.includes(puppyId) ? prev.filter((value) => value !== puppyId) : [...prev, puppyId]
+    );
+  }
+
   if (loading) {
     return <div className="py-20 text-center text-sm font-semibold text-[#7b5f46]">Loading buyers...</div>;
   }
@@ -292,18 +381,16 @@ export default function AdminPortalBuyersPage() {
     );
   }
 
-  const activeBuyerCount = buyers.filter((record) => {
-    const status = String(record.buyer.status || "").toLowerCase();
-    return status.includes("active") || status.includes("approved") || status.includes("matched");
-  }).length;
+  const activeBuyerCount = buyers.filter((record) => isActiveStatus(record.buyer.status)).length;
+  const completedBuyerCount = buyers.filter((record) => isCompletedStatus(record.buyer.status)).length;
 
   return (
     <AdminPageShell>
       <div className="space-y-6 pb-12">
         <AdminPageHero
           eyebrow="Buyers"
-          title="Every buyer record stays visible, editable, and fully under your control."
-          description="This page now reads directly from the real buyer table so manually-entered buyers, portal-linked buyers, and approved buyers all live together in one clean workspace."
+          title="Every buyer record now keeps contact details, portal linkage, and multiple puppy assignments together."
+          description="This workspace supports manual buyers, portal-linked buyers, completed buyers, and buyers who have purchased more than one puppy."
           actions={
             <>
               <button
@@ -327,9 +414,9 @@ export default function AdminPortalBuyersPage() {
                 detail="All buyer records in the database, not only portal-linked accounts."
               />
               <AdminInfoTile
-                label="Active / Matched"
-                value={String(activeBuyerCount)}
-                detail="Buyer records currently marked active, approved, or matched."
+                label="Completed"
+                value={String(completedBuyerCount)}
+                detail="Buyer records marked complete or completed."
               />
             </div>
           }
@@ -348,23 +435,23 @@ export default function AdminPortalBuyersPage() {
             accent="from-[#dce9d6] via-[#b6cfaa] to-[#7e9c6f]"
           />
           <AdminMetricCard
-            label="With Applications"
-            value={String(buyers.filter((record) => record.applicationCount > 0).length)}
-            detail="Buyer records with a linked application history."
+            label="Active / Open"
+            value={String(activeBuyerCount)}
+            detail="Active, approved, matched, waitlist, and in-progress buyer records."
             accent="from-[#ece3d5] via-[#d7c1a3] to-[#b18d62]"
           />
           <AdminMetricCard
-            label="Search Results"
-            value={String(filteredBuyers.length)}
-            detail="Buyer cards matching your current search."
+            label="Completed"
+            value={String(completedBuyerCount)}
+            detail="Completed buyer records available through the Completed filter."
             accent="from-[#f0dcc1] via-[#ddb68c] to-[#c98743]"
           />
         </AdminMetricGrid>
 
-        <section className="grid grid-cols-1 gap-6 xl:grid-cols-[400px_minmax(0,1fr)]">
+        <section className="grid grid-cols-1 gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
           <AdminPanel
             title="Buyer Cards"
-            subtitle="Search by buyer name, email, phone, status, or location. Each card represents a real buyer record."
+            subtitle="Search by buyer name, email, phone, status, location, or linked puppy. Completed buyers have their own filter."
           >
             {showCreateForm ? (
               <div className="mb-5 rounded-[24px] border border-[#ead9c7] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] p-4 shadow-[0_12px_30px_rgba(106,76,45,0.06)]">
@@ -422,6 +509,12 @@ export default function AdminPortalBuyersPage() {
               </div>
             ) : null}
 
+            <div className="mb-4 grid grid-cols-3 gap-2">
+              <StatusFilterButton active={statusView === "all"} label={`All (${buyers.length})`} onClick={() => setStatusView("all")} />
+              <StatusFilterButton active={statusView === "active"} label={`Active (${activeBuyerCount})`} onClick={() => setStatusView("active")} />
+              <StatusFilterButton active={statusView === "completed"} label={`Completed (${completedBuyerCount})`} onClick={() => setStatusView("completed")} />
+            </div>
+
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -438,7 +531,7 @@ export default function AdminPortalBuyersPage() {
                     onClick={() => setSelectedKey(record.key)}
                     title={record.displayName}
                     subtitle={record.email || "No email on file"}
-                    meta={`${record.phone || "No phone"} • ${record.buyer.city || "No city"}${record.buyer.state ? `, ${record.buyer.state}` : ""}`}
+                    meta={`${record.phone || "No phone"} - ${record.linkedPuppies.length} linked pupp${record.linkedPuppies.length === 1 ? "y" : "ies"}`}
                     badge={
                       <span
                         className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(
@@ -453,7 +546,7 @@ export default function AdminPortalBuyersPage() {
               ) : (
                 <AdminEmptyState
                   title="No buyer records matched your search"
-                  description="Try a different name, email, phone number, status term, or location."
+                  description="Try a different name, email, phone number, status term, location, or puppy name."
                 />
               )}
             </div>
@@ -512,6 +605,7 @@ export default function AdminPortalBuyersPage() {
                         city: String(selectedBuyer.buyer.city || ""),
                         state: String(selectedBuyer.buyer.state || ""),
                       });
+                      setSelectedPuppyIds(selectedBuyer.linkedPuppies.map((puppy) => puppy.id));
                     }}
                     className="rounded-2xl border border-[#e4d2be] bg-white px-5 py-3 text-sm font-semibold text-[#5d4330] shadow-[0_12px_28px_rgba(106,76,45,0.08)] transition hover:border-[#d4b48b]"
                   >
@@ -520,48 +614,148 @@ export default function AdminPortalBuyersPage() {
                 </div>
               </AdminPanel>
 
-              <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+              <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
                 <AdminPanel
-                  title="Buyer Snapshot"
-                  subtitle="Portal linkage and related record counts for this buyer."
+                  title="Linked Puppies"
+                  subtitle="Select one or more puppies for this buyer. Choosing a puppy already linked elsewhere will move it into this buyer record when you save."
                 >
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <AdminInfoTile
-                      label="Buyer ID"
-                      value={String(selectedBuyer.buyer.id)}
-                      detail={`Created ${fmtDate(selectedBuyer.buyer.created_at || "")}`}
-                    />
-                    <AdminInfoTile
-                      label="Portal Sign-In"
-                      value={selectedBuyer.hasPortalAccount ? "Linked" : "Not linked"}
-                      detail={
-                        selectedBuyer.portalUser?.email ||
-                        "This buyer can still exist here even without a portal account."
-                      }
-                    />
-                    <AdminInfoTile
-                      label="Applications"
-                      value={String(selectedBuyer.applicationCount)}
-                      detail={selectedBuyer.latestApplicationStatus || "No linked applications yet."}
-                    />
-                    <AdminInfoTile
-                      label="Submitted Forms"
-                      value={String(selectedBuyer.formCount)}
-                      detail="Grouped form history stays in the Documents tab."
-                    />
+                  <input
+                    value={puppySearch}
+                    onChange={(e) => setPuppySearch(e.target.value)}
+                    placeholder="Search puppies..."
+                    className="w-full rounded-[20px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+                  />
+
+                  <div className="mt-4 space-y-3 max-h-[560px] overflow-y-auto pr-1">
+                    {filteredPuppies.length ? (
+                      filteredPuppies.map((puppy) => {
+                        const checked = selectedPuppyIds.includes(puppy.id);
+                        const linkedElsewhere =
+                          puppy.buyer_id && puppy.buyer_id !== selectedBuyer.buyer.id;
+
+                        return (
+                          <label
+                            key={puppy.id}
+                            className={`flex cursor-pointer items-start gap-3 rounded-[22px] border px-4 py-4 transition ${
+                              checked
+                                ? "border-[#d8b48b] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)]"
+                                : "border-[#ead9c7] bg-[#fffaf5] hover:border-[#d8b48b] hover:bg-white"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => togglePuppySelection(puppy.id)}
+                              className="mt-1 h-4 w-4 rounded border-[#d8b48b] text-[#b5752f] focus:ring-[#d8b48b]"
+                            />
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold text-[#2f2218]">
+                                {puppyLabel(puppy)}
+                              </div>
+                              <div className="mt-1 text-xs leading-5 text-[#8a6a49]">
+                                {puppy.status || "pending"} - {puppy.price !== null && puppy.price !== undefined ? `$${Number(puppy.price).toLocaleString()}` : "No price"}
+                              </div>
+                              <div className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#a47946]">
+                                {linkedElsewhere
+                                  ? `Currently linked to ${puppy.buyerName || `Buyer #${puppy.buyer_id}`}`
+                                  : puppy.buyer_id === selectedBuyer.buyer.id
+                                    ? "Already linked to this buyer"
+                                    : "Available to link"}
+                              </div>
+                            </div>
+                          </label>
+                        );
+                      })
+                    ) : (
+                      <AdminEmptyState
+                        title="No puppies matched your search"
+                        description="Try a different puppy name or status."
+                      />
+                    )}
                   </div>
                 </AdminPanel>
 
-                <AdminPanel
-                  title="Open Related Tabs"
-                  subtitle="Jump straight into the buyer's next workflow."
-                >
-                  <div className="grid grid-cols-1 gap-4">
-                    <AdminInfoTile label="Payments" value="Open Payments" detail="Log manual payments, balances, and financing details." />
-                    <AdminInfoTile label="Documents" value="Open Documents" detail="Grouped forms, uploads, and signed records." />
-                    <AdminInfoTile label="Messages" value="Open Messages" detail="Buyer communication and follow-up history." />
-                  </div>
-                </AdminPanel>
+                <div className="space-y-6">
+                  <AdminPanel
+                    title="Buyer Snapshot"
+                    subtitle="Portal linkage, related record counts, and linked puppy totals for this buyer."
+                  >
+                    <div className="grid grid-cols-1 gap-4">
+                      <AdminInfoTile
+                        label="Buyer ID"
+                        value={String(selectedBuyer.buyer.id)}
+                        detail={`Created ${fmtDate(selectedBuyer.buyer.created_at || "")}`}
+                      />
+                      <AdminInfoTile
+                        label="Portal Sign-In"
+                        value={selectedBuyer.hasPortalAccount ? "Linked" : "Not linked"}
+                        detail={
+                          selectedBuyer.portalUser?.email ||
+                          "This buyer can still exist here even without a portal account."
+                        }
+                      />
+                      <AdminInfoTile
+                        label="Applications"
+                        value={String(selectedBuyer.applicationCount)}
+                        detail={selectedBuyer.latestApplicationStatus || "No linked applications yet."}
+                      />
+                      <AdminInfoTile
+                        label="Linked Puppies"
+                        value={String(selectedPuppyIds.length)}
+                        detail="You can save multiple puppy assignments for this buyer."
+                      />
+                      <AdminInfoTile
+                        label="Submitted Forms"
+                        value={String(selectedBuyer.formCount)}
+                        detail="Grouped form history stays in the Documents tab."
+                      />
+                    </div>
+                  </AdminPanel>
+
+                  <AdminPanel
+                    title="Open Related Tabs"
+                    subtitle="Jump straight into the next workflow for this buyer."
+                  >
+                    <div className="grid grid-cols-1 gap-3">
+                      <Link
+                        href="/admin/portal/payments"
+                        className="rounded-[20px] border border-[#ead9c7] bg-[#fffaf5] px-4 py-4 transition hover:border-[#d8b48b] hover:bg-white"
+                      >
+                        <div className="text-sm font-semibold text-[#2f2218]">Open Payments</div>
+                        <div className="mt-1 text-xs leading-5 text-[#8a6a49]">
+                          Buyer-level balances, financing, and history.
+                        </div>
+                      </Link>
+                      <Link
+                        href="/admin/portal/puppy-payments"
+                        className="rounded-[20px] border border-[#ead9c7] bg-[#fffaf5] px-4 py-4 transition hover:border-[#d8b48b] hover:bg-white"
+                      >
+                        <div className="text-sm font-semibold text-[#2f2218]">Open Puppy Payments</div>
+                        <div className="mt-1 text-xs leading-5 text-[#8a6a49]">
+                          Puppy-by-puppy financial control and entries.
+                        </div>
+                      </Link>
+                      <Link
+                        href="/admin/portal/documents"
+                        className="rounded-[20px] border border-[#ead9c7] bg-[#fffaf5] px-4 py-4 transition hover:border-[#d8b48b] hover:bg-white"
+                      >
+                        <div className="text-sm font-semibold text-[#2f2218]">Open Documents</div>
+                        <div className="mt-1 text-xs leading-5 text-[#8a6a49]">
+                          Grouped forms, uploads, and signed records.
+                        </div>
+                      </Link>
+                      <Link
+                        href="/admin/portal/messages"
+                        className="rounded-[20px] border border-[#ead9c7] bg-[#fffaf5] px-4 py-4 transition hover:border-[#d8b48b] hover:bg-white"
+                      >
+                        <div className="text-sm font-semibold text-[#2f2218]">Open Messages</div>
+                        <div className="mt-1 text-xs leading-5 text-[#8a6a49]">
+                          Buyer communication and follow-up history.
+                        </div>
+                      </Link>
+                    </div>
+                  </AdminPanel>
+                </div>
               </section>
             </div>
           ) : (
@@ -596,5 +790,30 @@ function AdminField({
         className="mt-2 w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm normal-case tracking-normal text-[#3e2a1f] outline-none focus:border-[#c8a884]"
       />
     </label>
+  );
+}
+
+function StatusFilterButton({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "rounded-[18px] border px-3 py-3 text-sm font-semibold transition",
+        active
+          ? "border-[#d8b48b] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] text-[#2f2218] shadow-[0_12px_30px_rgba(106,76,45,0.08)]"
+          : "border-[#ead9c7] bg-[#fffaf5] text-[#73583f] hover:border-[#d8b48b] hover:bg-white",
+      ].join(" ")}
+    >
+      {label}
+    </button>
   );
 }
