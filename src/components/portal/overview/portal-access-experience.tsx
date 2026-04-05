@@ -124,17 +124,17 @@ export function PortalAccessExperience() {
         </div>
       </PortalNarrativeCard>
 
-      <section className="premium-card relative overflow-hidden rounded-[2rem] p-7 md:p-9">
+      <section className="premium-card relative overflow-hidden rounded-[1.5rem] p-7 md:p-9">
         <div className="pointer-events-none absolute inset-0 hero-glow opacity-75" />
-        <div className="pointer-events-none absolute -right-10 top-0 h-40 w-40 rounded-full bg-amber-100/70 blur-3xl" />
+        <div className="pointer-events-none absolute -right-10 top-0 h-40 w-40 rounded-full bg-violet-100/70 blur-3xl" />
 
         <div className="relative">
-          <div className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-stone-500 shadow-sm">
-            <Sparkles className="h-3.5 w-3.5 text-amber-700" />
+          <div className="inline-flex items-center gap-2 rounded-full border border-[var(--portal-border)] bg-white px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)] shadow-sm">
+            <Sparkles className="h-3.5 w-3.5 text-[var(--portal-accent)]" />
             Access
           </div>
 
-          <h2 className="mt-5 font-serif text-4xl leading-[1.02] text-stone-900">
+          <h2 className="mt-5 text-4xl font-extrabold leading-[1.02] tracking-[-0.04em] text-[var(--portal-accent)]">
             {mode === "signin"
               ? "Sign in"
               : mode === "signup"
@@ -142,7 +142,7 @@ export function PortalAccessExperience() {
                 : "Reset your password"}
           </h2>
 
-          <p className="mt-4 text-sm leading-7 text-stone-600">
+          <p className="mt-4 text-sm leading-7 text-[var(--portal-text-soft)]">
             {mode === "signin"
               ? "Use the email already connected to your portal record."
               : mode === "signup"
@@ -150,7 +150,7 @@ export function PortalAccessExperience() {
                 : "Send a secure reset link to the email already on file."}
           </p>
 
-          <div className="mt-6 grid grid-cols-3 gap-2 rounded-[1.35rem] border border-stone-200 bg-stone-50 p-1.5">
+          <div className="mt-6 grid grid-cols-3 gap-2 rounded-[1.35rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] p-1.5">
             {[
               { key: "signin", label: "Sign In", icon: <KeyRound className="h-3.5 w-3.5" /> },
               { key: "signup", label: "Sign Up", icon: <Layers3 className="h-3.5 w-3.5" /> },
@@ -165,8 +165,8 @@ export function PortalAccessExperience() {
                 }}
                 className={`inline-flex items-center justify-center gap-2 rounded-[1rem] px-3 py-3 text-[11px] font-bold uppercase tracking-[0.16em] transition ${
                   mode === item.key
-                    ? "bg-stone-900 text-white shadow-lg"
-                    : "text-stone-500 hover:text-stone-900"
+                    ? "bg-[linear-gradient(90deg,#7c5cff_0%,#f043a2_100%)] text-white shadow-lg"
+                    : "text-[var(--portal-text-muted)] hover:text-[var(--portal-text)]"
                 }`}
               >
                 {item.icon}
@@ -210,7 +210,7 @@ export function PortalAccessExperience() {
             ) : null}
 
             {statusText ? (
-              <div className="rounded-[1.25rem] border border-stone-200 bg-stone-50 px-4 py-3 text-sm font-medium text-stone-600">
+              <div className="rounded-[1.25rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm font-medium text-[var(--portal-text-soft)]">
                 {statusText}
               </div>
             ) : null}
@@ -262,12 +262,12 @@ function SupportRow({
   detail: string;
 }) {
   return (
-    <div className="rounded-[1.35rem] border border-stone-200 bg-white px-4 py-4 shadow-sm">
-      <div className="flex items-center gap-2 text-sm font-semibold text-stone-900">
-        <ShieldCheck className="h-4 w-4 text-amber-700" />
+    <div className="rounded-[1.35rem] border border-[var(--portal-border)] bg-white px-4 py-4 shadow-sm">
+      <div className="flex items-center gap-2 text-sm font-semibold text-[var(--portal-text)]">
+        <ShieldCheck className="h-4 w-4 text-[var(--portal-accent)]" />
         {title}
       </div>
-      <div className="mt-2 text-sm leading-6 text-stone-600">{detail}</div>
+      <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
     </div>
   );
 }

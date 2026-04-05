@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -227,7 +228,7 @@ function formatPortalDateValue(value: unknown) {
 }
 
 function pageTitleFromPath(pathname: string) {
-  if (pathname === "/portal") return "My Puppy Portal";
+  if (pathname === "/portal") return "Dashboard";
 
   const direct = navDefinitions.find((item) =>
     item.match ? item.match(pathname) : pathname === item.href || pathname.startsWith(`${item.href}/`)
@@ -1233,12 +1234,14 @@ export default function PortalLayout({
               <div className="flex-1 overflow-y-auto px-5 py-5">
                 <div className="rounded-[20px] border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="flex items-center gap-4">
-                    <div className="inline-flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-xl font-black text-slate-700">
+                    <div className="relative inline-flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 text-xl font-black text-slate-700">
                       {profilePicturePreviewUrl ? (
-                        <img
+                        <Image
                           src={profilePicturePreviewUrl}
                           alt={`${displayName} profile`}
-                          className="h-full w-full object-cover"
+                          fill
+                          unoptimized
+                          className="object-cover"
                         />
                       ) : (
                         userInitial

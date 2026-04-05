@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
@@ -342,11 +343,13 @@ export default function PortalPage() {
           </div>
 
           <div className="flex justify-center lg:justify-end">
-            <div className="h-40 w-40 overflow-hidden rounded-full border-[6px] border-white shadow-[0_18px_40px_rgba(96,110,148,0.18)]">
-              <img
+            <div className="relative h-40 w-40 overflow-hidden rounded-full border-[6px] border-white shadow-[0_18px_40px_rgba(96,110,148,0.18)]">
+              <Image
                 src={state.puppyImage}
                 alt={state.puppyName}
-                className="h-full w-full object-cover"
+                fill
+                unoptimized
+                className="object-cover"
               />
             </div>
           </div>
