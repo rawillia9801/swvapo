@@ -214,6 +214,11 @@ function buildLedgerEntries(state: PaymentPageState): {
   const { buyer, puppy, payments, adjustments, pickupRequest } = state;
   const purchasePrice = firstNumber(buyer?.sale_price, puppy?.price);
   const depositAmount = firstNumber(buyer?.deposit_amount, puppy?.deposit);
+  const transportationAdjustmentAmount = adjustments.reduce((sum, adjustment) => {
+    if (!adjustmentCountsTowardBalance(adjustment.status)) return sum;
+    if (String(adjustment.entry_type || "").trim().toLowerCase() !== "transportation") return sum;
+    return sum + Math.abs(Number(adjustment.amount || 0));
+  }, 0);
   const requestEstimate = pickupRequest
     ? calculateTransportEstimate(
         (pickupRequest.request_type as PickupRequestType) || "",
@@ -221,6 +226,7 @@ function buildLedgerEntries(state: PaymentPageState): {
       )
     : null;
   const transportationCost = firstNumber(
+    transportationAdjustmentAmount > 0 ? transportationAdjustmentAmount : null,
     buyer?.delivery_fee,
     requestEstimate?.fee !== null && requestEstimate?.fee !== undefined ? requestEstimate.fee : null
   );
