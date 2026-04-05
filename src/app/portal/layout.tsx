@@ -76,9 +76,6 @@ type SidebarNavItem = {
 
 type SidebarChromeProps = {
   displayName: string;
-  puppyName: string;
-  signupDate: string;
-  applicationDate: string;
   navItems: SidebarNavItem[];
   displayEmail: string;
   displayPhone: string;
@@ -206,25 +203,6 @@ function readRecordValue(record: unknown, keys: string[]) {
   }
 
   return null;
-}
-
-function formatPortalDateValue(value: unknown) {
-  if (!value) return "Not on file";
-
-  const parsed =
-    value instanceof Date
-      ? value
-      : typeof value === "string" || typeof value === "number"
-        ? new Date(value)
-        : null;
-
-  if (!parsed || Number.isNaN(parsed.getTime())) return "Not on file";
-
-  return parsed.toLocaleDateString([], {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
 }
 
 function pageTitleFromPath(pathname: string) {
@@ -369,22 +347,8 @@ function navItemClassName(active: boolean) {
   ].join(" ");
 }
 
-function InfoBox({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[14px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-3 py-2.5">
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--portal-accent)]">
-        {label}
-      </div>
-      <div className="mt-0.5 text-sm font-semibold text-[var(--portal-text)]">{value}</div>
-    </div>
-  );
-}
-
 function SidebarChrome({
   displayName,
-  puppyName,
-  signupDate,
-  applicationDate,
   navItems,
   displayEmail,
   displayPhone,
@@ -397,7 +361,7 @@ function SidebarChrome({
   onSignOut,
 }: SidebarChromeProps) {
   return (
-    <div className="flex h-full flex-col gap-3">
+    <div className="flex h-full min-h-0 flex-col gap-3">
       <div className="rounded-[22px] border border-[var(--portal-border)] bg-white p-4 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#a855f7_0%,#ec4899_100%)] text-xl text-white shadow-[0_12px_24px_rgba(168,85,247,0.28)]">
@@ -415,27 +379,8 @@ function SidebarChrome({
         </div>
       </div>
 
-      <div className="rounded-[18px] border border-[#f2d56a] bg-[#fff8df] px-4 py-3 text-sm font-semibold text-[#c88900] shadow-sm">
-        Portal session · {displayEmail === "No email on file" ? "No Session" : "Active"}
-      </div>
-
-      <div className="min-h-0 flex-1 rounded-[22px] border border-[var(--portal-border)] bg-white p-4 shadow-sm">
-        <div className="mb-4">
-          <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
-            Buyer Snapshot
-          </div>
-          <div className="mt-2 text-lg font-bold tracking-[-0.03em] text-[var(--portal-text)]">
-            {displayName}
-          </div>
-        </div>
-
-        <div className="mb-4 space-y-1.5">
-          <InfoBox label="Puppy" value={puppyName} />
-          <InfoBox label="Sign-up Date" value={signupDate} />
-          <InfoBox label="Application Date" value={applicationDate} />
-        </div>
-
-        <nav className="space-y-1.5">
+      <div className="min-h-0 flex-1 overflow-hidden rounded-[22px] border border-[var(--portal-border)] bg-white p-3 shadow-sm">
+        <nav className="flex h-full min-h-0 flex-col gap-1 overflow-y-auto pr-1">
           {navItems.map((item) => (
             <Link key={item.href} href={item.href} className={navItemClassName(item.active)}>
               <span className="flex min-w-0 items-center gap-2.5">
@@ -450,7 +395,9 @@ function SidebarChrome({
                 >
                   {item.icon}
                 </span>
-                <span className="truncate text-[13px] font-semibold">{item.label}</span>
+                <span className="truncate whitespace-nowrap text-[12px] font-semibold xl:text-[13px]">
+                  {item.label}
+                </span>
               </span>
 
               {typeof item.badge === "number" && item.badge > 0 ? (
@@ -744,23 +691,6 @@ export default function PortalLayout({
   const puppyName = portalPuppyName(puppy) || "Not yet assigned";
   const userInitial = (displayName?.[0] || displayEmail?.[0] || "U").toUpperCase();
 
-  const signupDate = useMemo(() => {
-    const value =
-      readRecordValue(buyer, ["created_at", "signup_date", "sign_up_date"]) ||
-      readRecordValue(user, ["created_at"]);
-    return formatPortalDateValue(value);
-  }, [buyer, user]);
-
-  const applicationDate = useMemo(() => {
-    const value = readRecordValue(application, [
-      "date_applied",
-      "application_date",
-      "submitted_at",
-      "created_at",
-    ]);
-    return formatPortalDateValue(value);
-  }, [application]);
-
   const pageTitle = pageTitleFromPath(pathname);
   const hasAdminUi = isPortalAdminEmail(user?.email) || !!adminAuth?.canWriteCore;
 
@@ -1009,9 +939,6 @@ export default function PortalLayout({
           <div className="sticky top-4 h-[calc(100vh-2rem)]">
             <SidebarChrome
               displayName={displayName}
-              puppyName={puppyName}
-              signupDate={signupDate}
-              applicationDate={applicationDate}
               navItems={navItems}
               displayEmail={displayEmail}
               displayPhone={displayPhone}
@@ -1065,9 +992,6 @@ export default function PortalLayout({
             <div className="h-[calc(100%-3.75rem)] overflow-y-auto pr-1">
               <SidebarChrome
                 displayName={displayName}
-                puppyName={puppyName}
-                signupDate={signupDate}
-                applicationDate={applicationDate}
                 navItems={navItems}
                 displayEmail={displayEmail}
                 displayPhone={displayPhone}
