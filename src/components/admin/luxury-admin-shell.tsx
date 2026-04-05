@@ -36,6 +36,12 @@ const ADMIN_NAV: AdminNavItem[] = [
     icon: <Users className="h-4 w-4" />,
   },
   {
+    href: "/admin/portal/puppies",
+    label: "Puppies",
+    helper: "Website, portal, assignments",
+    icon: <PawPrint className="h-4 w-4" />,
+  },
+  {
     href: "/admin/portal/applications",
     label: "Applications",
     helper: "Review, assign, approve, deny",
@@ -51,7 +57,7 @@ const ADMIN_NAV: AdminNavItem[] = [
     href: "/admin/portal/puppy-payments",
     label: "Puppy Payments",
     helper: "Per-puppy financial control",
-    icon: <PawPrint className="h-4 w-4" />,
+    icon: <CreditCard className="h-4 w-4" />,
   },
   {
     href: "/admin/portal/documents",
