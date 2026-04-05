@@ -9,10 +9,13 @@ export type PortalBuyer = {
   name?: string | null;
   email?: string | null;
   phone?: string | null;
+  address_line1?: string | null;
+  address_line2?: string | null;
   status?: string | null;
   notes?: string | null;
   city?: string | null;
   state?: string | null;
+  postal_code?: string | null;
   sale_price?: number | null;
   deposit_amount?: number | null;
   deposit_date?: string | null;
@@ -28,6 +31,8 @@ export type PortalBuyer = {
   delivery_date?: string | null;
   delivery_location?: string | null;
   delivery_fee?: number | null;
+  portal_profile_photo_url?: string | null;
+  portal_profile_photo_path?: string | null;
   created_at?: string | null;
 };
 
@@ -200,7 +205,7 @@ export type PortalContext = {
 };
 
 const buyerSelect =
-  "id,user_id,puppy_id,full_name,name,email,phone,status,notes,city,state,sale_price,deposit_amount,deposit_date,finance_enabled,finance_admin_fee,finance_rate,finance_months,finance_monthly_amount,finance_day_of_month,finance_next_due_date,finance_last_payment_date,delivery_option,delivery_date,delivery_location,delivery_fee,created_at";
+  "id,user_id,puppy_id,full_name,name,email,phone,address_line1,address_line2,status,notes,city,state,postal_code,sale_price,deposit_amount,deposit_date,finance_enabled,finance_admin_fee,finance_rate,finance_months,finance_monthly_amount,finance_day_of_month,finance_next_due_date,finance_last_payment_date,delivery_option,delivery_date,delivery_location,delivery_fee,portal_profile_photo_url,portal_profile_photo_path,created_at";
 
 const applicationSelect =
   "id,user_id,full_name,email,applicant_email,phone,street_address,city_state,zip,status,created_at,assigned_puppy_id";

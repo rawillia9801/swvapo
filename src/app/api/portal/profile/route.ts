@@ -19,6 +19,13 @@ type BuyerProfileRow = {
   portal_profile_photo_path: string | null;
 };
 
+type PortalPreferences = {
+  email_updates: boolean;
+  sms_updates: boolean;
+  portal_reminders: boolean;
+  litter_announcements: boolean;
+};
+
 function jsonError(message: string, status = 400) {
   return NextResponse.json({ ok: false, message }, { status });
 }
@@ -83,6 +90,26 @@ function sanitizeFileName(name: string) {
   return name.replace(/[^a-zA-Z0-9._-]/g, "-").replace(/-+/g, "-");
 }
 
+function parseBooleanFormValue(value: FormDataEntryValue | null, fallback: boolean) {
+  if (value === null) return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  return ["true", "1", "yes", "on"].includes(normalized);
+}
+
+function readPortalPreferences(value: unknown): PortalPreferences {
+  const source =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+
+  return {
+    email_updates: Boolean(source.email_updates ?? true),
+    sms_updates: Boolean(source.sms_updates ?? false),
+    portal_reminders: Boolean(source.portal_reminders ?? true),
+    litter_announcements: Boolean(source.litter_announcements ?? true),
+  };
+}
+
 export async function POST(req: Request) {
   try {
     const { user } = await verifyUser(req);
@@ -101,6 +128,29 @@ export async function POST(req: Request) {
     const city = String(formData.get("city") || "").trim();
     const state = String(formData.get("state") || "").trim();
     const postalCode = String(formData.get("postal_code") || "").trim();
+    const currentPreferences = readPortalPreferences(
+      user.user_metadata && typeof user.user_metadata === "object"
+        ? (user.user_metadata as Record<string, unknown>).portal_preferences
+        : null
+    );
+    const preferences: PortalPreferences = {
+      email_updates: parseBooleanFormValue(
+        formData.get("pref_email_updates"),
+        currentPreferences.email_updates
+      ),
+      sms_updates: parseBooleanFormValue(
+        formData.get("pref_sms_updates"),
+        currentPreferences.sms_updates
+      ),
+      portal_reminders: parseBooleanFormValue(
+        formData.get("pref_portal_reminders"),
+        currentPreferences.portal_reminders
+      ),
+      litter_announcements: parseBooleanFormValue(
+        formData.get("pref_litter_announcements"),
+        currentPreferences.litter_announcements
+      ),
+    };
 
     const pictureEntry = formData.get("profile_picture");
     const profilePicture = pictureEntry instanceof File && pictureEntry.size > 0 ? pictureEntry : null;
@@ -226,6 +276,7 @@ export async function POST(req: Request) {
           full_name: payload.full_name || undefined,
           name: payload.full_name || undefined,
           avatar_url: uploadedPhotoUrl || undefined,
+          portal_preferences: preferences,
         },
       });
     } catch (authError) {
@@ -237,6 +288,7 @@ export async function POST(req: Request) {
       message: "Your profile was saved.",
       email: savedBuyer?.email || payload.email || null,
       photo_url: savedBuyer?.portal_profile_photo_url || uploadedPhotoUrl || null,
+      preferences,
       buyer: savedBuyer,
     });
   } catch (error) {
