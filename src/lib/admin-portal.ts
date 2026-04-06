@@ -85,9 +85,11 @@ export type AdminLineageOverview = {
   reservedPuppies: number;
   completedPuppies: number;
   totalRevenue: number;
+  contractedRevenue?: number;
   projectedRevenue: number;
   realizedRevenue: number;
   totalDeposits: number;
+  totalPayments?: number;
 };
 
 export type AdminOverviewStats = {
@@ -193,9 +195,11 @@ export type AdminRevenueSnapshot = {
   completedCount: number;
   unsoldCount: number;
   totalRevenue: number;
+  contractedRevenue: number;
   projectedRevenue: number;
   realizedRevenue: number;
   totalDeposits: number;
+  totalPayments?: number;
   averageSalePrice: number;
 };
 

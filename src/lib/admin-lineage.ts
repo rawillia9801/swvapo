@@ -140,6 +140,7 @@ export function buildAdminLineageWorkspace(rows: LineageRows): AdminLineageWorks
         soldCount: 0,
         unsoldCount: 0,
         totalRevenue: 0,
+        contractedRevenue: 0,
         projectedRevenue: 0,
         realizedRevenue: 0,
         reservedRevenue: 0,

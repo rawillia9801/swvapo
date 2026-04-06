@@ -110,6 +110,22 @@ function normalizeEmail(value: unknown) {
   return text || null;
 }
 
+function hasOwn(body: Record<string, unknown>, key: string) {
+  return Object.prototype.hasOwnProperty.call(body, key);
+}
+
+function stringField(body: Record<string, unknown>, key: string, existing?: string | null) {
+  return hasOwn(body, key) ? toStringOrNull(body[key]) : existing ?? null;
+}
+
+function numberField(body: Record<string, unknown>, key: string, existing?: number | null) {
+  return hasOwn(body, key) ? toNumberOrNull(body[key]) : existing ?? null;
+}
+
+function integerField(body: Record<string, unknown>, key: string, existing?: number | null) {
+  return hasOwn(body, key) ? toIntegerOrNull(body[key]) : existing ?? null;
+}
+
 async function safeRows<T>(
   query: PromiseLike<{ data: T[] | null; error: unknown }>
 ): Promise<T[]> {
@@ -244,10 +260,10 @@ async function asPuppyPayload(
   body: Record<string, unknown>,
   existing?: PuppyRow | null
 ) {
-  const buyerId = toIntegerOrNull(body.buyer_id);
+  const buyerId = integerField(body, "buyer_id", existing?.buyer_id);
   const buyerEmail = await getBuyerEmail(service, buyerId);
   const ownerEmail =
-    normalizeEmail(body.owner_email) ||
+    (hasOwn(body, "owner_email") ? normalizeEmail(body.owner_email) : null) ||
     buyerEmail ||
     normalizeEmail(existing?.owner_email) ||
     null;
@@ -256,40 +272,42 @@ async function asPuppyPayload(
   return {
     buyer_id: buyerId,
     ...lineage,
-    call_name: toStringOrNull(body.call_name),
-    puppy_name: toStringOrNull(body.puppy_name),
-    name: toStringOrNull(body.name),
-    sex: toStringOrNull(body.sex),
-    color: toStringOrNull(body.color),
-    coat_type: toStringOrNull(body.coat_type),
-    coat: toStringOrNull(body.coat),
-    pattern: toStringOrNull(body.pattern),
-    dob: toStringOrNull(body.dob),
-    registry: toStringOrNull(body.registry),
-    price: toNumberOrNull(body.price),
-    list_price: toNumberOrNull(body.list_price),
-    deposit: toNumberOrNull(body.deposit),
-    balance: toNumberOrNull(body.balance),
-    status: firstValue(body.status as string | null, existing?.status || "available") || "available",
-    birth_weight: toNumberOrNull(body.birth_weight),
-    current_weight: toNumberOrNull(body.current_weight),
-    weight_unit: toStringOrNull(body.weight_unit),
-    weight_date: toStringOrNull(body.weight_date),
-    image_url: toStringOrNull(body.image_url),
-    photo_url: toStringOrNull(body.photo_url),
+    call_name: stringField(body, "call_name", existing?.call_name),
+    puppy_name: stringField(body, "puppy_name", existing?.puppy_name),
+    name: stringField(body, "name", existing?.name),
+    sex: stringField(body, "sex", existing?.sex),
+    color: stringField(body, "color", existing?.color),
+    coat_type: stringField(body, "coat_type", existing?.coat_type),
+    coat: stringField(body, "coat", existing?.coat),
+    pattern: stringField(body, "pattern", existing?.pattern),
+    dob: stringField(body, "dob", existing?.dob),
+    registry: stringField(body, "registry", existing?.registry),
+    price: numberField(body, "price", existing?.price),
+    list_price: numberField(body, "list_price", existing?.list_price),
+    deposit: numberField(body, "deposit", existing?.deposit),
+    balance: numberField(body, "balance", existing?.balance),
+    status: hasOwn(body, "status")
+      ? firstValue(body.status as string | null, existing?.status || "available") || "available"
+      : existing?.status || "available",
+    birth_weight: numberField(body, "birth_weight", existing?.birth_weight),
+    current_weight: numberField(body, "current_weight", existing?.current_weight),
+    weight_unit: stringField(body, "weight_unit", existing?.weight_unit),
+    weight_date: stringField(body, "weight_date", existing?.weight_date),
+    image_url: stringField(body, "image_url", existing?.image_url),
+    photo_url: stringField(body, "photo_url", existing?.photo_url),
     owner_email: ownerEmail,
-    description: toStringOrNull(body.description),
-    notes: toStringOrNull(body.notes),
-    microchip: toStringOrNull(body.microchip),
-    registration_no: toStringOrNull(body.registration_no),
-    w_1: toNumberOrNull(body.w_1),
-    w_2: toNumberOrNull(body.w_2),
-    w_3: toNumberOrNull(body.w_3),
-    w_4: toNumberOrNull(body.w_4),
-    w_5: toNumberOrNull(body.w_5),
-    w_6: toNumberOrNull(body.w_6),
-    w_7: toNumberOrNull(body.w_7),
-    w_8: toNumberOrNull(body.w_8),
+    description: stringField(body, "description", existing?.description),
+    notes: stringField(body, "notes", existing?.notes),
+    microchip: stringField(body, "microchip", existing?.microchip),
+    registration_no: stringField(body, "registration_no", existing?.registration_no),
+    w_1: numberField(body, "w_1", existing?.w_1),
+    w_2: numberField(body, "w_2", existing?.w_2),
+    w_3: numberField(body, "w_3", existing?.w_3),
+    w_4: numberField(body, "w_4", existing?.w_4),
+    w_5: numberField(body, "w_5", existing?.w_5),
+    w_6: numberField(body, "w_6", existing?.w_6),
+    w_7: numberField(body, "w_7", existing?.w_7),
+    w_8: numberField(body, "w_8", existing?.w_8),
   };
 }
 

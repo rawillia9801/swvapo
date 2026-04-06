@@ -91,6 +91,7 @@ export type RevenueSnapshot = {
   soldCount: number;
   unsoldCount: number;
   totalRevenue: number;
+  contractedRevenue: number;
   projectedRevenue: number;
   realizedRevenue: number;
   reservedRevenue: number;
@@ -172,14 +173,20 @@ export function resolveInternalSalePrice(
   puppy: Partial<LineagePuppyRecord> | null | undefined,
   buyer: Partial<LineageBuyerRecord> | null | undefined
 ) {
-  return firstFiniteNumber(buyer?.sale_price, puppy?.price, puppy?.list_price);
+  return (
+    firstPositiveNumber(puppy?.price, buyer?.sale_price, puppy?.list_price) ||
+    firstFiniteNumber(puppy?.price, buyer?.sale_price, puppy?.list_price)
+  );
 }
 
 export function resolveDepositAmount(
   puppy: Partial<LineagePuppyRecord> | null | undefined,
   buyer: Partial<LineageBuyerRecord> | null | undefined
 ) {
-  return firstFiniteNumber(buyer?.deposit_amount, puppy?.deposit);
+  return (
+    firstPositiveNumber(puppy?.deposit, buyer?.deposit_amount) ||
+    firstFiniteNumber(puppy?.deposit, buyer?.deposit_amount)
+  );
 }
 
 export function resolvePublicPuppyPrice(puppy: Partial<LineagePuppyRecord> | null | undefined) {
@@ -239,6 +246,10 @@ export function buildRevenueSnapshot<
         acc.realizedRevenue += salePrice;
       }
 
+      if (isReservedLikeStatus(status) || isCompletedLikeStatus(status)) {
+        acc.contractedRevenue += salePrice;
+      }
+
       return acc;
     },
     {
@@ -249,6 +260,7 @@ export function buildRevenueSnapshot<
       soldCount: 0,
       unsoldCount: 0,
       totalRevenue: 0,
+      contractedRevenue: 0,
       projectedRevenue: 0,
       realizedRevenue: 0,
       reservedRevenue: 0,
@@ -269,6 +281,14 @@ function firstFiniteNumber(...values: unknown[]) {
   for (const value of values) {
     const parsed = Number(value);
     if (Number.isFinite(parsed)) return parsed;
+  }
+  return 0;
+}
+
+function firstPositiveNumber(...values: unknown[]) {
+  for (const value of values) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
   }
   return 0;
 }
