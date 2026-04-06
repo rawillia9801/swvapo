@@ -84,6 +84,14 @@ type PuppyRow = {
 
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
+function describePuppyWriteError(error: unknown, fallback: string) {
+  const message = describeRouteError(error, fallback);
+  if (message.toLowerCase().includes("stack depth limit exceeded")) {
+    return "The puppies table is hitting a recursive database trigger. Apply the latest puppy trigger repair migration, then retry this save.";
+  }
+  return message;
+}
+
 function toNumberOrNull(value: unknown) {
   const cleaned = String(value ?? "").replace(/[^0-9.-]/g, "").trim();
   if (!cleaned) return null;
@@ -533,7 +541,7 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("Admin portal puppies create error:", error);
     return NextResponse.json(
-      { ok: false, error: describeRouteError(error, "Could not create the puppy.") },
+      { ok: false, error: describePuppyWriteError(error, "Could not create the puppy.") },
       { status: 500 }
     );
   }
@@ -601,7 +609,7 @@ export async function PATCH(req: Request) {
   } catch (error) {
     console.error("Admin portal puppies update error:", error);
     return NextResponse.json(
-      { ok: false, error: describeRouteError(error, "Could not update the puppy.") },
+      { ok: false, error: describePuppyWriteError(error, "Could not update the puppy.") },
       { status: 500 }
     );
   }
@@ -639,7 +647,7 @@ export async function DELETE(req: Request) {
   } catch (error) {
     console.error("Admin portal puppies delete error:", error);
     return NextResponse.json(
-      { ok: false, error: describeRouteError(error, "Could not delete the puppy.") },
+      { ok: false, error: describePuppyWriteError(error, "Could not delete the puppy.") },
       { status: 500 }
     );
   }
