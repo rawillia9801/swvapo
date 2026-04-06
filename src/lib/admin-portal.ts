@@ -96,6 +96,7 @@ export type AdminOverviewStats = {
   payments: number;
   documents: number;
   paymentPlans: number;
+  transportRequests: number;
   users: number;
   unreadBuyerMessages: number;
   visitors24h: number;
@@ -111,6 +112,78 @@ export type AdminOverviewStats = {
   latestDigest: AdminDigestBrief | null;
   publicConversationSummaries: AdminPublicConversationSummary[];
   buyerConversationSummaries: AdminBuyerConversationSummary[];
+};
+
+export type AdminApplicationLinkedBuyer = {
+  id: number;
+  displayName: string;
+  email?: string | null;
+  phone?: string | null;
+  status?: string | null;
+};
+
+export type AdminApplicationLinkedPuppy = {
+  id: number;
+  displayName: string;
+  status?: string | null;
+  litterName?: string | null;
+  dam?: string | null;
+  sire?: string | null;
+  buyer_id?: number | null;
+};
+
+export type AdminApplicationMessage = {
+  id: string;
+  created_at: string;
+  sender?: string | null;
+  subject?: string | null;
+  message?: string | null;
+  read_by_admin?: boolean | null;
+  status?: string | null;
+};
+
+export type AdminApplicationQueueItem = {
+  id: number;
+  user_id?: string | null;
+  created_at: string;
+  displayName: string;
+  email: string;
+  phone: string;
+  cityState: string;
+  status: string;
+  admin_notes: string;
+  assigned_puppy_id?: number | null;
+  puppyInterest: string;
+  preferredGender: string;
+  preferredCoatType: string;
+  paymentPreference: string;
+  financingInterest: boolean;
+  transportInterest: boolean;
+  depositReady: boolean;
+  matchedBuyer: AdminApplicationLinkedBuyer | null;
+  matchedPuppy: AdminApplicationLinkedPuppy | null;
+  messages: AdminApplicationMessage[];
+  application: Record<string, unknown> | null;
+  householdSummary: string;
+  experienceSummary: string;
+  questions: string;
+};
+
+export type AdminApplicationWorkspace = {
+  summary: {
+    total: number;
+    newCount: number;
+    underReviewCount: number;
+    followUpCount: number;
+    approvedCount: number;
+    deniedCount: number;
+    convertedCount: number;
+    financingInterested: number;
+    transportInterested: number;
+    matchedCount: number;
+  };
+  applications: AdminApplicationQueueItem[];
+  puppyOptions: AdminApplicationLinkedPuppy[];
 };
 
 export type AdminRevenueSnapshot = {
@@ -302,6 +375,29 @@ export async function fetchAdminLineageWorkspace(
     }
 
     const payload = (await response.json()) as { workspace?: AdminLineageWorkspace };
+    return payload.workspace || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchAdminApplicationsWorkspace(
+  accessToken: string
+): Promise<AdminApplicationWorkspace | null> {
+  if (!accessToken) return null;
+
+  try {
+    const response = await fetch("/api/admin/portal/applications", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = (await response.json()) as { workspace?: AdminApplicationWorkspace };
     return payload.workspace || null;
   } catch {
     return null;

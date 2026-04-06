@@ -18,7 +18,7 @@ import {
   publicPuppyStatus,
   publicPuppyStatusLabel,
 } from "@/lib/public-puppy-listing";
-import { fmtMoney, sb } from "@/lib/utils";
+import { fmtMoney } from "@/lib/utils";
 
 function statusClass(statusRaw: string) {
   const status = statusRaw.toLowerCase();
@@ -44,15 +44,29 @@ export default function PuppiesPage() {
     async function load() {
       setLoading(true);
       setErrorText("");
-      const { data, error } = await sb.from("puppies").select("*").order("created_at", { ascending: false });
-      if (!active) return;
-      if (error) {
-        setErrorText(error.message || "Could not load puppies.");
+      try {
+        const response = await fetch("/api/public/puppies");
+        const payload = (await response.json()) as {
+          ok?: boolean;
+          error?: string;
+          puppies?: PortalPuppy[];
+        };
+
+        if (!active) return;
+
+        if (!response.ok || payload.ok === false) {
+          setErrorText(payload.error || "Could not load puppies.");
+          setPuppies([]);
+        } else {
+          setPuppies(Array.isArray(payload.puppies) ? payload.puppies : []);
+        }
+      } catch (error) {
+        if (!active) return;
+        setErrorText(error instanceof Error ? error.message : "Could not load puppies.");
         setPuppies([]);
-      } else {
-        setPuppies(Array.isArray(data) ? (data as PortalPuppy[]) : []);
+      } finally {
+        if (active) setLoading(false);
       }
-      setLoading(false);
     }
 
     void load();

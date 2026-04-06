@@ -128,8 +128,7 @@ export function isAvailableLikeStatus(value: string | null | undefined) {
 }
 
 export function shouldHidePublicPuppyPrice(value: string | null | undefined) {
-  const status = normalizePuppyStatus(value);
-  return status.includes("reserved") || status.includes("completed");
+  return isReservedLikeStatus(value) || isCompletedLikeStatus(value);
 }
 
 export function toNumberOrZero(value: unknown) {

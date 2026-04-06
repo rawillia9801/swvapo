@@ -2,1078 +2,709 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { sb, fmtDate } from "@/lib/utils";
-import { getPortalAdminEmails, isPortalAdminEmail } from "@/lib/portal-admin";
+import {
+  AdminEmptyState,
+  AdminHeroPrimaryAction,
+  AdminHeroSecondaryAction,
+  AdminInfoTile,
+  AdminMetricCard,
+  AdminMetricGrid,
+  AdminPageHero,
+  AdminPageShell,
+  AdminPanel,
+  AdminRestrictedState,
+} from "@/components/admin/luxury-admin-shell";
+import {
+  AdminSelectInput,
+  AdminTextAreaInput,
+} from "@/components/admin/admin-form-fields";
+import {
+  fetchAdminApplicationsWorkspace,
+  type AdminApplicationWorkspace,
+} from "@/lib/admin-portal";
+import { fmtDate } from "@/lib/utils";
+import { usePortalAdminSession } from "@/lib/use-portal-admin-session";
 
-type PuppyApplicationRow = {
-  id: number;
-  created_at: string;
-  user_id: string | null;
-  full_name: string | null;
-  email: string | null;
-  phone: string | null;
-  city_state: string | null;
-  preferred_contact: string | null;
-  best_time: string | null;
-  street_address: string | null;
-  zip: string | null;
-  status: string | null;
-  admin_notes: string | null;
-  application: any;
-  applicant_email: string | null;
-  ack_age?: boolean | null;
-  ack_accuracy?: boolean | null;
-  ack_home_env?: boolean | null;
-  ack_care_commitment?: boolean | null;
-  ack_health_guarantee?: boolean | null;
-  ack_nonrefundable_deposit?: boolean | null;
-  ack_purchase_price_tax?: boolean | null;
-  ack_contract_obligation?: boolean | null;
-  ack_return_policy?: boolean | null;
-  ack_release_liability?: boolean | null;
-  ack_terms?: boolean | null;
-  ack_communications?: boolean | null;
-  assigned_puppy_id?: number | null;
-};
+type SortMode = "newest" | "oldest" | "name" | "status";
 
-type AdminEditState = {
+type ReviewForm = {
   status: string;
-  admin_notes: string;
   assigned_puppy_id: string;
+  admin_notes: string;
 };
 
 const STATUS_OPTIONS = [
-  "submitted",
-  "pending review",
-  "approved",
-  "denied",
-  "waitlist",
-  "matched",
-  "on hold",
+  { value: "new", label: "New" },
+  { value: "under review", label: "Under Review" },
+  { value: "follow up needed", label: "Follow Up Needed" },
+  { value: "approved", label: "Approved" },
+  { value: "denied", label: "Denied" },
+  { value: "converted to buyer", label: "Converted to Buyer" },
 ];
 
-export default function AdminPortalApplicationsPage() {
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [rows, setRows] = useState<PuppyApplicationRow[]>([]);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState("");
+function emptyWorkspace(): AdminApplicationWorkspace {
+  return {
+    summary: {
+      total: 0,
+      newCount: 0,
+      underReviewCount: 0,
+      followUpCount: 0,
+      approvedCount: 0,
+      deniedCount: 0,
+      convertedCount: 0,
+      financingInterested: 0,
+      transportInterested: 0,
+      matchedCount: 0,
+    },
+    applications: [],
+    puppyOptions: [],
+  };
+}
 
-  const [edit, setEdit] = useState<AdminEditState>({
-    status: "submitted",
-    admin_notes: "",
-    assigned_puppy_id: "",
+function emptyForm(): ReviewForm {
+  return { status: "new", assigned_puppy_id: "", admin_notes: "" };
+}
+
+function statusTone(status: string) {
+  const normalized = String(status || "").trim().toLowerCase();
+  if (normalized === "approved") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (normalized === "denied") return "border-rose-200 bg-rose-50 text-rose-700";
+  if (normalized === "converted to buyer") return "border-sky-200 bg-sky-50 text-sky-700";
+  if (normalized === "follow up needed") return "border-amber-200 bg-amber-50 text-amber-700";
+  if (normalized === "under review") return "border-stone-200 bg-stone-100 text-stone-700";
+  return "border-[#ead9c7] bg-[#fff8ef] text-[#8a633c]";
+}
+
+function statusLabel(status: string) {
+  return status
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part[0]?.toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function snippet(value: string | null | undefined, fallback: string) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!text) return fallback;
+  return text.length > 140 ? `${text.slice(0, 137)}...` : text;
+}
+
+function yesNo(value: boolean) {
+  return value ? "Yes" : "No";
+}
+
+function signalBadge(label: string, tone: "warm" | "cool" | "neutral") {
+  const toneClass =
+    tone === "warm"
+      ? "border-amber-200 bg-amber-50 text-amber-700"
+      : tone === "cool"
+        ? "border-sky-200 bg-sky-50 text-sky-700"
+        : "border-[#ead9c7] bg-[#fffaf4] text-[#7b5c40]";
+
+  return (
+    <span
+      className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${toneClass}`}
+    >
+      {label}
+    </span>
+  );
+}
+
+async function saveApplicationReview(
+  accessToken: string,
+  applicationId: number,
+  form: ReviewForm
+) {
+  const response = await fetch("/api/admin/portal/applications", {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      id: applicationId,
+      status: form.status,
+      assigned_puppy_id: form.assigned_puppy_id ? Number(form.assigned_puppy_id) : null,
+      admin_notes: form.admin_notes,
+    }),
   });
 
-  useEffect(() => {
-    let mounted = true;
+  const payload = (await response.json()) as { ok?: boolean; error?: string };
+  if (!response.ok || payload.ok === false) {
+    throw new Error(payload.error || "Could not save application review.");
+  }
+}
 
-    const init = async () => {
-      try {
-        const {
-          data: { session },
-        } = await sb.auth.getSession();
+async function convertApplicationToBuyer(
+  accessToken: string,
+  applicationId: number,
+  assignedPuppyId: string
+) {
+  const response = await fetch("/api/admin/portal/applications", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      action: "convert_to_buyer",
+      id: applicationId,
+      assigned_puppy_id: assignedPuppyId ? Number(assignedPuppyId) : null,
+    }),
+  });
 
-        if (!mounted) return;
+  const payload = (await response.json()) as { ok?: boolean; error?: string };
+  if (!response.ok || payload.ok === false) {
+    throw new Error(payload.error || "Could not convert application to buyer.");
+  }
+}
 
-        const currentUser = session?.user ?? null;
-        setUser(currentUser);
+export default function AdminPortalApplicationsPage() {
+  const { user, accessToken, loading, isAdmin } = usePortalAdminSession();
+  const [workspace, setWorkspace] = useState<AdminApplicationWorkspace>(emptyWorkspace());
+  const [loadingData, setLoadingData] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [converting, setConverting] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sortMode, setSortMode] = useState<SortMode>("newest");
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [form, setForm] = useState<ReviewForm>(emptyForm());
+  const [statusText, setStatusText] = useState("");
 
-        if (currentUser) {
-          await loadApplications();
-        }
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    init();
-
-    const { data: authListener } = sb.auth.onAuthStateChange(
-      async (_event, session) => {
-        const currentUser = session?.user ?? null;
-        if (!mounted) return;
-
-        setUser(currentUser);
-
-        if (currentUser) {
-          await loadApplications();
-        } else {
-          setRows([]);
-          setSelectedId(null);
-        }
-
-        setLoading(false);
-      }
+  async function refresh(preferredId?: number | null) {
+    if (!accessToken) return;
+    const nextWorkspace = (await fetchAdminApplicationsWorkspace(accessToken)) || emptyWorkspace();
+    setWorkspace(nextWorkspace);
+    setSelectedId(
+      preferredId && nextWorkspace.applications.some((item) => item.id === preferredId)
+        ? preferredId
+        : nextWorkspace.applications[0]?.id || null
     );
+  }
+
+  useEffect(() => {
+    let active = true;
+
+    async function bootstrap() {
+      if (!accessToken || !isAdmin) {
+        if (active) setLoadingData(false);
+        return;
+      }
+
+      setLoadingData(true);
+      try {
+        const nextWorkspace =
+          (await fetchAdminApplicationsWorkspace(accessToken)) || emptyWorkspace();
+        if (!active) return;
+        setWorkspace(nextWorkspace);
+        setSelectedId(nextWorkspace.applications[0]?.id || null);
+      } finally {
+        if (active) setLoadingData(false);
+      }
+    }
+
+    void bootstrap();
 
     return () => {
-      mounted = false;
-      authListener.subscription.unsubscribe();
+      active = false;
     };
-  }, []);
+  }, [accessToken, isAdmin]);
 
-  async function loadApplications() {
-    const { data, error } = await sb
-      .from("puppy_applications")
-      .select("*")
-      .order("created_at", { ascending: false });
+  const filteredApplications = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const results = workspace.applications.filter((application) => {
+      if (statusFilter !== "all" && application.status !== statusFilter) return false;
+      if (!query) return true;
 
-    if (error) {
-      setRows([]);
+      return [
+        application.displayName,
+        application.email,
+        application.phone,
+        application.cityState,
+        application.puppyInterest,
+        application.status,
+        application.paymentPreference,
+        application.questions,
+        application.matchedBuyer?.displayName,
+        application.matchedPuppy?.displayName,
+      ]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ")
+        .includes(query);
+    });
+
+    results.sort((left, right) => {
+      if (sortMode === "oldest") {
+        return new Date(left.created_at).getTime() - new Date(right.created_at).getTime();
+      }
+      if (sortMode === "name") return left.displayName.localeCompare(right.displayName);
+      if (sortMode === "status") return left.status.localeCompare(right.status) || right.id - left.id;
+      return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+    });
+
+    return results;
+  }, [search, sortMode, statusFilter, workspace.applications]);
+
+  const selectedApplication =
+    filteredApplications.find((application) => application.id === selectedId) ||
+    workspace.applications.find((application) => application.id === selectedId) ||
+    null;
+
+  useEffect(() => {
+    if (!filteredApplications.length) {
       setSelectedId(null);
       return;
     }
 
-    const list = (data || []) as PuppyApplicationRow[];
-    setRows(list);
-
-    setSelectedId((prev) => {
-      if (prev && list.some((row) => row.id === prev)) return prev;
-      return list[0]?.id ?? null;
-    });
-  }
-
-  const filteredRows = useMemo(() => {
-    const q = search.trim().toLowerCase();
-
-    return rows.filter((row) => {
-      const matchesStatus =
-        statusFilter === "all"
-          ? true
-          : String(row.status || "submitted").toLowerCase() === statusFilter.toLowerCase();
-
-      if (!matchesStatus) return false;
-      if (!q) return true;
-
-      const app = row.application || {};
-
-      const haystack = [
-        row.id,
-        row.full_name,
-        row.email,
-        row.applicant_email,
-        row.phone,
-        row.city_state,
-        row.status,
-        row.admin_notes,
-        app.fullName,
-        app.email,
-        app.phone,
-        app.city,
-        app.state,
-        app.interestType,
-        app.preferredGender,
-        app.preferredCoatType,
-        app.colorPreference,
-        app.paymentPreference,
-        app.howDidYouHear,
-        app.signature,
-      ]
-        .map((v) => String(v || "").toLowerCase())
-        .join(" ");
-
-      return haystack.includes(q);
-    });
-  }, [rows, search, statusFilter]);
-
-  const selected = useMemo(
-    () => filteredRows.find((row) => row.id === selectedId) || rows.find((row) => row.id === selectedId) || null,
-    [filteredRows, rows, selectedId]
-  );
+    if (!filteredApplications.some((application) => application.id === selectedId)) {
+      setSelectedId(filteredApplications[0].id);
+    }
+  }, [filteredApplications, selectedId]);
 
   useEffect(() => {
-    if (!selected) return;
-
-    setEdit({
-      status: selected.status || "submitted",
-      admin_notes: selected.admin_notes || "",
-      assigned_puppy_id:
-        selected.assigned_puppy_id !== null && selected.assigned_puppy_id !== undefined
-          ? String(selected.assigned_puppy_id)
-          : "",
-    });
-
-    setSaveMessage("");
-  }, [selected]);
-
-  function updateEdit<K extends keyof AdminEditState>(key: K, value: AdminEditState[K]) {
-    setEdit((prev) => ({ ...prev, [key]: value }));
-  }
-
-  async function handleSaveAdminFields(e: React.FormEvent) {
-    e.preventDefault();
-    if (!selected) return;
-
-    setSaving(true);
-    setSaveMessage("");
-
-    const payload = {
-      status: edit.status || "submitted",
-      admin_notes: edit.admin_notes.trim() || null,
-      assigned_puppy_id: edit.assigned_puppy_id.trim()
-        ? Number(edit.assigned_puppy_id)
-        : null,
-    };
-
-    const { error } = await sb
-      .from("puppy_applications")
-      .update(payload)
-      .eq("id", selected.id);
-
-    if (error) {
-      setSaveMessage(error.message || "Unable to save application updates.");
-      setSaving(false);
+    if (!selectedApplication) {
+      setForm(emptyForm());
       return;
     }
 
-    await loadApplications();
-    setSaveMessage("Application updated successfully.");
-    setSaving(false);
+    setForm({
+      status: selectedApplication.status || "new",
+      assigned_puppy_id: selectedApplication.assigned_puppy_id
+        ? String(selectedApplication.assigned_puppy_id)
+        : "",
+      admin_notes: selectedApplication.admin_notes || "",
+    });
+    setStatusText("");
+  }, [selectedApplication]);
+
+  async function handleRefresh() {
+    if (!accessToken) return;
+    setRefreshing(true);
+    try {
+      await refresh(selectedId);
+      setStatusText("Application queue refreshed.");
+    } finally {
+      setRefreshing(false);
+    }
   }
 
-  const stats = useMemo(() => {
-    const total = rows.length;
-    const submitted = rows.filter(
-      (r) => String(r.status || "submitted").toLowerCase() === "submitted"
-    ).length;
-    const pending = rows.filter((r) =>
-      String(r.status || "").toLowerCase().includes("pending")
-    ).length;
-    const approved = rows.filter((r) =>
-      String(r.status || "").toLowerCase().includes("approved")
-    ).length;
-    const matched = rows.filter((r) =>
-      String(r.status || "").toLowerCase().includes("matched")
-    ).length;
+  async function handleSave() {
+    if (!accessToken || !selectedApplication) return;
+    setSaving(true);
+    try {
+      await saveApplicationReview(accessToken, selectedApplication.id, form);
+      await refresh(selectedApplication.id);
+      setStatusText("Application review saved.");
+    } catch (error) {
+      setStatusText(
+        error instanceof Error ? error.message : "Could not save application review."
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
 
-    return { total, submitted, pending, approved, matched };
-  }, [rows]);
+  async function handleConvert() {
+    if (!accessToken || !selectedApplication) return;
+    setConverting(true);
+    try {
+      await convertApplicationToBuyer(
+        accessToken,
+        selectedApplication.id,
+        form.assigned_puppy_id
+      );
+      await refresh(selectedApplication.id);
+      setStatusText(
+        selectedApplication.matchedBuyer
+          ? "Application synced to the linked buyer record."
+          : "Application converted to a buyer record."
+      );
+    } catch (error) {
+      setStatusText(
+        error instanceof Error ? error.message : "Could not convert application to buyer."
+      );
+    } finally {
+      setConverting(false);
+    }
+  }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-brand-50 italic text-brand-700">
-        Loading applications...
-      </div>
-    );
+  if (loading || loadingData) {
+    return <div className="py-20 text-center text-sm font-semibold text-[#7b5f46]">Loading applications...</div>;
   }
 
   if (!user) {
-    return <AdminApplicationsLogin />;
-  }
-
-  if (!isPortalAdminEmail(user.email)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-brand-50 px-6 text-brand-900">
-        <div className="w-full max-w-[760px] rounded-[28px] border border-brand-200 bg-white p-8 shadow-paper">
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-rose-600">
-            Admin Access Restricted
-          </div>
-          <h1 className="mt-4 font-serif text-4xl font-bold text-brand-900">
-            This applications page is limited to the approved owner accounts.
-          </h1>
-          <p className="mt-4 text-sm font-semibold leading-7 text-brand-500">
-            Allowed emails: {getPortalAdminEmails().join(" • ")}
-          </p>
-          <div className="mt-6">
-            <Link
-              href="/portal"
-              className="inline-flex items-center rounded-[18px] border border-brand-200 bg-white px-5 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-brand-700 transition hover:bg-brand-50"
-            >
-              Return to Buyer Portal
-            </Link>
-          </div>
-        </div>
-      </div>
+      <AdminRestrictedState
+        title="Sign in to access applications."
+        details="This workspace is reserved for the Southwest Virginia Chihuahua owner accounts."
+      />
     );
   }
 
-  return (
-    <div className="min-h-screen bg-brand-50 text-brand-900">
-      <main className="min-h-screen bg-texturePaper">
-        <div className="mx-auto w-full max-w-[1700px] px-4 py-6 md:px-8 md:py-8 lg:px-10 lg:py-10">
-          <div className="space-y-6">
-            <header className="rounded-[32px] border border-brand-200 bg-gradient-to-br from-[#fff8f1] via-[#fffefc] to-white p-6 shadow-paper md:p-8">
-              <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-                <div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-white/80 px-4 py-2 shadow-sm">
-                    <span className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-                      Admin Portal
-                    </span>
-                    <span className="h-1 w-1 rounded-full bg-brand-300" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-                      Applications
-                    </span>
-                  </div>
-
-                  <h1 className="mt-5 font-serif text-4xl font-bold leading-[0.96] text-brand-900 md:text-5xl">
-                    Submitted Applications
-                  </h1>
-
-                  <p className="mt-3 max-w-3xl text-sm font-semibold leading-7 text-brand-500 md:text-base">
-                    Review, search, filter, and manage puppy applications using the same
-                    `puppy_applications` data structure as the portal application page.
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap gap-3">
-                  <Link
-                    href="/admin/portal"
-                    className="inline-flex items-center gap-2 rounded-[18px] border border-brand-200 bg-white px-5 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-brand-700 transition hover:bg-brand-50"
-                  >
-                    Portal Admin
-                  </Link>
-                </div>
-              </div>
-
-              <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-5">
-                <StatPill label="Total" value={String(stats.total)} />
-                <StatPill label="Submitted" value={String(stats.submitted)} />
-                <StatPill label="Pending" value={String(stats.pending)} />
-                <StatPill label="Approved" value={String(stats.approved)} />
-                <StatPill label="Matched" value={String(stats.matched)} />
-              </div>
-            </header>
-
-            <section className="grid grid-cols-1 gap-6 xl:grid-cols-[460px_minmax(0,1fr)]">
-              <div className="space-y-6">
-                <div className="card-luxury p-5">
-                  <div className="grid grid-cols-1 gap-4">
-                    <div>
-                      <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-                        Search
-                      </label>
-                      <input
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Name, email, phone, city, status..."
-                        className="w-full rounded-xl border border-brand-200 bg-white px-4 py-3 text-sm text-brand-900 outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-                        Status Filter
-                      </label>
-                      <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className="w-full rounded-xl border border-brand-200 bg-white px-4 py-3 text-sm text-brand-900 outline-none"
-                      >
-                        <option value="all">All</option>
-                        {STATUS_OPTIONS.map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="card-luxury p-5">
-                  <div className="flex items-center justify-between gap-3 mb-4">
-                    <div>
-                      <h2 className="font-serif text-2xl font-bold text-brand-900">
-                        Application List
-                      </h2>
-                      <p className="mt-1 text-sm font-semibold text-brand-500">
-                        {filteredRows.length} result(s)
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 max-h-[980px] overflow-y-auto pr-1">
-                    {filteredRows.length ? (
-                      filteredRows.map((row) => {
-                        const active = row.id === selected?.id;
-                        const pill = statusPill(row.status || "submitted");
-                        const app = row.application || {};
-
-                        return (
-                          <button
-                            key={row.id}
-                            type="button"
-                            onClick={() => setSelectedId(row.id)}
-                            className={`w-full rounded-[24px] border p-4 text-left transition ${
-                              active
-                                ? "border-brand-300 bg-gradient-to-r from-[#fff5ea] via-white to-[#fffaf4] shadow-paper"
-                                : "border-brand-200 bg-white/75 hover:bg-white"
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="text-sm font-black text-brand-900">
-                                  {row.full_name ||
-                                    app.fullName ||
-                                    row.email ||
-                                    row.applicant_email ||
-                                    `Application #${row.id}`}
-                                </div>
-                                <div className="mt-1 text-[12px] font-semibold text-brand-500 break-words">
-                                  {row.email || row.applicant_email || app.email || "No email"}
-                                </div>
-                              </div>
-
-                              <span
-                                className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${pill.cls}`}
-                              >
-                                <span className="h-2 w-2 rounded-full bg-current opacity-70" />
-                                {pill.label}
-                              </span>
-                            </div>
-
-                            <div className="mt-3 grid grid-cols-2 gap-3 text-[11px] font-semibold text-brand-400">
-                              <div>ID #{row.id}</div>
-                              <div className="text-right">
-                                {row.created_at ? fmtDate(row.created_at) : "—"}
-                              </div>
-                            </div>
-
-                            <div className="mt-3 grid grid-cols-2 gap-3">
-                              <MiniInfo label="Interest" value={app.interestType || "—"} />
-                              <MiniInfo
-                                label="Deposit Ready"
-                                value={app.readyToPlaceDeposit || "—"}
-                              />
-                            </div>
-                          </button>
-                        );
-                      })
-                    ) : (
-                      <EmptyCard text="No applications found." />
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-6 min-w-0">
-                {selected ? (
-                  <>
-                    <div className="card-luxury overflow-hidden">
-                      <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr]">
-                        <div className="p-7 md:p-8">
-                          <div className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-100 px-3 py-1">
-                            <span className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-700">
-                              Application Details
-                            </span>
-                          </div>
-
-                          <h2 className="mt-5 font-serif text-3xl font-bold leading-[1.02] text-brand-900">
-                            {selected.full_name ||
-                              selected.application?.fullName ||
-                              selected.email ||
-                              selected.applicant_email ||
-                              `Application #${selected.id}`}
-                          </h2>
-
-                          <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-brand-500">
-                            Full review of the submitted application using the same portal data
-                            structure.
-                          </p>
-
-                          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                            <SummaryCard label="Application ID" value={String(selected.id)} />
-                            <SummaryCard
-                              label="Submitted"
-                              value={selected.created_at ? fmtDate(selected.created_at) : "—"}
-                            />
-                            <SummaryCard
-                              label="Status"
-                              value={selected.status || "submitted"}
-                            />
-                            <SummaryCard
-                              label="Assigned Puppy"
-                              value={
-                                selected.assigned_puppy_id !== null &&
-                                selected.assigned_puppy_id !== undefined
-                                  ? String(selected.assigned_puppy_id)
-                                  : "Pending"
-                              }
-                            />
-                          </div>
-                        </div>
-
-                        <div className="border-t border-brand-100 bg-gradient-to-br from-[#fff8f1] via-[#f8efe4] to-[#efe2d2] p-7 lg:border-l lg:border-t-0">
-                          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-                            Admin Controls
-                          </div>
-
-                          <form onSubmit={handleSaveAdminFields} className="mt-4 space-y-4">
-                            <SelectField
-                              label="Status"
-                              value={edit.status}
-                              onChange={(v) => updateEdit("status", v)}
-                              options={STATUS_OPTIONS}
-                            />
-
-                            <Field
-                              label="Assigned Puppy ID"
-                              value={edit.assigned_puppy_id}
-                              onChange={(v) => updateEdit("assigned_puppy_id", v)}
-                              placeholder="Example: 12"
-                            />
-
-                            <TextAreaField
-                              label="Admin Notes"
-                              value={edit.admin_notes}
-                              onChange={(v) => updateEdit("admin_notes", v)}
-                              rows={7}
-                            />
-
-                            <div className="min-h-[24px] text-sm font-semibold text-brand-600">
-                              {saveMessage}
-                            </div>
-
-                            <button
-                              type="submit"
-                              disabled={saving}
-                              className="w-full rounded-[18px] bg-brand-800 px-5 py-4 text-xs font-black uppercase tracking-[0.18em] text-white shadow-lift transition hover:bg-brand-700 disabled:opacity-60"
-                            >
-                              {saving ? "Saving..." : "Save Admin Updates"}
-                            </button>
-                          </form>
-                        </div>
-                      </div>
-                    </div>
-
-                    <ApplicationDetailsSection row={selected} />
-                  </>
-                ) : (
-                  <div className="card-luxury p-10">
-                    <div className="text-center text-brand-400 italic">
-                      Select an application to view details.
-                    </div>
-                  </div>
-                )}
-              </div>
-            </section>
-          </div>
-        </div>
-      </main>
-    </div>
-  );
-}
-
-function ApplicationDetailsSection({ row }: { row: PuppyApplicationRow }) {
-  const app = row.application || {};
-  const cityState = parseCityState(row.city_state || "");
-
-  const acknowledgements = [
-    {
-      label: "Age and legal capacity",
-      value: !!(row.ack_age ?? app.ackAgeCapacity),
-    },
-    {
-      label: "Accuracy of information",
-      value: !!(row.ack_accuracy ?? app.ackAccuracy),
-    },
-    {
-      label: "Home environment suitability",
-      value: !!(row.ack_home_env ?? app.ackHomeEnvironment),
-    },
-    {
-      label: "Care commitment",
-      value: !!app.ackCareCommitment,
-    },
-    {
-      label: "Health guarantee understanding",
-      value: !!app.ackHealthGuarantee,
-    },
-    {
-      label: "Nonrefundable deposit acknowledged",
-      value: !!app.ackNonrefundableDeposit,
-    },
-    {
-      label: "Purchase price and tax acknowledged",
-      value: !!app.ackPurchasePriceTax,
-    },
-    {
-      label: "Contractual obligation acknowledged",
-      value: !!app.ackContractualObligation,
-    },
-    {
-      label: "Return and re-homing policy acknowledged",
-      value: !!app.ackReturnRehoming,
-    },
-    {
-      label: "Release of liability acknowledged",
-      value: !!app.ackReleaseLiability,
-    },
-    {
-      label: "Agreement to terms",
-      value: !!(row.ack_terms ?? app.ackAgreementTerms),
-    },
-    {
-      label: "Communications consent",
-      value: !!app.ackCommunications,
-    },
-  ];
-
-  return (
-    <div className="space-y-6">
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <div className="xl:col-span-6 card-luxury p-7">
-          <SectionTitle
-            eyebrow="Section 1"
-            title="Applicant Info"
-          />
-
-          <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <SummaryCard label="Full Name" value={row.full_name || app.fullName || "—"} />
-            <SummaryCard label="Email" value={row.email || row.applicant_email || app.email || "—"} />
-            <SummaryCard label="Phone" value={row.phone || app.phone || "—"} />
-            <SummaryCard
-              label="Preferred Contact"
-              value={row.preferred_contact || app.preferredContactMethod || "—"}
-            />
-            <SummaryCard
-              label="Street Address"
-              value={row.street_address || app.streetAddress || "—"}
-            />
-            <SummaryCard label="City" value={cityState.city || app.city || "—"} />
-            <SummaryCard label="State" value={cityState.state || app.state || "—"} />
-            <SummaryCard label="Zip" value={row.zip || app.zip || "—"} />
-          </div>
-        </div>
-
-        <div className="xl:col-span-6 card-luxury p-7">
-          <SectionTitle
-            eyebrow="Section 2"
-            title="Puppy Preferences"
-          />
-
-          <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <SummaryCard
-              label="Preferred Coat Type"
-              value={app.preferredCoatType || "—"}
-            />
-            <SummaryCard
-              label="Preferred Gender"
-              value={app.preferredGender || "—"}
-            />
-            <SummaryCard
-              label="Color Preference"
-              value={app.colorPreference || "—"}
-            />
-            <SummaryCard
-              label="Desired Adoption Date"
-              value={app.desiredAdoptionDate || "—"}
-            />
-            <SummaryCard
-              label="Interest Type"
-              value={app.interestType || "—"}
-            />
-          </div>
-        </div>
-      </section>
-
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <div className="xl:col-span-6 card-luxury p-7">
-          <SectionTitle
-            eyebrow="Section 3"
-            title="Lifestyle & Home"
-          />
-
-          <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <SummaryCard label="Other Pets" value={app.otherPets || "—"} />
-            <SummaryCard label="Pet Details" value={app.petDetails || "—"} />
-            <SummaryCard
-              label="Owned Chihuahua Before"
-              value={app.ownedChihuahuaBefore || "—"}
-            />
-            <SummaryCard label="Home Type" value={app.homeType || "—"} />
-            <SummaryCard label="Fenced Yard" value={app.fencedYard || "—"} />
-            <SummaryCard label="Work Status" value={app.workStatus || "—"} />
-            <SummaryCard
-              label="Who Cares for Puppy"
-              value={app.whoCaresForPuppy || "—"}
-            />
-            <SummaryCard
-              label="Children at Home"
-              value={app.childrenAtHome || "—"}
-            />
-          </div>
-        </div>
-
-        <div className="xl:col-span-6 card-luxury p-7">
-          <SectionTitle
-            eyebrow="Section 4"
-            title="Payment & Intent"
-          />
-
-          <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <SummaryCard
-              label="Payment Preference"
-              value={app.paymentPreference || "—"}
-            />
-            <SummaryCard
-              label="How They Heard About Us"
-              value={app.howDidYouHear || "—"}
-            />
-            <SummaryCard
-              label="Ready To Place Deposit"
-              value={app.readyToPlaceDeposit || "—"}
-            />
-          </div>
-
-          <div className="mt-4">
-            <LongTextCard
-              label="Questions"
-              value={app.questions || "—"}
-            />
-          </div>
-        </div>
-      </section>
-
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <div className="xl:col-span-7 card-luxury p-7">
-          <SectionTitle
-            eyebrow="Section 5"
-            title="Agreement & Signature"
-          />
-
-          <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <SummaryCard
-              label="Agreed To Terms"
-              value={app.agreeTerms ? "Yes" : "No"}
-            />
-            <SummaryCard
-              label="Signed At"
-              value={app.signedAt || "—"}
-            />
-            <SummaryCard
-              label="Signature"
-              value={app.signature || "—"}
-            />
-            <SummaryCard
-              label="Terms Version"
-              value={app.termsVersion || "—"}
-            />
-          </div>
-        </div>
-
-        <div className="xl:col-span-5 card-luxury p-7">
-          <SectionTitle
-            eyebrow="Section 6"
-            title="Acknowledgements"
-          />
-
-          <div className="mt-5 space-y-3">
-            {acknowledgements.map((item) => (
-              <AckRow key={item.label} label={item.label} value={item.value} />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {row.admin_notes ? (
-        <section className="card-luxury p-7">
-          <SectionTitle
-            eyebrow="Internal"
-            title="Admin Notes"
-          />
-
-          <div className="mt-5 rounded-2xl border border-brand-200 bg-white/70 p-5 whitespace-pre-wrap text-sm font-semibold leading-7 text-brand-800">
-            {row.admin_notes}
-          </div>
-        </section>
-      ) : null}
-    </div>
-  );
-}
-
-function parseCityState(value: string) {
-  if (!value) return { city: "", state: "" };
-  const parts = value.split(",").map((p) => p.trim());
-  if (parts.length >= 2) return { city: parts[0], state: parts[1] };
-  return { city: value, state: "" };
-}
-
-function statusPill(statusRaw: any) {
-  const raw = String(statusRaw || "").trim();
-  const s = raw.toLowerCase();
-
-  let cls = "bg-stone-100 text-stone-700 border border-stone-200";
-  let label = raw || "submitted";
-
-  if (
-    ["approved", "complete", "completed", "matched", "active", "reserved"].some((x) =>
-      s.includes(x)
-    )
-  ) {
-    cls = "bg-emerald-50 text-emerald-700 border border-emerald-200";
-  } else if (
-    ["pending", "review", "processing", "await", "in progress", "submitted", "hold"].some((x) =>
-      s.includes(x)
-    )
-  ) {
-    cls = "bg-amber-50 text-amber-700 border border-amber-200";
-  } else if (
-    ["denied", "rejected", "cancel"].some((x) => s.includes(x))
-  ) {
-    cls = "bg-rose-50 text-rose-700 border border-rose-200";
+  if (!isAdmin) {
+    return (
+      <AdminRestrictedState
+        title="This application workspace is limited to approved owner accounts."
+        details="Only the approved owner emails can review, assign, and convert puppy applications here."
+      />
+    );
   }
 
-  return { cls, label };
-}
-
-function StatPill({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[22px] border border-brand-200 bg-white/75 px-4 py-3 shadow-sm">
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-        {label}
-      </div>
-      <div className="mt-1 text-lg font-black text-brand-900">{value}</div>
-    </div>
-  );
-}
-
-function MiniInfo({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-brand-100 bg-brand-50/70 px-3 py-2">
-      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-brand-400">
-        {label}
-      </div>
-      <div className="mt-1 text-[12px] font-semibold text-brand-700 break-words">
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function SectionTitle({
-  eyebrow,
-  title,
-}: {
-  eyebrow: string;
-  title: string;
-}) {
-  return (
-    <div>
-      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-        {eyebrow}
-      </div>
-      <h3 className="mt-2 font-serif text-2xl font-bold text-brand-900">
-        {title}
-      </h3>
-    </div>
-  );
-}
-
-function SummaryCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-brand-200 bg-white/70 p-4">
-      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-        {label}
-      </div>
-      <div className="mt-1 text-sm font-black text-brand-900 break-words">
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function LongTextCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-brand-200 bg-white/70 p-4">
-      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-brand-500">
-        {label}
-      </div>
-      <div className="mt-2 whitespace-pre-wrap text-sm font-semibold leading-7 text-brand-800">
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function AckRow({ label, value }: { label: string; value: boolean }) {
-  return (
-    <div className="flex items-start justify-between gap-4 rounded-2xl border border-brand-200 bg-white/70 px-4 py-3">
-      <div className="text-sm font-semibold leading-6 text-brand-800">
-        {label}
-      </div>
-      <div
-        className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${
-          value
-            ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-            : "border border-rose-200 bg-rose-50 text-rose-700"
-        }`}
-      >
-        {value ? "Yes" : "No"}
-      </div>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-}) {
-  return (
-    <div>
-      <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-        {label}
-      </label>
-      <input
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-xl border border-brand-200 bg-white px-4 py-3 text-sm text-brand-900 outline-none"
-      />
-    </div>
-  );
-}
-
-function SelectField({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  options: string[];
-}) {
-  return (
-    <div>
-      <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-        {label}
-      </label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-xl border border-brand-200 bg-white px-4 py-3 text-sm text-brand-900 outline-none"
-      >
-        {options.map((opt) => (
-          <option key={opt} value={opt}>
-            {opt}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
-function TextAreaField({
-  label,
-  value,
-  onChange,
-  rows = 4,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  rows?: number;
-}) {
-  return (
-    <div>
-      <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-brand-500">
-        {label}
-      </label>
-      <textarea
-        rows={rows}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-xl border border-brand-200 bg-white px-4 py-3 text-sm text-brand-900 outline-none resize-y"
-      />
-    </div>
-  );
-}
-
-function EmptyCard({ text }: { text: string }) {
-  return (
-    <div className="rounded-[24px] border border-dashed border-brand-200 bg-white/60 px-5 py-10 text-center text-sm italic text-brand-400">
-      {text}
-    </div>
-  );
-}
-
-function AdminApplicationsLogin() {
-  const [email, setEmail] = useState("");
-  const [pass, setPass] = useState("");
-
-  const login = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const { error } = await sb.auth.signInWithPassword({
-      email,
-      password: pass,
-    });
-
-    if (error) alert(error.message);
-  };
+  const summary = workspace.summary;
+  const selectedPuppy =
+    workspace.puppyOptions.find(
+      (option) => Number(option.id) === Number(form.assigned_puppy_id || 0)
+    ) ||
+    selectedApplication?.matchedPuppy ||
+    null;
 
   return (
-    <div className="min-h-screen bg-[#f7f3ee] px-4 py-10 md:px-8">
-      <div className="mx-auto max-w-[760px]">
-        <div className="overflow-hidden rounded-[36px] border border-[#e7d9c8] bg-gradient-to-br from-[#fff8f1] via-[#fffdfb] to-white shadow-[0_30px_80px_rgba(88,63,37,0.12)]">
-          <div className="px-8 py-10 md:px-12 md:py-14">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#dcc6ad] bg-white/70 px-4 py-2 shadow-sm">
-              <span className="text-[10px] font-black uppercase tracking-[0.22em] text-[#a47946]">
-                Admin Access Required
-              </span>
+    <AdminPageShell>
+      <div className="space-y-5 pb-10">
+        <AdminPageHero
+          eyebrow="Applications"
+          title="Review applications as structured cases, not loose portal cards."
+          description="The application tab now behaves like a breeder review queue: searchable intake on the left, a case console on the right, linked buyer and puppy context, recent messages, and a clean path from approval to buyer conversion."
+          actions={
+            <>
+              <button
+                type="button"
+                onClick={() => void handleRefresh()}
+                disabled={refreshing}
+                className="inline-flex items-center rounded-2xl bg-[linear-gradient(135deg,#c88c52_0%,#a56733_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(159,99,49,0.22)] transition hover:-translate-y-0.5 hover:brightness-105 disabled:opacity-60"
+              >
+                {refreshing ? "Refreshing..." : "Refresh Queue"}
+              </button>
+              <AdminHeroPrimaryAction href="/admin/portal/users">Open Buyers</AdminHeroPrimaryAction>
+              <AdminHeroSecondaryAction href="/admin/portal/puppies">Open Puppies</AdminHeroSecondaryAction>
+            </>
+          }
+          aside={
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+              <AdminInfoTile
+                label="Selected Status"
+                value={selectedApplication ? statusLabel(selectedApplication.status) : "None"}
+                detail={
+                  selectedApplication
+                    ? `${selectedApplication.displayName} / ${fmtDate(selectedApplication.created_at)}`
+                    : "Select a case from the queue to begin."
+                }
+              />
+              <AdminInfoTile
+                label="Buyer Match"
+                value={selectedApplication?.matchedBuyer?.displayName || "Not linked"}
+                detail={
+                  selectedApplication?.matchedBuyer?.email ||
+                  "Convert the case to buyer when the review is ready."
+                }
+              />
+              <AdminInfoTile
+                label="Assigned Puppy"
+                value={selectedApplication?.matchedPuppy?.displayName || "Not assigned"}
+                detail={
+                  selectedApplication?.matchedPuppy?.litterName ||
+                  "Assign a puppy in the review console when ready."
+                }
+              />
+            </div>
+          }
+        />
+
+        <AdminMetricGrid>
+          <AdminMetricCard label="New" value={String(summary.newCount)} detail="Fresh applications still waiting for their first structured review." />
+          <AdminMetricCard label="Under Review" value={String(summary.underReviewCount)} detail="Cases actively being worked by the breeder." accent="from-[#e6ddd2] via-[#ccb49a] to-[#987553]" />
+          <AdminMetricCard label="Follow Up" value={String(summary.followUpCount)} detail="Applications that need another step before approval." accent="from-[#efe1c8] via-[#d4b287] to-[#b37b45]" />
+          <AdminMetricCard label="Approved" value={String(summary.approvedCount)} detail="Applications cleared and ready for placement decisions." accent="from-[#dbe8db] via-[#bfd2b8] to-[#7d9d79]" />
+          <AdminMetricCard label="Converted" value={String(summary.convertedCount)} detail="Applications already turned into buyer records." accent="from-[#dce6f4] via-[#bfd0ea] to-[#7b97ba]" />
+          <AdminMetricCard label="Signals" value={`${summary.financingInterested}/${summary.transportInterested}`} detail="Financing and transportation interest counts in the live queue." accent="from-[#ece0d2] via-[#d2b494] to-[#a8784f]" />
+        </AdminMetricGrid>
+
+        <section className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.3fr)_430px]">
+          <AdminPanel
+            title="Application Queue"
+            subtitle="Search by applicant, puppy interest, contact info, or internal notes. Use the table as the intake queue and the right rail as the active case console."
+          >
+            <div className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_180px]">
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search applicant, email, puppy interest, city, or notes..."
+                className="w-full rounded-[16px] border border-[#e6d7c7] bg-[#fffdfa] px-3.5 py-2.5 text-sm text-[#33251a] outline-none transition focus:border-[#caa074] focus:ring-2 focus:ring-[#ead7c0]"
+              />
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+                className="w-full rounded-[16px] border border-[#e6d7c7] bg-[#fffdfa] px-3.5 py-2.5 text-sm text-[#33251a] outline-none transition focus:border-[#caa074] focus:ring-2 focus:ring-[#ead7c0]"
+              >
+                <option value="all">All statuses</option>
+                {STATUS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={sortMode}
+                onChange={(event) => setSortMode(event.target.value as SortMode)}
+                className="w-full rounded-[16px] border border-[#e6d7c7] bg-[#fffdfa] px-3.5 py-2.5 text-sm text-[#33251a] outline-none transition focus:border-[#caa074] focus:ring-2 focus:ring-[#ead7c0]"
+              >
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+                <option value="name">Applicant name</option>
+                <option value="status">Status</option>
+              </select>
             </div>
 
-            <h1 className="mt-6 font-serif text-4xl font-bold leading-[0.98] text-[#3e2a1f] md:text-5xl">
-              Sign in to view portal applications.
-            </h1>
-
-            <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-[#7a5a3a] md:text-base">
-              This page is for reviewing submitted puppy applications from the admin side.
-            </p>
-
-            <form onSubmit={login} className="mt-8 space-y-5">
-              <div>
-                <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-[#a47946]">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none"
-                  required
-                />
+            {filteredApplications.length ? (
+              <div className="overflow-hidden rounded-[24px] border border-[#ead9c7]">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-[#eee1d2] text-sm">
+                    <thead className="bg-[#faf3ea] text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+                      <tr>
+                        <th className="px-4 py-3">Applicant</th>
+                        <th className="px-4 py-3">Interest</th>
+                        <th className="px-4 py-3">Submitted</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3">Signals</th>
+                        <th className="px-4 py-3">Links</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#f1e6da] bg-white">
+                      {filteredApplications.map((application) => {
+                        const active = application.id === selectedId;
+                        return (
+                          <tr
+                            key={application.id}
+                            onClick={() => setSelectedId(application.id)}
+                            className={`cursor-pointer transition hover:bg-[#fffaf4] ${active ? "bg-[#fff8ef]" : ""}`}
+                          >
+                            <td className="px-4 py-3">
+                              <div className="font-semibold text-[#2f2218]">{application.displayName}</div>
+                              <div className="mt-1 text-xs text-[#8a6a49]">
+                                {application.email || "No email"} / {application.phone || "No phone"}
+                              </div>
+                              <div className="mt-1 text-xs text-[#a07a55]">
+                                {application.cityState || "Location not provided"}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-[#73583f]">
+                              <div className="font-semibold text-[#2f2218]">{application.puppyInterest}</div>
+                              <div className="mt-1 text-xs text-[#8a6a49]">
+                                {snippet(application.questions, "No applicant questions saved yet.")}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-[#73583f]">
+                              <div className="font-semibold text-[#2f2218]">{fmtDate(application.created_at)}</div>
+                              <div className="mt-1 text-xs text-[#8a6a49]">#{application.id}</div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${statusTone(application.status)}`}>
+                                {statusLabel(application.status)}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex flex-wrap gap-2">
+                                {application.financingInterest ? signalBadge("Financing", "warm") : null}
+                                {application.transportInterest ? signalBadge("Transport", "cool") : null}
+                                {application.depositReady ? signalBadge("Deposit Ready", "neutral") : null}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-[#73583f]">
+                              <div className="text-xs font-semibold">
+                                {application.matchedBuyer ? "Buyer linked" : "No buyer"}
+                              </div>
+                              <div className="mt-1 text-xs text-[#8a6a49]">
+                                {application.matchedPuppy ? `Puppy ${application.matchedPuppy.displayName}` : "No puppy assigned"}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
+            ) : (
+              <AdminEmptyState
+                title="No applications match the current filters"
+                description="Adjust the search or status filters to bring the queue back into view."
+              />
+            )}
+          </AdminPanel>
 
-              <div>
-                <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-[#a47946]">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  value={pass}
-                  onChange={(e) => setPass(e.target.value)}
-                  className="w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none"
-                  required
+          <div className="space-y-5 2xl:sticky 2xl:top-6 2xl:self-start">
+            {selectedApplication ? (
+              <>
+                <AdminPanel
+                  title="Case Console"
+                  subtitle="Status changes, puppy assignment, internal notes, and conversion all stay in one controlled review area."
+                >
+                  {statusText ? (
+                    <div className="mb-4 rounded-[18px] border border-[#ead9c7] bg-[#fff9f2] px-4 py-3 text-sm font-semibold text-[#7a5a3a]">
+                      {statusText}
+                    </div>
+                  ) : null}
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <AdminInfoTile label="Application" value={`#${selectedApplication.id}`} detail={fmtDate(selectedApplication.created_at)} />
+                    <AdminInfoTile label="Queue Match" value={selectedApplication.matchedBuyer || selectedApplication.matchedPuppy ? "Linked" : "Open"} detail={selectedApplication.matchedBuyer ? selectedApplication.matchedBuyer.displayName : "No buyer linked yet"} />
+                  </div>
+
+                  <div className="mt-5 grid gap-4">
+                    <AdminSelectInput label="Review Status" value={form.status} onChange={(value) => setForm((current) => ({ ...current, status: value }))} options={STATUS_OPTIONS} />
+                    <AdminSelectInput
+                      label="Assigned Puppy"
+                      value={form.assigned_puppy_id}
+                      onChange={(value) => setForm((current) => ({ ...current, assigned_puppy_id: value }))}
+                      options={[
+                        { value: "", label: "No puppy assigned" },
+                        ...workspace.puppyOptions.map((option) => ({
+                          value: String(option.id),
+                          label: [option.displayName, option.status || "pending", option.buyer_id ? "buyer linked" : "open"].join(" / "),
+                        })),
+                      ]}
+                    />
+                    <AdminTextAreaInput label="Internal Notes" value={form.admin_notes} onChange={(value) => setForm((current) => ({ ...current, admin_notes: value }))} rows={6} placeholder="Decision notes, next steps, transport details, or follow-up reminders." />
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <button type="button" onClick={() => void handleSave()} disabled={saving} className="rounded-2xl bg-[linear-gradient(135deg,#c88c52_0%,#a56733_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(159,99,49,0.22)] transition hover:brightness-105 disabled:opacity-60">
+                      {saving ? "Saving..." : "Save Review"}
+                    </button>
+                    <button type="button" onClick={() => void handleConvert()} disabled={converting} className="rounded-2xl border border-[#cfb089] bg-[#fff8ef] px-5 py-3 text-sm font-semibold text-[#6e4d31] transition hover:border-[#ba8c57] disabled:opacity-60">
+                      {converting ? "Converting..." : selectedApplication.matchedBuyer ? "Sync to Buyer" : "Convert to Buyer"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setForm({
+                          status: selectedApplication.status || "new",
+                          assigned_puppy_id: selectedApplication.assigned_puppy_id ? String(selectedApplication.assigned_puppy_id) : "",
+                          admin_notes: selectedApplication.admin_notes || "",
+                        })
+                      }
+                      className="rounded-2xl border border-[#e4d2be] bg-white px-5 py-3 text-sm font-semibold text-[#5d4330] transition hover:border-[#d4b48b]"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                </AdminPanel>
+
+                <AdminPanel
+                  title="Placement Signals"
+                  subtitle="Puppy interest, payment intent, transport interest, and linked records stay grouped together."
+                >
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <InfoLine label="Puppy Interest" value={selectedApplication.puppyInterest} />
+                    <InfoLine label="Payment Preference" value={selectedApplication.paymentPreference || "Not provided"} />
+                    <InfoLine label="Preferred Gender" value={selectedApplication.preferredGender || "Not provided"} />
+                    <InfoLine label="Preferred Coat" value={selectedApplication.preferredCoatType || "Not provided"} />
+                    <InfoLine label="Financing Interest" value={yesNo(selectedApplication.financingInterest)} />
+                    <InfoLine label="Transport Interest" value={yesNo(selectedApplication.transportInterest)} />
+                    <InfoLine label="Deposit Ready" value={yesNo(selectedApplication.depositReady)} />
+                    <InfoLine label="Assigned Puppy" value={selectedPuppy?.displayName || "Not assigned"} />
+                  </div>
+
+                  <div className="mt-5 grid gap-3">
+                    <InfoBlock label="Matched Buyer" value={selectedApplication.matchedBuyer ? `${selectedApplication.matchedBuyer.displayName} / ${selectedApplication.matchedBuyer.email || "No email"}` : "No buyer linked yet."} />
+                    <InfoBlock label="Matched Puppy" value={selectedApplication.matchedPuppy ? [selectedApplication.matchedPuppy.displayName, selectedApplication.matchedPuppy.litterName, selectedApplication.matchedPuppy.dam, selectedApplication.matchedPuppy.sire].filter(Boolean).join(" / ") : "No puppy linked yet."} />
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <Link href="/admin/portal/users" className="rounded-2xl border border-[#e4d2be] bg-white px-4 py-3 text-sm font-semibold text-[#5d4330] transition hover:border-[#d4b48b]">Open Buyers</Link>
+                    <Link href="/admin/portal/puppies" className="rounded-2xl border border-[#e4d2be] bg-white px-4 py-3 text-sm font-semibold text-[#5d4330] transition hover:border-[#d4b48b]">Open Puppies</Link>
+                  </div>
+                </AdminPanel>
+
+                <AdminPanel
+                  title="Applicant Background"
+                  subtitle="Keep the household and experience notes visible while making the approval decision."
+                >
+                  <div className="grid gap-3">
+                    <InfoBlock label="Contact" value={[selectedApplication.displayName, selectedApplication.email || "No email", selectedApplication.phone || "No phone", selectedApplication.cityState || "No location"].join(" / ")} />
+                    <InfoBlock label="Household" value={selectedApplication.householdSummary} />
+                    <InfoBlock label="Experience" value={selectedApplication.experienceSummary} />
+                    <InfoBlock label="Questions" value={selectedApplication.questions || "No applicant questions on file."} multiline />
+                  </div>
+                </AdminPanel>
+
+                <AdminPanel
+                  title="Messages and History"
+                  subtitle="Recent portal messages stay attached to the case so review work does not feel disconnected from conversation history."
+                >
+                  {selectedApplication.messages.length ? (
+                    <div className="space-y-3">
+                      {selectedApplication.messages.map((message) => (
+                        <div key={message.id} className="rounded-[20px] border border-[#ead9c7] bg-[#fffaf4] px-4 py-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="text-sm font-semibold text-[#2f2218]">{message.subject || "Portal message"}</div>
+                              <div className="mt-1 text-xs text-[#8a6a49]">{fmtDate(message.created_at)} / {message.sender || "unknown sender"}</div>
+                            </div>
+                            <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${message.read_by_admin ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
+                              {message.read_by_admin ? "Reviewed" : "Unread"}
+                            </span>
+                          </div>
+                          <div className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[#73583f]">
+                            {snippet(message.message, "No message body available.")}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <AdminEmptyState
+                      title="No message history yet"
+                      description="Portal messages tied to this applicant will appear here automatically when they exist."
+                    />
+                  )}
+                </AdminPanel>
+              </>
+            ) : (
+              <AdminPanel title="Case Console" subtitle="Choose a queue row to open the active application review panel.">
+                <AdminEmptyState
+                  title="No application selected"
+                  description="Select an application from the queue to review details, assign a puppy, add internal notes, and convert the applicant to a buyer."
                 />
-              </div>
-
-              <button className="w-full rounded-[18px] bg-[#6b4d33] px-5 py-4 text-xs font-black uppercase tracking-[0.18em] text-white shadow-[0_14px_30px_rgba(88,63,37,0.18)] transition hover:bg-[#5b412c]">
-                Sign In
-              </button>
-
-              <Link
-                href="/admin/portal"
-                className="block text-center text-[11px] font-black uppercase tracking-[0.18em] text-[#a47946] hover:text-[#6b4d33]"
-              >
-                Back to Admin Portal
-              </Link>
-            </form>
+              </AdminPanel>
+            )}
           </div>
-        </div>
+        </section>
+      </div>
+    </AdminPageShell>
+  );
+}
+
+function InfoLine({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-[18px] border border-[#ead9c7] bg-white px-3 py-3">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">{label}</div>
+      <div className="mt-2 text-sm font-semibold text-[#2f2218]">{value}</div>
+    </div>
+  );
+}
+
+function InfoBlock({
+  label,
+  value,
+  multiline = false,
+}: {
+  label: string;
+  value: string;
+  multiline?: boolean;
+}) {
+  return (
+    <div className="rounded-[20px] border border-[#ead9c7] bg-[#fffaf4] px-4 py-4">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">{label}</div>
+      <div className={`mt-3 text-sm leading-6 text-[#73583f] ${multiline ? "whitespace-pre-wrap" : ""}`}>
+        {value}
       </div>
     </div>
   );

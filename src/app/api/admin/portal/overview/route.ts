@@ -95,6 +95,7 @@ export async function GET(req: Request) {
       formSubmissions,
       portalDocuments,
       paymentPlans,
+      transportRequests,
       unreadBuyerMessages,
       visitors24h,
       returningVisitors24h,
@@ -117,6 +118,12 @@ export async function GET(req: Request) {
       safeCount(() => service.from("portal_documents").select("*", { count: "exact", head: true })),
       safeCount(() =>
         service.from("buyers").select("*", { count: "exact", head: true }).eq("finance_enabled", true)
+      ),
+      safeCount(() =>
+        service
+          .from("portal_pickup_requests")
+          .select("*", { count: "exact", head: true })
+          .in("status", ["pending", "approved"])
       ),
       safeCount(() =>
         service.from("portal_messages").select("*", { count: "exact", head: true }).eq("read_by_admin", false)
@@ -268,6 +275,7 @@ export async function GET(req: Request) {
         payments,
         documents,
         paymentPlans,
+        transportRequests,
         users: authUsers.length,
         unreadBuyerMessages,
         visitors24h,
