@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { loadAdminLineageWorkspace } from "@/lib/admin-lineage";
-import { verifyOwner } from "@/lib/admin-api";
+import { describeRouteError, verifyOwner } from "@/lib/admin-api";
 
 export async function GET(req: Request) {
   try {
@@ -21,7 +21,7 @@ export async function GET(req: Request) {
     return NextResponse.json(
       {
         ok: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: describeRouteError(error, "Could not load the lineage workspace."),
       },
       { status: 500 }
     );
