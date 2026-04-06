@@ -166,6 +166,17 @@ async function refreshBuyerFallbackPuppy(
   if (updateError) throw updateError;
 }
 
+async function refreshBuyerFallbackPuppyBestEffort(
+  service: ReturnType<typeof createServiceSupabase>,
+  buyerId: number | null | undefined
+) {
+  try {
+    await refreshBuyerFallbackPuppy(service, buyerId);
+  } catch (error) {
+    console.warn("Skipping buyer fallback puppy sync after puppy save:", error);
+  }
+}
+
 async function getBuyerEmail(
   service: ReturnType<typeof createServiceSupabase>,
   buyerId: number | null
@@ -341,6 +352,26 @@ async function asPuppyPayload(
   };
 }
 
+function payloadForDatabaseWrite(
+  payload: Awaited<ReturnType<typeof asPuppyPayload>>
+) {
+  const next: Record<string, unknown> = { ...payload };
+
+  // When a puppy is linked to a litter, the litter relationship is the source of truth.
+  // Avoid writing the derived lineage fields directly so database-side lineage sync can
+  // populate them without recursive admin-side rewrite loops.
+  delete next.litter_name;
+  delete next.dam;
+  delete next.sire;
+
+  if (payload.litter_id != null) {
+    delete next.dam_id;
+    delete next.sire_id;
+  }
+
+  return next;
+}
+
 export async function GET(req: Request) {
   try {
     const owner = await verifyOwner(req);
@@ -471,15 +502,17 @@ export async function POST(req: Request) {
       );
     }
 
+    const dbPayload = payloadForDatabaseWrite(payload);
+
     const { data, error } = await service
       .from("puppies")
-      .insert(payload)
+      .insert(dbPayload)
       .select("id,buyer_id")
       .single<{ id: number; buyer_id?: number | null }>();
 
     if (error) throw error;
 
-    await refreshBuyerFallbackPuppy(service, payload.buyer_id);
+    await refreshBuyerFallbackPuppyBestEffort(service, payload.buyer_id);
     const saved = await getExistingPuppy(service, data.id);
     if (!saved) {
       throw new Error("The puppy was created, but the saved record could not be reloaded.");
@@ -542,11 +575,12 @@ export async function PATCH(req: Request) {
       );
     }
 
-    const { error } = await service.from("puppies").update(payload).eq("id", puppyId);
+    const dbPayload = payloadForDatabaseWrite(payload);
+    const { error } = await service.from("puppies").update(dbPayload).eq("id", puppyId);
     if (error) throw error;
 
-    await refreshBuyerFallbackPuppy(service, existing.buyer_id || null);
-    await refreshBuyerFallbackPuppy(service, payload.buyer_id || null);
+    await refreshBuyerFallbackPuppyBestEffort(service, existing.buyer_id || null);
+    await refreshBuyerFallbackPuppyBestEffort(service, payload.buyer_id || null);
     const saved = await getExistingPuppy(service, puppyId);
     if (!saved) {
       throw new Error("The puppy was updated, but the saved record could not be reloaded.");
