@@ -11,7 +11,27 @@ type BuyerRow = {
   full_name?: string | null;
   name?: string | null;
   email?: string | null;
+  phone?: string | null;
   status?: string | null;
+  notes?: string | null;
+  city?: string | null;
+  state?: string | null;
+  address_line1?: string | null;
+  address_line2?: string | null;
+  postal_code?: string | null;
+  sale_price?: number | null;
+  deposit_amount?: number | null;
+  delivery_option?: string | null;
+  delivery_date?: string | null;
+  delivery_location?: string | null;
+  delivery_miles?: number | null;
+  delivery_fee?: number | null;
+  expense_gas?: number | null;
+  expense_hotel?: number | null;
+  expense_tolls?: number | null;
+  expense_misc?: string | null;
+  user_id?: string | null;
+  portal_profile_photo_url?: string | null;
 };
 
 type BreedingDogRow = {
@@ -70,6 +90,13 @@ type PuppyRow = {
   notes?: string | null;
   microchip?: string | null;
   registration_no?: string | null;
+  tail_dock_cost?: number | null;
+  dewclaw_cost?: number | null;
+  vaccination_cost?: number | null;
+  microchip_cost?: number | null;
+  registration_cost?: number | null;
+  other_vet_cost?: number | null;
+  total_medical_cost?: number | null;
   w_1?: number | null;
   w_2?: number | null;
   w_3?: number | null;
@@ -80,6 +107,20 @@ type PuppyRow = {
   w_8?: number | null;
   created_at?: string | null;
   updated_at?: string | null;
+};
+
+type PickupRequestRow = {
+  id: number;
+  user_id?: string | null;
+  puppy_id?: number | null;
+  request_date?: string | null;
+  request_type?: string | null;
+  miles?: number | null;
+  location_text?: string | null;
+  address_text?: string | null;
+  notes?: string | null;
+  status?: string | null;
+  created_at?: string | null;
 };
 
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
@@ -208,7 +249,7 @@ async function getExistingPuppy(
   const { data, error } = await service
     .from("puppies")
     .select(
-      "id,buyer_id,litter_id,litter_name,dam_id,sire_id,call_name,puppy_name,name,sire,dam,sex,color,coat_type,coat,pattern,dob,registry,price,list_price,deposit,balance,status,birth_weight,current_weight,weight_unit,weight_date,image_url,photo_url,owner_email,description,notes,microchip,registration_no,w_1,w_2,w_3,w_4,w_5,w_6,w_7,w_8,created_at,updated_at"
+      "id,buyer_id,litter_id,litter_name,dam_id,sire_id,call_name,puppy_name,name,sire,dam,sex,color,coat_type,coat,pattern,dob,registry,price,list_price,deposit,balance,status,birth_weight,current_weight,weight_unit,weight_date,image_url,photo_url,owner_email,description,notes,microchip,registration_no,tail_dock_cost,dewclaw_cost,vaccination_cost,microchip_cost,registration_cost,other_vet_cost,total_medical_cost,w_1,w_2,w_3,w_4,w_5,w_6,w_7,w_8,created_at,updated_at"
     )
     .eq("id", puppyId)
     .maybeSingle<PuppyRow>();
@@ -349,6 +390,13 @@ async function asPuppyPayload(
     notes: stringField(body, "notes", existing?.notes),
     microchip: stringField(body, "microchip", existing?.microchip),
     registration_no: stringField(body, "registration_no", existing?.registration_no),
+    tail_dock_cost: numberField(body, "tail_dock_cost", existing?.tail_dock_cost),
+    dewclaw_cost: numberField(body, "dewclaw_cost", existing?.dewclaw_cost),
+    vaccination_cost: numberField(body, "vaccination_cost", existing?.vaccination_cost),
+    microchip_cost: numberField(body, "microchip_cost", existing?.microchip_cost),
+    registration_cost: numberField(body, "registration_cost", existing?.registration_cost),
+    other_vet_cost: numberField(body, "other_vet_cost", existing?.other_vet_cost),
+    total_medical_cost: numberField(body, "total_medical_cost", existing?.total_medical_cost),
     w_1: numberField(body, "w_1", existing?.w_1),
     w_2: numberField(body, "w_2", existing?.w_2),
     w_3: numberField(body, "w_3", existing?.w_3),
@@ -388,18 +436,20 @@ export async function GET(req: Request) {
     }
 
     const service = createServiceSupabase();
-    const [buyers, puppies, litters, breedingDogs] = await Promise.all([
+    const [buyers, puppies, litters, breedingDogs, pickupRequests] = await Promise.all([
       safeRows<BuyerRow>(
         service
           .from("buyers")
-          .select("id,full_name,name,email,status")
+          .select(
+            "id,user_id,full_name,name,email,phone,status,notes,city,state,address_line1,address_line2,postal_code,sale_price,deposit_amount,delivery_option,delivery_date,delivery_location,delivery_miles,delivery_fee,expense_gas,expense_hotel,expense_tolls,expense_misc,portal_profile_photo_url"
+          )
           .order("created_at", { ascending: false })
       ),
       safeRows<PuppyRow>(
         service
           .from("puppies")
           .select(
-            "id,buyer_id,litter_id,litter_name,dam_id,sire_id,call_name,puppy_name,name,sire,dam,sex,color,coat_type,coat,pattern,dob,registry,price,list_price,deposit,balance,status,birth_weight,current_weight,weight_unit,weight_date,image_url,photo_url,owner_email,description,notes,microchip,registration_no,w_1,w_2,w_3,w_4,w_5,w_6,w_7,w_8,created_at"
+            "id,buyer_id,litter_id,litter_name,dam_id,sire_id,call_name,puppy_name,name,sire,dam,sex,color,coat_type,coat,pattern,dob,registry,price,list_price,deposit,balance,status,birth_weight,current_weight,weight_unit,weight_date,image_url,photo_url,owner_email,description,notes,microchip,registration_no,tail_dock_cost,dewclaw_cost,vaccination_cost,microchip_cost,registration_cost,other_vet_cost,total_medical_cost,w_1,w_2,w_3,w_4,w_5,w_6,w_7,w_8,created_at"
           )
           .order("created_at", { ascending: false })
       ),
@@ -418,10 +468,26 @@ export async function GET(req: Request) {
           .order("dog_name", { ascending: true })
           .order("call_name", { ascending: true })
       ),
+      safeRows<PickupRequestRow>(
+        service
+          .from("portal_pickup_requests")
+          .select(
+            "id,user_id,puppy_id,request_date,request_type,miles,location_text,address_text,notes,status,created_at"
+          )
+          .order("created_at", { ascending: false })
+      ),
     ]);
 
     const buyerById = new Map<number, BuyerRow>();
     buyers.forEach((buyer) => buyerById.set(Number(buyer.id), buyer));
+    const pickupByUserId = new Map<string, PickupRequestRow>();
+    const pickupByPuppyId = new Map<number, PickupRequestRow>();
+    pickupRequests.forEach((request) => {
+      const userId = String(request.user_id || "").trim();
+      const puppyId = Number(request.puppy_id || 0);
+      if (userId && !pickupByUserId.has(userId)) pickupByUserId.set(userId, request);
+      if (puppyId && !pickupByPuppyId.has(puppyId)) pickupByPuppyId.set(puppyId, request);
+    });
     const litterById = new Map<number, (LitterRow & { displayName: string })>();
     litters.forEach((litter) => {
       litterById.set(Number(litter.id), {
@@ -470,6 +536,10 @@ export async function GET(req: Request) {
         const litter = litterById.get(Number(puppy.litter_id || 0)) || null;
         const damId = litter?.dam_id || puppy.dam_id || null;
         const sireId = litter?.sire_id || puppy.sire_id || null;
+        const transportRequest =
+          pickupByPuppyId.get(Number(puppy.id)) ||
+          (buyer?.user_id ? pickupByUserId.get(String(buyer.user_id)) : null) ||
+          null;
         return {
           ...puppy,
           litter_name: litter?.displayName || puppy.litter_name || null,
@@ -479,6 +549,7 @@ export async function GET(req: Request) {
           sire: (sireId ? dogNameById.get(String(sireId)) : null) || puppy.sire || null,
           buyerName: buyer ? firstValue(buyer.full_name, buyer.name, buyer.email, `Buyer #${buyer.id}`) : null,
           buyerEmail: buyer?.email || null,
+          transportRequest,
         };
       }),
       ownerEmail: owner.email || null,
