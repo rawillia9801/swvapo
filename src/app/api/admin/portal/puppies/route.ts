@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { createServiceSupabase, firstValue, verifyOwner } from "@/lib/admin-api";
+import {
+  createServiceSupabase,
+  describeRouteError,
+  firstValue,
+  verifyOwner,
+} from "@/lib/admin-api";
 
 type BuyerRow = {
   id: number;
@@ -330,6 +335,27 @@ export async function GET(req: Request) {
 
     const buyerById = new Map<number, BuyerRow>();
     buyers.forEach((buyer) => buyerById.set(Number(buyer.id), buyer));
+    const litterById = new Map<number, (LitterRow & { displayName: string })>();
+    litters.forEach((litter) => {
+      litterById.set(Number(litter.id), {
+        ...litter,
+        displayName: firstValue(litter.litter_name, litter.litter_code, `Litter #${litter.id}`),
+      });
+    });
+    const dogNameById = new Map<string, string>();
+    breedingDogs.forEach((dog) => {
+      dogNameById.set(
+        String(dog.id),
+        firstValue(
+          dog.dog_name,
+          dog.name,
+          dog.call_name,
+          dog.display_name,
+          dog.registered_name,
+          `Dog ${dog.id.slice(0, 8)}`
+        )
+      );
+    });
 
     return NextResponse.json({
       ok: true,
@@ -354,8 +380,16 @@ export async function GET(req: Request) {
       })),
       puppies: puppies.map((puppy) => {
         const buyer = buyerById.get(Number(puppy.buyer_id || 0));
+        const litter = litterById.get(Number(puppy.litter_id || 0)) || null;
+        const damId = litter?.dam_id || puppy.dam_id || null;
+        const sireId = litter?.sire_id || puppy.sire_id || null;
         return {
           ...puppy,
+          litter_name: litter?.displayName || puppy.litter_name || null,
+          dam_id: damId,
+          sire_id: sireId,
+          dam: (damId ? dogNameById.get(String(damId)) : null) || puppy.dam || null,
+          sire: (sireId ? dogNameById.get(String(sireId)) : null) || puppy.sire || null,
           buyerName: buyer ? firstValue(buyer.full_name, buyer.name, buyer.email, `Buyer #${buyer.id}`) : null,
           buyerEmail: buyer?.email || null,
         };
@@ -365,7 +399,7 @@ export async function GET(req: Request) {
   } catch (error) {
     console.error("Admin portal puppies route error:", error);
     return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "Unknown error" },
+      { ok: false, error: describeRouteError(error, "Could not load puppy records.") },
       { status: 500 }
     );
   }
@@ -407,7 +441,7 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("Admin portal puppies create error:", error);
     return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "Unknown error" },
+      { ok: false, error: describeRouteError(error, "Could not create the puppy.") },
       { status: 500 }
     );
   }
@@ -463,7 +497,7 @@ export async function PATCH(req: Request) {
   } catch (error) {
     console.error("Admin portal puppies update error:", error);
     return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "Unknown error" },
+      { ok: false, error: describeRouteError(error, "Could not update the puppy.") },
       { status: 500 }
     );
   }
@@ -501,7 +535,7 @@ export async function DELETE(req: Request) {
   } catch (error) {
     console.error("Admin portal puppies delete error:", error);
     return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "Unknown error" },
+      { ok: false, error: describeRouteError(error, "Could not delete the puppy.") },
       { status: 500 }
     );
   }

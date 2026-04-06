@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   createServiceSupabase,
+  describeRouteError,
   firstValue,
   listAllAuthUsers,
   normalizeEmail,
@@ -57,6 +58,21 @@ type PuppyRow = {
   deposit?: number | null;
   balance?: number | null;
   created_at?: string | null;
+};
+
+type LitterRow = {
+  id: number;
+  litter_code?: string | null;
+  litter_name?: string | null;
+  dam_id?: string | null;
+  sire_id?: string | null;
+};
+
+type BreedingDogRow = {
+  id: string;
+  dog_name?: string | null;
+  name?: string | null;
+  call_name?: string | null;
 };
 
 function asBuyerPayload(body: Record<string, unknown>) {
@@ -129,7 +145,8 @@ export async function GET(req: Request) {
         .filter(([email]) => !!email)
     );
 
-    const [buyersRes, applicationsRes, formsRes, puppiesRes] = await Promise.all([
+    const [buyersRes, applicationsRes, formsRes, puppiesRes, littersRes, dogsRes] =
+      await Promise.all([
       service
         .from("buyers")
         .select("id,user_id,puppy_id,full_name,name,email,phone,status,notes,city,state,created_at")
@@ -146,20 +163,55 @@ export async function GET(req: Request) {
         .from("puppies")
         .select("id,buyer_id,litter_id,litter_name,dam_id,sire_id,call_name,puppy_name,name,sire,dam,status,price,list_price,deposit,balance,created_at")
         .order("created_at", { ascending: false }),
+      service
+        .from("litters")
+        .select("id,litter_code,litter_name,dam_id,sire_id"),
+      service
+        .from("bp_dogs")
+        .select("id,dog_name,name,call_name"),
     ]);
 
     if (buyersRes.error) throw buyersRes.error;
     if (applicationsRes.error) throw applicationsRes.error;
     if (formsRes.error) throw formsRes.error;
     if (puppiesRes.error) throw puppiesRes.error;
+    if (littersRes.error) throw littersRes.error;
+    if (dogsRes.error) throw dogsRes.error;
 
     const buyers = (buyersRes.data || []) as BuyerRow[];
     const applications = (applicationsRes.data || []) as ApplicationRow[];
     const forms = (formsRes.data || []) as FormRow[];
     const puppies = (puppiesRes.data || []) as PuppyRow[];
+    const litters = (littersRes.data || []) as LitterRow[];
+    const dogs = (dogsRes.data || []) as BreedingDogRow[];
+
+    const litterById = new Map<number, LitterRow>();
+    litters.forEach((litter) => litterById.set(Number(litter.id), litter));
+    const dogNameById = new Map<string, string>();
+    dogs.forEach((dog) => {
+      dogNameById.set(
+        String(dog.id),
+        firstValue(dog.dog_name, dog.name, dog.call_name, `Dog ${String(dog.id).slice(0, 8)}`)
+      );
+    });
+
+    const resolvedPuppies = puppies.map((puppy) => {
+      const litter = litterById.get(Number(puppy.litter_id || 0)) || null;
+      const damId = litter?.dam_id || puppy.dam_id || null;
+      const sireId = litter?.sire_id || puppy.sire_id || null;
+      return {
+        ...puppy,
+        litter_name:
+          firstValue(litter?.litter_name, litter?.litter_code, puppy.litter_name) || null,
+        dam_id: damId,
+        sire_id: sireId,
+        dam: (damId ? dogNameById.get(String(damId)) : null) || puppy.dam || null,
+        sire: (sireId ? dogNameById.get(String(sireId)) : null) || puppy.sire || null,
+      };
+    });
 
     const puppiesByBuyerId = new Map<number, PuppyRow[]>();
-    puppies.forEach((puppy) => {
+    resolvedPuppies.forEach((puppy) => {
       const buyerId = Number(puppy.buyer_id || 0);
       if (!buyerId) return;
       const group = puppiesByBuyerId.get(buyerId) || [];
@@ -189,7 +241,7 @@ export async function GET(req: Request) {
       const linkedPuppies = [...(puppiesByBuyerId.get(buyer.id) || [])];
       const fallbackPuppyId = Number(buyer.puppy_id || 0);
       if (fallbackPuppyId && !linkedPuppies.some((puppy) => puppy.id === fallbackPuppyId)) {
-        const fallbackPuppy = puppies.find((puppy) => puppy.id === fallbackPuppyId);
+        const fallbackPuppy = resolvedPuppies.find((puppy) => puppy.id === fallbackPuppyId);
         if (fallbackPuppy) linkedPuppies.unshift(fallbackPuppy);
       }
 
@@ -218,7 +270,7 @@ export async function GET(req: Request) {
     return NextResponse.json({
       ok: true,
       buyers: records,
-      puppies: puppies.map((puppy) => ({
+      puppies: resolvedPuppies.map((puppy) => ({
         ...puppy,
         buyerName:
           buyers.find((buyer) => buyer.id === puppy.buyer_id)?.full_name ||
@@ -232,7 +284,7 @@ export async function GET(req: Request) {
     return NextResponse.json(
       {
         ok: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: describeRouteError(error, "Could not load buyer records."),
       },
       { status: 500 }
     );
@@ -274,7 +326,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         ok: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: describeRouteError(error, "Could not create the buyer."),
       },
       { status: 500 }
     );
@@ -311,7 +363,7 @@ export async function PATCH(req: Request) {
     return NextResponse.json(
       {
         ok: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: describeRouteError(error, "Could not update the buyer."),
       },
       { status: 500 }
     );

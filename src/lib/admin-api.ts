@@ -53,6 +53,28 @@ export function firstValue(...values: Array<string | null | undefined>) {
   return "";
 }
 
+export function describeRouteError(error: unknown, fallback = "Unexpected admin error.") {
+  if (error instanceof Error) {
+    return error.message || fallback;
+  }
+
+  if (error && typeof error === "object") {
+    const message =
+      "message" in error && typeof error.message === "string" ? error.message.trim() : "";
+    const details =
+      "details" in error && typeof error.details === "string" ? error.details.trim() : "";
+    const hint = "hint" in error && typeof error.hint === "string" ? error.hint.trim() : "";
+
+    return [message, details, hint].filter(Boolean).join(" ").trim() || fallback;
+  }
+
+  if (typeof error === "string" && error.trim()) {
+    return error.trim();
+  }
+
+  return fallback;
+}
+
 export async function listAllAuthUsers() {
   const admin = createServiceSupabase();
   const users: Array<{

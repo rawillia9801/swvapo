@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { createServiceSupabase, firstValue, verifyOwner } from "@/lib/admin-api";
+import {
+  createServiceSupabase,
+  describeRouteError,
+  firstValue,
+  verifyOwner,
+} from "@/lib/admin-api";
 
 function toDogId(value: unknown) {
   const text = String(value || "").trim();
@@ -20,44 +25,18 @@ function asLitterPayload(body: Record<string, unknown>) {
   };
 }
 
-async function syncLitterPuppies(
+async function loadSavedLitter(
   service: ReturnType<typeof createServiceSupabase>,
-  litterId: number,
-  payload: ReturnType<typeof asLitterPayload>
+  litterId: number
 ) {
-  const dogIds = [payload.dam_id, payload.sire_id].filter(Boolean) as string[];
-  const dogNameMap = new Map<string, string>();
-
-  if (dogIds.length) {
-    const { data, error } = await service
-      .from("bp_dogs")
-      .select("id,dog_name,name,call_name")
-      .in("id", dogIds);
-    if (error) throw error;
-    (data || []).forEach((row) =>
-      dogNameMap.set(
-        String(row.id),
-        firstValue(
-          row.dog_name as string | null,
-          row.name as string | null,
-          row.call_name as string | null
-        ) || "Unnamed"
-      )
-    );
-  }
-
-  const { error } = await service
-    .from("puppies")
-    .update({
-      dam_id: payload.dam_id,
-      sire_id: payload.sire_id,
-      litter_name: payload.litter_name || payload.litter_code,
-      dam: payload.dam_id ? dogNameMap.get(String(payload.dam_id)) || null : null,
-      sire: payload.sire_id ? dogNameMap.get(String(payload.sire_id)) || null : null,
-    })
-    .eq("litter_id", litterId);
+  const { data, error } = await service
+    .from("litters")
+    .select("id,litter_code,litter_name,dam_id,sire_id,whelp_date,status,notes,created_at,updated_at")
+    .eq("id", litterId)
+    .single();
 
   if (error) throw error;
+  return data;
 }
 
 export async function POST(req: Request) {
@@ -86,11 +65,14 @@ export async function POST(req: Request) {
 
     if (error) throw error;
 
-    await syncLitterPuppies(service, data.id, payload);
+    // Puppy lineage is resolved from the litter relationship on read, which keeps
+    // litter saves authoritative without triggering recursive puppy-row updates.
+    const litter = await loadSavedLitter(service, data.id);
 
     return NextResponse.json({
       ok: true,
       litterId: data.id,
+      litter,
       ownerEmail: owner.email || null,
     });
   } catch (error) {
@@ -98,7 +80,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         ok: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: describeRouteError(error, "Could not create the litter."),
       },
       { status: 500 }
     );
@@ -133,11 +115,14 @@ export async function PATCH(req: Request) {
     const { error } = await service.from("litters").update(payload).eq("id", litterId);
     if (error) throw error;
 
-    await syncLitterPuppies(service, litterId, payload);
+    // Puppy lineage is resolved from the litter relationship on read, which keeps
+    // litter saves authoritative without triggering recursive puppy-row updates.
+    const litter = await loadSavedLitter(service, litterId);
 
     return NextResponse.json({
       ok: true,
       litterId,
+      litter,
       ownerEmail: owner.email || null,
     });
   } catch (error) {
@@ -145,7 +130,7 @@ export async function PATCH(req: Request) {
     return NextResponse.json(
       {
         ok: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: describeRouteError(error, "Could not save the litter."),
       },
       { status: 500 }
     );

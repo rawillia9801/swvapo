@@ -125,10 +125,35 @@ async function loadLineageRows(service: SupabaseClient): Promise<LineageRows> {
 }
 
 export function buildAdminLineageWorkspace(rows: LineageRows): AdminLineageWorkspace {
+  const breedingDogs: EnrichedBreedingDog[] = rows.dogs
+    .filter((dog) => String(dog.id || "").trim())
+    .map((dog) => ({
+      ...dog,
+      displayName: resolveBreedingDogName(dog),
+      litters: [],
+      puppies: [],
+      summary: {
+        totalPuppies: 0,
+        availableCount: 0,
+        reservedCount: 0,
+        completedCount: 0,
+        soldCount: 0,
+        unsoldCount: 0,
+        totalRevenue: 0,
+        projectedRevenue: 0,
+        realizedRevenue: 0,
+        reservedRevenue: 0,
+        totalDeposits: 0,
+        totalPayments: 0,
+        averageSalePrice: 0,
+        totalLitters: 0,
+        reserveRate: 0,
+        completionRate: 0,
+      },
+    }));
+
   const dogsById = new Map(
-    rows.dogs
-      .filter((dog) => String(dog.id || "").trim())
-      .map((dog) => [String(dog.id), dog] as const)
+    breedingDogs.map((dog) => [String(dog.id), dog] as const)
   );
   const buyersById = new Map(rows.buyers.map((buyer) => [Number(buyer.id), buyer] as const));
   const buyersByPuppyId = new Map(
@@ -214,7 +239,7 @@ export function buildAdminLineageWorkspace(rows: LineageRows): AdminLineageWorks
     })
     .sort(compareLineageDates);
 
-  const dogs: EnrichedBreedingDog[] = rows.dogs
+  const dogs: EnrichedBreedingDog[] = breedingDogs
     .map((dog) => {
       const role = normalizeLineageRole(dog.role);
       const littersForDog = litters.filter((litter) =>
@@ -231,7 +256,6 @@ export function buildAdminLineageWorkspace(rows: LineageRows): AdminLineageWorks
 
       return {
         ...dog,
-        displayName: resolveBreedingDogName(dog),
         litters: littersForDog,
         puppies: puppiesForDog,
         summary: {
