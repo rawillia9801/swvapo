@@ -122,6 +122,7 @@ function num(value: unknown) {
 async function fetchPuppies(accessToken: string) {
   const response = await fetch("/api/admin/portal/puppies", {
     headers: { Authorization: `Bearer ${accessToken}` },
+    cache: "no-store",
   });
   if (!response.ok) return { puppies: [] as PuppyRecord[], buyers: [] as BuyerOption[], litters: [] as Litter[], breedingDogs: [] as BreedingDog[] };
   const payload = (await response.json()) as { puppies?: PuppyRecord[]; buyers?: BuyerOption[]; litters?: Litter[]; breedingDogs?: BreedingDog[] };
@@ -241,10 +242,17 @@ export default function AdminPortalPuppiesPage() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({ id: createMode ? undefined : selectedPuppy?.id, ...form }),
       });
-      const payload = (await response.json()) as { puppyId?: number; error?: string };
+      const payload = (await response.json()) as {
+        puppyId?: number;
+        error?: string;
+        saved?: { litter_id?: number | null; price?: number | null; status?: string | null };
+      };
       if (!response.ok) throw new Error(payload.error || "Could not save the puppy.");
       await refresh(payload.puppyId ? String(payload.puppyId) : selectedId, false);
-      setStatusText(createMode ? "Puppy created." : "Puppy updated.");
+      const litterText = payload.saved?.litter_id ? ` Linked to litter #${payload.saved.litter_id}.` : " No litter linked.";
+      const priceText =
+        payload.saved?.price != null ? ` Internal sale ${fmtMoney(num(payload.saved.price))}.` : "";
+      setStatusText(`${createMode ? "Puppy created." : "Puppy updated."}${litterText}${priceText}`);
     } catch (error) {
       setStatusText(error instanceof Error ? error.message : "Could not save the puppy.");
     } finally {

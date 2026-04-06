@@ -130,6 +130,7 @@ const populatePuppyForm = (puppy: AdminLineagePuppy | null): PuppyEditorForm =>
 async function requestLineageWorkspace(accessToken: string) {
   const response = await fetch("/api/admin/portal/lineage", {
     headers: { Authorization: `Bearer ${accessToken}` },
+    cache: "no-store",
   });
   const payload = (await response.json().catch(() => null)) as
     | { workspace?: AdminLineageWorkspace; error?: string }

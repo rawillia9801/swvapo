@@ -79,7 +79,10 @@ type PuppyRow = {
   w_7?: number | null;
   w_8?: number | null;
   created_at?: string | null;
+  updated_at?: string | null;
 };
+
+const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
 function toNumberOrNull(value: unknown) {
   const cleaned = String(value ?? "").replace(/[^0-9.-]/g, "").trim();
@@ -186,13 +189,40 @@ async function getExistingPuppy(
   const { data, error } = await service
     .from("puppies")
     .select(
-      "id,buyer_id,litter_id,litter_name,dam_id,sire_id,call_name,puppy_name,name,sire,dam,sex,color,coat_type,coat,pattern,dob,registry,price,list_price,deposit,balance,status,birth_weight,current_weight,weight_unit,weight_date,image_url,photo_url,owner_email,description,notes,microchip,registration_no,w_1,w_2,w_3,w_4,w_5,w_6,w_7,w_8,created_at"
+      "id,buyer_id,litter_id,litter_name,dam_id,sire_id,call_name,puppy_name,name,sire,dam,sex,color,coat_type,coat,pattern,dob,registry,price,list_price,deposit,balance,status,birth_weight,current_weight,weight_unit,weight_date,image_url,photo_url,owner_email,description,notes,microchip,registration_no,w_1,w_2,w_3,w_4,w_5,w_6,w_7,w_8,created_at,updated_at"
     )
     .eq("id", puppyId)
     .maybeSingle<PuppyRow>();
 
   if (error) throw error;
   return data || null;
+}
+
+function sameNullableNumber(left: number | null | undefined, right: number | null | undefined) {
+  const normalizedLeft = left == null ? null : Number(left);
+  const normalizedRight = right == null ? null : Number(right);
+  return normalizedLeft === normalizedRight;
+}
+
+function assertPersistedPuppyFields(
+  body: Record<string, unknown>,
+  payload: Awaited<ReturnType<typeof asPuppyPayload>>,
+  saved: PuppyRow
+) {
+  if (hasOwn(body, "litter_id") && !sameNullableNumber(saved.litter_id, payload.litter_id)) {
+    throw new Error("The puppy saved, but the litter assignment did not persist correctly.");
+  }
+
+  if (hasOwn(body, "price") && !sameNullableNumber(saved.price, payload.price)) {
+    throw new Error("The puppy saved, but the internal sale price did not persist correctly.");
+  }
+
+  if (
+    hasOwn(body, "status") &&
+    String(saved.status || "").trim().toLowerCase() !== String(payload.status || "").trim().toLowerCase()
+  ) {
+    throw new Error("The puppy saved, but the status did not persist correctly.");
+  }
 }
 
 async function resolveLineageFields(
@@ -413,7 +443,7 @@ export async function GET(req: Request) {
         };
       }),
       ownerEmail: owner.email || null,
-    });
+    }, { headers: NO_STORE_HEADERS });
   } catch (error) {
     console.error("Admin portal puppies route error:", error);
     return NextResponse.json(
@@ -450,10 +480,21 @@ export async function POST(req: Request) {
     if (error) throw error;
 
     await refreshBuyerFallbackPuppy(service, payload.buyer_id);
+    const saved = await getExistingPuppy(service, data.id);
+    if (!saved) {
+      throw new Error("The puppy was created, but the saved record could not be reloaded.");
+    }
+    assertPersistedPuppyFields(body, payload, saved);
 
     return NextResponse.json({
       ok: true,
       puppyId: data.id,
+      saved: {
+        id: saved.id,
+        litter_id: saved.litter_id ?? null,
+        price: saved.price ?? null,
+        status: saved.status ?? null,
+      },
       ownerEmail: owner.email || null,
     });
   } catch (error) {
@@ -506,10 +547,21 @@ export async function PATCH(req: Request) {
 
     await refreshBuyerFallbackPuppy(service, existing.buyer_id || null);
     await refreshBuyerFallbackPuppy(service, payload.buyer_id || null);
+    const saved = await getExistingPuppy(service, puppyId);
+    if (!saved) {
+      throw new Error("The puppy was updated, but the saved record could not be reloaded.");
+    }
+    assertPersistedPuppyFields(body, payload, saved);
 
     return NextResponse.json({
       ok: true,
       puppyId,
+      saved: {
+        id: saved.id,
+        litter_id: saved.litter_id ?? null,
+        price: saved.price ?? null,
+        status: saved.status ?? null,
+      },
       ownerEmail: owner.email || null,
     });
   } catch (error) {

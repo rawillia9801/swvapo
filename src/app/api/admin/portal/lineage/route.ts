@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { loadAdminLineageWorkspace } from "@/lib/admin-lineage";
 import { describeRouteError, verifyOwner } from "@/lib/admin-api";
 
+const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
+
 export async function GET(req: Request) {
   try {
     const owner = await verifyOwner(req);
@@ -15,7 +17,7 @@ export async function GET(req: Request) {
       ok: true,
       workspace,
       ownerEmail: owner.email || null,
-    });
+    }, { headers: NO_STORE_HEADERS });
   } catch (error) {
     console.error("Admin portal lineage route error:", error);
     return NextResponse.json(

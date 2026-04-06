@@ -186,13 +186,17 @@ export function buildAdminLineageWorkspace(rows: LineageRows): AdminLineageWorks
     const directBuyer = buyersById.get(Number(puppy.buyer_id || 0)) || null;
     const fallbackBuyer = buyersByPuppyId.get(Number(puppy.id || 0)) || null;
     const buyer = directBuyer || fallbackBuyer;
-    const directLitter = littersById.get(Number(puppy.litter_id || 0)) || null;
+    const persistedLitter = littersById.get(Number(puppy.litter_id || 0)) || null;
     const namedLitter =
-      directLitter ||
+      persistedLitter ||
       litterByName.get(String(puppy.litter_name || "").trim().toLowerCase()) ||
       null;
-    const damId = String(puppy.dam_id || namedLitter?.dam_id || "").trim();
-    const sireId = String(puppy.sire_id || namedLitter?.sire_id || "").trim();
+    const damId = String(
+      persistedLitter?.dam_id || puppy.dam_id || namedLitter?.dam_id || ""
+    ).trim();
+    const sireId = String(
+      persistedLitter?.sire_id || puppy.sire_id || namedLitter?.sire_id || ""
+    ).trim();
     const damProfile = damId ? dogsById.get(damId) || null : null;
     const sireProfile = sireId ? dogsById.get(sireId) || null : null;
     const payments = buyer ? paymentsByBuyerId.get(Number(buyer.id)) || [] : [];
@@ -221,8 +225,7 @@ export function buildAdminLineageWorkspace(rows: LineageRows): AdminLineageWorks
   const litters: EnrichedLitter[] = rows.litters
     .map((litter) => {
       const puppies = enrichedPuppies.filter(
-        (puppy) =>
-          Number(puppy.litter_id || puppy.litter?.id || 0) === Number(litter.id)
+        (puppy) => Number(puppy.litter_id || 0) === Number(litter.id)
       );
 
       return {
