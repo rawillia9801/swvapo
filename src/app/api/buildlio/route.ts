@@ -15,6 +15,11 @@ import {
   listZohoCustomers,
   listZohoPayments,
 } from "@/lib/zoho-payments";
+import {
+  buildPortalChargeReference,
+  describePortalCharge,
+  type PortalChargeKind,
+} from "@/lib/portal-payment-options";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -567,6 +572,7 @@ type ActionIntent =
       amount?: number | null;
       currency?: string | null;
       description?: string | null;
+      charge_kind?: PortalChargeKind | null;
       reference_id?: string | null;
       expires_at?: string | null;
       send_email?: boolean | null;
@@ -1511,7 +1517,7 @@ For "delete_puppy_weight", try to extract:
 weight_id, puppy_name, puppy_id, weight_date, weight_oz, weight_g
 
 For "create_zoho_payment_link", try to extract:
-buyer_name, buyer_email, customer_email, customer_phone, amount, currency, description, reference_id, expires_at, send_email, payment_methods
+buyer_name, buyer_email, customer_email, customer_phone, amount, currency, description, charge_kind, reference_id, expires_at, send_email, payment_methods
 
 Use null for missing fields.
 Use arrays when the user clearly listed multiple buyers or puppies to delete.
@@ -1531,6 +1537,102 @@ function parseMultiNameList(raw: string): string[] {
     .split(/\band\b|,|&/i)
     .map((value) => value.replace(/\bpupp(y|ies)\b/gi, "").trim())
     .filter(Boolean);
+}
+
+function inferZohoChargeKind(text: string | null | undefined): PortalChargeKind | null {
+  const normalized = String(text || "").trim().toLowerCase();
+  if (!normalized) return null;
+
+  if (/\bdeposit\b|\breservation\b/.test(normalized)) {
+    return "deposit";
+  }
+
+  if (/\btransport(?:ation)?\b|\bdelivery\b|\bshipping\b/.test(normalized)) {
+    return "transportation";
+  }
+
+  if (/\binstallment\b|\bmonthly\b|\bpayment plan\b|\bfinance\b/.test(normalized)) {
+    return "installment";
+  }
+
+  return null;
+}
+
+function defaultZohoChargeDescription(
+  chargeKind: PortalChargeKind | null,
+  recipientLabel: string | null | undefined
+) {
+  const recipient = String(recipientLabel || "").trim();
+
+  if (chargeKind === "deposit") {
+    return recipient ? `Deposit request for ${recipient}` : "Deposit requested by ChiChi";
+  }
+
+  if (chargeKind === "installment") {
+    return recipient
+      ? `Installment payment for ${recipient}`
+      : "Installment payment requested by ChiChi";
+  }
+
+  if (chargeKind === "transportation") {
+    return recipient
+      ? `Transportation fee for ${recipient}`
+      : "Transportation fee requested by ChiChi";
+  }
+
+  return recipient ? `Payment link for ${recipient}` : "Payment requested by ChiChi";
+}
+
+function extractListQueryForEntity(
+  normalizedText: string,
+  entity: Extract<ActionIntent, { action: "list_records" }>["entity"]
+) {
+  const directMatch =
+    normalizedText.match(/\b(?:for|named|called|with|about)\s+(.+)$/i)?.[1]?.trim() || null;
+
+  if (directMatch) {
+    return directMatch;
+  }
+
+  if (/\btoday\b/.test(normalizedText)) return "today";
+  if (/\byesterday\b/.test(normalizedText)) return "yesterday";
+  if (/\brecent\b|\blatest\b/.test(normalizedText)) return "recent";
+
+  let cleaned = normalizedText
+    .replace(/^(?:list|show|get|view|pull|find|display|open)\b/gi, "")
+    .replace(/\bexact\b|\bdetailed?\b|\bdetails\b|\btranscripts?\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (entity === "public_threads") {
+    cleaned = cleaned
+      .replace(/\bpublic\b|\bwebsite\b|\bchat\b|\bthreads?\b/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  if (entity === "public_messages") {
+    cleaned = cleaned
+      .replace(/\bpublic\b|\bwebsite\b|\bchat\b|\bmessages?\b/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  if (entity === "crm_followups") {
+    cleaned = cleaned
+      .replace(/\bcrm\b|\bfollow[- ]?ups?\b|\bdue\b/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  if (entity === "crm_leads") {
+    cleaned = cleaned
+      .replace(/\bcrm\b|\bwebsite\b|\bleads?\b/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  return cleaned || null;
 }
 
 function parseDirectActionIntent(userMessage: string): ActionIntent | null {
@@ -1568,9 +1670,12 @@ function parseDirectActionIntent(userMessage: string): ActionIntent | null {
     );
     const emailMatch = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
     const phoneMatch = text.match(/(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}/);
+    const chargeKind = inferZohoChargeKind(text);
     const explicitDescription =
       text.match(/\bdescription[:\s-]+(.+)$/i)?.[1]?.trim() ||
-      text.match(/\bfor\s+(deposit|remaining balance|balance|transport|reservation|application)\b/i)?.[0] ||
+      text.match(
+        /\bfor\s+(deposit|installment|monthly payment|remaining balance|balance|transport(?:ation)?|delivery|reservation|application)\b/i
+      )?.[1]?.trim() ||
       null;
     const explicitCurrency =
       text.match(/\b(USD|EUR|GBP|CAD|AUD)\b/i)?.[1]?.toUpperCase() ||
@@ -1599,9 +1704,8 @@ function parseDirectActionIntent(userMessage: string): ActionIntent | null {
       currency: explicitCurrency,
       description:
         explicitDescription ||
-        (buyerName || emailMatch?.[0]
-          ? `Payment link for ${buyerName || emailMatch?.[0]}`
-          : "Payment requested by ChiChi"),
+        defaultZohoChargeDescription(chargeKind, buyerName || emailMatch?.[0] || null),
+      charge_kind: chargeKind,
       reference_id: referenceId,
       expires_at: expiresAt,
       send_email: /\b(send|email|notify)\b/i.test(text) || !!emailMatch?.[0],
@@ -1683,15 +1787,7 @@ function parseDirectActionIntent(userMessage: string): ActionIntent | null {
   const countMatch = /^(?:how many|count|total)\b/.test(normalizedText);
 
   if (matchedEntity && (listMatch || countMatch)) {
-    const queryMatch =
-      normalizedText.match(/\b(?:for|named|called|with|about)\s+(.+)$/i)?.[1]?.trim() ||
-      (/\btoday\b/.test(normalizedText)
-        ? "today"
-        : /\byesterday\b/.test(normalizedText)
-          ? "yesterday"
-          : /\brecent\b/.test(normalizedText)
-            ? "recent"
-            : null);
+    const queryMatch = extractListQueryForEntity(normalizedText, matchedEntity);
 
     return {
       action: "list_records",
@@ -1977,6 +2073,37 @@ async function findBuyerByNameOrEmail(
   }
 
   return null;
+}
+
+async function findPuppyForBuyer(
+  admin: SupabaseClient,
+  buyer: BuyerRecord | null
+): Promise<PuppyRecord | null> {
+  if (!buyer?.id) return null;
+
+  if (buyer.puppy_id) {
+    const linkedPuppy = await findPuppyByNameOrId(admin, null, buyer.puppy_id);
+    if (linkedPuppy) return linkedPuppy;
+  }
+
+  const { data, error } = await admin
+    .from("puppies")
+    .select("*")
+    .eq("buyer_id", buyer.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<PuppyRecord>();
+
+  if (!error && data) return data;
+  return null;
+}
+
+function numbersRoughlyMatch(left: number | null | undefined, right: number | null | undefined) {
+  const a = Number(left || 0);
+  const b = Number(right || 0);
+
+  if (!(a > 0) || !(b > 0)) return false;
+  return Math.abs(a - b) < 0.01;
 }
 
 function paymentMatchesAmount(payment: PaymentRecord, amount?: number | null) {
@@ -3574,6 +3701,7 @@ async function executeListRecords(
 }
 
 async function executeCreateZohoPaymentLink(
+  req: Request,
   admin: SupabaseClient,
   intent: Extract<ActionIntent, { action: "create_zoho_payment_link" }>
 ) {
@@ -3597,8 +3725,25 @@ async function executeCreateZohoPaymentLink(
   const recipientEmail = intent.customer_email || intent.buyer_email || buyer?.email || null;
   const recipientPhone = intent.customer_phone || buyer?.phone || null;
   const amount = Number(intent.amount || 0);
+  const puppy = await findPuppyForBuyer(admin, buyer);
+  const puppyName = puppy?.call_name || puppy?.puppy_name || puppy?.name || "your puppy";
+  let chargeKind =
+    intent.charge_kind ||
+    inferZohoChargeKind([intent.description, intent.reference_id].filter(Boolean).join(" "));
+
+  if (!chargeKind && buyer) {
+    if (!buyer.deposit_date && numbersRoughlyMatch(amount, buyer.deposit_amount)) {
+      chargeKind = "deposit";
+    } else if (buyer.finance_enabled && numbersRoughlyMatch(amount, buyer.finance_monthly_amount)) {
+      chargeKind = "installment";
+    }
+  }
+
+  const rawDescription = String(intent.description || "").trim();
   const description =
-    String(intent.description || "").trim() || `Payment link for ${recipientName}`;
+    chargeKind && (!rawDescription || /^payment link for\b/i.test(rawDescription))
+      ? describePortalCharge(chargeKind, puppyName)
+      : rawDescription || defaultZohoChargeDescription(chargeKind, recipientName);
   const paymentMethods = Array.from(
     new Set(
       (intent.payment_methods || [])
@@ -3606,6 +3751,18 @@ async function executeCreateZohoPaymentLink(
         .filter((value) => value === "card" || value === "ach_debit" || value === "apple_pay")
     )
   );
+  const internalReferenceId =
+    !intent.reference_id && buyer?.id && chargeKind
+      ? buildPortalChargeReference({
+          buyerId: buyer.id,
+          puppyId: puppy?.id ?? buyer.puppy_id ?? null,
+          chargeKind,
+        })
+      : null;
+  const referenceId = intent.reference_id || internalReferenceId || null;
+  const returnUrl = internalReferenceId
+    ? new URL("/api/portal/payments/zoho/return", req.url).toString()
+    : null;
 
   const link = await createZohoPaymentLink({
     amount,
@@ -3613,8 +3770,9 @@ async function executeCreateZohoPaymentLink(
     email: recipientEmail,
     phone: recipientPhone,
     description,
-    referenceId: intent.reference_id || null,
+    referenceId,
     expiresAt: intent.expires_at || null,
+    returnUrl,
     sendEmail: intent.send_email ?? Boolean(recipientEmail),
     paymentMethods: paymentMethods.length ? (paymentMethods as ("ach_debit" | "apple_pay" | "card")[]) : null,
   });
@@ -3622,9 +3780,12 @@ async function executeCreateZohoPaymentLink(
   return [
     `Zoho payment link created for ${recipientName}.`,
     `Amount: $${amount.toFixed(2)} ${String(link.currency || intent.currency || "USD").toUpperCase()}`,
+    chargeKind ? `Charge type: ${chargeKind}` : null,
     `Status: ${link.status || "active"}`,
     `Link: ${link.url}`,
     link.expires_at ? `Expires: ${link.expires_at}` : null,
+    referenceId ? `Reference: ${referenceId}` : null,
+    internalReferenceId ? "Portal sync: enabled through the verified Zoho return flow." : null,
     recipientEmail
       ? intent.send_email ?? true
         ? `Customer email: ${recipientEmail} (notification enabled)`
@@ -4725,7 +4886,7 @@ export async function POST(req: Request) {
         } else if (intent.action === "delete_puppy_weight") {
           text = await executeDeletePuppyWeight(admin, intent);
         } else if (intent.action === "create_zoho_payment_link") {
-          text = await executeCreateZohoPaymentLink(admin, intent);
+          text = await executeCreateZohoPaymentLink(req, admin, intent);
         }
       }
     }

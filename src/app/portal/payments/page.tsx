@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { fmtDate } from "@/lib/utils";
+import { fmtDate, sb } from "@/lib/utils";
 import {
   findBuyerFeeCreditRecords,
   findBuyerPayments,
@@ -17,6 +17,7 @@ import {
 } from "@/lib/portal-data";
 import { usePortalSession } from "@/hooks/use-portal-session";
 import {
+  PortalButton,
   PortalEmptyState,
   PortalErrorState,
   PortalInfoTile,
@@ -29,6 +30,10 @@ import {
   PortalTable,
 } from "@/components/portal/luxury-shell";
 import { calculateTransportEstimate, type PickupRequestType } from "@/lib/transportation-pricing";
+import {
+  buildPortalPaymentChargeSnapshot,
+  type PortalChargeKind,
+} from "@/lib/portal-payment-options";
 
 const financingUrl =
   "https://forms.zoho.com/southwestvirginiachihuahua/form/PuppyFinancingApplication";
@@ -135,6 +140,19 @@ function adjustmentTypeLabel(adjustment: PortalFeeCreditRecord) {
   if (entryType === "transportation") return "Transportation Fee";
   if (entryType === "credit") return "Credit";
   return "Fee";
+}
+
+function paymentActionLabel(kind: PortalChargeKind) {
+  if (kind === "deposit") return "Pay Deposit";
+  if (kind === "transportation") return "Pay Transportation Fee";
+  return "Pay Installment";
+}
+
+function paymentSuccessText(kind: string | null) {
+  if (kind === "deposit") return "Deposit payment recorded successfully.";
+  if (kind === "transportation") return "Transportation payment recorded successfully.";
+  if (kind === "installment") return "Installment payment recorded successfully.";
+  return "Payment recorded successfully.";
 }
 
 function includesKeyword(value: string | null | undefined, keywords: string[]) {
@@ -252,13 +270,18 @@ function buildLedgerEntries(state: PaymentPageState): {
   const financeBaseTotal = planTotal !== null ? Math.max(principalAfterDeposit, planTotal) : principalAfterDeposit;
   const financeUplift = Math.max(0, financeBaseTotal - principalAfterDeposit);
   const nextDueDate = buyer?.finance_next_due_date || null;
-  const lastPostedPaymentDate = buyer?.finance_last_payment_date || payments[0]?.payment_date || null;
+  const lastPostedPaymentDate =
+    buyer?.finance_last_payment_date ||
+    payments[0]?.payment_date ||
+    buyer?.deposit_date ||
+    null;
   const puppyName = portalPuppyName(puppy);
   const hasLoggedDeposit = payments.some(
     (payment) =>
       paymentCountsTowardBalance(payment.status) &&
       includesKeyword(payment.payment_type, ["deposit"])
   );
+  const depositApplied = Boolean(buyer?.deposit_date) || hasLoggedDeposit;
   const hasLoggedTransportation = payments.some(
     (payment) =>
       paymentCountsTowardBalance(payment.status) &&
@@ -320,7 +343,7 @@ function buildLedgerEntries(state: PaymentPageState): {
     });
   }
 
-  if (depositAmount > 0 && !hasLoggedDeposit) {
+  if (depositAmount > 0 && depositApplied) {
     drafted.push({
       key: "deposit-paid",
       sortDate: firstDate(buyer?.deposit_date, accountOpenedDate),
@@ -511,6 +534,9 @@ export default function PortalPaymentsPage() {
   const [data, setData] = useState<PaymentPageState>(emptyState);
   const [loading, setLoading] = useState(true);
   const [errorText, setErrorText] = useState("");
+  const [paymentStatusText, setPaymentStatusText] = useState("");
+  const [paymentErrorText, setPaymentErrorText] = useState("");
+  const [payingKind, setPayingKind] = useState<PortalChargeKind | "">("");
 
   useEffect(() => {
     let active = true;
@@ -560,6 +586,88 @@ export default function PortalPaymentsPage() {
   }, [user]);
 
   const { entries, summary } = useMemo(() => buildLedgerEntries(data), [data]);
+  const paymentSnapshot = useMemo(() => buildPortalPaymentChargeSnapshot(data), [data]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get("zoho_payment");
+    const charge = params.get("charge");
+
+    if (result === "success") {
+      setPaymentStatusText(paymentSuccessText(charge));
+      setPaymentErrorText("");
+      return;
+    }
+
+    if (result === "invalid_signature") {
+      setPaymentStatusText("");
+      setPaymentErrorText("We could not verify the payment return. Please contact us if your payment was completed.");
+      return;
+    }
+
+    if (result === "not_completed") {
+      setPaymentStatusText("");
+      setPaymentErrorText("Your payment was not completed. You can try again whenever you are ready.");
+      return;
+    }
+
+    if (result === "invalid_reference" || result === "error") {
+      setPaymentStatusText("");
+      setPaymentErrorText("We could not finish syncing that payment automatically. Please contact us and we will verify it right away.");
+      return;
+    }
+  }, []);
+
+  async function startZohoPayment(chargeKind: PortalChargeKind) {
+    setPaymentStatusText("");
+    setPaymentErrorText("");
+    setPayingKind(chargeKind);
+
+    try {
+      const {
+        data: { session },
+      } = await sb.auth.getSession();
+      const accessToken = session?.access_token || "";
+
+      if (!accessToken) {
+        throw new Error("Please sign in again before creating a payment link.");
+      }
+
+      const response = await fetch("/api/portal/payments/zoho", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          charge_kind: chargeKind,
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        message?: string;
+        url?: string;
+      };
+
+      if (!response.ok || !payload.url) {
+        throw new Error(payload.message || "Could not create the payment link right now.");
+      }
+
+      window.location.assign(payload.url);
+    } catch (error) {
+      console.error("Could not start Zoho payment:", error);
+      setPaymentErrorText(
+        error instanceof Error
+          ? error.message
+          : "Could not create the payment link right now."
+      );
+    } finally {
+      setPayingKind("");
+    }
+  }
 
   if (sessionLoading || loading) {
     return <PortalLoadingState label="Loading payments..." />;
@@ -581,7 +689,7 @@ export default function PortalPaymentsPage() {
 
   const { puppy, payments } = data;
   const puppyName = portalPuppyName(puppy);
-  const paidInFull = summary.currentBalance <= 0 && entries.length > 0;
+  const paidInFull = paymentSnapshot.currentBalance <= 0 && entries.length > 0;
 
   return (
     <div className="space-y-6 pb-14">
@@ -597,7 +705,7 @@ export default function PortalPaymentsPage() {
                   Current Balance
                 </div>
                 <div className="mt-2 text-[2.25rem] font-semibold tracking-[-0.05em] text-[var(--portal-text)]">
-                  {toMoney(summary.currentBalance)}
+                  {toMoney(paymentSnapshot.currentBalance)}
                 </div>
               </div>
               <PortalStatusBadge
@@ -634,6 +742,18 @@ export default function PortalPaymentsPage() {
         }
       />
 
+      {paymentStatusText ? (
+        <div className="rounded-[20px] border border-[rgba(47,143,103,0.18)] bg-[linear-gradient(180deg,rgba(246,253,249,0.98)_0%,rgba(240,249,245,0.94)_100%)] px-4 py-3 text-sm font-semibold text-[#2f7657]">
+          {paymentStatusText}
+        </div>
+      ) : null}
+
+      {paymentErrorText ? (
+        <div className="rounded-[20px] border border-[rgba(194,84,114,0.16)] bg-[linear-gradient(180deg,rgba(255,249,251,0.98)_0%,rgba(255,242,246,0.94)_100%)] px-4 py-3 text-sm font-semibold text-[#aa4f68]">
+          {paymentErrorText}
+        </div>
+      ) : null}
+
       <PortalMetricGrid>
         <PortalMetricCard
           label="Purchase Price"
@@ -654,7 +774,7 @@ export default function PortalPaymentsPage() {
         />
         <PortalMetricCard
           label="Balance"
-          value={toMoney(summary.currentBalance)}
+          value={toMoney(paymentSnapshot.currentBalance)}
           detail="Automatically calculated from the itemized ledger below."
           accent="from-[rgba(113,198,164,0.16)] via-transparent to-[rgba(159,175,198,0.14)]"
         />
@@ -683,6 +803,97 @@ export default function PortalPaymentsPage() {
 
         <div className="space-y-6">
           <PortalPanel
+            title="Pay Online"
+            subtitle="Secure Zoho payment links are available for charges that are currently due on this account."
+          >
+            <div className="grid gap-4">
+              <PortalInfoTile
+                label="Deposit"
+                value={
+                  paymentSnapshot.depositDue > 0
+                    ? toMoney(paymentSnapshot.depositDue)
+                    : paymentSnapshot.depositPaid && paymentSnapshot.depositAmount > 0
+                      ? "Already paid"
+                      : "No deposit due"
+                }
+                detail={
+                  paymentSnapshot.depositDue > 0
+                    ? "Use Zoho Payments to complete the reservation deposit."
+                    : paymentSnapshot.depositPaid
+                      ? "Your deposit is already reflected on the account."
+                      : "There is no open deposit request on this account right now."
+                }
+                tone={paymentSnapshot.depositDue > 0 ? "warning" : paymentSnapshot.depositPaid ? "success" : "neutral"}
+              />
+              {paymentSnapshot.depositDue > 0 ? (
+                <PortalButton
+                  onClick={() => void startZohoPayment("deposit")}
+                  disabled={payingKind !== "" && payingKind !== "deposit"}
+                  className="w-full"
+                >
+                  {payingKind === "deposit" ? "Creating link..." : paymentActionLabel("deposit")}
+                </PortalButton>
+              ) : null}
+
+              <PortalInfoTile
+                label="Installment"
+                value={
+                  paymentSnapshot.installmentDue > 0
+                    ? toMoney(paymentSnapshot.installmentDue)
+                    : paymentSnapshot.financeEnabled
+                      ? "No installment due"
+                      : "No payment plan"
+                }
+                detail={
+                  paymentSnapshot.installmentDue > 0
+                    ? `Current scheduled installment amount for ${puppyName}.`
+                    : paymentSnapshot.financeEnabled
+                      ? "Your plan is active, but there is no installment due from the current account state."
+                      : "Installment payments appear here when a financing plan is active."
+                }
+                tone={paymentSnapshot.installmentDue > 0 ? "warning" : "neutral"}
+              />
+              {paymentSnapshot.installmentDue > 0 ? (
+                <PortalButton
+                  onClick={() => void startZohoPayment("installment")}
+                  disabled={payingKind !== "" && payingKind !== "installment"}
+                  className="w-full"
+                >
+                  {payingKind === "installment" ? "Creating link..." : paymentActionLabel("installment")}
+                </PortalButton>
+              ) : null}
+
+              <PortalInfoTile
+                label="Transportation"
+                value={
+                  paymentSnapshot.transportationDue > 0
+                    ? toMoney(paymentSnapshot.transportationDue)
+                    : paymentSnapshot.transportationChargeTotal > 0
+                      ? "Already covered"
+                      : "No transportation due"
+                }
+                detail={
+                  paymentSnapshot.transportationDue > 0
+                    ? "Use Zoho Payments to pay the transportation fee currently tied to your account."
+                    : paymentSnapshot.transportationChargeTotal > 0
+                      ? "Transportation charges are already covered by recorded payments."
+                      : "Transportation charges will appear here once they are added to your account."
+                }
+                tone={paymentSnapshot.transportationDue > 0 ? "warning" : paymentSnapshot.transportationChargeTotal > 0 ? "success" : "neutral"}
+              />
+              {paymentSnapshot.transportationDue > 0 ? (
+                <PortalButton
+                  onClick={() => void startZohoPayment("transportation")}
+                  disabled={payingKind !== "" && payingKind !== "transportation"}
+                  className="w-full"
+                >
+                  {payingKind === "transportation" ? "Creating link..." : paymentActionLabel("transportation")}
+                </PortalButton>
+              ) : null}
+            </div>
+          </PortalPanel>
+
+          <PortalPanel
             title="Financing Breakdown"
             subtitle="A clearer breakdown of the financed total, monthly terms, and how the remaining balance is being calculated."
           >
@@ -696,7 +907,12 @@ export default function PortalPaymentsPage() {
                 <PortalInfoTile
                   label="Deposit"
                   value={summary.depositAmount > 0 ? toMoney(summary.depositAmount) : "Not listed"}
-                  detail="Deposit already applied before financing and payments."
+                  detail={
+                    paymentSnapshot.depositDue > 0
+                      ? "Reservation deposit is still due and has not been recorded as paid yet."
+                      : "Deposit already applied before financing and payments."
+                  }
+                  tone={paymentSnapshot.depositDue > 0 ? "warning" : "neutral"}
                 />
                 <PortalInfoTile
                   label="Principal After Deposit"
@@ -753,9 +969,9 @@ export default function PortalPaymentsPage() {
                 />
                 <PortalInfoTile
                   label="Remaining Balance"
-                  value={toMoney(summary.currentBalance)}
+                  value={toMoney(paymentSnapshot.currentBalance)}
                   detail="Current account balance after charges, credits, and recorded payments."
-                  tone={summary.currentBalance > 0 ? "warning" : "success"}
+                  tone={paymentSnapshot.currentBalance > 0 ? "warning" : "success"}
                 />
               </div>
             ) : (
@@ -782,9 +998,14 @@ export default function PortalPaymentsPage() {
           >
             <div className="grid gap-4">
               <PortalInfoTile
-                label="Deposit Paid"
+                label={paymentSnapshot.depositDue > 0 ? "Deposit Due" : "Deposit"}
                 value={summary.depositAmount > 0 ? toMoney(summary.depositAmount) : "Not listed"}
-                detail="Deposit already credited to the account."
+                detail={
+                  paymentSnapshot.depositDue > 0
+                    ? "Reservation deposit requested but not yet recorded as paid."
+                    : "Deposit already credited to the account."
+                }
+                tone={paymentSnapshot.depositDue > 0 ? "warning" : "neutral"}
               />
               <PortalInfoTile
                 label="Transportation Fee"
@@ -811,7 +1032,7 @@ export default function PortalPaymentsPage() {
               />
               <PortalInfoTile
                 label="Account Status"
-                value={paidInFull ? "Paid in Full" : summary.currentBalance > 0 ? "Balance Open" : "No balance posted"}
+                value={paidInFull ? "Paid in Full" : paymentSnapshot.currentBalance > 0 ? "Balance Open" : "No balance posted"}
                 detail={
                   paidInFull
                     ? "Your current ledger shows no remaining balance."
