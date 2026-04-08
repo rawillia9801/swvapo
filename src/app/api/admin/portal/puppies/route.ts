@@ -396,7 +396,6 @@ async function asPuppyPayload(
     microchip_cost: numberField(body, "microchip_cost", existing?.microchip_cost),
     registration_cost: numberField(body, "registration_cost", existing?.registration_cost),
     other_vet_cost: numberField(body, "other_vet_cost", existing?.other_vet_cost),
-    total_medical_cost: numberField(body, "total_medical_cost", existing?.total_medical_cost),
     w_1: numberField(body, "w_1", existing?.w_1),
     w_2: numberField(body, "w_2", existing?.w_2),
     w_3: numberField(body, "w_3", existing?.w_3),
@@ -419,6 +418,7 @@ function payloadForDatabaseWrite(
   delete next.litter_name;
   delete next.dam;
   delete next.sire;
+  delete next.total_medical_cost;
 
   if (payload.litter_id != null) {
     delete next.dam_id;

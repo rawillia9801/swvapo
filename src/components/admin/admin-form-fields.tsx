@@ -47,6 +47,7 @@ export function AdminNumberInput({
   placeholder,
   min,
   step,
+  disabled = false,
 }: {
   label: string;
   value: string;
@@ -54,6 +55,7 @@ export function AdminNumberInput({
   placeholder?: string;
   min?: number;
   step?: number | string;
+  disabled?: boolean;
 }) {
   return (
     <label className={labelClassName()}>
@@ -66,7 +68,8 @@ export function AdminNumberInput({
         placeholder={placeholder}
         min={min}
         step={step}
-        className={fieldClassName()}
+        disabled={disabled}
+        className={`${fieldClassName()} disabled:cursor-not-allowed disabled:bg-[#f8f1e8] disabled:text-[#8a6a49]`}
       />
     </label>
   );
