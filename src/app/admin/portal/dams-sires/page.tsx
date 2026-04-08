@@ -7,8 +7,6 @@ import {
   AdminHeroPrimaryAction,
   AdminHeroSecondaryAction,
   AdminInfoTile,
-  AdminMetricCard,
-  AdminMetricGrid,
   AdminPageHero,
   AdminPageShell,
   AdminPanel,
@@ -270,7 +268,7 @@ export default function AdminPortalDamsSiresPage() {
                   setForm(emptyForm("dam"));
                   setStatusText("");
                 }}
-                className="inline-flex items-center rounded-2xl bg-[linear-gradient(135deg,#c88c52_0%,#a56733_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(159,99,49,0.22)] transition hover:-translate-y-0.5 hover:brightness-105"
+                className="inline-flex items-center rounded-2xl bg-[linear-gradient(90deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--portal-shadow-md)] transition hover:-translate-y-0.5"
               >
                 Add Breeding Dog
               </button>
@@ -294,31 +292,33 @@ export default function AdminPortalDamsSiresPage() {
           }
         />
 
-        <AdminMetricGrid>
-          <AdminMetricCard
-            label="Breeding Dogs"
-            value={String(workspace?.dogs.length || 0)}
-            detail="Lineage profiles tracked across dams and sires."
-          />
-          <AdminMetricCard
-            label="Litters"
-            value={String(workspace?.summary.totalLitters || 0)}
-            detail="All litter records connected back to breeding dog profiles."
-            accent="from-[#e7ddd3] via-[#c9b39a] to-[#8f6f53]"
-          />
-          <AdminMetricCard
-            label="Completed Revenue"
-            value={fmtMoney(workspace?.summary.realizedRevenue || 0)}
-            detail="Lifetime completed revenue preserved for lineage reporting."
-            accent="from-[#dfe8d8] via-[#c6d6ba] to-[#8aa07e]"
-          />
-          <AdminMetricCard
-            label="Projected Pipeline"
-            value={fmtMoney(workspace?.summary.projectedRevenue || 0)}
-            detail="Current available and reserved value linked back to breeding pairs."
-            accent="from-[#f0ddc5] via-[#d9b78e] to-[#be8650]"
-          />
-        </AdminMetricGrid>
+        <AdminPanel
+          title="Program Bench"
+          subtitle="The breeding program page should immediately show roster strength, litter output, and lifetime contribution."
+        >
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <AdminInfoTile
+              label="Breeding Roster"
+              value={String(workspace?.dogs.length || 0)}
+              detail={`${totalDams} dams and ${totalSires} sires currently tracked in the program.`}
+            />
+            <AdminInfoTile
+              label="Linked Litters"
+              value={String(workspace?.summary.totalLitters || 0)}
+              detail="Every litter connected back to parent profiles for cleaner lineage records."
+            />
+            <AdminInfoTile
+              label="Realized Contribution"
+              value={fmtMoney(workspace?.summary.realizedRevenue || 0)}
+              detail="Completed puppy revenue preserved as lifetime output across the breeding roster."
+            />
+            <AdminInfoTile
+              label="Open Pipeline"
+              value={fmtMoney(workspace?.summary.projectedRevenue || 0)}
+              detail="Current available and reserved value still working through the program."
+            />
+          </div>
+        </AdminPanel>
 
         <section className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.22fr)_430px]">
           <AdminPanel title="Breeding Directory" subtitle="Search by profile name, litter, puppy, color, coat, or notes.">
@@ -327,12 +327,12 @@ export default function AdminPortalDamsSiresPage() {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search dams, sires, litters, or puppies..."
-                className="w-full rounded-[16px] border border-[#e6d7c7] bg-[#fffdfa] px-3.5 py-2.5 text-sm text-[#33251a] outline-none transition focus:border-[#caa074] focus:ring-2 focus:ring-[#ead7c0]"
+                className="w-full rounded-[16px] border border-[var(--portal-border)] bg-white px-3.5 py-2.5 text-sm text-[var(--portal-text)] outline-none transition focus:border-[var(--portal-accent)] focus:ring-2 focus:ring-[rgba(90,142,245,0.14)]"
               />
               <select
                 value={roleFilter}
                 onChange={(event) => setRoleFilter(event.target.value)}
-                className="w-full rounded-[16px] border border-[#e6d7c7] bg-[#fffdfa] px-3.5 py-2.5 text-sm text-[#33251a] outline-none transition focus:border-[#caa074] focus:ring-2 focus:ring-[#ead7c0]"
+                className="w-full rounded-[16px] border border-[var(--portal-border)] bg-white px-3.5 py-2.5 text-sm text-[var(--portal-text)] outline-none transition focus:border-[var(--portal-accent)] focus:ring-2 focus:ring-[rgba(90,142,245,0.14)]"
               >
                 <option value="all">All roles</option>
                 <option value="dam">Dams</option>
@@ -341,9 +341,9 @@ export default function AdminPortalDamsSiresPage() {
             </div>
 
             {dogs.length ? (
-              <div className="overflow-hidden rounded-[24px] border border-[#ead9c7]">
+              <div className="overflow-hidden rounded-[24px] border border-[var(--portal-border)]">
                 <table className="min-w-full divide-y divide-[#eee1d2] text-sm">
-                  <thead className="bg-[#faf3ea] text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+                  <thead className="bg-[var(--portal-surface-muted)] text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
                     <tr>
                       <th className="px-4 py-3">Profile</th>
                       <th className="px-4 py-3">Output</th>
@@ -362,13 +362,13 @@ export default function AdminPortalDamsSiresPage() {
                             setSelectedId(String(dog.id));
                             setStatusText("");
                           }}
-                          className={`cursor-pointer transition hover:bg-[#fffaf4] ${
-                            active ? "bg-[#fff8ef]" : ""
+                          className={`cursor-pointer transition hover:bg-[var(--portal-surface-muted)] ${
+                            active ? "bg-[var(--portal-surface-muted)]" : ""
                           }`}
                         >
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
-                              <div className="font-semibold text-[#2f2218]">{dog.displayName}</div>
+                              <div className="font-semibold text-[var(--portal-text)]">{dog.displayName}</div>
                               <span
                                 className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(
                                   dog.role || "active"
@@ -377,21 +377,21 @@ export default function AdminPortalDamsSiresPage() {
                                 {roleLabel(dog.role)}
                               </span>
                             </div>
-                            <div className="mt-1 text-xs text-[#8a6a49]">
+                            <div className="mt-1 text-xs text-[var(--portal-text-soft)]">
                               {dog.status || "active"} • {dog.color || "Color not set"} • {dog.coat || "Coat not set"}
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-[#73583f]">
+                          <td className="px-4 py-3 text-[var(--portal-text-soft)]">
                             {dog.summary.totalLitters} litters • {dog.summary.totalPuppies} puppies
                           </td>
-                          <td className="px-4 py-3 text-[#73583f]">
+                          <td className="px-4 py-3 text-[var(--portal-text-soft)]">
                             {Math.round(dog.summary.completionRate * 100)}%
                           </td>
                           <td className="px-4 py-3">
-                            <div className="font-semibold text-[#2f2218]">
+                            <div className="font-semibold text-[var(--portal-text)]">
                               {fmtMoney(dog.summary.realizedRevenue)}
                             </div>
-                            <div className="mt-1 text-xs text-[#8a6a49]">
+                            <div className="mt-1 text-xs text-[var(--portal-text-soft)]">
                               {fmtMoney(dog.summary.projectedRevenue)} projected
                             </div>
                           </td>
@@ -419,7 +419,7 @@ export default function AdminPortalDamsSiresPage() {
               }
             >
               {statusText ? (
-                <div className="mb-4 rounded-[18px] border border-[#ead9c7] bg-[#fff9f2] px-4 py-3 text-sm font-semibold text-[#7a5a3a]">
+                <div className="mb-4 rounded-[18px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm font-semibold text-[var(--portal-text-soft)]">
                   {statusText}
                 </div>
               ) : null}
@@ -548,7 +548,7 @@ export default function AdminPortalDamsSiresPage() {
                     setForm(populateForm(selectedDog));
                     setStatusText("");
                   }}
-                  className="rounded-2xl border border-[#e4d2be] bg-white px-5 py-3 text-sm font-semibold text-[#5d4330] transition hover:border-[#d4b48b]"
+                  className="rounded-2xl border border-[var(--portal-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]"
                 >
                   Reset
                 </button>
@@ -562,7 +562,7 @@ export default function AdminPortalDamsSiresPage() {
               {selectedDog ? (
                 <div className="space-y-4">
                   <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
                       Recent Litters
                     </div>
                     <div className="mt-3 space-y-3">
@@ -570,12 +570,12 @@ export default function AdminPortalDamsSiresPage() {
                         selectedDog.litters.slice(0, 4).map((litter) => (
                           <div
                             key={`${selectedDog.id}-${litter.id}`}
-                            className="rounded-[20px] border border-[#ead9c7] bg-[#fffaf4] px-4 py-3"
+                            className="rounded-[20px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3"
                           >
-                            <div className="text-sm font-semibold text-[#2f2218]">
+                            <div className="text-sm font-semibold text-[var(--portal-text)]">
                               {litter.displayName}
                             </div>
-                            <div className="mt-1 text-xs text-[#8a6a49]">
+                            <div className="mt-1 text-xs text-[var(--portal-text-soft)]">
                               {litter.whelp_date ? fmtDate(litter.whelp_date) : "No whelp date"} •{" "}
                               {litter.status || "pending"}
                             </div>
@@ -591,7 +591,7 @@ export default function AdminPortalDamsSiresPage() {
                   </div>
 
                   <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
                       Linked Puppies
                     </div>
                     <div className="mt-3 space-y-3">
@@ -599,14 +599,14 @@ export default function AdminPortalDamsSiresPage() {
                         selectedDog.puppies.slice(0, 6).map((puppy) => (
                           <div
                             key={`${selectedDog.id}-puppy-${puppy.id}`}
-                            className="rounded-[20px] border border-[#ead9c7] bg-white px-4 py-3"
+                            className="rounded-[20px] border border-[var(--portal-border)] bg-white px-4 py-3"
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div>
-                                <div className="text-sm font-semibold text-[#2f2218]">
+                                <div className="text-sm font-semibold text-[var(--portal-text)]">
                                   {puppy.displayName}
                                 </div>
-                                <div className="mt-1 text-xs text-[#8a6a49]">
+                                <div className="mt-1 text-xs text-[var(--portal-text-soft)]">
                                   {puppy.buyer?.full_name || puppy.buyer?.name || puppy.owner_email || "No buyer assigned"}
                                 </div>
                               </div>
@@ -632,13 +632,13 @@ export default function AdminPortalDamsSiresPage() {
                   <div className="flex flex-wrap gap-3">
                     <Link
                       href="/admin/portal/litters"
-                      className="rounded-2xl border border-[#e4d2be] bg-white px-4 py-3 text-sm font-semibold text-[#5d4330] transition hover:border-[#d4b48b]"
+                      className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]"
                     >
                       Open Litters
                     </Link>
                     <Link
                       href="/admin/portal/puppies"
-                      className="rounded-2xl border border-[#e4d2be] bg-white px-4 py-3 text-sm font-semibold text-[#5d4330] transition hover:border-[#d4b48b]"
+                      className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]"
                     >
                       Open Puppies
                     </Link>
@@ -657,3 +657,4 @@ export default function AdminPortalDamsSiresPage() {
     </AdminPageShell>
   );
 }
+

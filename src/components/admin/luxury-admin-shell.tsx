@@ -18,6 +18,10 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
+import {
+  portalButtonPrimaryClass,
+  portalButtonSecondaryClass,
+} from "@/components/portal/luxury-shell";
 import { getPortalAdminEmails } from "@/lib/portal-admin";
 
 type AdminNavItem = {
@@ -39,72 +43,72 @@ const ADMIN_NAV: AdminNavSection[] = [
       {
         href: "/admin/portal",
         label: "Overview",
-        helper: "Queues, revenue, activity",
+        helper: "Kennel health, priorities, workload",
         icon: <LayoutDashboard className="h-4 w-4" />,
       },
       {
         href: "/admin/portal/users",
         label: "Buyers",
-        helper: "Accounts, assignments, balances",
+        helper: "Families, placements, balances",
         icon: <Users className="h-4 w-4" />,
       },
       {
         href: "/admin/portal/applications",
         label: "Applications",
-        helper: "Queue, review, conversion",
+        helper: "Intake, review, approvals",
         icon: <FileCheck2 className="h-4 w-4" />,
       },
       {
         href: "/admin/portal/messages",
         label: "Messages",
-        helper: "Buyer inbox and follow-up",
+        helper: "Inbox, replies, follow-up",
         icon: <MessageSquareText className="h-4 w-4" />,
       },
       {
         href: "/admin/portal/documents",
         label: "Documents",
-        helper: "Forms and signed files",
+        helper: "Forms, uploads, contracts",
         icon: <Files className="h-4 w-4" />,
       },
       {
         href: "/admin/portal/settings",
         label: "Settings",
-        helper: "System rules and config",
+        helper: "Rules, ownership, safeguards",
         icon: <Settings2 className="h-4 w-4" />,
       },
     ],
   },
   {
-    label: "Breeding",
+    label: "Breeding Hub",
     items: [
       {
         href: "/admin/portal/puppies",
         label: "Puppies",
-        helper: "Listings, lineage, assignments",
+        helper: "Profiles, placement, care",
         icon: <PawPrint className="h-4 w-4" />,
       },
       {
         href: "/admin/portal/litters",
         label: "Litters",
-        helper: "Lineage, counts, revenue",
+        helper: "Pairings, whelping, outcomes",
         icon: <Layers3 className="h-4 w-4" />,
       },
       {
         href: "/admin/portal/dams-sires",
         label: "Breeding Program",
-        helper: "Dams, sires, lifetime output",
+        helper: "Dams, sires, output history",
         icon: <Dog className="h-4 w-4" />,
       },
       {
         href: "/admin/portal/puppy-financing",
         label: "Puppy Financing",
-        helper: "Per-puppy pricing and plans",
+        helper: "Per-puppy plans and balances",
         icon: <CreditCard className="h-4 w-4" />,
       },
       {
         href: "/admin/portal/payments",
         label: "Payments",
-        helper: "Buyer revenue and balances",
+        helper: "Buyer ledgers and cash flow",
         icon: <CreditCard className="h-4 w-4" />,
       },
       {
@@ -121,12 +125,24 @@ const ADMIN_NAV: AdminNavSection[] = [
       {
         href: "/admin/portal/assistant",
         label: "ChiChi Admin",
-        helper: "Natural-language updates",
+        helper: "Owner-side command console",
         icon: <Sparkles className="h-4 w-4" />,
       },
     ],
   },
 ];
+
+const adminPrimaryButtonClass = `${portalButtonPrimaryClass} shadow-[var(--portal-shadow-md)]`;
+const adminSecondaryButtonClass = `${portalButtonSecondaryClass} shadow-[var(--portal-shadow-sm)]`;
+
+function navItemClass(active: boolean) {
+  return [
+    "group flex w-full items-start justify-between gap-3 rounded-[1.15rem] border px-3.5 py-3 transition-all duration-200",
+    active
+      ? "border-transparent bg-[linear-gradient(90deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] text-white shadow-[var(--portal-shadow-md)]"
+      : "border-transparent bg-transparent text-[var(--portal-text-soft)] hover:border-[var(--portal-border)] hover:bg-white hover:text-[var(--portal-text)]",
+  ].join(" ");
+}
 
 export function AdminPageShell({
   children,
@@ -147,7 +163,7 @@ export function AdminPageShell({
       } = {
     href: pathname || "/admin/portal",
     label: "Admin Workspace",
-    helper: "Internal breeder operations",
+    helper: "Owner-only breeding operations",
     icon: <LayoutDashboard className="h-4 w-4" />,
     section: "Operations",
   };
@@ -174,112 +190,145 @@ export function AdminPageShell({
   }).format(new Date());
 
   return (
-    <div className="min-h-screen bg-[#f6f0e8] text-[#2d2117]">
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(214,184,146,0.14),transparent_22%),radial-gradient(circle_at_top_right,rgba(247,239,229,0.88),transparent_30%),linear-gradient(180deg,#fbf8f3_0%,#f2eadf_100%)]">
-        <div className="mx-auto grid min-h-screen w-full max-w-[1880px] grid-cols-1 xl:grid-cols-[300px_minmax(0,1fr)]">
-          <aside className="border-b border-[#e5d4c2] bg-[linear-gradient(180deg,#fffdfb_0%,#f4ecdf_100%)] px-5 py-5 xl:sticky xl:top-0 xl:h-screen xl:overflow-y-auto xl:border-b-0 xl:border-r">
-            <div className="rounded-[28px] border border-[#e7d7c6] bg-white/92 p-5 shadow-[0_22px_58px_rgba(106,76,45,0.09)] backdrop-blur-sm">
-              <div className="inline-flex rounded-full border border-[#ead8c1] bg-[#fff8ef] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#9e7446]">
-                Breeder Ops
+    <div className="min-h-screen bg-[var(--portal-bg)] text-[var(--portal-text)]">
+      <div className="grid min-h-screen lg:grid-cols-[312px_minmax(0,1fr)] xl:grid-cols-[328px_minmax(0,1fr)]">
+        <aside className="hidden border-r border-[var(--portal-border)] bg-white/70 px-4 py-4 backdrop-blur-sm lg:block">
+          <div className="sticky top-4 flex h-[calc(100vh-2rem)] flex-col gap-4">
+            <div className="premium-card rounded-[1.75rem] p-5">
+              <div className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-violet-700">
+                Breeding Hub
               </div>
-              <h1 className="mt-4 font-serif text-[26px] font-bold leading-tight text-[#2f2218] [font-family:var(--font-merriweather)]">
-                Southwest Virginia Chihuahua
-              </h1>
-              <p className="mt-3 text-sm leading-6 text-[#72553c]">
-                Internal breeder operations for lineage, applications, puppy sales, payments, and post-match follow-up.
+              <div className="mt-5 flex items-center gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[1rem] bg-[linear-gradient(90deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] text-white shadow-[var(--portal-shadow-md)]">
+                  <PawPrint className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-lg font-semibold text-[var(--portal-text)] [font-family:var(--font-merriweather)]">
+                    Southwest Virginia Chihuahua
+                  </div>
+                  <div className="mt-1 text-sm text-[var(--portal-text-soft)]">
+                    Owner operations portal
+                  </div>
+                </div>
+              </div>
+              <p className="mt-4 text-sm leading-6 text-[var(--portal-text-soft)]">
+                Buyer placement, breeding program records, paperwork, finances, transport, and
+                owner messaging now share one cohesive admin shell.
               </p>
             </div>
 
-            <div className="mt-5 space-y-5">
-              {ADMIN_NAV.map((section) => (
-                <div key={section.label}>
-                  <div className="px-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-[#9c7043]">
-                    {section.label}
-                  </div>
-                  <nav className="mt-2 space-y-2">
-                    {section.items.map((item) => {
-                      const active =
-                        pathname === item.href ||
-                        (item.href !== "/admin/portal" && pathname?.startsWith(item.href));
+            <div className="premium-card min-h-0 flex-1 rounded-[1.75rem] p-4">
+              <div className="h-full overflow-y-auto pr-1">
+                <div className="space-y-5">
+                  {ADMIN_NAV.map((section) => (
+                    <div key={section.label}>
+                      <div className="px-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+                        {section.label}
+                      </div>
+                      <nav className="mt-2 space-y-1.5">
+                        {section.items.map((item) => {
+                          const active =
+                            pathname === item.href ||
+                            (item.href !== "/admin/portal" && pathname?.startsWith(item.href));
 
-                      return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          className={[
-                            "group flex items-start gap-3 rounded-[20px] border px-4 py-3.5 transition",
-                            active
-                              ? "border-[#cfab84] bg-white shadow-[0_12px_30px_rgba(106,76,45,0.08)]"
-                              : "border-[#ead9c7] bg-white/72 hover:border-[#d8b48b] hover:bg-white",
-                          ].join(" ")}
-                        >
-                          <div
-                            className={[
-                              "mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border text-[#9a7143]",
-                              active
-                                ? "border-[#e2cfba] bg-[#fff8ef]"
-                                : "border-[#ead9c7] bg-[#fbf5ed]",
-                            ].join(" ")}
-                          >
-                            {item.icon}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="text-sm font-semibold text-[#2f2218]">{item.label}</div>
-                            <div className="mt-1 text-xs leading-5 text-[#8a6a49]">{item.helper}</div>
-                          </div>
-                          <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-[#c2a27f] opacity-0 transition group-hover:opacity-100" />
-                        </Link>
-                      );
-                    })}
-                  </nav>
+                          return (
+                            <Link key={item.href} href={item.href} className={navItemClass(active)}>
+                              <span className="flex min-w-0 items-start gap-3">
+                                <span
+                                  className={[
+                                    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[0.95rem] text-sm",
+                                    active
+                                      ? "bg-white/16 text-white"
+                                      : "bg-[var(--portal-surface-muted)] text-[var(--portal-text-muted)] group-hover:bg-white group-hover:text-[var(--portal-accent)]",
+                                  ].join(" ")}
+                                >
+                                  {item.icon}
+                                </span>
+                                <span className="min-w-0">
+                                  <span className="block truncate text-sm font-semibold">
+                                    {item.label}
+                                  </span>
+                                  <span
+                                    className={[
+                                      "mt-1 block text-xs leading-5",
+                                      active ? "text-white/76" : "text-[var(--portal-text-soft)]",
+                                    ].join(" ")}
+                                  >
+                                    {item.helper}
+                                  </span>
+                                </span>
+                              </span>
+                              <ChevronRight
+                                className={[
+                                  "mt-1 h-4 w-4 shrink-0 transition",
+                                  active
+                                    ? "text-white/72"
+                                    : "text-[var(--portal-text-muted)] opacity-0 group-hover:translate-x-0.5 group-hover:opacity-100",
+                                ].join(" ")}
+                              />
+                            </Link>
+                          );
+                        })}
+                      </nav>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
             </div>
 
-            <div className="mt-5 rounded-[24px] border border-[#ead9c7] bg-white/88 p-5 shadow-[0_16px_40px_rgba(106,76,45,0.07)]">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#a47946]">
-                Approved Owner Emails
+            <div className="premium-card rounded-[1.75rem] p-4">
+              <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                Approved Owners
               </div>
-              <div className="mt-3 space-y-2 text-sm font-semibold text-[#2f2218]">
+              <div className="mt-3 flex flex-wrap gap-2">
                 {getPortalAdminEmails().map((email) => (
                   <div
                     key={email}
-                    className="rounded-[18px] border border-[#ead9c7] bg-[#fff9f2] px-3 py-2"
+                    className="rounded-full border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-3 py-1.5 text-xs font-semibold text-[var(--portal-text-soft)]"
                   >
                     {email}
                   </div>
                 ))}
               </div>
             </div>
-          </aside>
+          </div>
+        </aside>
 
-          <section className="min-w-0 px-4 py-5 md:px-6 md:py-6 xl:px-7 xl:py-7">
-            <div className="mb-4 rounded-[24px] border border-[#ead8c4] bg-white/84 px-5 py-4 shadow-[0_12px_34px_rgba(106,76,45,0.06)] backdrop-blur-sm">
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                <div>
-                  <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9c7043]">
-                    <span>{currentItem.section}</span>
-                    <ChevronRight className="h-3.5 w-3.5" />
-                    <span>{currentItem.label}</span>
+        <div className="min-w-0">
+          <main className="min-h-screen px-4 py-5 md:px-6 md:py-6 xl:px-8 xl:py-8">
+            <div className="mx-auto w-full max-w-[1480px]">
+              <div className="premium-card mb-4 rounded-[1.5rem] px-5 py-4 md:px-6">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                      <span>{currentItem.section}</span>
+                      <ChevronRight className="h-3.5 w-3.5" />
+                      <span>{currentItem.label}</span>
+                    </div>
+                    <div className="mt-2 text-[1.65rem] font-semibold tracking-[-0.04em] text-[var(--portal-text)] [font-family:var(--font-merriweather)]">
+                      {currentItem.label}
+                    </div>
+                    <p className="mt-1 text-sm text-[var(--portal-text-soft)]">
+                      {currentItem.helper}
+                    </p>
                   </div>
-                  <div className="mt-2 text-xl font-semibold text-[#2f2218]">{currentItem.label}</div>
-                  <div className="mt-1 text-sm text-[#73583f]">{currentItem.helper}</div>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="inline-flex rounded-full border border-[#ead9c7] bg-[#fffaf4] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8e6640]">
-                    Owner Workspace
-                  </div>
-                  <div className="inline-flex rounded-full border border-[#ead9c7] bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8e6640]">
-                    {dateLabel}
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="inline-flex rounded-full border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-soft)]">
+                      Owner Workspace
+                    </div>
+                    <div className="inline-flex rounded-full border border-[var(--portal-border)] bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-soft)]">
+                      {dateLabel}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div className="space-y-4">{children}</div>
-          </section>
+              <div className="space-y-4">{children}</div>
+            </div>
+          </main>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
@@ -298,19 +347,22 @@ export function AdminPageHero({
   aside?: React.ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-[28px] border border-[#ead9c7] bg-[radial-gradient(circle_at_top_left,#fff8f0_0%,#fffdfa_42%,#f3ebdf_100%)] p-5 shadow-[0_18px_44px_rgba(106,76,45,0.08)] md:p-6">
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_320px]">
+    <section className="hero-glow relative overflow-hidden rounded-[1.75rem] border border-[var(--portal-border)] px-6 py-7 shadow-[var(--portal-shadow-md)] md:px-8 md:py-8 xl:px-10">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(240,67,162,0.12),transparent_28%)]" />
+      <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_320px] xl:items-start">
         <div className="max-w-4xl">
-          <span className="inline-flex rounded-full border border-[#ead8c1] bg-white/92 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#9e7446]">
+          <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-violet-700 shadow-sm">
             {eyebrow}
           </span>
-          <h1 className="mt-4 max-w-3xl font-serif text-3xl font-bold leading-tight text-[#2f2218] [font-family:var(--font-merriweather)] md:text-[42px]">
+          <h1 className="mt-5 max-w-3xl text-4xl font-semibold leading-[1.05] tracking-[-0.05em] text-[var(--portal-text)] [font-family:var(--font-merriweather)] md:text-5xl">
             {title}
           </h1>
-          <p className="mt-3 max-w-2xl text-[15px] leading-7 text-[#72553c]">{description}</p>
-          {actions ? <div className="mt-5 flex flex-wrap gap-3">{actions}</div> : null}
+          <p className="mt-4 max-w-3xl text-[15px] leading-7 text-[var(--portal-text-soft)] md:text-base">
+            {description}
+          </p>
+          {actions ? <div className="mt-7 flex flex-wrap gap-3">{actions}</div> : null}
         </div>
-        {aside ? <div className="space-y-4">{aside}</div> : null}
+        {aside ? <div className="min-w-0 space-y-4">{aside}</div> : null}
       </div>
     </section>
   );
@@ -324,10 +376,7 @@ export function AdminHeroPrimaryAction({
   children: React.ReactNode;
 }) {
   return (
-    <Link
-      href={href}
-      className="inline-flex items-center rounded-2xl bg-[linear-gradient(135deg,#c88c52_0%,#a56733_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(159,99,49,0.22)] transition hover:-translate-y-0.5 hover:brightness-105"
-    >
+    <Link href={href} className={adminPrimaryButtonClass}>
       {children}
     </Link>
   );
@@ -341,10 +390,7 @@ export function AdminHeroSecondaryAction({
   children: React.ReactNode;
 }) {
   return (
-    <Link
-      href={href}
-      className="inline-flex items-center rounded-2xl border border-[#e4d2be] bg-white px-5 py-3 text-sm font-semibold text-[#5d4330] shadow-[0_12px_28px_rgba(106,76,45,0.08)] transition hover:-translate-y-0.5 hover:border-[#d4b48b]"
-    >
+    <Link href={href} className={adminSecondaryButtonClass}>
       {children}
     </Link>
   );
@@ -355,7 +401,7 @@ export function AdminMetricGrid({
 }: {
   children: React.ReactNode;
 }) {
-  return <section className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">{children}</section>;
+  return <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">{children}</section>;
 }
 
 export function AdminMetricCard({
@@ -370,17 +416,15 @@ export function AdminMetricCard({
   accent?: string;
 }) {
   return (
-    <div className="overflow-hidden rounded-[22px] border border-[#ead8c6] bg-white shadow-[0_14px_34px_rgba(106,76,45,0.06)]">
-      <div className={`h-1.5 w-full bg-gradient-to-r ${accent || "from-[#f2d9a8] via-[#d7a45d] to-[#b7712d]"}`} />
-      <div className="p-4 md:p-5">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#a47946]">
-          {label}
-        </div>
-        <div className="mt-2.5 break-words text-[28px] font-semibold leading-tight text-[#2f2218]">
-          {value}
-        </div>
-        <div className="mt-2.5 text-sm leading-6 text-[#73583f]">{detail}</div>
+    <div className="premium-card relative overflow-hidden rounded-[1.5rem] p-5">
+      <div
+        className={`pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${accent || "from-[rgba(90,142,245,0.2)] via-transparent to-[rgba(240,67,162,0.16)]"}`}
+      />
+      <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">
+        {label}
       </div>
+      <div className="mt-2 text-2xl font-semibold text-[var(--portal-text)]">{value}</div>
+      <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
     </div>
   );
 }
@@ -397,13 +441,15 @@ export function AdminPanel({
   children: React.ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-[24px] border border-[#ead8c4] bg-white p-5 shadow-[0_18px_48px_rgba(106,76,45,0.06)] md:p-5">
+    <section className="premium-card overflow-hidden rounded-[1.5rem] p-5 md:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#a47946]">
+        <div className="max-w-3xl">
+          <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
             {title}
           </div>
-          {subtitle ? <p className="mt-2 max-w-2xl text-sm leading-6 text-[#73583f]">{subtitle}</p> : null}
+          {subtitle ? (
+            <p className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">{subtitle}</p>
+          ) : null}
         </div>
         {action ? <div>{action}</div> : null}
       </div>
@@ -422,12 +468,16 @@ export function AdminInfoTile({
   detail?: string;
 }) {
   return (
-    <div className="rounded-[18px] border border-[#ead9c7] bg-white p-4 shadow-[0_8px_20px_rgba(106,76,45,0.04)]">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a47946]">
+    <div className="rounded-[1.25rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] p-4 shadow-sm">
+      <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">
         {label}
       </div>
-      <div className="mt-2 text-2xl font-semibold text-[#2f2218]">{value}</div>
-      {detail ? <div className="mt-2 text-sm leading-6 text-[#73583f]">{detail}</div> : null}
+      <div className="mt-2 text-xl font-semibold leading-tight text-[var(--portal-text)]">
+        {value}
+      </div>
+      {detail ? (
+        <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
+      ) : null}
     </div>
   );
 }
@@ -450,20 +500,22 @@ export function AdminListCard({
   const content = (
     <div
       className={[
-        "rounded-[22px] border px-4 py-4 text-left transition",
+        "rounded-[1.25rem] border px-4 py-4 text-left transition-all duration-200",
         selected
-          ? "border-[#d0ac84] bg-[linear-gradient(180deg,#fffdf9_0%,#f7eddf_100%)] shadow-[0_12px_30px_rgba(106,76,45,0.08)]"
-          : "border-[#ead9c7] bg-[#fffaf5] hover:border-[#d8b48b] hover:bg-white",
+          ? "border-[var(--portal-border-strong)] bg-[linear-gradient(180deg,#ffffff_0%,#f7faff_100%)] shadow-[var(--portal-shadow-sm)]"
+          : "border-[var(--portal-border)] bg-[var(--portal-surface-muted)] hover:border-[var(--portal-border-strong)] hover:bg-white",
       ].join(" ")}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-[#2f2218]">{title}</div>
-          <div className="mt-1 text-xs leading-5 text-[#8a6a49]">{subtitle}</div>
+          <div className="text-sm font-semibold text-[var(--portal-text)]">{title}</div>
+          <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">{subtitle}</div>
         </div>
         {badge ? <div className="shrink-0">{badge}</div> : null}
       </div>
-      {meta ? <div className="mt-3 text-xs font-semibold text-[#9c7a57]">{meta}</div> : null}
+      {meta ? (
+        <div className="mt-3 text-xs font-semibold text-[var(--portal-text-muted)]">{meta}</div>
+      ) : null}
     </div>
   );
 
@@ -484,9 +536,11 @@ export function AdminEmptyState({
   description: string;
 }) {
   return (
-    <div className="rounded-[24px] border border-dashed border-[#e7d6c2] bg-[#fffaf5] px-5 py-10 text-center">
-      <div className="text-base font-semibold text-[#2f2218]">{title}</div>
-      <div className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#73583f]">{description}</div>
+    <div className="rounded-[1.5rem] border border-dashed border-[var(--portal-border-strong)] bg-[var(--portal-surface-muted)] px-5 py-12 text-center">
+      <div className="text-lg font-semibold text-[var(--portal-text)]">{title}</div>
+      <div className="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--portal-text-soft)]">
+        {description}
+      </div>
     </div>
   );
 }
@@ -499,18 +553,20 @@ export function AdminRestrictedState({
   details: string;
 }) {
   return (
-    <div className="min-h-screen bg-[#f7f2eb] text-[#2f2218]">
-      <div className="mx-auto flex min-h-screen w-full max-w-[960px] items-center justify-center px-6 py-10">
-        <div className="w-full rounded-[34px] border border-[#ead9c7] bg-white p-8 shadow-[0_30px_120px_rgba(106,76,45,0.12)] md:p-10">
-          <h1 className="font-serif text-4xl font-bold tracking-tight text-[#2f2218] [font-family:var(--font-merriweather)]">
+    <div className="min-h-screen bg-[var(--portal-bg)] text-[var(--portal-text)]">
+      <div className="mx-auto flex min-h-screen w-full max-w-[980px] items-center justify-center px-6 py-10">
+        <div className="premium-card w-full rounded-[2rem] p-8 md:p-10">
+          <div className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-violet-700">
+            Owner Access
+          </div>
+          <h1 className="mt-5 text-4xl font-semibold tracking-[-0.05em] text-[var(--portal-text)] [font-family:var(--font-merriweather)]">
             {title}
           </h1>
-          <p className="mt-4 text-sm leading-7 text-[#72553c] md:text-base">{details}</p>
+          <p className="mt-4 text-sm leading-7 text-[var(--portal-text-soft)] md:text-base">
+            {details}
+          </p>
           <div className="mt-6">
-            <Link
-              href="/portal"
-              className="inline-flex items-center rounded-2xl border border-[#e4d2be] bg-white px-5 py-3 text-sm font-semibold text-[#5d4330] shadow-[0_12px_28px_rgba(106,76,45,0.08)] transition hover:border-[#d4b48b]"
-            >
+            <Link href="/portal" className={adminSecondaryButtonClass}>
               Return to Buyer Portal
             </Link>
           </div>
@@ -524,20 +580,50 @@ export function adminStatusBadge(statusRaw: string | null | undefined) {
   const status = String(statusRaw || "pending").trim().toLowerCase();
 
   if (
-    ["approved", "active", "matched", "submitted", "complete", "completed", "paid", "read", "available"].some(
-      (item) => status.includes(item)
-    )
+    [
+      "approved",
+      "active",
+      "matched",
+      "submitted",
+      "complete",
+      "completed",
+      "paid",
+      "read",
+      "available",
+      "connected",
+      "clear",
+      "quiet",
+    ].some((item) => status.includes(item))
   ) {
     return "border-emerald-200 bg-emerald-50 text-emerald-700";
   }
 
-  if (["deny", "declined", "rejected", "cancel", "failed"].some((item) => status.includes(item))) {
+  if (
+    ["deny", "declined", "rejected", "cancel", "failed", "void", "error"].some((item) =>
+      status.includes(item)
+    )
+  ) {
     return "border-rose-200 bg-rose-50 text-rose-700";
   }
 
-  if (["reserved", "hold"].some((item) => status.includes(item))) {
+  if (
+    [
+      "reserved",
+      "hold",
+      "follow",
+      "pending",
+      "review",
+      "open",
+      "unread",
+      "draft",
+    ].some((item) => status.includes(item))
+  ) {
+    return "border-violet-200 bg-violet-50 text-violet-700";
+  }
+
+  if (["warning", "due", "schedule"].some((item) => status.includes(item))) {
     return "border-amber-200 bg-amber-50 text-amber-700";
   }
 
-  return "border-stone-200 bg-stone-50 text-stone-700";
+  return "border-[var(--portal-border)] bg-[var(--portal-surface-muted)] text-[var(--portal-text-soft)]";
 }

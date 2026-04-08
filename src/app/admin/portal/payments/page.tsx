@@ -8,8 +8,6 @@ import {
   AdminHeroSecondaryAction,
   AdminInfoTile,
   AdminListCard,
-  AdminMetricCard,
-  AdminMetricGrid,
   AdminPageHero,
   AdminPageShell,
   AdminPanel,
@@ -697,31 +695,33 @@ export default function AdminPortalPaymentsPage() {
           }
         />
 
-        <AdminMetricGrid>
-          <AdminMetricCard
-            label="Buyer Accounts"
-            value={String(accounts.length)}
-            detail="Buyers currently available in the payments workspace."
-          />
-          <AdminMetricCard
-            label="Payment Records"
-            value={String(accounts.reduce((sum, account) => sum + account.payments.length, 0))}
-            detail="All recorded buyer payment entries."
-            accent="from-[#ece3d5] via-[#d7c1a3] to-[#b18d62]"
-          />
-          <AdminMetricCard
-            label="Fees & Credits"
-            value={String(accounts.reduce((sum, account) => sum + account.adjustments.length, 0))}
-            detail="Manual fee, credit, and transportation entries."
-            accent="from-[#dce9d6] via-[#b6cfaa] to-[#7e9c6f]"
-          />
-          <AdminMetricCard
-            label="Search Results"
-            value={String(filteredAccounts.length)}
-            detail="Buyer cards matching the current payment search."
-            accent="from-[#f0dcc1] via-[#ddb68c] to-[#c98743]"
-          />
-        </AdminMetricGrid>
+        <AdminPanel
+          title="Finance Bench"
+          subtitle="The buyer ledger should surface collection workload, plan management, and manual entry volume at a glance."
+        >
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <AdminInfoTile
+              label="Buyer Ledgers"
+              value={String(accounts.length)}
+              detail="Families currently available for payment review, collection, and ledger cleanup."
+            />
+            <AdminInfoTile
+              label="Recorded Payments"
+              value={String(accounts.reduce((sum, account) => sum + account.payments.length, 0))}
+              detail="All posted buyer payment entries across deposits, installments, and payoff activity."
+            />
+            <AdminInfoTile
+              label="Manual Entries"
+              value={String(accounts.reduce((sum, account) => sum + account.adjustments.length, 0))}
+              detail="Fees, credits, and transportation-related adjustments already logged to buyer accounts."
+            />
+            <AdminInfoTile
+              label="Financing Plans"
+              value={String(accounts.filter((account) => account.buyer.finance_enabled).length)}
+              detail={`${filteredAccounts.length} buyer cards match the current search and filter state.`}
+            />
+          </div>
+        </AdminPanel>
 
         <section className="grid grid-cols-1 gap-6 xl:grid-cols-[400px_minmax(0,1fr)]">
           <AdminPanel
@@ -732,7 +732,7 @@ export default function AdminPortalPaymentsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search buyers or puppies..."
-              className="w-full rounded-[20px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+              className="w-full rounded-[20px] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3 text-sm text-[var(--portal-text)] outline-none focus:border-[#c8a884]"
             />
 
             <div className="mt-4 space-y-3">
@@ -817,7 +817,7 @@ export default function AdminPortalPaymentsPage() {
                     subtitle="Edit price, deposit, puppy status, and financing details. Balance is calculated automatically from the itemized account record."
                   >
                     {statusText ? (
-                      <div className="mb-4 rounded-[18px] border border-[#ead9c7] bg-[#fff9f2] px-4 py-3 text-sm font-semibold text-[#7a5a3a]">
+                      <div className="mb-4 rounded-[18px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm font-semibold text-[var(--portal-text-soft)]">
                         {statusText}
                       </div>
                     ) : null}
@@ -897,14 +897,14 @@ export default function AdminPortalPaymentsPage() {
                         accountActivity.map((entry) => (
                           <div
                             key={entry.key}
-                            className="rounded-[22px] border border-[#ead9c7] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] p-4 shadow-[0_10px_24px_rgba(106,76,45,0.05)]"
+                            className="rounded-[22px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] p-4 shadow-[0_10px_24px_rgba(106,76,45,0.05)]"
                           >
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <div>
-                                <div className="text-sm font-semibold text-[#2f2218]">
+                                <div className="text-sm font-semibold text-[var(--portal-text)]">
                                   {entry.title} - {fmtMoney(entry.amount)}
                                 </div>
-                                <div className="mt-1 text-xs leading-5 text-[#8a6a49]">
+                                <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
                                   {fmtDate(entry.date)} - {entry.kind === "payment" ? "payment entry" : "manual adjustment"}
                                 </div>
                               </div>
@@ -917,12 +917,12 @@ export default function AdminPortalPaymentsPage() {
                               </span>
                             </div>
                             {entry.referenceNumber ? (
-                              <div className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-[#a47946]">
+                              <div className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
                                 Ref: {entry.referenceNumber}
                               </div>
                             ) : null}
                             {entry.detail ? (
-                              <div className="mt-3 text-sm leading-6 text-[#73583f]">{entry.detail}</div>
+                              <div className="mt-3 text-sm leading-6 text-[var(--portal-text-soft)]">{entry.detail}</div>
                             ) : null}
                           </div>
                         ))
@@ -965,7 +965,7 @@ export default function AdminPortalPaymentsPage() {
                     </div>
 
                     {entryStatusText ? (
-                      <div className="mt-4 rounded-[18px] border border-[#ead9c7] bg-[#fff9f2] px-4 py-3 text-sm font-semibold text-[#7a5a3a]">
+                      <div className="mt-4 rounded-[18px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm font-semibold text-[var(--portal-text-soft)]">
                         {entryStatusText}
                       </div>
                     ) : null}
@@ -1038,7 +1038,7 @@ export default function AdminPortalPaymentsPage() {
                           setEntryForm((prev) => ({ ...prev, reference_number: value }))
                         }
                       />
-                      <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#a47946]">
+                      <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
                         {entryMode === "payment" ? "Note" : "Description"}
                         <textarea
                           value={entryMode === "payment" ? entryForm.note : entryForm.description}
@@ -1049,7 +1049,7 @@ export default function AdminPortalPaymentsPage() {
                             }))
                           }
                           rows={5}
-                          className="mt-2 w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+                          className="mt-2 w-full rounded-[18px] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3.5 text-sm text-[var(--portal-text)] outline-none focus:border-[#c8a884]"
                         />
                       </label>
                     </div>
@@ -1077,7 +1077,7 @@ export default function AdminPortalPaymentsPage() {
                           setEntryForm(entryFormForMode(entryMode));
                           setEntryStatusText("");
                         }}
-                        className="rounded-2xl border border-[#e4d2be] bg-white px-5 py-3 text-sm font-semibold text-[#5d4330] shadow-[0_12px_28px_rgba(106,76,45,0.08)] transition hover:border-[#d4b48b]"
+                        className="rounded-2xl border border-[var(--portal-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--portal-text)] shadow-[0_12px_28px_rgba(106,76,45,0.08)] transition hover:border-[var(--portal-border-strong)]"
                       >
                         Reset
                       </button>
@@ -1196,20 +1196,20 @@ function PaymentField({
   detail?: string;
 }) {
   return (
-    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#a47946]">
+    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
       {label}
       <input
         value={value}
         readOnly={readOnly}
         onChange={(e) => onChange?.(e.target.value)}
-        className={`mt-2 w-full rounded-[18px] border px-4 py-3.5 text-sm normal-case tracking-normal text-[#3e2a1f] outline-none ${
+        className={`mt-2 w-full rounded-[18px] border px-4 py-3.5 text-sm normal-case tracking-normal text-[var(--portal-text)] outline-none ${
           readOnly
-            ? "border-[#ead9c7] bg-[#f8f1e7]"
-            : "border-[#e4d3c2] bg-[#fffdfb] focus:border-[#c8a884]"
+            ? "border-[var(--portal-border)] bg-[#f8f1e7]"
+            : "border-[var(--portal-border)] bg-[#fffdfb] focus:border-[#c8a884]"
         }`}
       />
       {detail ? (
-        <div className="mt-2 text-[12px] normal-case tracking-normal text-[#8a6a49]">
+        <div className="mt-2 text-[12px] normal-case tracking-normal text-[var(--portal-text-soft)]">
           {detail}
         </div>
       ) : null}
@@ -1227,13 +1227,13 @@ function PaymentDateField({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#a47946]">
+    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
       {label}
       <input
         type="date"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-2 w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm normal-case tracking-normal text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+        className="mt-2 w-full rounded-[18px] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3.5 text-sm normal-case tracking-normal text-[var(--portal-text)] outline-none focus:border-[#c8a884]"
       />
     </label>
   );
@@ -1258,12 +1258,12 @@ function PaymentSelect({
     ];
 
   return (
-    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#a47946]">
+    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
       {label}
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-2 w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm normal-case tracking-normal text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+        className="mt-2 w-full rounded-[18px] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3.5 text-sm normal-case tracking-normal text-[var(--portal-text)] outline-none focus:border-[#c8a884]"
       >
         {selectOptions.map((option) => (
           <option key={option.value} value={option.value}>
@@ -1291,11 +1291,12 @@ function EntryModeButton({
       className={[
         "rounded-[18px] border px-4 py-3 text-sm font-semibold transition",
         active
-          ? "border-[#d8b48b] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] text-[#2f2218] shadow-[0_12px_30px_rgba(106,76,45,0.08)]"
-          : "border-[#ead9c7] bg-[#fffaf5] text-[#73583f] hover:border-[#d8b48b] hover:bg-white",
+          ? "border-[#d8b48b] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] text-[var(--portal-text)] shadow-[0_12px_30px_rgba(106,76,45,0.08)]"
+          : "border-[var(--portal-border)] bg-[#fffaf5] text-[var(--portal-text-soft)] hover:border-[#d8b48b] hover:bg-white",
       ].join(" ")}
     >
       {label}
     </button>
   );
 }
+

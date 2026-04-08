@@ -7,8 +7,6 @@ import {
   AdminHeroPrimaryAction,
   AdminHeroSecondaryAction,
   AdminInfoTile,
-  AdminMetricCard,
-  AdminMetricGrid,
   AdminPageHero,
   AdminPageShell,
   AdminPanel,
@@ -72,7 +70,7 @@ function statusTone(status: string) {
   if (normalized === "converted to buyer") return "border-sky-200 bg-sky-50 text-sky-700";
   if (normalized === "follow up needed") return "border-amber-200 bg-amber-50 text-amber-700";
   if (normalized === "under review") return "border-stone-200 bg-stone-100 text-stone-700";
-  return "border-[#ead9c7] bg-[#fff8ef] text-[#8a633c]";
+  return "border-[var(--portal-border)] bg-[var(--portal-surface-muted)] text-[#8a633c]";
 }
 
 function statusLabel(status: string) {
@@ -99,7 +97,7 @@ function signalBadge(label: string, tone: "warm" | "cool" | "neutral") {
       ? "border-amber-200 bg-amber-50 text-amber-700"
       : tone === "cool"
         ? "border-sky-200 bg-sky-50 text-sky-700"
-        : "border-[#ead9c7] bg-[#fffaf4] text-[#7b5c40]";
+        : "border-[var(--portal-border)] bg-[var(--portal-surface-muted)] text-[#7b5c40]";
 
   return (
     <span
@@ -412,14 +410,33 @@ export default function AdminPortalApplicationsPage() {
           }
         />
 
-        <AdminMetricGrid>
-          <AdminMetricCard label="New" value={String(summary.newCount)} detail="Fresh applications still waiting for their first structured review." />
-          <AdminMetricCard label="Under Review" value={String(summary.underReviewCount)} detail="Cases actively being worked by the breeder." accent="from-[#e6ddd2] via-[#ccb49a] to-[#987553]" />
-          <AdminMetricCard label="Follow Up" value={String(summary.followUpCount)} detail="Applications that need another step before approval." accent="from-[#efe1c8] via-[#d4b287] to-[#b37b45]" />
-          <AdminMetricCard label="Approved" value={String(summary.approvedCount)} detail="Applications cleared and ready for placement decisions." accent="from-[#dbe8db] via-[#bfd2b8] to-[#7d9d79]" />
-          <AdminMetricCard label="Converted" value={String(summary.convertedCount)} detail="Applications already turned into buyer records." accent="from-[#dce6f4] via-[#bfd0ea] to-[#7b97ba]" />
-          <AdminMetricCard label="Signals" value={`${summary.financingInterested}/${summary.transportInterested}`} detail="Financing and transportation interest counts in the live queue." accent="from-[#ece0d2] via-[#d2b494] to-[#a8784f]" />
-        </AdminMetricGrid>
+        <AdminPanel
+          title="Review Bench"
+          subtitle="Application work should show queue pressure, match readiness, and special handling signals at a glance."
+        >
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <AdminInfoTile
+              label="Fresh Intake"
+              value={String(summary.newCount)}
+              detail={`${summary.total} total applications currently in the breeding program queue.`}
+            />
+            <AdminInfoTile
+              label="Active Review"
+              value={String(summary.underReviewCount)}
+              detail={`${summary.followUpCount} applications still need breeder follow-up before a final decision.`}
+            />
+            <AdminInfoTile
+              label="Match Ready"
+              value={String(summary.approvedCount)}
+              detail={`${summary.matchedCount} already have a puppy match and ${summary.convertedCount} have converted into buyer records.`}
+            />
+            <AdminInfoTile
+              label="Special Signals"
+              value={`${summary.financingInterested} finance / ${summary.transportInterested} transport`}
+              detail="Use these flags to spot cases that need payment-plan or delivery coordination early."
+            />
+          </div>
+        </AdminPanel>
 
         <section className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.3fr)_430px]">
           <AdminPanel
@@ -431,12 +448,12 @@ export default function AdminPortalApplicationsPage() {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search applicant, email, puppy interest, city, or notes..."
-                className="w-full rounded-[16px] border border-[#e6d7c7] bg-[#fffdfa] px-3.5 py-2.5 text-sm text-[#33251a] outline-none transition focus:border-[#caa074] focus:ring-2 focus:ring-[#ead7c0]"
+                className="w-full rounded-[16px] border border-[var(--portal-border)] bg-white px-3.5 py-2.5 text-sm text-[var(--portal-text)] outline-none transition focus:border-[var(--portal-accent)] focus:ring-2 focus:ring-[rgba(90,142,245,0.14)]"
               />
               <select
                 value={statusFilter}
                 onChange={(event) => setStatusFilter(event.target.value)}
-                className="w-full rounded-[16px] border border-[#e6d7c7] bg-[#fffdfa] px-3.5 py-2.5 text-sm text-[#33251a] outline-none transition focus:border-[#caa074] focus:ring-2 focus:ring-[#ead7c0]"
+                className="w-full rounded-[16px] border border-[var(--portal-border)] bg-white px-3.5 py-2.5 text-sm text-[var(--portal-text)] outline-none transition focus:border-[var(--portal-accent)] focus:ring-2 focus:ring-[rgba(90,142,245,0.14)]"
               >
                 <option value="all">All statuses</option>
                 {STATUS_OPTIONS.map((option) => (
@@ -448,7 +465,7 @@ export default function AdminPortalApplicationsPage() {
               <select
                 value={sortMode}
                 onChange={(event) => setSortMode(event.target.value as SortMode)}
-                className="w-full rounded-[16px] border border-[#e6d7c7] bg-[#fffdfa] px-3.5 py-2.5 text-sm text-[#33251a] outline-none transition focus:border-[#caa074] focus:ring-2 focus:ring-[#ead7c0]"
+                className="w-full rounded-[16px] border border-[var(--portal-border)] bg-white px-3.5 py-2.5 text-sm text-[var(--portal-text)] outline-none transition focus:border-[var(--portal-accent)] focus:ring-2 focus:ring-[rgba(90,142,245,0.14)]"
               >
                 <option value="newest">Newest first</option>
                 <option value="oldest">Oldest first</option>
@@ -458,10 +475,10 @@ export default function AdminPortalApplicationsPage() {
             </div>
 
             {filteredApplications.length ? (
-              <div className="overflow-hidden rounded-[24px] border border-[#ead9c7]">
+              <div className="overflow-hidden rounded-[24px] border border-[var(--portal-border)]">
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-[#eee1d2] text-sm">
-                    <thead className="bg-[#faf3ea] text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+                    <thead className="bg-[var(--portal-surface-muted)] text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
                       <tr>
                         <th className="px-4 py-3">Applicant</th>
                         <th className="px-4 py-3">Interest</th>
@@ -478,26 +495,26 @@ export default function AdminPortalApplicationsPage() {
                           <tr
                             key={application.id}
                             onClick={() => setSelectedId(application.id)}
-                            className={`cursor-pointer transition hover:bg-[#fffaf4] ${active ? "bg-[#fff8ef]" : ""}`}
+                            className={`cursor-pointer transition hover:bg-[var(--portal-surface-muted)] ${active ? "bg-[var(--portal-surface-muted)]" : ""}`}
                           >
                             <td className="px-4 py-3">
-                              <div className="font-semibold text-[#2f2218]">{application.displayName}</div>
-                              <div className="mt-1 text-xs text-[#8a6a49]">
+                              <div className="font-semibold text-[var(--portal-text)]">{application.displayName}</div>
+                              <div className="mt-1 text-xs text-[var(--portal-text-soft)]">
                                 {application.email || "No email"} / {application.phone || "No phone"}
                               </div>
                               <div className="mt-1 text-xs text-[#a07a55]">
                                 {application.cityState || "Location not provided"}
                               </div>
                             </td>
-                            <td className="px-4 py-3 text-[#73583f]">
-                              <div className="font-semibold text-[#2f2218]">{application.puppyInterest}</div>
-                              <div className="mt-1 text-xs text-[#8a6a49]">
+                            <td className="px-4 py-3 text-[var(--portal-text-soft)]">
+                              <div className="font-semibold text-[var(--portal-text)]">{application.puppyInterest}</div>
+                              <div className="mt-1 text-xs text-[var(--portal-text-soft)]">
                                 {snippet(application.questions, "No applicant questions saved yet.")}
                               </div>
                             </td>
-                            <td className="px-4 py-3 text-[#73583f]">
-                              <div className="font-semibold text-[#2f2218]">{fmtDate(application.created_at)}</div>
-                              <div className="mt-1 text-xs text-[#8a6a49]">#{application.id}</div>
+                            <td className="px-4 py-3 text-[var(--portal-text-soft)]">
+                              <div className="font-semibold text-[var(--portal-text)]">{fmtDate(application.created_at)}</div>
+                              <div className="mt-1 text-xs text-[var(--portal-text-soft)]">#{application.id}</div>
                             </td>
                             <td className="px-4 py-3">
                               <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${statusTone(application.status)}`}>
@@ -511,11 +528,11 @@ export default function AdminPortalApplicationsPage() {
                                 {application.depositReady ? signalBadge("Deposit Ready", "neutral") : null}
                               </div>
                             </td>
-                            <td className="px-4 py-3 text-[#73583f]">
+                            <td className="px-4 py-3 text-[var(--portal-text-soft)]">
                               <div className="text-xs font-semibold">
                                 {application.matchedBuyer ? "Buyer linked" : "No buyer"}
                               </div>
-                              <div className="mt-1 text-xs text-[#8a6a49]">
+                              <div className="mt-1 text-xs text-[var(--portal-text-soft)]">
                                 {application.matchedPuppy ? `Puppy ${application.matchedPuppy.displayName}` : "No puppy assigned"}
                               </div>
                             </td>
@@ -542,7 +559,7 @@ export default function AdminPortalApplicationsPage() {
                   subtitle="Status changes, puppy assignment, internal notes, and conversion all stay in one controlled review area."
                 >
                   {statusText ? (
-                    <div className="mb-4 rounded-[18px] border border-[#ead9c7] bg-[#fff9f2] px-4 py-3 text-sm font-semibold text-[#7a5a3a]">
+                    <div className="mb-4 rounded-[18px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm font-semibold text-[var(--portal-text-soft)]">
                       {statusText}
                     </div>
                   ) : null}
@@ -573,7 +590,7 @@ export default function AdminPortalApplicationsPage() {
                     <button type="button" onClick={() => void handleSave()} disabled={saving} className="rounded-2xl bg-[linear-gradient(135deg,#c88c52_0%,#a56733_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(159,99,49,0.22)] transition hover:brightness-105 disabled:opacity-60">
                       {saving ? "Saving..." : "Save Review"}
                     </button>
-                    <button type="button" onClick={() => void handleConvert()} disabled={converting} className="rounded-2xl border border-[#cfb089] bg-[#fff8ef] px-5 py-3 text-sm font-semibold text-[#6e4d31] transition hover:border-[#ba8c57] disabled:opacity-60">
+                    <button type="button" onClick={() => void handleConvert()} disabled={converting} className="rounded-2xl border border-[#cfb089] bg-[var(--portal-surface-muted)] px-5 py-3 text-sm font-semibold text-[#6e4d31] transition hover:border-[#ba8c57] disabled:opacity-60">
                       {converting ? "Converting..." : selectedApplication.matchedBuyer ? "Sync to Buyer" : "Convert to Buyer"}
                     </button>
                     <button
@@ -585,7 +602,7 @@ export default function AdminPortalApplicationsPage() {
                           admin_notes: selectedApplication.admin_notes || "",
                         })
                       }
-                      className="rounded-2xl border border-[#e4d2be] bg-white px-5 py-3 text-sm font-semibold text-[#5d4330] transition hover:border-[#d4b48b]"
+                      className="rounded-2xl border border-[var(--portal-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]"
                     >
                       Reset
                     </button>
@@ -613,8 +630,8 @@ export default function AdminPortalApplicationsPage() {
                   </div>
 
                   <div className="mt-5 flex flex-wrap gap-3">
-                    <Link href="/admin/portal/users" className="rounded-2xl border border-[#e4d2be] bg-white px-4 py-3 text-sm font-semibold text-[#5d4330] transition hover:border-[#d4b48b]">Open Buyers</Link>
-                    <Link href="/admin/portal/puppies" className="rounded-2xl border border-[#e4d2be] bg-white px-4 py-3 text-sm font-semibold text-[#5d4330] transition hover:border-[#d4b48b]">Open Puppies</Link>
+                    <Link href="/admin/portal/users" className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]">Open Buyers</Link>
+                    <Link href="/admin/portal/puppies" className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]">Open Puppies</Link>
                   </div>
                 </AdminPanel>
 
@@ -637,17 +654,17 @@ export default function AdminPortalApplicationsPage() {
                   {selectedApplication.messages.length ? (
                     <div className="space-y-3">
                       {selectedApplication.messages.map((message) => (
-                        <div key={message.id} className="rounded-[20px] border border-[#ead9c7] bg-[#fffaf4] px-4 py-4">
+                        <div key={message.id} className="rounded-[20px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4">
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <div className="text-sm font-semibold text-[#2f2218]">{message.subject || "Portal message"}</div>
-                              <div className="mt-1 text-xs text-[#8a6a49]">{fmtDate(message.created_at)} / {message.sender || "unknown sender"}</div>
+                              <div className="text-sm font-semibold text-[var(--portal-text)]">{message.subject || "Portal message"}</div>
+                              <div className="mt-1 text-xs text-[var(--portal-text-soft)]">{fmtDate(message.created_at)} / {message.sender || "unknown sender"}</div>
                             </div>
                             <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${message.read_by_admin ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
                               {message.read_by_admin ? "Reviewed" : "Unread"}
                             </span>
                           </div>
-                          <div className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[#73583f]">
+                          <div className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[var(--portal-text-soft)]">
                             {snippet(message.message, "No message body available.")}
                           </div>
                         </div>
@@ -684,9 +701,9 @@ function InfoLine({
   value: string;
 }) {
   return (
-    <div className="rounded-[18px] border border-[#ead9c7] bg-white px-3 py-3">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">{label}</div>
-      <div className="mt-2 text-sm font-semibold text-[#2f2218]">{value}</div>
+    <div className="rounded-[18px] border border-[var(--portal-border)] bg-white px-3 py-3">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">{label}</div>
+      <div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">{value}</div>
     </div>
   );
 }
@@ -701,11 +718,12 @@ function InfoBlock({
   multiline?: boolean;
 }) {
   return (
-    <div className="rounded-[20px] border border-[#ead9c7] bg-[#fffaf4] px-4 py-4">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">{label}</div>
-      <div className={`mt-3 text-sm leading-6 text-[#73583f] ${multiline ? "whitespace-pre-wrap" : ""}`}>
+    <div className="rounded-[20px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">{label}</div>
+      <div className={`mt-3 text-sm leading-6 text-[var(--portal-text-soft)] ${multiline ? "whitespace-pre-wrap" : ""}`}>
         {value}
       </div>
     </div>
   );
 }
+

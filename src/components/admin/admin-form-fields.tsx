@@ -3,11 +3,11 @@
 import React from "react";
 
 function fieldClassName() {
-  return "mt-2 w-full rounded-[16px] border border-[#e6d7c7] bg-[#fffdfa] px-3.5 py-2.5 text-sm text-[#33251a] outline-none transition focus:border-[#caa074] focus:ring-2 focus:ring-[#ead7c0]";
+  return "mt-2 w-full rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm text-[var(--portal-text)] shadow-sm outline-none transition focus:border-[var(--portal-accent)] focus:ring-4 focus:ring-[rgba(90,142,245,0.14)]";
 }
 
 function labelClassName() {
-  return "block text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9a7143]";
+  return "block text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]";
 }
 
 export function AdminTextInput({
@@ -34,7 +34,7 @@ export function AdminTextInput({
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         disabled={disabled}
-        className={`${fieldClassName()} disabled:cursor-not-allowed disabled:bg-[#f8f1e8] disabled:text-[#8a6a49]`}
+        className={`${fieldClassName()} disabled:cursor-not-allowed disabled:bg-[var(--portal-surface-muted)] disabled:text-[var(--portal-text-muted)]`}
       />
     </label>
   );
@@ -69,7 +69,7 @@ export function AdminNumberInput({
         min={min}
         step={step}
         disabled={disabled}
-        className={`${fieldClassName()} disabled:cursor-not-allowed disabled:bg-[#f8f1e8] disabled:text-[#8a6a49]`}
+        className={`${fieldClassName()} disabled:cursor-not-allowed disabled:bg-[var(--portal-surface-muted)] disabled:text-[var(--portal-text-muted)]`}
       />
     </label>
   );
@@ -117,7 +117,7 @@ export function AdminSelectInput({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled}
-        className={`${fieldClassName()} disabled:cursor-not-allowed disabled:bg-[#f8f1e8] disabled:text-[#8a6a49]`}
+        className={`${fieldClassName()} disabled:cursor-not-allowed disabled:bg-[var(--portal-surface-muted)] disabled:text-[var(--portal-text-muted)]`}
       >
         {options.map((option) => (
           <option key={`${label}-${option.value || "empty"}`} value={option.value}>

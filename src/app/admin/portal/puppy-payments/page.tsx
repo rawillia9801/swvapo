@@ -8,8 +8,6 @@ import {
   AdminHeroSecondaryAction,
   AdminInfoTile,
   AdminListCard,
-  AdminMetricCard,
-  AdminMetricGrid,
   AdminPageHero,
   AdminPageShell,
   AdminPanel,
@@ -656,31 +654,33 @@ export default function AdminPortalPuppyPaymentsPage() {
           }
         />
 
-        <AdminMetricGrid>
-          <AdminMetricCard
-            label="Puppy Accounts"
-            value={String(accounts.length)}
-            detail="Puppy records currently available in this workspace."
-          />
-          <AdminMetricCard
-            label="Payment Records"
-            value={String(accounts.reduce((sum, account) => sum + account.payments.length, 0))}
-            detail="Puppy-tagged or single-puppy payment entries."
-            accent="from-[#ece3d5] via-[#d7c1a3] to-[#b18d62]"
-          />
-          <AdminMetricCard
-            label="Fees & Credits"
-            value={String(accounts.reduce((sum, account) => sum + account.adjustments.length, 0))}
-            detail="Puppy-tagged manual entries."
-            accent="from-[#dce9d6] via-[#b6cfaa] to-[#7e9c6f]"
-          />
-          <AdminMetricCard
-            label="Search Results"
-            value={String(filteredAccounts.length)}
-            detail="Puppy cards matching the current search."
-            accent="from-[#f0dcc1] via-[#ddb68c] to-[#c98743]"
-          />
-        </AdminMetricGrid>
+        <AdminPanel
+          title="Puppy Ledger Bench"
+          subtitle="This page should make it easy to spot puppy-level balances, plan spillover from buyer accounts, and account-specific adjustments."
+        >
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <AdminInfoTile
+              label="Puppy Ledgers"
+              value={String(accounts.length)}
+              detail="Each puppy account stays reviewable even when one family has multiple placements."
+            />
+            <AdminInfoTile
+              label="Payment Records"
+              value={String(accounts.reduce((sum, account) => sum + account.payments.length, 0))}
+              detail="Puppy-tagged or single-puppy payment entries already recorded in the ledger."
+            />
+            <AdminInfoTile
+              label="Manual Entries"
+              value={String(accounts.reduce((sum, account) => sum + account.adjustments.length, 0))}
+              detail="Fees, credits, and transportation adjustments tied directly back to puppy accounts."
+            />
+            <AdminInfoTile
+              label="Buyer Plan Spillover"
+              value={String(accounts.filter((account) => account.buyer.finance_enabled).length)}
+              detail={`${filteredAccounts.length} puppy cards match the current search and status filters.`}
+            />
+          </div>
+        </AdminPanel>
 
         <section className="grid grid-cols-1 gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
           <AdminPanel
@@ -691,7 +691,7 @@ export default function AdminPortalPuppyPaymentsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search puppies..."
-              className="w-full rounded-[20px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+              className="w-full rounded-[20px] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3 text-sm text-[var(--portal-text)] outline-none focus:border-[#c8a884]"
             />
 
             <div className="mt-4 space-y-3">
@@ -753,7 +753,7 @@ export default function AdminPortalPuppyPaymentsPage() {
                     subtitle="Update the puppy price, deposit, puppy status, and linked buyer financing details when needed."
                   >
                     {statusText ? (
-                      <div className="mb-4 rounded-[18px] border border-[#ead9c7] bg-[#fff9f2] px-4 py-3 text-sm font-semibold text-[#7a5a3a]">
+                      <div className="mb-4 rounded-[18px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm font-semibold text-[var(--portal-text-soft)]">
                         {statusText}
                       </div>
                     ) : null}
@@ -796,7 +796,7 @@ export default function AdminPortalPuppyPaymentsPage() {
                     </div>
 
                     {entryStatusText ? (
-                      <div className="mt-4 rounded-[18px] border border-[#ead9c7] bg-[#fff9f2] px-4 py-3 text-sm font-semibold text-[#7a5a3a]">
+                      <div className="mt-4 rounded-[18px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm font-semibold text-[var(--portal-text-soft)]">
                         {entryStatusText}
                       </div>
                     ) : null}
@@ -837,7 +837,7 @@ export default function AdminPortalPuppyPaymentsPage() {
                       )}
                       <PaymentField label="Status" value={entryForm.status} onChange={(value) => setEntryForm((prev) => ({ ...prev, status: value }))} />
                       <PaymentField label="Reference Number" value={entryForm.reference_number} onChange={(value) => setEntryForm((prev) => ({ ...prev, reference_number: value }))} />
-                      <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#a47946]">
+                      <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
                         {entryMode === "payment" ? "Note" : "Description"}
                         <textarea
                           value={entryMode === "payment" ? entryForm.note : entryForm.description}
@@ -848,7 +848,7 @@ export default function AdminPortalPuppyPaymentsPage() {
                             }))
                           }
                           rows={5}
-                          className="mt-2 w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+                          className="mt-2 w-full rounded-[18px] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3.5 text-sm text-[var(--portal-text)] outline-none focus:border-[#c8a884]"
                         />
                       </label>
                     </div>
@@ -917,12 +917,12 @@ function PaymentField({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#a47946]">
+    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
       {label}
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-2 w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm normal-case tracking-normal text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+        className="mt-2 w-full rounded-[18px] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3.5 text-sm normal-case tracking-normal text-[var(--portal-text)] outline-none focus:border-[#c8a884]"
       />
     </label>
   );
@@ -938,13 +938,13 @@ function PaymentDateField({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#a47946]">
+    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
       {label}
       <input
         type="date"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-2 w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm normal-case tracking-normal text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+        className="mt-2 w-full rounded-[18px] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3.5 text-sm normal-case tracking-normal text-[var(--portal-text)] outline-none focus:border-[#c8a884]"
       />
     </label>
   );
@@ -969,12 +969,12 @@ function PaymentSelect({
     ];
 
   return (
-    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#a47946]">
+    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
       {label}
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-2 w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm normal-case tracking-normal text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+        className="mt-2 w-full rounded-[18px] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3.5 text-sm normal-case tracking-normal text-[var(--portal-text)] outline-none focus:border-[#c8a884]"
       >
         {selectOptions.map((option) => (
           <option key={option.value} value={option.value}>
@@ -1002,11 +1002,12 @@ function EntryModeButton({
       className={[
         "rounded-[18px] border px-4 py-3 text-sm font-semibold transition",
         active
-          ? "border-[#d8b48b] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] text-[#2f2218] shadow-[0_12px_30px_rgba(106,76,45,0.08)]"
-          : "border-[#ead9c7] bg-[#fffaf5] text-[#73583f] hover:border-[#d8b48b] hover:bg-white",
+          ? "border-[#d8b48b] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] text-[var(--portal-text)] shadow-[0_12px_30px_rgba(106,76,45,0.08)]"
+          : "border-[var(--portal-border)] bg-[#fffaf5] text-[var(--portal-text-soft)] hover:border-[#d8b48b] hover:bg-white",
       ].join(" ")}
     >
       {label}
     </button>
   );
 }
+

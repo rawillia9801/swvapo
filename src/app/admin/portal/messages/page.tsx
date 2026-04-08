@@ -8,8 +8,6 @@ import {
   AdminHeroSecondaryAction,
   AdminInfoTile,
   AdminListCard,
-  AdminMetricCard,
-  AdminMetricGrid,
   AdminPageHero,
   AdminPageShell,
   AdminPanel,
@@ -366,31 +364,33 @@ export default function AdminPortalMessagesPage() {
           }
         />
 
-        <AdminMetricGrid>
-          <AdminMetricCard
-            label="Buyer Threads"
-            value={String(threads.length)}
-            detail="Grouped conversation cards in the admin inbox."
-          />
-          <AdminMetricCard
-            label="Unread"
-            value={String(threads.reduce((sum, thread) => sum + thread.unreadCount, 0))}
-            detail="Buyer replies still unread by admin."
-            accent="from-[#f0dcc1] via-[#ddb68c] to-[#c98743]"
-          />
-          <AdminMetricCard
-            label="With Buyer Record"
-            value={String(threads.filter((thread) => !!thread.buyer).length)}
-            detail="Threads that already map cleanly to a buyer record."
-            accent="from-[#dce9d6] via-[#b6cfaa] to-[#7e9c6f]"
-          />
-          <AdminMetricCard
-            label="Search Results"
-            value={String(filteredThreads.length)}
-            detail="Buyer threads matching the current search."
-            accent="from-[#ece3d5] via-[#d7c1a3] to-[#b18d62]"
-          />
-        </AdminMetricGrid>
+        <AdminPanel
+          title="Inbox Bench"
+          subtitle="The message workspace should show which conversations need human response, cleanup, or buyer linking."
+        >
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <AdminInfoTile
+              label="Buyer Threads"
+              value={String(threads.length)}
+              detail="Grouped conversations for portal families and unmatched portal contacts."
+            />
+            <AdminInfoTile
+              label="Unread Replies"
+              value={String(threads.reduce((sum, thread) => sum + thread.unreadCount, 0))}
+              detail="Buyer replies still waiting on breeder review or response."
+            />
+            <AdminInfoTile
+              label="Mapped to Buyer"
+              value={String(threads.filter((thread) => !!thread.buyer).length)}
+              detail={`${threads.filter((thread) => !thread.buyer).length} threads still need cleanup or buyer matching.`}
+            />
+            <AdminInfoTile
+              label="Current Search"
+              value={String(filteredThreads.length)}
+              detail="Filtered thread count so you can work a focused inbox slice without losing context."
+            />
+          </div>
+        </AdminPanel>
 
         <section className="grid grid-cols-1 gap-6 xl:grid-cols-[390px_minmax(0,1fr)]">
           <AdminPanel
@@ -401,7 +401,7 @@ export default function AdminPortalMessagesPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search buyer conversations..."
-              className="w-full rounded-[20px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+              className="w-full rounded-[20px] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3 text-sm text-[var(--portal-text)] outline-none focus:border-[#c8a884]"
             />
 
             <div className="mt-4 space-y-3">
@@ -443,14 +443,14 @@ export default function AdminPortalMessagesPage() {
                   <button
                     type="button"
                     onClick={() => void handleRefresh()}
-                    className="rounded-full border border-[#e5d2bc] bg-[#fff9f2] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#b8772f] transition hover:border-[#d8b48b]"
+                    className="rounded-full border border-[#e5d2bc] bg-[var(--portal-surface-muted)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#b8772f] transition hover:border-[#d8b48b]"
                   >
                     Refresh
                   </button>
                 }
               >
                 {statusText ? (
-                  <div className="mb-4 rounded-[18px] border border-[#ead9c7] bg-[#fff9f2] px-4 py-3 text-sm font-semibold text-[#7a5a3a]">
+                  <div className="mb-4 rounded-[18px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm font-semibold text-[var(--portal-text-soft)]">
                     {statusText}
                   </div>
                 ) : null}
@@ -470,13 +470,13 @@ export default function AdminPortalMessagesPage() {
                 >
                   <form onSubmit={handleSendAdminMessage} className="space-y-4">
                     <MessageField label="Subject" value={subject} onChange={setSubject} />
-                    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#a47946]">
+                    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
                       Message
                       <textarea
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
                         rows={9}
-                        className="mt-2 w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm normal-case tracking-normal text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+                        className="mt-2 w-full rounded-[18px] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3.5 text-sm normal-case tracking-normal text-[var(--portal-text)] outline-none focus:border-[#c8a884]"
                         required
                       />
                     </label>
@@ -499,7 +499,7 @@ export default function AdminPortalMessagesPage() {
                       {groupedMessages.map((group) => (
                         <div key={group.key}>
                           <div className="mb-4">
-                            <span className="inline-flex rounded-full border border-[#ead9c7] bg-[#fff9f2] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#a47946]">
+                            <span className="inline-flex rounded-full border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
                               {group.key}
                             </span>
                           </div>
@@ -514,11 +514,11 @@ export default function AdminPortalMessagesPage() {
                                       "max-w-[85%] rounded-[28px] border px-5 py-4 shadow-[0_10px_24px_rgba(106,76,45,0.05)]",
                                       isAdmin
                                         ? "border-[#d8c2a8] bg-[linear-gradient(180deg,#6b4d33_0%,#5a3f2d_100%)] text-white"
-                                        : "border-[#ead9c7] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] text-[#2f2218]",
+                                        : "border-[var(--portal-border)] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] text-[var(--portal-text)]",
                                     ].join(" ")}
                                   >
                                     <div className="flex flex-wrap items-center justify-between gap-3">
-                                      <div className={`text-[10px] font-semibold uppercase tracking-[0.18em] ${isAdmin ? "text-white/70" : "text-[#a47946]"}`}>
+                                      <div className={`text-[10px] font-semibold uppercase tracking-[0.18em] ${isAdmin ? "text-white/70" : "text-[var(--portal-text-muted)]"}`}>
                                         {isAdmin ? "Admin" : selectedThread.displayName || "Buyer"}
                                       </div>
                                       <div className={`text-[10px] ${isAdmin ? "text-white/60" : "text-[#8d6f52]"}`}>
@@ -532,12 +532,12 @@ export default function AdminPortalMessagesPage() {
                                     </div>
 
                                     {entry.subject ? (
-                                      <div className={`mt-2 text-sm font-semibold ${isAdmin ? "text-white" : "text-[#2f2218]"}`}>
+                                      <div className={`mt-2 text-sm font-semibold ${isAdmin ? "text-white" : "text-[var(--portal-text)]"}`}>
                                         {entry.subject}
                                       </div>
                                     ) : null}
 
-                                    <div className={`mt-3 whitespace-pre-wrap text-sm leading-7 ${isAdmin ? "text-white/92" : "text-[#73583f]"}`}>
+                                    <div className={`mt-3 whitespace-pre-wrap text-sm leading-7 ${isAdmin ? "text-white/92" : "text-[var(--portal-text-soft)]"}`}>
                                       {entry.message}
                                     </div>
 
@@ -615,13 +615,14 @@ function MessageField({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#a47946]">
+    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
       {label}
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-2 w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm normal-case tracking-normal text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+        className="mt-2 w-full rounded-[18px] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3.5 text-sm normal-case tracking-normal text-[var(--portal-text)] outline-none focus:border-[#c8a884]"
       />
     </label>
   );
 }
+

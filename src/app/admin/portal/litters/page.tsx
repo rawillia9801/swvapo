@@ -7,8 +7,6 @@ import {
   AdminHeroPrimaryAction,
   AdminHeroSecondaryAction,
   AdminInfoTile,
-  AdminMetricCard,
-  AdminMetricGrid,
   AdminPageHero,
   AdminPageShell,
   AdminPanel,
@@ -157,7 +155,7 @@ function Notice({ tone, message }: NoticeState) {
   const tones: Record<NoticeTone, string> = {
     success: "border-emerald-200 bg-emerald-50 text-emerald-900",
     error: "border-rose-200 bg-rose-50 text-rose-900",
-    neutral: "border-[#ead9c7] bg-[#fff9f2] text-[#7a5a3a]",
+    neutral: "border-[var(--portal-border)] bg-[var(--portal-surface-muted)] text-[var(--portal-text-soft)]",
   };
 
   return (
@@ -179,10 +177,10 @@ function WorkspaceNavCard({
   return (
     <Link
       href={href}
-      className="rounded-[20px] border border-[#ead9c7] bg-[linear-gradient(180deg,#fffdf9_0%,#fbf6ef_100%)] px-4 py-4 transition hover:-translate-y-0.5 hover:border-[#d7b28a] hover:bg-white"
+      className="rounded-[20px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,#fffdf9_0%,#fbf6ef_100%)] px-4 py-4 transition hover:-translate-y-0.5 hover:border-[#d7b28a] hover:bg-white"
     >
-      <div className="text-sm font-semibold text-[#2f2218]">{title}</div>
-      <div className="mt-1 text-xs leading-5 text-[#8a6a49]">{detail}</div>
+      <div className="text-sm font-semibold text-[var(--portal-text)]">{title}</div>
+      <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">{detail}</div>
     </Link>
   );
 }
@@ -197,12 +195,12 @@ function WorkspaceMetric({
   detail?: string;
 }) {
   return (
-    <div className="rounded-[18px] border border-[#ead9c7] bg-white px-4 py-4">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+    <div className="rounded-[18px] border border-[var(--portal-border)] bg-white px-4 py-4">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
         {label}
       </div>
-      <div className="mt-2 text-2xl font-semibold text-[#2f2218]">{value}</div>
-      {detail ? <div className="mt-1 text-xs leading-5 text-[#8a6a49]">{detail}</div> : null}
+      <div className="mt-2 text-2xl font-semibold text-[var(--portal-text)]">{value}</div>
+      {detail ? <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">{detail}</div> : null}
     </div>
   );
 }
@@ -216,10 +214,10 @@ function SavedMeta({
 }) {
   return (
     <div>
-      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
         {label}
       </div>
-      <div className="mt-2 text-sm font-semibold text-[#2f2218]">{value}</div>
+      <div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">{value}</div>
     </div>
   );
 }
@@ -232,11 +230,11 @@ function SecondaryMeta({
   value: string;
 }) {
   return (
-    <div className="rounded-[16px] border border-[#ead9c7] bg-white px-3 py-3">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+    <div className="rounded-[16px] border border-[var(--portal-border)] bg-white px-3 py-3">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
         {label}
       </div>
-      <div className="mt-2 text-sm font-semibold text-[#2f2218]">{value}</div>
+      <div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">{value}</div>
     </div>
   );
 }
@@ -249,8 +247,8 @@ function EmptySelection({
   description: string;
 }) {
   return (
-    <div className="rounded-[22px] border border-dashed border-[#e0ccb6] bg-[#fffaf4] px-5 py-8 text-center">
-      <div className="text-base font-semibold text-[#2f2218]">{title}</div>
+    <div className="rounded-[22px] border border-dashed border-[#e0ccb6] bg-[var(--portal-surface-muted)] px-5 py-8 text-center">
+      <div className="text-base font-semibold text-[var(--portal-text)]">{title}</div>
       <div className="mt-2 text-sm leading-6 text-[#7a5b3d]">{description}</div>
     </div>
   );
@@ -289,13 +287,13 @@ function PuppyDrawer({
 
       <div className="absolute right-0 top-0 h-full w-full max-w-[620px] border-l border-[#e7d7c6] bg-[linear-gradient(180deg,rgba(255,252,247,0.99),rgba(252,246,239,0.99))] shadow-[0_24px_60px_rgba(72,46,24,0.18)]">
         <div className="flex h-full flex-col">
-          <div className="border-b border-[#ead9c7] px-6 py-5">
+          <div className="border-b border-[var(--portal-border)] px-6 py-5">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
                   Puppy Revenue Editor
                 </div>
-                <div className="mt-2 text-2xl font-semibold leading-tight text-[#2f2218]">
+                <div className="mt-2 text-2xl font-semibold leading-tight text-[var(--portal-text)]">
                   {puppy.displayName}
                 </div>
                 <div className="mt-1 text-sm leading-6 text-[#7a5b3d]">
@@ -305,7 +303,7 @@ function PuppyDrawer({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-full border border-[#e4d2be] bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#7a5b3d] transition hover:border-[#d4b48b]"
+                className="rounded-full border border-[var(--portal-border)] bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#7a5b3d] transition hover:border-[var(--portal-border-strong)]"
               >
                 Close
               </button>
@@ -341,8 +339,8 @@ function PuppyDrawer({
 
           <div className="flex-1 overflow-y-auto px-6 py-5">
             <div className="space-y-5">
-              <div className="rounded-[22px] border border-[#ead9c7] bg-white p-5">
-                <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+              <div className="rounded-[22px] border border-[var(--portal-border)] bg-white p-5">
+                <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
                   Identity
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -381,8 +379,8 @@ function PuppyDrawer({
                 </div>
               </div>
 
-              <div className="rounded-[22px] border border-[#ead9c7] bg-white p-5">
-                <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+              <div className="rounded-[22px] border border-[var(--portal-border)] bg-white p-5">
+                <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
                   Assignment
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -401,8 +399,8 @@ function PuppyDrawer({
                 </div>
               </div>
 
-              <div className="rounded-[22px] border border-[#ead9c7] bg-white p-5">
-                <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+              <div className="rounded-[22px] border border-[var(--portal-border)] bg-white p-5">
+                <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
                   Revenue
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -433,8 +431,8 @@ function PuppyDrawer({
                 </div>
               </div>
 
-              <div className="rounded-[22px] border border-[#ead9c7] bg-white p-5">
-                <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+              <div className="rounded-[22px] border border-[var(--portal-border)] bg-white p-5">
+                <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
                   Internal Notes
                 </div>
                 <AdminTextAreaInput
@@ -448,7 +446,7 @@ function PuppyDrawer({
             </div>
           </div>
 
-          <div className="border-t border-[#ead9c7] px-6 py-4">
+          <div className="border-t border-[var(--portal-border)] px-6 py-4">
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
@@ -460,13 +458,13 @@ function PuppyDrawer({
               </button>
               <Link
                 href="/admin/portal/payments"
-                className="rounded-2xl border border-[#e4d2be] bg-white px-5 py-3 text-sm font-semibold text-[#5d4330] transition hover:border-[#d4b48b]"
+                className="rounded-2xl border border-[var(--portal-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]"
               >
                 Open Payments
               </Link>
               <Link
                 href="/admin/portal/puppies"
-                className="rounded-2xl border border-[#e4d2be] bg-white px-5 py-3 text-sm font-semibold text-[#5d4330] transition hover:border-[#d4b48b]"
+                className="rounded-2xl border border-[var(--portal-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]"
               >
                 Full Puppy Workspace
               </Link>
@@ -589,7 +587,7 @@ export default function AdminPortalLittersPage() {
   }, [accessToken, isAdmin]);
 
   const dogs = workspace?.dogs || [];
-  const buyers = workspace?.buyers || [];
+  const buyers = workspace?.buyers;
 
   const damOptions = dogs.filter(
     (dog) => String(dog.role || "").toLowerCase() === "dam",
@@ -643,7 +641,7 @@ export default function AdminPortalLittersPage() {
   const buyerOptions = useMemo(
     () => [
       { value: "", label: "Unassigned" },
-      ...buyers
+      ...(buyers || [])
         .slice()
         .sort((a, b) => buyerName(a).localeCompare(buyerName(b)))
         .map((buyer) => ({
@@ -974,31 +972,33 @@ export default function AdminPortalLittersPage() {
 
         {notice ? <Notice tone={notice.tone} message={notice.message} /> : null}
 
-        <AdminMetricGrid>
-          <AdminMetricCard
-            label="Litters"
-            value={String(totalLitters)}
-            detail="Saved registry records across the breeding program."
-          />
-          <AdminMetricCard
-            label="Linked Puppies"
-            value={String(totalLinkedPuppies)}
-            detail="Puppies attached to live litter records."
-            accent="from-[#e7ddd3] via-[#c9b39a] to-[#8f6f53]"
-          />
-          <AdminMetricCard
-            label="Parent Gaps"
-            value={String(lineageGapCount)}
-            detail="Litters still missing a saved sire or dam."
-            accent="from-[#efe1d2] via-[#d7b999] to-[#b88255]"
-          />
-          <AdminMetricCard
-            label="Collected Payments"
-            value={fmtMoney(totalPayments)}
-            detail="Cash collected across linked payment records."
-            accent="from-[#e2e5d4] via-[#bec49f] to-[#8c9873]"
-          />
-        </AdminMetricGrid>
+        <AdminPanel
+          title="Litter Bench"
+          subtitle="This page should surface breeding-cycle readiness, lineage gaps, and placement progress for each litter without forcing you into a separate scorecard row."
+        >
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <AdminInfoTile
+              label="Litters"
+              value={String(totalLitters)}
+              detail="Saved registry records across planned, whelped, active, completed, and archived litters."
+            />
+            <AdminInfoTile
+              label="Linked Puppies"
+              value={String(totalLinkedPuppies)}
+              detail="Puppy records already attached to their litter source of truth."
+            />
+            <AdminInfoTile
+              label="Parent Gaps"
+              value={String(lineageGapCount)}
+              detail="Litters still missing a confirmed sire or dam relationship in the breeding program."
+            />
+            <AdminInfoTile
+              label="Collected Cash"
+              value={fmtMoney(totalPayments)}
+              detail="Payments already collected across puppy accounts tied back to their litter records."
+            />
+          </div>
+        </AdminPanel>
 
         <section className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.22fr)_460px]">
           <div className="space-y-5">
@@ -1011,13 +1011,13 @@ export default function AdminPortalLittersPage() {
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Search litter, code, parents, notes, or linked puppies..."
-                  className="w-full rounded-[16px] border border-[#e6d7c7] bg-[#fffdfa] px-3.5 py-2.5 text-sm text-[#33251a] outline-none transition focus:border-[#caa074] focus:ring-2 focus:ring-[#ead7c0]"
+                  className="w-full rounded-[16px] border border-[var(--portal-border)] bg-white px-3.5 py-2.5 text-sm text-[var(--portal-text)] outline-none transition focus:border-[var(--portal-accent)] focus:ring-2 focus:ring-[rgba(90,142,245,0.14)]"
                 />
 
                 <select
                   value={statusFilter}
                   onChange={(event) => setStatusFilter(event.target.value)}
-                  className="w-full rounded-[16px] border border-[#e6d7c7] bg-[#fffdfa] px-3.5 py-2.5 text-sm text-[#33251a] outline-none transition focus:border-[#caa074] focus:ring-2 focus:ring-[#ead7c0]"
+                  className="w-full rounded-[16px] border border-[var(--portal-border)] bg-white px-3.5 py-2.5 text-sm text-[var(--portal-text)] outline-none transition focus:border-[var(--portal-accent)] focus:ring-2 focus:ring-[rgba(90,142,245,0.14)]"
                 >
                   {LITTER_STATUS_OPTIONS.map((item) => (
                     <option key={item.value} value={item.value}>
@@ -1029,7 +1029,7 @@ export default function AdminPortalLittersPage() {
                 <button
                   type="button"
                   onClick={resetFilters}
-                  className="rounded-[16px] border border-[#e4d2be] bg-white px-4 py-2.5 text-sm font-semibold text-[#5d4330] transition hover:border-[#d4b48b]"
+                  className="rounded-[16px] border border-[var(--portal-border)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]"
                 >
                   Clear
                 </button>
@@ -1044,9 +1044,9 @@ export default function AdminPortalLittersPage() {
               </div>
 
               {filteredLitters.length ? (
-                <div className="overflow-hidden rounded-[22px] border border-[#ead9c7]">
+                <div className="overflow-hidden rounded-[22px] border border-[var(--portal-border)]">
                   <table className="min-w-full divide-y divide-[#eee1d2] text-sm">
-                    <thead className="bg-[#faf3ea] text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+                    <thead className="bg-[var(--portal-surface-muted)] text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
                       <tr>
                         <th className="px-4 py-3">Litter</th>
                         <th className="px-4 py-3">Parents</th>
@@ -1063,34 +1063,34 @@ export default function AdminPortalLittersPage() {
                           <tr
                             key={litter.id}
                             onClick={() => openExisting(String(litter.id))}
-                            className={`cursor-pointer transition hover:bg-[#fffaf4] ${
-                              active ? "bg-[#fff8ef]" : ""
+                            className={`cursor-pointer transition hover:bg-[var(--portal-surface-muted)] ${
+                              active ? "bg-[var(--portal-surface-muted)]" : ""
                             }`}
                           >
                             <td className="px-4 py-3">
-                              <div className="font-semibold text-[#2f2218]">
+                              <div className="font-semibold text-[var(--portal-text)]">
                                 {litterName(litter)}
                               </div>
-                              <div className="mt-1 text-xs text-[#8a6a49]">
+                              <div className="mt-1 text-xs text-[var(--portal-text-soft)]">
                                 {litter.litter_code || "No code"} • {displayDate(litter.whelp_date)}
                               </div>
                             </td>
-                            <td className="px-4 py-3 text-[#73583f]">
+                            <td className="px-4 py-3 text-[var(--portal-text-soft)]">
                               {dogName(litter.damProfile)} / {dogName(litter.sireProfile)}
                             </td>
                             <td className="px-4 py-3">
-                              <div className="font-semibold text-[#2f2218]">
+                              <div className="font-semibold text-[var(--portal-text)]">
                                 {litter.puppies.length}
                               </div>
-                              <div className="mt-1 text-xs text-[#8a6a49]">
+                              <div className="mt-1 text-xs text-[var(--portal-text-soft)]">
                                 linked puppies
                               </div>
                             </td>
                             <td className="px-4 py-3">
-                              <div className="font-semibold text-[#2f2218]">
+                              <div className="font-semibold text-[var(--portal-text)]">
                                 {fmtMoney(litter.summary.contractedRevenue ?? 0)}
                               </div>
-                              <div className="mt-1 text-xs text-[#8a6a49]">
+                              <div className="mt-1 text-xs text-[var(--portal-text-soft)]">
                                 {fmtMoney(litter.summary.totalPayments ?? 0)} collected
                               </div>
                             </td>
@@ -1110,7 +1110,7 @@ export default function AdminPortalLittersPage() {
                                   event.stopPropagation();
                                   openExisting(String(litter.id));
                                 }}
-                                className="rounded-full border border-[#e4d2be] bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#7a5b3d] transition hover:border-[#d4b48b]"
+                                className="rounded-full border border-[var(--portal-border)] bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#7a5b3d] transition hover:border-[var(--portal-border-strong)]"
                               >
                                 Open
                               </button>
@@ -1140,9 +1140,9 @@ export default function AdminPortalLittersPage() {
               {selectedLitter ? (
                 selectedPuppies.length ? (
                   <div className="space-y-4">
-                    <div className="overflow-hidden rounded-[22px] border border-[#ead9c7]">
+                    <div className="overflow-hidden rounded-[22px] border border-[var(--portal-border)]">
                       <table className="min-w-full divide-y divide-[#eee1d2] text-sm">
-                        <thead className="bg-[#faf3ea] text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+                        <thead className="bg-[var(--portal-surface-muted)] text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
                           <tr>
                             <th className="px-4 py-3">Puppy</th>
                             <th className="px-4 py-3">Buyer</th>
@@ -1162,19 +1162,19 @@ export default function AdminPortalLittersPage() {
                               <tr
                                 key={puppy.id}
                                 onClick={() => openPuppy(String(puppy.id))}
-                                className={`cursor-pointer transition hover:bg-[#fffaf4] ${
-                                  active ? "bg-[#fff8ef]" : ""
+                                className={`cursor-pointer transition hover:bg-[var(--portal-surface-muted)] ${
+                                  active ? "bg-[var(--portal-surface-muted)]" : ""
                                 }`}
                               >
                                 <td className="px-4 py-3">
-                                  <div className="font-semibold text-[#2f2218]">
+                                  <div className="font-semibold text-[var(--portal-text)]">
                                     {puppy.displayName}
                                   </div>
-                                  <div className="mt-1 text-xs text-[#8a6a49]">
+                                  <div className="mt-1 text-xs text-[var(--portal-text-soft)]">
                                     {publicHidden ? "Public price hidden" : "Public price visible"}
                                   </div>
                                 </td>
-                                <td className="px-4 py-3 text-[#73583f]">
+                                <td className="px-4 py-3 text-[var(--portal-text-soft)]">
                                   {buyerName(puppy.buyer)}
                                 </td>
                                 <td className="px-4 py-3">
@@ -1187,26 +1187,26 @@ export default function AdminPortalLittersPage() {
                                   </span>
                                 </td>
                                 <td className="px-4 py-3">
-                                  <div className="font-semibold text-[#2f2218]">
+                                  <div className="font-semibold text-[var(--portal-text)]">
                                     {fmtMoney(Number(puppy.price || 0))}
                                   </div>
-                                  <div className="mt-1 text-xs text-[#8a6a49]">
+                                  <div className="mt-1 text-xs text-[var(--portal-text-soft)]">
                                     listed {fmtMoney(Number(puppy.list_price || puppy.price || 0))}
                                   </div>
                                 </td>
                                 <td className="px-4 py-3">
-                                  <div className="font-semibold text-[#2f2218]">
+                                  <div className="font-semibold text-[var(--portal-text)]">
                                     {publicHidden ? "Hidden" : "Visible"}
                                   </div>
-                                  <div className="mt-1 text-xs text-[#8a6a49]">
+                                  <div className="mt-1 text-xs text-[var(--portal-text-soft)]">
                                     {publicHidden ? "internal only" : "website eligible"}
                                   </div>
                                 </td>
                                 <td className="px-4 py-3">
-                                  <div className="font-semibold text-[#2f2218]">
+                                  <div className="font-semibold text-[var(--portal-text)]">
                                     {fmtMoney(puppy.paymentTotal || 0)}
                                   </div>
-                                  <div className="mt-1 text-xs text-[#8a6a49]">
+                                  <div className="mt-1 text-xs text-[var(--portal-text-soft)]">
                                     deposit {fmtMoney(Number(puppy.deposit || 0))}
                                   </div>
                                 </td>
@@ -1281,12 +1281,12 @@ export default function AdminPortalLittersPage() {
                   You are creating a new litter record.
                 </div>
               ) : selectedLitter ? (
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-[#ead9c7] bg-[#fff9f2] px-4 py-3">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3">
                   <div>
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
                       Active Record
                     </div>
-                    <div className="mt-1 text-base font-semibold text-[#2f2218]">
+                    <div className="mt-1 text-base font-semibold text-[var(--portal-text)]">
                       {litterName(selectedLitter)}
                     </div>
                   </div>
@@ -1325,8 +1325,8 @@ export default function AdminPortalLittersPage() {
                 </div>
 
                 {!createMode && selectedLitter ? (
-                  <div className="rounded-[22px] border border-[#ead9c7] bg-[#fffaf4] px-4 py-4">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+                  <div className="rounded-[22px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
                       Saved Record
                     </div>
                     <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -1355,8 +1355,8 @@ export default function AdminPortalLittersPage() {
                   </div>
                 ) : null}
 
-                <div className="rounded-[22px] border border-[#ead9c7] bg-white p-5">
-                  <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+                <div className="rounded-[22px] border border-[var(--portal-border)] bg-white p-5">
+                  <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
                     Litter Record
                   </div>
 
@@ -1439,7 +1439,7 @@ export default function AdminPortalLittersPage() {
                     <button
                       type="button"
                       onClick={resetDetail}
-                      className="rounded-2xl border border-[#e4d2be] bg-white px-5 py-3 text-sm font-semibold text-[#5d4330] transition hover:border-[#d4b48b]"
+                      className="rounded-2xl border border-[var(--portal-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]"
                     >
                       {createMode ? "Reset Form" : "Reset to Saved"}
                     </button>
@@ -1459,7 +1459,7 @@ export default function AdminPortalLittersPage() {
                           );
                           setNotice(null);
                         }}
-                        className="rounded-2xl border border-[#e4d2be] bg-white px-5 py-3 text-sm font-semibold text-[#5d4330] transition hover:border-[#d4b48b]"
+                        className="rounded-2xl border border-[var(--portal-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]"
                       >
                         Cancel Create
                       </button>
@@ -1487,3 +1487,4 @@ export default function AdminPortalLittersPage() {
     </AdminPageShell>
   );
 }
+

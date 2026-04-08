@@ -7,8 +7,6 @@ import {
   AdminHeroPrimaryAction,
   AdminHeroSecondaryAction,
   AdminInfoTile,
-  AdminMetricCard,
-  AdminMetricGrid,
   AdminPageHero,
   AdminPageShell,
   AdminPanel,
@@ -261,14 +259,35 @@ export default function AdminPortalBuyersPage() {
   return (
     <AdminPageShell>
       <div className="space-y-5 pb-10">
-        <AdminPageHero eyebrow="Buyers" title="Run buyer accounts from a tighter directory and detail workflow." description="The buyer workspace is organized like real software now: a searchable directory on the left, an operational detail rail on the right, and linked puppy and financial context grouped by function instead of stacked as oversized cards." actions={<><button type="button" onClick={() => { setCreateMode(true); setForm(emptyForm()); setSelectedPuppyIds([]); setStatusText(""); }} className="inline-flex items-center rounded-2xl bg-[linear-gradient(135deg,#c88c52_0%,#a56733_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(159,99,49,0.22)] transition hover:-translate-y-0.5 hover:brightness-105">Create Buyer</button><AdminHeroPrimaryAction href="/admin/portal/payments">Open Payments</AdminHeroPrimaryAction><AdminHeroSecondaryAction href="/admin/portal/messages">Open Messages</AdminHeroSecondaryAction></>} aside={<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1"><AdminInfoTile label="Portal Accounts" value={String(buyers.filter((buyer) => buyer.hasPortalAccount).length)} detail="Buyer records already linked to a portal login." /><AdminInfoTile label="Deposits Recorded" value={fmtMoney(totalDeposits)} detail="Deposits tied to buyer and puppy records across the directory." /></div>} />
+        <AdminPageHero eyebrow="Buyers" title="Run buyer accounts as placement files, not loose contact records." description="Families, puppy assignments, financing context, portal access, and recent payment activity stay together here so the buyer side of the breeding hub is easy to operate and hard to miss details in." actions={<><button type="button" onClick={() => { setCreateMode(true); setForm(emptyForm()); setSelectedPuppyIds([]); setStatusText(""); }} className="inline-flex items-center rounded-2xl bg-[linear-gradient(90deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--portal-shadow-md)] transition hover:-translate-y-0.5">Create Buyer</button><AdminHeroPrimaryAction href="/admin/portal/payments">Open Payments</AdminHeroPrimaryAction><AdminHeroSecondaryAction href="/admin/portal/messages">Open Messages</AdminHeroSecondaryAction></>} aside={<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1"><AdminInfoTile label="Portal Accounts" value={String(buyers.filter((buyer) => buyer.hasPortalAccount).length)} detail="Buyer records already linked to a portal login." /><AdminInfoTile label="Deposits Recorded" value={fmtMoney(totalDeposits)} detail="Deposits tied to buyer and puppy records across the directory." /></div>} />
 
-        <AdminMetricGrid>
-          <AdminMetricCard label="Buyers" value={String(buyers.length)} detail="Total buyer records across active and completed accounts." />
-          <AdminMetricCard label="Active" value={String(buyers.filter((buyer) => !complete(buyer.buyer.status)).length)} detail="Open accounts still being worked, financed, or scheduled." accent="from-[#dfe8d8] via-[#c6d6ba] to-[#8aa07e]" />
-          <AdminMetricCard label="Completed" value={String(buyers.filter((buyer) => complete(buyer.buyer.status)).length)} detail="Completed outcomes retained for history and reporting." accent="from-[#e7ddd3] via-[#c9b39a] to-[#8f6f53]" />
-          <AdminMetricCard label="Financing Enabled" value={String(accounts.filter((account) => Boolean(account.buyer.finance_enabled)).length)} detail="Buyer accounts currently carrying a payment plan." accent="from-[#f0ddc5] via-[#d9b78e] to-[#be8650]" />
-        </AdminMetricGrid>
+        <AdminPanel
+          title="Buyer Workbench"
+          subtitle="The buyer page should highlight placement and account hygiene, not just totals."
+        >
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <AdminInfoTile
+              label="Active Families"
+              value={String(buyers.filter((buyer) => !complete(buyer.buyer.status)).length)}
+              detail={`${buyers.length} buyer records total across active and completed placements.`}
+            />
+            <AdminInfoTile
+              label="Financing Households"
+              value={String(accounts.filter((account) => Boolean(account.buyer.finance_enabled)).length)}
+              detail="Families with payment-plan terms that need due-date and ledger visibility."
+            />
+            <AdminInfoTile
+              label="Portal Setup Gaps"
+              value={String(buyers.filter((buyer) => !buyer.hasPortalAccount).length)}
+              detail="Buyer records still missing an account connection for the portal experience."
+            />
+            <AdminInfoTile
+              label="Unassigned Puppies"
+              value={String(puppies.filter((puppy) => !puppy.buyer_id).length)}
+              detail="Available puppy records that are still open for matching or reassignment."
+            />
+          </div>
+        </AdminPanel>
 
         <section className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.24fr)_430px]">
           <AdminPanel title="Buyer Directory" subtitle="Search by buyer, linked puppy, location, or notes.">
@@ -277,25 +296,25 @@ export default function AdminPortalBuyersPage() {
               <Toggle active={viewMode === "completed"} label="Completed" onClick={() => setViewMode("completed")} />
             </div>
             <div className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
-              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search buyers, puppies, notes, or location..." className="w-full rounded-[16px] border border-[#e6d7c7] bg-[#fffdfa] px-3.5 py-2.5 text-sm text-[#33251a] outline-none transition focus:border-[#caa074] focus:ring-2 focus:ring-[#ead7c0]" />
-              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="w-full rounded-[16px] border border-[#e6d7c7] bg-[#fffdfa] px-3.5 py-2.5 text-sm text-[#33251a] outline-none transition focus:border-[#caa074] focus:ring-2 focus:ring-[#ead7c0]"><option value="all">All statuses</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="completed">Completed</option><option value="denied">Denied</option><option value="withdrawn">Withdrawn</option></select>
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search buyers, puppies, notes, or location..." className="w-full rounded-[16px] border border-[var(--portal-border)] bg-white px-3.5 py-2.5 text-sm text-[var(--portal-text)] outline-none transition focus:border-[var(--portal-accent)] focus:ring-2 focus:ring-[rgba(90,142,245,0.14)]" />
+              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="w-full rounded-[16px] border border-[var(--portal-border)] bg-white px-3.5 py-2.5 text-sm text-[var(--portal-text)] outline-none transition focus:border-[var(--portal-accent)] focus:ring-2 focus:ring-[rgba(90,142,245,0.14)]"><option value="all">All statuses</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="completed">Completed</option><option value="denied">Denied</option><option value="withdrawn">Withdrawn</option></select>
             </div>
 
             {filteredBuyers.length ? (
-              <div className="overflow-hidden rounded-[24px] border border-[#ead9c7]">
+              <div className="overflow-hidden rounded-[24px] border border-[var(--portal-border)]">
                 <table className="min-w-full divide-y divide-[#eee1d2] text-sm">
-                  <thead className="bg-[#faf3ea] text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]"><tr><th className="px-4 py-3">Buyer</th><th className="px-4 py-3">Linked Puppies</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Portal</th><th className="px-4 py-3">Balance</th></tr></thead>
+                  <thead className="bg-[var(--portal-surface-muted)] text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]"><tr><th className="px-4 py-3">Buyer</th><th className="px-4 py-3">Linked Puppies</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Portal</th><th className="px-4 py-3">Balance</th></tr></thead>
                   <tbody className="divide-y divide-[#f1e6da] bg-white">
                     {filteredBuyers.map((record) => {
                       const active = !createMode && record.key === selectedKey;
                       const summary = summaryForBuyer(record, accountsByBuyerId.get(record.buyer.id) || null);
                       return (
-                        <tr key={record.key} onClick={() => { setCreateMode(false); setSelectedKey(record.key); setStatusText(""); }} className={`cursor-pointer transition hover:bg-[#fffaf4] ${active ? "bg-[#fff8ef]" : ""}`}>
-                          <td className="px-4 py-3"><div className="font-semibold text-[#2f2218]">{record.displayName}</div><div className="mt-1 text-xs text-[#8a6a49]">{record.email || "No email"} • {record.phone || "No phone"}</div></td>
-                          <td className="px-4 py-3 text-[#73583f]">{record.linkedPuppies.length ? record.linkedPuppies.slice(0, 2).map((puppy) => puppyLabel(puppy)).join(", ") : "No puppy linked"}{record.linkedPuppies.length > 2 ? ` +${record.linkedPuppies.length - 2}` : ""}</td>
+                        <tr key={record.key} onClick={() => { setCreateMode(false); setSelectedKey(record.key); setStatusText(""); }} className={`cursor-pointer transition hover:bg-[var(--portal-surface-muted)] ${active ? "bg-[var(--portal-surface-muted)]" : ""}`}>
+                          <td className="px-4 py-3"><div className="font-semibold text-[var(--portal-text)]">{record.displayName}</div><div className="mt-1 text-xs text-[var(--portal-text-soft)]">{record.email || "No email"} • {record.phone || "No phone"}</div></td>
+                          <td className="px-4 py-3 text-[var(--portal-text-soft)]">{record.linkedPuppies.length ? record.linkedPuppies.slice(0, 2).map((puppy) => puppyLabel(puppy)).join(", ") : "No puppy linked"}{record.linkedPuppies.length > 2 ? ` +${record.linkedPuppies.length - 2}` : ""}</td>
                           <td className="px-4 py-3"><span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(record.buyer.status || "pending")}`}>{record.buyer.status || "pending"}</span></td>
-                          <td className="px-4 py-3 text-[#73583f]">{record.hasPortalAccount ? "Connected" : "No login"}</td>
-                          <td className="px-4 py-3"><div className="font-semibold text-[#2f2218]">{fmtMoney(summary.balance)}</div><div className="mt-1 text-xs text-[#8a6a49]">{summary.activityCount} activity entries</div></td>
+                          <td className="px-4 py-3 text-[var(--portal-text-soft)]">{record.hasPortalAccount ? "Connected" : "No login"}</td>
+                          <td className="px-4 py-3"><div className="font-semibold text-[var(--portal-text)]">{fmtMoney(summary.balance)}</div><div className="mt-1 text-xs text-[var(--portal-text-soft)]">{summary.activityCount} activity entries</div></td>
                         </tr>
                       );
                     })}
@@ -307,7 +326,7 @@ export default function AdminPortalBuyersPage() {
 
           <div className="space-y-5">
             <AdminPanel title={createMode ? "Create Buyer" : "Buyer Detail"} subtitle={createMode ? "Create a buyer record and attach puppies right away." : "Profile, assignment, financial context, and recent activity stay grouped together here."}>
-              {statusText ? <div className="mb-4 rounded-[18px] border border-[#ead9c7] bg-[#fff9f2] px-4 py-3 text-sm font-semibold text-[#7a5a3a]">{statusText}</div> : null}
+              {statusText ? <div className="mb-4 rounded-[18px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm font-semibold text-[var(--portal-text-soft)]">{statusText}</div> : null}
               <div className="grid gap-3 sm:grid-cols-2">
                 <AdminInfoTile label="Portal Account" value={selectedBuyer?.hasPortalAccount ? "Connected" : createMode ? "New record" : "Not connected"} detail={selectedBuyer?.portalUser?.email || "Buyer login status and last sign-in stay visible here."} />
                 <AdminInfoTile label="Applications" value={String(selectedBuyer?.applicationCount || 0)} detail={`${selectedBuyer?.formCount || 0} submitted forms`} />
@@ -331,17 +350,17 @@ export default function AdminPortalBuyersPage() {
 
               <div className="mt-5 flex flex-wrap gap-3">
                 <button type="button" onClick={() => void saveBuyer()} disabled={saving} className="rounded-2xl bg-[linear-gradient(135deg,#c88c52_0%,#a56733_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(159,99,49,0.22)] transition hover:brightness-105 disabled:opacity-60">{saving ? "Saving..." : createMode ? "Create Buyer" : "Save Buyer"}</button>
-                <button type="button" onClick={() => { setCreateMode(false); setStatusText(""); if (!selectedBuyer) return; setSelectedPuppyIds(selectedBuyer.linkedPuppies.map((puppy) => puppy.id)); }} className="rounded-2xl border border-[#e4d2be] bg-white px-5 py-3 text-sm font-semibold text-[#5d4330] transition hover:border-[#d4b48b]">Reset</button>
+                <button type="button" onClick={() => { setCreateMode(false); setStatusText(""); if (!selectedBuyer) return; setSelectedPuppyIds(selectedBuyer.linkedPuppies.map((puppy) => puppy.id)); }} className="rounded-2xl border border-[var(--portal-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]">Reset</button>
               </div>
             </AdminPanel>
 
             <AdminPanel title="Linked Puppies" subtitle="Use buyer assignment here to keep the shared puppy relationship in sync.">
-              <div className="mb-4"><input value={puppySearch} onChange={(event) => setPuppySearch(event.target.value)} placeholder="Search puppies by name, litter, or lineage..." className="w-full rounded-[16px] border border-[#e6d7c7] bg-[#fffdfa] px-3.5 py-2.5 text-sm text-[#33251a] outline-none transition focus:border-[#caa074] focus:ring-2 focus:ring-[#ead7c0]" /></div>
+              <div className="mb-4"><input value={puppySearch} onChange={(event) => setPuppySearch(event.target.value)} placeholder="Search puppies by name, litter, or lineage..." className="w-full rounded-[16px] border border-[var(--portal-border)] bg-white px-3.5 py-2.5 text-sm text-[var(--portal-text)] outline-none transition focus:border-[var(--portal-accent)] focus:ring-2 focus:ring-[rgba(90,142,245,0.14)]" /></div>
               <div className="max-h-[300px] space-y-3 overflow-y-auto pr-1">
                 {puppies.filter((puppy) => [puppyLabel(puppy), puppy.status, puppy.litter_name, puppy.sire, puppy.dam, puppy.buyerName].map((value) => String(value || "").toLowerCase()).join(" ").includes(puppySearch.trim().toLowerCase())).map((puppy) => {
                   const checked = selectedPuppyIds.includes(puppy.id);
                   const linkedElsewhere = puppy.buyer_id && (!selectedBuyer || puppy.buyer_id !== selectedBuyer.buyer.id);
-                  return <label key={puppy.id} className={`flex cursor-pointer items-start gap-3 rounded-[20px] border px-4 py-3 transition ${checked ? "border-[#cfab84] bg-[#fff8ef]" : "border-[#ead9c7] bg-[#fffaf4] hover:border-[#d8b48b]"}`}><input type="checkbox" checked={checked} onChange={() => setSelectedPuppyIds((current) => current.includes(puppy.id) ? current.filter((value) => value !== puppy.id) : [...current, puppy.id])} className="mt-1 h-4 w-4 rounded border-[#d3b596] text-[#a56733] focus:ring-[#cba379]" /><div className="min-w-0"><div className="text-sm font-semibold text-[#2f2218]">{puppyLabel(puppy)}</div><div className="mt-1 text-xs text-[#8a6a49]">{puppy.status || "No status"} • {puppy.litter_name || "No litter"} • {fmtMoney(num(puppy.price || puppy.list_price))}</div><div className="mt-1 text-[11px] text-[#a47946]">{linkedElsewhere ? `Currently linked to ${puppy.buyerName || `Buyer #${puppy.buyer_id}`}` : "Available to assign"}</div></div></label>;
+                  return <label key={puppy.id} className={`flex cursor-pointer items-start gap-3 rounded-[20px] border px-4 py-3 transition ${checked ? "border-[#cfab84] bg-[var(--portal-surface-muted)]" : "border-[var(--portal-border)] bg-[var(--portal-surface-muted)] hover:border-[#d8b48b]"}`}><input type="checkbox" checked={checked} onChange={() => setSelectedPuppyIds((current) => current.includes(puppy.id) ? current.filter((value) => value !== puppy.id) : [...current, puppy.id])} className="mt-1 h-4 w-4 rounded border-[#d3b596] text-[#a56733] focus:ring-[#cba379]" /><div className="min-w-0"><div className="text-sm font-semibold text-[var(--portal-text)]">{puppyLabel(puppy)}</div><div className="mt-1 text-xs text-[var(--portal-text-soft)]">{puppy.status || "No status"} • {puppy.litter_name || "No litter"} • {fmtMoney(num(puppy.price || puppy.list_price))}</div><div className="mt-1 text-[11px] text-[var(--portal-text-muted)]">{linkedElsewhere ? `Currently linked to ${puppy.buyerName || `Buyer #${puppy.buyer_id}`}` : "Available to assign"}</div></div></label>;
                 })}
               </div>
             </AdminPanel>
@@ -356,9 +375,9 @@ export default function AdminPortalBuyersPage() {
                 <InfoLine label="Next Due" value={selectedSummary?.nextDueDate ? fmtDate(selectedSummary.nextDueDate) : "Not set"} />
               </div>
               <div className="mt-5 space-y-3">
-                {selectedActivity.length ? selectedActivity.map((activity) => <div key={activity.key} className="rounded-[20px] border border-[#ead9c7] bg-[#fffaf4] px-4 py-4"><div className="flex items-start justify-between gap-3"><div><div className="text-sm font-semibold text-[#2f2218]">{activity.title}</div><div className="mt-1 text-xs text-[#8a6a49]">{fmtDate(activity.date)}</div></div><div className="text-right"><div className="text-sm font-semibold text-[#2f2218]">{fmtMoney(activity.amount)}</div><span className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(activity.status)}`}>{activity.status}</span></div></div>{activity.detail ? <div className="mt-3 text-sm leading-6 text-[#73583f]">{activity.detail}</div> : null}</div>) : <AdminEmptyState title="No financial activity yet" description="Payments, fees, credits, and transport adjustments will appear here once they are logged." />}
+                {selectedActivity.length ? selectedActivity.map((activity) => <div key={activity.key} className="rounded-[20px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4"><div className="flex items-start justify-between gap-3"><div><div className="text-sm font-semibold text-[var(--portal-text)]">{activity.title}</div><div className="mt-1 text-xs text-[var(--portal-text-soft)]">{fmtDate(activity.date)}</div></div><div className="text-right"><div className="text-sm font-semibold text-[var(--portal-text)]">{fmtMoney(activity.amount)}</div><span className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(activity.status)}`}>{activity.status}</span></div></div>{activity.detail ? <div className="mt-3 text-sm leading-6 text-[var(--portal-text-soft)]">{activity.detail}</div> : null}</div>) : <AdminEmptyState title="No financial activity yet" description="Payments, fees, credits, and transport adjustments will appear here once they are logged." />}
               </div>
-              <div className="mt-4 flex flex-wrap gap-3"><Link href="/admin/portal/payments" className="rounded-2xl border border-[#e4d2be] bg-white px-4 py-3 text-sm font-semibold text-[#5d4330] transition hover:border-[#d4b48b]">Open Payments</Link><Link href="/admin/portal/messages" className="rounded-2xl border border-[#e4d2be] bg-white px-4 py-3 text-sm font-semibold text-[#5d4330] transition hover:border-[#d4b48b]">Open Messages</Link></div>
+              <div className="mt-4 flex flex-wrap gap-3"><Link href="/admin/portal/payments" className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]">Open Payments</Link><Link href="/admin/portal/messages" className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]">Open Messages</Link></div>
             </AdminPanel>
           </div>
         </section>
@@ -368,9 +387,10 @@ export default function AdminPortalBuyersPage() {
 }
 
 function Toggle({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition ${active ? "border-[#cfab84] bg-[#fff8ef] text-[#2f2218]" : "border-[#ead9c7] bg-white text-[#8a6a49] hover:border-[#d8b48b]"}`}>{label}</button>;
+  return <button type="button" onClick={onClick} className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition ${active ? "border-[#cfab84] bg-[var(--portal-surface-muted)] text-[var(--portal-text)]" : "border-[var(--portal-border)] bg-white text-[var(--portal-text-soft)] hover:border-[#d8b48b]"}`}>{label}</button>;
 }
 
 function InfoLine({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-[18px] border border-[#ead9c7] bg-white px-3 py-3"><div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">{label}</div><div className="mt-2 text-sm font-semibold text-[#2f2218]">{value}</div></div>;
+  return <div className="rounded-[18px] border border-[var(--portal-border)] bg-white px-3 py-3"><div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">{label}</div><div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">{value}</div></div>;
 }
+

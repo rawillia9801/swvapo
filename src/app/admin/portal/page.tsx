@@ -7,8 +7,6 @@ import {
   AdminHeroPrimaryAction,
   AdminHeroSecondaryAction,
   AdminInfoTile,
-  AdminMetricCard,
-  AdminMetricGrid,
   AdminPageHero,
   AdminPageShell,
   AdminPanel,
@@ -311,7 +309,7 @@ export default function AdminPortalPage() {
               <button
                 type="button"
                 onClick={() => window.location.reload()}
-                className="inline-flex items-center rounded-2xl border border-[#e4d2be] bg-white px-5 py-3 text-sm font-semibold text-[#5d4330] shadow-[0_12px_28px_rgba(106,76,45,0.08)] transition hover:-translate-y-0.5 hover:border-[#d4b48b]"
+                className="inline-flex items-center rounded-2xl border border-[var(--portal-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--portal-text)] shadow-[0_12px_28px_rgba(106,76,45,0.08)] transition hover:-translate-y-0.5 hover:border-[var(--portal-border-strong)]"
               >
                 {refreshing ? "Refreshing..." : "Refresh Workspace"}
               </button>
@@ -339,6 +337,34 @@ export default function AdminPortalPage() {
         />
 
         <AdminPanel
+          title="Kennel Priorities"
+          subtitle="This hub should surface what needs breeder attention next, not just total counts."
+        >
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <AdminInfoTile
+              label="Placement Flow"
+              value={`${availablePuppies} open / ${reservedPuppies} reserved`}
+              detail={`${completedPuppies} completed placements with ${puppiesNeedingBuyer} records still needing buyer linkage.`}
+            />
+            <AdminInfoTile
+              label="Buyer Conversion"
+              value={pct(conversionRate)}
+              detail={`${stats.hotLeads} hot leads, ${stats.warmLeads} warm leads, and ${stats.applications} total applications in play.`}
+            />
+            <AdminInfoTile
+              label="Revenue Pipeline"
+              value={fmtMoney(projectedRevenue)}
+              detail={`${fmtMoney(realizedRevenue)} realized so far with ${fmtMoney(totalDeposits)} already collected in deposits.`}
+            />
+            <AdminInfoTile
+              label="Follow-Up Load"
+              value={`${stats.unreadBuyerMessages} unread`}
+              detail={`${stats.openFollowUps} active follow-ups plus ${stats.transportRequests} transportation requests awaiting action.`}
+            />
+          </div>
+        </AdminPanel>
+
+        <AdminPanel
           title="Command Navigation"
           subtitle="Core admin routes in one place, including the users page."
         >
@@ -354,47 +380,15 @@ export default function AdminPortalPage() {
           </div>
         </AdminPanel>
 
-        <AdminMetricGrid>
-          <AdminMetricCard
-            label="Users / Buyers"
-            value={String(stats.buyers || stats.users)}
-            detail="Portal users, buyer records, and account-linked families."
-          />
-          <AdminMetricCard
-            label="Applications"
-            value={String(stats.applications)}
-            detail="Intake flow waiting on review, follow-up, or decision."
-            accent="from-[#f0ddc5] via-[#d9b78e] to-[#be8650]"
-          />
-          <AdminMetricCard
-            label="Litters"
-            value={String(totalLitters)}
-            detail="Live litter records with lineage, pricing, and revenue visibility."
-            accent="from-[#e7ddd3] via-[#c9b39a] to-[#8f6f53]"
-          />
-          <AdminMetricCard
-            label="Puppies"
-            value={String(totalPuppies)}
-            detail={`${availablePuppies} available / ${reservedPuppies} reserved / ${completedPuppies} completed`}
-            accent="from-[#d8e8dc] via-[#b8d0b4] to-[#7f9f7d]"
-          />
-          <AdminMetricCard
-            label="Conversion"
-            value={pct(conversionRate)}
-            detail="Completed placement rate across tracked puppies."
-            accent="from-[#ece0d2] via-[#d1b193] to-[#a1724e]"
-          />
-        </AdminMetricGrid>
-
         <section className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.25fr)_420px]">
           <div className="space-y-5">
             <AdminPanel
               title="Operations Grid"
               subtitle="A cleaner software-style queue by operating area."
             >
-              <div className="overflow-hidden rounded-[24px] border border-[#ead9c7]">
+              <div className="overflow-hidden rounded-[24px] border border-[var(--portal-border)]">
                 <table className="min-w-full divide-y divide-[#eee1d2] text-sm">
-                  <thead className="bg-[#faf3ea] text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+                  <thead className="bg-[var(--portal-surface-muted)] text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
                     <tr>
                       <th className="px-4 py-3">Area</th>
                       <th className="px-4 py-3">Current Load</th>
@@ -404,13 +398,13 @@ export default function AdminPortalPage() {
                   </thead>
                   <tbody className="divide-y divide-[#f1e6da] bg-white">
                     {queueRows.map((row) => (
-                      <tr key={row.label} className="hover:bg-[#fffaf4]">
+                      <tr key={row.label} className="hover:bg-[var(--portal-surface-muted)]">
                         <td className="px-4 py-3">
-                          <div className="font-semibold text-[#2f2218]">{row.label}</div>
+                          <div className="font-semibold text-[var(--portal-text)]">{row.label}</div>
                         </td>
                         <td className="px-4 py-3">
                           <div className="inline-flex items-center gap-2">
-                            <span className="text-base font-semibold text-[#2f2218]">
+                            <span className="text-base font-semibold text-[var(--portal-text)]">
                               {row.value}
                             </span>
                             <span
@@ -420,11 +414,11 @@ export default function AdminPortalPage() {
                             </span>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-[#73583f]">{row.detail}</td>
+                        <td className="px-4 py-3 text-[var(--portal-text-soft)]">{row.detail}</td>
                         <td className="px-4 py-3 text-right">
                           <Link
                             href={row.href}
-                            className="text-xs font-semibold uppercase tracking-[0.16em] text-[#9c7043] transition hover:text-[#7b5630]"
+                            className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)] transition hover:text-[#7b5630]"
                           >
                             Open
                           </Link>
@@ -442,9 +436,9 @@ export default function AdminPortalPage() {
                 subtitle="Top litters ranked by realized revenue with lineage context."
               >
                 {topLitters.length ? (
-                  <div className="overflow-hidden rounded-[24px] border border-[#ead9c7]">
+                  <div className="overflow-hidden rounded-[24px] border border-[var(--portal-border)]">
                     <table className="min-w-full divide-y divide-[#eee1d2] text-sm">
-                      <thead className="bg-[#faf3ea] text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+                      <thead className="bg-[var(--portal-surface-muted)] text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
                         <tr>
                           <th className="px-4 py-3">Litter</th>
                           <th className="px-4 py-3">Parents</th>
@@ -453,28 +447,28 @@ export default function AdminPortalPage() {
                       </thead>
                       <tbody className="divide-y divide-[#f1e6da] bg-white">
                         {topLitters.map((litter) => (
-                          <tr key={litter.id} className="hover:bg-[#fffaf4]">
+                          <tr key={litter.id} className="hover:bg-[var(--portal-surface-muted)]">
                             <td className="px-4 py-3">
-                              <div className="font-semibold text-[#2f2218]">
+                              <div className="font-semibold text-[var(--portal-text)]">
                                 {litter.displayName}
                               </div>
-                              <div className="mt-1 text-xs text-[#8a6a49]">
+                              <div className="mt-1 text-xs text-[var(--portal-text-soft)]">
                                 {litter.whelp_date
                                   ? fmtDate(litter.whelp_date)
                                   : "Whelp date not set"}{" "}
                                 / {puppyLine(litter)}
                               </div>
                             </td>
-                            <td className="px-4 py-3 text-[#73583f]">
+                            <td className="px-4 py-3 text-[var(--portal-text-soft)]">
                               {(litter.damProfile?.displayName || "No dam") +
                                 " / " +
                                 (litter.sireProfile?.displayName || "No sire")}
                             </td>
                             <td className="px-4 py-3">
-                              <div className="font-semibold text-[#2f2218]">
+                              <div className="font-semibold text-[var(--portal-text)]">
                                 {fmtMoney(litter.summary.realizedRevenue)}
                               </div>
-                              <div className="mt-1 text-xs text-[#8a6a49]">
+                              <div className="mt-1 text-xs text-[var(--portal-text-soft)]">
                                 {litter.summary.completedCount} completed /{" "}
                                 {litter.summary.reservedCount} reserved
                               </div>
@@ -501,14 +495,14 @@ export default function AdminPortalPage() {
                     {topDogs.map((dog) => (
                       <div
                         key={`${dog.role}-${dog.id}`}
-                        className="rounded-[22px] border border-[#ead9c7] bg-[#fffaf4] px-4 py-4"
+                        className="rounded-[22px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <div className="text-sm font-semibold text-[#2f2218]">
+                            <div className="text-sm font-semibold text-[var(--portal-text)]">
                               {dog.displayName}
                             </div>
-                            <div className="mt-1 text-xs leading-5 text-[#8a6a49]">
+                            <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
                               {dogLabel(dog)} / {dog.summary.totalLitters} litters /{" "}
                               {dog.summary.totalPuppies} puppies
                             </div>
@@ -547,14 +541,14 @@ export default function AdminPortalPage() {
                   <Link
                     key={alert.title}
                     href={alert.href}
-                    className="rounded-[22px] border border-[#ead9c7] bg-[#fffaf4] px-4 py-4 transition hover:border-[#d8b48b] hover:bg-white"
+                    className="rounded-[22px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4 transition hover:border-[#d8b48b] hover:bg-white"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="text-sm font-semibold text-[#2f2218]">
+                        <div className="text-sm font-semibold text-[var(--portal-text)]">
                           {alert.title}
                         </div>
-                        <div className="mt-2 text-sm leading-6 text-[#73583f]">
+                        <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
                           {alert.detail}
                         </div>
                       </div>
@@ -614,14 +608,14 @@ export default function AdminPortalPage() {
                     <Link
                       key={item.key}
                       href="/admin/portal/messages"
-                      className="block rounded-[22px] border border-[#ead9c7] bg-[#fffaf4] px-4 py-4 transition hover:border-[#d8b48b] hover:bg-white"
+                      className="block rounded-[22px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4 transition hover:border-[#d8b48b] hover:bg-white"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="truncate text-sm font-semibold text-[#2f2218]">
+                          <div className="truncate text-sm font-semibold text-[var(--portal-text)]">
                             {item.subject}
                           </div>
-                          <div className="mt-1 truncate text-xs text-[#8a6a49]">
+                          <div className="mt-1 truncate text-xs text-[var(--portal-text-soft)]">
                             {item.email || "No email on file"}
                           </div>
                         </div>
@@ -635,7 +629,7 @@ export default function AdminPortalPage() {
                           {item.unreadCount > 0 ? `${item.unreadCount} unread` : "up to date"}
                         </span>
                       </div>
-                      <div className="mt-3 text-sm leading-6 text-[#73583f]">
+                      <div className="mt-3 text-sm leading-6 text-[var(--portal-text-soft)]">
                         {item.preview}
                       </div>
                     </Link>
@@ -667,10 +661,10 @@ function CommandNavCard({
   return (
     <Link
       href={href}
-      className="rounded-[22px] border border-[#ead9c7] bg-[#fffaf4] px-4 py-4 transition hover:-translate-y-0.5 hover:border-[#d8b48b] hover:bg-white"
+      className="rounded-[1.25rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4 transition hover:-translate-y-0.5 hover:border-[var(--portal-border-strong)] hover:bg-white"
     >
-      <div className="text-sm font-semibold text-[#2f2218]">{label}</div>
-      <div className="mt-1 text-xs leading-5 text-[#8a6a49]">{detail}</div>
+      <div className="text-sm font-semibold text-[var(--portal-text)]">{label}</div>
+      <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">{detail}</div>
     </Link>
   );
 }
@@ -687,10 +681,10 @@ function QuickJump({
   return (
     <Link
       href={href}
-      className="rounded-[20px] border border-[#ead9c7] bg-[#fffaf4] px-4 py-4 transition hover:border-[#d8b48b] hover:bg-white"
+      className="rounded-[1.25rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4 transition hover:border-[var(--portal-border-strong)] hover:bg-white"
     >
-      <div className="text-sm font-semibold text-[#2f2218]">{title}</div>
-      <div className="mt-1 text-xs leading-5 text-[#8a6a49]">{detail}</div>
+      <div className="text-sm font-semibold text-[var(--portal-text)]">{title}</div>
+      <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">{detail}</div>
     </Link>
   );
 }
@@ -703,11 +697,12 @@ function MiniSnapshot({
   value: string;
 }) {
   return (
-    <div className="rounded-[18px] border border-[#ead9c7] bg-white px-3 py-3">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+    <div className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-3 py-3">
+      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
         {label}
       </div>
-      <div className="mt-2 text-sm font-semibold text-[#2f2218]">{value}</div>
+      <div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">{value}</div>
     </div>
   );
 }
+

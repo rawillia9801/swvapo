@@ -8,8 +8,6 @@ import {
   AdminHeroSecondaryAction,
   AdminInfoTile,
   AdminListCard,
-  AdminMetricCard,
-  AdminMetricGrid,
   AdminPageHero,
   AdminPageShell,
   AdminPanel,
@@ -188,6 +186,18 @@ export default function AdminPortalDocumentsPage() {
 
   const totalForms = accounts.reduce((sum, account) => sum + account.forms.length, 0);
   const totalDocuments = accounts.reduce((sum, account) => sum + account.documents.length, 0);
+  const openForms = accounts.reduce(
+    (sum, account) =>
+      sum +
+      account.forms.filter((form) => !["signed", "completed"].includes(String(form.status || "").toLowerCase())).length,
+    0
+  );
+  const openDocuments = accounts.reduce(
+    (sum, account) =>
+      sum +
+      account.documents.filter((doc) => !["signed", "completed", "archived"].includes(String(doc.status || "").toLowerCase())).length,
+    0
+  );
 
   return (
     <AdminPageShell>
@@ -210,12 +220,33 @@ export default function AdminPortalDocumentsPage() {
           }
         />
 
-        <AdminMetricGrid>
-          <AdminMetricCard label="Buyer Cards" value={String(accounts.length)} detail="Grouped buyer records shown in the documents tab." />
-          <AdminMetricCard label="Form Submissions" value={String(totalForms)} detail="Portal form submissions across grouped buyer records." accent="from-[#ece3d5] via-[#d7c1a3] to-[#b18d62]" />
-          <AdminMetricCard label="Portal Documents" value={String(totalDocuments)} detail="Shared portal documents tied to grouped buyer records." accent="from-[#dce9d6] via-[#b6cfaa] to-[#7e9c6f]" />
-          <AdminMetricCard label="Search Results" value={String(filteredAccounts.length)} detail="Buyer document cards matching the current search." accent="from-[#f0dcc1] via-[#ddb68c] to-[#c98743]" />
-        </AdminMetricGrid>
+        <AdminPanel
+          title="Document Bench"
+          subtitle="The document tab should surface review load, signature gaps, and grouped family records instead of generic counters."
+        >
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <AdminInfoTile
+              label="Family Record Sets"
+              value={String(accounts.length)}
+              detail="Each card keeps one buyer or portal family's forms and uploads together."
+            />
+            <AdminInfoTile
+              label="Open Forms"
+              value={String(openForms)}
+              detail={`${totalForms} total form submissions, including drafts and unsigned records still needing breeder visibility.`}
+            />
+            <AdminInfoTile
+              label="Open Documents"
+              value={String(openDocuments)}
+              detail={`${totalDocuments} uploaded documents tracked across contracts, records, and supporting files.`}
+            />
+            <AdminInfoTile
+              label="Current Search"
+              value={String(filteredAccounts.length)}
+              detail="Filtered buyer document groups so you can work one subset without losing the full archive."
+            />
+          </div>
+        </AdminPanel>
 
         <section className="grid grid-cols-1 gap-6 xl:grid-cols-[390px_minmax(0,1fr)]">
           <AdminPanel
@@ -226,7 +257,7 @@ export default function AdminPortalDocumentsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search buyer documents..."
-              className="w-full rounded-[20px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+              className="w-full rounded-[20px] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3 text-sm text-[var(--portal-text)] outline-none focus:border-[#c8a884]"
             />
 
             <div className="mt-4 space-y-3">
@@ -356,10 +387,11 @@ function DocumentRow({
   detail: string;
 }) {
   return (
-    <div className="rounded-[22px] border border-[#ead9c7] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] p-4 shadow-[0_10px_24px_rgba(106,76,45,0.05)]">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#a47946]">{label}</div>
-      <div className="mt-2 text-sm font-semibold text-[#2f2218]">{title}</div>
-      <div className="mt-2 text-sm leading-6 text-[#73583f]">{detail}</div>
+    <div className="rounded-[22px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] p-4 shadow-[0_10px_24px_rgba(106,76,45,0.05)]">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">{label}</div>
+      <div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">{title}</div>
+      <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
     </div>
   );
 }
+

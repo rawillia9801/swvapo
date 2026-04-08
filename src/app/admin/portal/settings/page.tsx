@@ -3,8 +3,6 @@
 import React from "react";
 import {
   AdminInfoTile,
-  AdminMetricCard,
-  AdminMetricGrid,
   AdminPageHero,
   AdminPageShell,
   AdminPanel,
@@ -84,31 +82,33 @@ export default function AdminPortalSettingsPage() {
           }
         />
 
-        <AdminMetricGrid>
-          <AdminMetricCard
-            label="Access Control"
-            value="Owner-only"
-            detail="Portal admin access is limited to approved owner email accounts."
-          />
-          <AdminMetricCard
-            label="Lineage Mode"
-            value="Active"
-            detail="Dams, sires, litters, and puppies are tracked as explicit lineage relationships."
-            accent="from-[#e7ddd3] via-[#c9b39a] to-[#8f6f53]"
-          />
-          <AdminMetricCard
-            label="Pricing Privacy"
-            value="Protected"
-            detail="Reserved and completed puppy prices are hidden from public-facing listing surfaces."
-            accent="from-[#dfe8d8] via-[#c6d6ba] to-[#8aa07e]"
-          />
-          <AdminMetricCard
-            label="Reporting"
-            value="Internal"
-            detail="Revenue and deposits stay available for admin reporting and lineage analytics."
-            accent="from-[#f0ddc5] via-[#d9b78e] to-[#be8650]"
-          />
-        </AdminMetricGrid>
+        <AdminPanel
+          title="Governance Bench"
+          subtitle="This page should document the live operating assumptions behind the breeding hub, not bury them in a scorecard strip."
+        >
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <AdminInfoTile
+              label="Access Control"
+              value="Owner-only"
+              detail="Portal admin access is limited to approved owner email accounts."
+            />
+            <AdminInfoTile
+              label="Lineage Model"
+              value="Active"
+              detail="Dams, sires, litters, and puppies are tracked as explicit breeding relationships."
+            />
+            <AdminInfoTile
+              label="Pricing Privacy"
+              value="Protected"
+              detail="Reserved and completed puppy prices stay internal while public surfaces hide them."
+            />
+            <AdminInfoTile
+              label="Reporting Scope"
+              value="Internal"
+              detail="Revenue, deposits, and operational analytics remain available to the owner team."
+            />
+          </div>
+        </AdminPanel>
 
         <section className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.1fr)_420px]">
           <AdminPanel
@@ -119,10 +119,10 @@ export default function AdminPortalSettingsPage() {
               {SYSTEM_RULES.map((rule) => (
                 <div
                   key={rule.title}
-                  className="rounded-[22px] border border-[#ead9c7] bg-[#fffaf4] px-4 py-4"
+                  className="rounded-[22px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4"
                 >
-                  <div className="text-sm font-semibold text-[#2f2218]">{rule.title}</div>
-                  <div className="mt-2 text-sm leading-6 text-[#73583f]">{rule.detail}</div>
+                  <div className="text-sm font-semibold text-[var(--portal-text)]">{rule.title}</div>
+                  <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">{rule.detail}</div>
                 </div>
               ))}
             </div>
@@ -137,7 +137,7 @@ export default function AdminPortalSettingsPage() {
                 {adminEmails.map((email) => (
                   <div
                     key={email}
-                    className="rounded-[20px] border border-[#ead9c7] bg-[#fffaf4] px-4 py-3 text-sm font-semibold text-[#2f2218]"
+                    className="rounded-[20px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm font-semibold text-[var(--portal-text)]"
                   >
                     {email}
                   </div>
@@ -160,7 +160,7 @@ export default function AdminPortalSettingsPage() {
                     key={label}
                     type="button"
                     disabled
-                    className="flex w-full cursor-not-allowed items-center justify-between rounded-[20px] border border-dashed border-[#d9c2a7] bg-[#fbf3e8] px-4 py-3 text-left text-sm font-semibold text-[#8a6a49]"
+                    className="flex w-full cursor-not-allowed items-center justify-between rounded-[20px] border border-dashed border-[#d9c2a7] bg-[#fbf3e8] px-4 py-3 text-left text-sm font-semibold text-[var(--portal-text-soft)]"
                   >
                     <span>{label}</span>
                     <span className="text-[10px] uppercase tracking-[0.18em] text-[#b28a61]">
@@ -176,3 +176,4 @@ export default function AdminPortalSettingsPage() {
     </AdminPageShell>
   );
 }
+

@@ -7,8 +7,6 @@ import {
   AdminEmptyState,
   AdminHeroSecondaryAction,
   AdminInfoTile,
-  AdminMetricCard,
-  AdminMetricGrid,
   AdminPageHero,
   AdminPageShell,
   AdminPanel,
@@ -504,7 +502,7 @@ export default function AdminPortalTransportationPage() {
               <button
                 type="button"
                 onClick={exportCsv}
-                className="inline-flex items-center rounded-2xl border border-[#e4d2be] bg-white px-5 py-3 text-sm font-semibold text-[#5d4330] shadow-[0_12px_28px_rgba(106,76,45,0.08)] transition hover:-translate-y-0.5 hover:border-[#d4b48b]"
+                className="inline-flex items-center rounded-2xl border border-[var(--portal-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--portal-text)] shadow-[0_12px_28px_rgba(106,76,45,0.08)] transition hover:-translate-y-0.5 hover:border-[var(--portal-border-strong)]"
               >
                 Export CSV
               </button>
@@ -533,12 +531,33 @@ export default function AdminPortalTransportationPage() {
           }
         />
 
-        <AdminMetricGrid>
-          <AdminMetricCard label="Total Requests" value={String(totalRequests)} detail="All transportation-related requests currently on file." />
-          <AdminMetricCard label="Pending" value={String(pendingCount)} detail="Requests still waiting on review." accent="from-[#f0dcc1] via-[#ddb68c] to-[#c98743]" />
-          <AdminMetricCard label="Approved" value={String(approvedCount)} detail="Requests that already have confirmed scheduling." accent="from-[#dce9d6] via-[#b6cfaa] to-[#7e9c6f]" />
-          <AdminMetricCard label="Completed" value={String(completedCount)} detail="Transportation requests already handled." accent="from-[#dbe6f5] via-[#c3d4eb] to-[#7f98b9]" />
-        </AdminMetricGrid>
+        <AdminPanel
+          title="Logistics Bench"
+          subtitle="Transportation work should show what still needs review, what is already scheduled, and where the breeder may need to quote or coordinate."
+        >
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <AdminInfoTile
+              label="Open Queue"
+              value={String(totalRequests)}
+              detail="All pickup, meet-up, drop-off, and transportation requests currently on file."
+            />
+            <AdminInfoTile
+              label="Waiting Review"
+              value={String(pendingCount)}
+              detail="Requests still waiting for breeder review, estimate confirmation, or scheduling."
+            />
+            <AdminInfoTile
+              label="Confirmed Runs"
+              value={String(approvedCount)}
+              detail={`${completedCount} requests have already been completed and archived into the delivery history.`}
+            />
+            <AdminInfoTile
+              label="Current Estimate"
+              value={selectedRequest ? selectedEstimate.label : "Select request"}
+              detail={selectedRequest ? selectedEstimate.detail : "Choose a request to review the pricing guidance and logistics notes."}
+            />
+          </div>
+        </AdminPanel>
 
         <section className="grid grid-cols-1 gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
           <AdminPanel
@@ -550,7 +569,7 @@ export default function AdminPortalTransportationPage() {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search buyer, email, puppy, location..."
-                className="w-full rounded-[20px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3 text-sm text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+                className="w-full rounded-[20px] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3 text-sm text-[var(--portal-text)] outline-none focus:border-[#c8a884]"
               />
 
               <div className="grid gap-3 md:grid-cols-3">
@@ -612,15 +631,15 @@ export default function AdminPortalTransportationPage() {
                         "block w-full rounded-[26px] border p-4 text-left transition",
                         selectedKey === String(request.id)
                           ? "border-[#d8b48b] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] shadow-[0_14px_30px_rgba(106,76,45,0.08)]"
-                          : "border-[#ead9c7] bg-[#fffaf5] hover:-translate-y-0.5 hover:border-[#d8b48b] hover:bg-white",
+                          : "border-[var(--portal-border)] bg-[#fffaf5] hover:-translate-y-0.5 hover:border-[#d8b48b] hover:bg-white",
                       ].join(" ")}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="text-sm font-semibold text-[#2f2218]">
+                          <div className="text-sm font-semibold text-[var(--portal-text)]">
                             {requestBuyerName(request)}
                           </div>
-                          <div className="mt-1 text-xs leading-5 text-[#8a6a49]">
+                          <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
                             {requestBuyerEmail(request)}
                           </div>
                         </div>
@@ -640,11 +659,11 @@ export default function AdminPortalTransportationPage() {
                         <TransportationMiniCard label="Miles" value={milesLabel(request.miles)} />
                       </div>
 
-                      <div className="mt-4 rounded-[20px] border border-[#ead9c7] bg-white px-4 py-3">
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#a47946]">
+                      <div className="mt-4 rounded-[20px] border border-[var(--portal-border)] bg-white px-4 py-3">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
                           Location
                         </div>
-                        <div className="mt-2 text-sm leading-6 text-[#73583f]">
+                        <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
                           {snippet(request.location_text || request.address_text, "No location details yet.")}
                         </div>
                       </div>
@@ -706,7 +725,7 @@ export default function AdminPortalTransportationPage() {
                   subtitle="Update request status, timing, mileage, location details, and notes in one place."
                 >
                   {statusText ? (
-                    <div className="mb-4 rounded-[18px] border border-[#ead9c7] bg-[#fff9f2] px-4 py-3 text-sm font-semibold text-[#7a5a3a]">
+                    <div className="mb-4 rounded-[18px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm font-semibold text-[var(--portal-text-soft)]">
                       {statusText}
                     </div>
                   ) : null}
@@ -800,7 +819,7 @@ export default function AdminPortalTransportationPage() {
                       type="button"
                       onClick={() => void handleSave("cancelled")}
                       disabled={saving}
-                      className="rounded-full border border-[#d9c9b7] bg-white px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-[#5d4330] transition hover:border-[#caa57b] disabled:opacity-60"
+                      className="rounded-full border border-[#d9c9b7] bg-white px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-[var(--portal-text)] transition hover:border-[#caa57b] disabled:opacity-60"
                     >
                       Cancel
                     </button>
@@ -818,7 +837,7 @@ export default function AdminPortalTransportationPage() {
                     <button
                       type="button"
                       onClick={() => setForm(buildRequestForm(selectedRequest))}
-                      className="rounded-2xl border border-[#e4d2be] bg-white px-5 py-3 text-sm font-semibold text-[#5d4330] shadow-[0_12px_28px_rgba(106,76,45,0.08)] transition hover:border-[#d4b48b]"
+                      className="rounded-2xl border border-[var(--portal-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--portal-text)] shadow-[0_12px_28px_rgba(106,76,45,0.08)] transition hover:border-[var(--portal-border-strong)]"
                     >
                       Reset
                     </button>
@@ -835,14 +854,14 @@ export default function AdminPortalTransportationPage() {
                         value={selectedEstimate.label}
                         detail={selectedEstimate.detail}
                       />
-                      <div className="rounded-[24px] border border-[#ead9c7] bg-[#fffaf5] p-4 text-sm leading-6 text-[#73583f]">
+                      <div className="rounded-[24px] border border-[var(--portal-border)] bg-[#fffaf5] p-4 text-sm leading-6 text-[var(--portal-text-soft)]">
                         Transportation fees are not written back to the buyer balance from this tab.
                         Review the request here, then use the Payments workspace to log the
                         transportation fee on the account when needed.
                       </div>
                       <Link
                         href="/admin/portal/payments"
-                        className="inline-flex w-full items-center justify-center rounded-2xl border border-[#e4d2be] bg-white px-4 py-3 text-sm font-semibold text-[#5d4330] shadow-[0_12px_28px_rgba(106,76,45,0.08)] transition hover:border-[#d4b48b]"
+                        className="inline-flex w-full items-center justify-center rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-text)] shadow-[0_12px_28px_rgba(106,76,45,0.08)] transition hover:border-[var(--portal-border-strong)]"
                       >
                         Open Payments to Record Fee
                       </Link>
@@ -894,14 +913,14 @@ function TransportationField({
   type?: string;
 }) {
   return (
-    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#a47946]">
+    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
       {label}
       <input
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="mt-2 w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm normal-case tracking-normal text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+        className="mt-2 w-full rounded-[18px] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3.5 text-sm normal-case tracking-normal text-[var(--portal-text)] outline-none focus:border-[#c8a884]"
       />
     </label>
   );
@@ -919,13 +938,13 @@ function TransportationTextarea({
   rows: number;
 }) {
   return (
-    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#a47946]">
+    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
       {label}
       <textarea
         value={value}
         onChange={(event) => onChange(event.target.value)}
         rows={rows}
-        className="mt-2 w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm normal-case tracking-normal text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+        className="mt-2 w-full rounded-[18px] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3.5 text-sm normal-case tracking-normal text-[var(--portal-text)] outline-none focus:border-[#c8a884]"
       />
     </label>
   );
@@ -943,12 +962,12 @@ function TransportationSelect({
   options: Array<{ value: string; label: string }>;
 }) {
   return (
-    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[#a47946]">
+    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
       {label}
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-2 w-full rounded-[18px] border border-[#e4d3c2] bg-[#fffdfb] px-4 py-3.5 text-sm normal-case tracking-normal text-[#3e2a1f] outline-none focus:border-[#c8a884]"
+        className="mt-2 w-full rounded-[18px] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3.5 text-sm normal-case tracking-normal text-[var(--portal-text)] outline-none focus:border-[#c8a884]"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -968,11 +987,11 @@ function TransportationMiniCard({
   value: string;
 }) {
   return (
-    <div className="rounded-[18px] border border-[#ead9c7] bg-white/88 p-3">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#a47946]">
+    <div className="rounded-[18px] border border-[var(--portal-border)] bg-white/88 p-3">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
         {label}
       </div>
-      <div className="mt-2 text-sm font-semibold text-[#2f2218]">{value}</div>
+      <div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">{value}</div>
     </div>
   );
 }
@@ -987,13 +1006,14 @@ function RequestSummaryRow({
   multiline?: boolean;
 }) {
   return (
-    <div className="rounded-[18px] border border-[#ead9c7] bg-[#fffaf5] px-4 py-3">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#a47946]">
+    <div className="rounded-[18px] border border-[var(--portal-border)] bg-[#fffaf5] px-4 py-3">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
         {label}
       </div>
-      <div className={`mt-2 text-sm leading-6 text-[#2f2218] ${multiline ? "whitespace-pre-wrap" : ""}`}>
+      <div className={`mt-2 text-sm leading-6 text-[var(--portal-text)] ${multiline ? "whitespace-pre-wrap" : ""}`}>
         {value}
       </div>
     </div>
   );
 }
+

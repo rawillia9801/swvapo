@@ -1,15 +1,13 @@
 "use client";
 
 import Image from "next/image";
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AdminEmptyState,
   AdminHeroPrimaryAction,
   AdminHeroSecondaryAction,
   AdminInfoTile,
-  AdminMetricCard,
-  AdminMetricGrid,
   AdminPageHero,
   AdminPageShell,
   AdminPanel,
@@ -185,15 +183,6 @@ function formatDateOrDash(value: string | null | undefined, fallback = "Not sche
   return fmtDate(value);
 }
 
-function buyerAddress(buyer: BuyerOption | null) {
-  if (!buyer) return "No buyer address on file";
-  const line1 = String(buyer.address_line1 || "").trim();
-  const line2 = String(buyer.address_line2 || "").trim();
-  const locality = [buyer.city, buyer.state, buyer.postal_code]
-    .map((p) => String(p || "").trim()).filter(Boolean).join(", ");
-  return [line1, line2, locality].filter(Boolean).join(" | ") || "No buyer address on file";
-}
-
 function transportCostTotal(buyer: BuyerOption | null) {
   if (!buyer) return 0;
   return num(buyer.delivery_fee) + num(buyer.expense_gas) + num(buyer.expense_hotel) + num(buyer.expense_tolls);
@@ -267,7 +256,7 @@ function PuppyCard({
         cursor-pointer hover:shadow-[0_8px_30px_rgba(168,120,72,0.18)] hover:-translate-y-0.5
         ${isSelected
           ? "border-[#c88c52] shadow-[0_0_0_2px_rgba(200,140,82,0.25),0_8px_24px_rgba(168,120,72,0.16)]"
-          : "border-[#ead9c7] shadow-sm"
+          : "border-[var(--portal-border)] shadow-sm"
         }
       `}
     >
@@ -299,7 +288,7 @@ function PuppyCard({
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onOpenDetail(); }}
-          className="absolute right-2 top-2 flex items-center gap-1 rounded-full border border-white/40 bg-white/80 px-2 py-1 text-[10px] font-semibold text-[#5d4330] opacity-0 shadow backdrop-blur-sm transition-all duration-200 group-hover:opacity-100 hover:bg-white"
+          className="absolute right-2 top-2 flex items-center gap-1 rounded-full border border-white/40 bg-white/80 px-2 py-1 text-[10px] font-semibold text-[var(--portal-text)] opacity-0 shadow backdrop-blur-sm transition-all duration-200 group-hover:opacity-100 hover:bg-white"
           title="Open detail panel"
         >
           <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
@@ -312,14 +301,14 @@ function PuppyCard({
       {/* Card body */}
       <div className="flex flex-1 flex-col gap-2 p-3.5">
         <div>
-          <div className="font-semibold text-[#2f2218] leading-tight">{puppyName(puppy)}</div>
+          <div className="font-semibold text-[var(--portal-text)] leading-tight">{puppyName(puppy)}</div>
           <div className="mt-0.5 text-[11px] text-[#9c7a55]">
             {[puppy.sex, puppy.color, puppy.coat_type].filter(Boolean).join(" · ") || "Details not set"}
           </div>
         </div>
 
-        <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] text-[#7a5c40]">
-          <span className="inline-flex items-center gap-1 rounded-md bg-[#faf3ea] px-2 py-0.5">
+        <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] text-[var(--portal-text-soft)]">
+          <span className="inline-flex items-center gap-1 rounded-md bg-[var(--portal-surface-muted)] px-2 py-0.5">
             <svg width="9" height="9" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a5 5 0 100 10A5 5 0 008 1zM3 8a5 5 0 1110 0A5 5 0 013 8z" opacity=".3"/><path d="M7 4h2v5H7zM7 10h2v2H7z"/></svg>
             {puppy.litter_name || "No litter"}
           </span>
@@ -333,10 +322,10 @@ function PuppyCard({
 
         <div className="mt-auto flex items-center justify-between pt-2 border-t border-[#f0e4d4]">
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-widest text-[#a17345]">
+            <div className="text-[10px] font-semibold uppercase tracking-widest text-[var(--portal-text-muted)]">
               {priceHidden ? "Price hidden" : "Listed"}
             </div>
-            <div className="text-sm font-bold text-[#2f2218]">
+            <div className="text-sm font-bold text-[var(--portal-text)]">
               {priceHidden ? "—" : hasValue(puppy.price || puppy.list_price) ? fmtMoney(num(puppy.price || puppy.list_price)) : "Not set"}
             </div>
           </div>
@@ -452,13 +441,13 @@ function PuppyDetailDrawer({
           <div className={`absolute bottom-4 left-5 ${photo ? "" : "bottom-4"}`}>
             <div className="flex items-end gap-3">
               <div>
-                <div className={`text-xl font-bold ${photo ? "text-white drop-shadow" : "text-[#2f2218]"}`}>
+                <div className={`text-xl font-bold ${photo ? "text-white drop-shadow" : "text-[var(--portal-text)]"}`}>
                   {createMode ? "New Puppy" : puppyName(puppy)}
                 </div>
                 <div className="mt-1 flex items-center gap-2">
                   <StatusBadge status={form.status} />
                   {!createMode && puppy?.dob && (
-                    <span className={`text-xs ${photo ? "text-white/80" : "text-[#7a5c40]"}`}>
+                    <span className={`text-xs ${photo ? "text-white/80" : "text-[var(--portal-text-soft)]"}`}>
                       Born {fmtDate(puppy.dob)}
                     </span>
                   )}
@@ -472,7 +461,7 @@ function PuppyDetailDrawer({
         <div className="flex-1 overflow-y-auto">
           <div className="space-y-6 p-6">
             {statusText ? (
-              <div className="rounded-2xl border border-[#ead9c7] bg-[#fff9f2] px-4 py-3 text-sm font-semibold text-[#7a5a3a]">
+              <div className="rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm font-semibold text-[var(--portal-text-soft)]">
                 {statusText}
               </div>
             ) : null}
@@ -480,26 +469,26 @@ function PuppyDetailDrawer({
             {/* Quick summary tiles */}
             {!createMode && (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <div className="rounded-2xl bg-[#faf3ea] border border-[#ead9c7] p-3">
-                  <div className="text-[10px] font-semibold uppercase tracking-widest text-[#a17345]">Buyer</div>
-                  <div className="mt-1 text-sm font-semibold text-[#2f2218] truncate">{buyerSummaryName}</div>
+                <div className="rounded-2xl bg-[var(--portal-surface-muted)] border border-[var(--portal-border)] p-3">
+                  <div className="text-[10px] font-semibold uppercase tracking-widest text-[var(--portal-text-muted)]">Buyer</div>
+                  <div className="mt-1 text-sm font-semibold text-[var(--portal-text)] truncate">{buyerSummaryName}</div>
                   <div className="mt-0.5 text-[11px] text-[#9c7a55] truncate">{buyer?.email || "—"}</div>
                 </div>
-                <div className="rounded-2xl bg-[#faf3ea] border border-[#ead9c7] p-3">
-                  <div className="text-[10px] font-semibold uppercase tracking-widest text-[#a17345]">Public Price</div>
-                  <div className="mt-1 text-sm font-semibold text-[#2f2218]">
+                <div className="rounded-2xl bg-[var(--portal-surface-muted)] border border-[var(--portal-border)] p-3">
+                  <div className="text-[10px] font-semibold uppercase tracking-widest text-[var(--portal-text-muted)]">Public Price</div>
+                  <div className="mt-1 text-sm font-semibold text-[var(--portal-text)]">
                     {priceHidden ? "Hidden" : hasValue(form.price || form.list_price) ? fmtMoney(num(form.price || form.list_price)) : "Not set"}
                   </div>
                   <div className="mt-0.5 text-[11px] text-[#9c7a55]">{priceHidden ? "Reserved/completed" : "Publicly visible"}</div>
                 </div>
-                <div className="rounded-2xl bg-[#faf3ea] border border-[#ead9c7] p-3">
-                  <div className="text-[10px] font-semibold uppercase tracking-widest text-[#a17345]">Litter</div>
-                  <div className="mt-1 text-sm font-semibold text-[#2f2218] truncate">{litterSummaryName}</div>
+                <div className="rounded-2xl bg-[var(--portal-surface-muted)] border border-[var(--portal-border)] p-3">
+                  <div className="text-[10px] font-semibold uppercase tracking-widest text-[var(--portal-text-muted)]">Litter</div>
+                  <div className="mt-1 text-sm font-semibold text-[var(--portal-text)] truncate">{litterSummaryName}</div>
                   <div className="mt-0.5 text-[11px] text-[#9c7a55] truncate">{damSummary} / {sireSummary}</div>
                 </div>
-                <div className="rounded-2xl bg-[#faf3ea] border border-[#ead9c7] p-3">
-                  <div className="text-[10px] font-semibold uppercase tracking-widest text-[#a17345]">Created</div>
-                  <div className="mt-1 text-sm font-semibold text-[#2f2218]">
+                <div className="rounded-2xl bg-[var(--portal-surface-muted)] border border-[var(--portal-border)] p-3">
+                  <div className="text-[10px] font-semibold uppercase tracking-widest text-[var(--portal-text-muted)]">Created</div>
+                  <div className="mt-1 text-sm font-semibold text-[var(--portal-text)]">
                     {puppy?.created_at ? fmtDate(puppy.created_at) : "Not saved"}
                   </div>
                   <div className="mt-0.5 text-[11px] text-[#9c7a55]">{form.status || "pending"}</div>
@@ -510,28 +499,28 @@ function PuppyDetailDrawer({
             {/* Buyer & Transport */}
             {!createMode && (
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="rounded-2xl border border-[#ead9c7] bg-white p-4">
+                <div className="rounded-2xl border border-[var(--portal-border)] bg-white p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <div className="text-[11px] font-semibold uppercase tracking-widest text-[#a17345]">Buyer Profile</div>
+                    <div className="text-[11px] font-semibold uppercase tracking-widest text-[var(--portal-text-muted)]">Buyer Profile</div>
                     <Link href="/admin/portal/users" className="text-[10px] font-semibold text-[#c88c52] hover:underline">Manage →</Link>
                   </div>
                   <div className="space-y-2 text-sm">
-                    <div className="flex justify-between"><span className="text-[#9c7a55]">Name</span><span className="font-medium text-[#2f2218] text-right">{buyerSummaryName}</span></div>
-                    <div className="flex justify-between"><span className="text-[#9c7a55]">Email</span><span className="font-medium text-[#2f2218] text-right truncate max-w-[140px]">{buyer?.email || form.owner_email || "—"}</span></div>
-                    <div className="flex justify-between"><span className="text-[#9c7a55]">Phone</span><span className="font-medium text-[#2f2218]">{buyer?.phone || "—"}</span></div>
-                    <div className="flex justify-between"><span className="text-[#9c7a55]">Contract</span><span className="font-medium text-[#2f2218]">{formatMoneyOrDash(buyer?.sale_price)}</span></div>
-                    <div className="flex justify-between"><span className="text-[#9c7a55]">Deposit</span><span className="font-medium text-[#2f2218]">{formatMoneyOrDash(buyer?.deposit_amount)}</span></div>
+                    <div className="flex justify-between"><span className="text-[#9c7a55]">Name</span><span className="font-medium text-[var(--portal-text)] text-right">{buyerSummaryName}</span></div>
+                    <div className="flex justify-between"><span className="text-[#9c7a55]">Email</span><span className="font-medium text-[var(--portal-text)] text-right truncate max-w-[140px]">{buyer?.email || form.owner_email || "—"}</span></div>
+                    <div className="flex justify-between"><span className="text-[#9c7a55]">Phone</span><span className="font-medium text-[var(--portal-text)]">{buyer?.phone || "—"}</span></div>
+                    <div className="flex justify-between"><span className="text-[#9c7a55]">Contract</span><span className="font-medium text-[var(--portal-text)]">{formatMoneyOrDash(buyer?.sale_price)}</span></div>
+                    <div className="flex justify-between"><span className="text-[#9c7a55]">Deposit</span><span className="font-medium text-[var(--portal-text)]">{formatMoneyOrDash(buyer?.deposit_amount)}</span></div>
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-[#ead9c7] bg-white p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-widest text-[#a17345] mb-3">Transportation</div>
+                <div className="rounded-2xl border border-[var(--portal-border)] bg-white p-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-widest text-[var(--portal-text-muted)] mb-3">Transportation</div>
                   <div className="space-y-2 text-sm">
-                    <div className="flex justify-between"><span className="text-[#9c7a55]">Mode</span><span className="font-medium text-[#2f2218]">{formatTextOrDash(buyer?.delivery_option, "Not set")}</span></div>
-                    <div className="flex justify-between"><span className="text-[#9c7a55]">Date</span><span className="font-medium text-[#2f2218]">{formatDateOrDash(buyer?.delivery_date)}</span></div>
-                    <div className="flex justify-between"><span className="text-[#9c7a55]">Location</span><span className="font-medium text-[#2f2218]">{formatTextOrDash(buyer?.delivery_location, "—")}</span></div>
-                    <div className="flex justify-between"><span className="text-[#9c7a55]">Miles</span><span className="font-medium text-[#2f2218]">{formatMiles(buyer?.delivery_miles)}</span></div>
-                    <div className="flex justify-between"><span className="text-[#9c7a55]">Total Cost</span><span className="font-bold text-[#2f2218]">{fmtMoney(selectedTransportTotal)}</span></div>
+                    <div className="flex justify-between"><span className="text-[#9c7a55]">Mode</span><span className="font-medium text-[var(--portal-text)]">{formatTextOrDash(buyer?.delivery_option, "Not set")}</span></div>
+                    <div className="flex justify-between"><span className="text-[#9c7a55]">Date</span><span className="font-medium text-[var(--portal-text)]">{formatDateOrDash(buyer?.delivery_date)}</span></div>
+                    <div className="flex justify-between"><span className="text-[#9c7a55]">Location</span><span className="font-medium text-[var(--portal-text)]">{formatTextOrDash(buyer?.delivery_location, "—")}</span></div>
+                    <div className="flex justify-between"><span className="text-[#9c7a55]">Miles</span><span className="font-medium text-[var(--portal-text)]">{formatMiles(buyer?.delivery_miles)}</span></div>
+                    <div className="flex justify-between"><span className="text-[#9c7a55]">Total Cost</span><span className="font-bold text-[var(--portal-text)]">{fmtMoney(selectedTransportTotal)}</span></div>
                   </div>
                   <div className="mt-3 grid grid-cols-4 gap-1.5">
                     {[
@@ -540,16 +529,16 @@ function PuppyDetailDrawer({
                       { label: "Tolls", value: buyer?.expense_tolls },
                       { label: "Misc", value: buyer?.expense_misc },
                     ].map(({ label, value }) => (
-                      <div key={label} className="rounded-xl bg-[#faf3ea] p-2 text-center">
-                        <div className="text-[9px] font-semibold uppercase tracking-widest text-[#a17345]">{label}</div>
-                        <div className="mt-0.5 text-[11px] font-semibold text-[#2f2218]">{hasValue(value) ? (typeof value === "number" ? fmtMoney(value) : String(value)) : "—"}</div>
+                      <div key={label} className="rounded-xl bg-[var(--portal-surface-muted)] p-2 text-center">
+                        <div className="text-[9px] font-semibold uppercase tracking-widest text-[var(--portal-text-muted)]">{label}</div>
+                        <div className="mt-0.5 text-[11px] font-semibold text-[var(--portal-text)]">{hasValue(value) ? (typeof value === "number" ? fmtMoney(value) : String(value)) : "—"}</div>
                       </div>
                     ))}
                   </div>
                   {selectedTransportRequest && (
-                    <div className="mt-3 rounded-xl border border-[#ead9c7] bg-[#faf3ea] p-3 text-sm">
-                      <div className="text-[10px] font-semibold uppercase tracking-widest text-[#a17345]">Latest Request</div>
-                      <div className="mt-1 font-semibold text-[#2f2218]">{selectedTransportRequest.request_type || "—"}</div>
+                    <div className="mt-3 rounded-xl border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] p-3 text-sm">
+                      <div className="text-[10px] font-semibold uppercase tracking-widest text-[var(--portal-text-muted)]">Latest Request</div>
+                      <div className="mt-1 font-semibold text-[var(--portal-text)]">{selectedTransportRequest.request_type || "—"}</div>
                       <div className="mt-0.5 text-[11px] text-[#9c7a55]">{formatTextOrDash(selectedTransportRequest.location_text)} · {formatMiles(selectedTransportRequest.miles)}</div>
                     </div>
                   )}
@@ -558,8 +547,8 @@ function PuppyDetailDrawer({
             )}
 
             {/* Edit form */}
-            <div className="rounded-2xl border border-[#ead9c7] bg-white p-5">
-              <div className="text-[11px] font-semibold uppercase tracking-widest text-[#a17345] mb-4">Puppy Record</div>
+            <div className="rounded-2xl border border-[var(--portal-border)] bg-white p-5">
+              <div className="text-[11px] font-semibold uppercase tracking-widest text-[var(--portal-text-muted)] mb-4">Puppy Record</div>
               <div className="space-y-4">
                 <div className="grid gap-3 sm:grid-cols-3">
                   <AdminTextInput label="Call Name" value={form.call_name} onChange={(v: string) => onFieldChange("call_name", v)} placeholder="Call name" />
@@ -606,10 +595,10 @@ function PuppyDetailDrawer({
                 </div>
 
                 {/* Costs */}
-                <div className="rounded-xl border border-[#ead9c7] bg-[#faf3ea] p-4">
+                <div className="rounded-xl border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <div className="text-[11px] font-semibold uppercase tracking-widest text-[#a17345]">Breeder Costs</div>
-                    <div className="text-sm font-bold text-[#2f2218]">Itemized: {fmtMoney(itemizedCostTotal)}</div>
+                    <div className="text-[11px] font-semibold uppercase tracking-widest text-[var(--portal-text-muted)]">Breeder Costs</div>
+                    <div className="text-sm font-bold text-[var(--portal-text)]">Itemized: {fmtMoney(itemizedCostTotal)}</div>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-3">
                     <AdminNumberInput label="Vaccination" value={form.vaccination_cost} onChange={(v: string) => onFieldChange("vaccination_cost", v)} step="0.01" />
@@ -648,7 +637,7 @@ function PuppyDetailDrawer({
         </div>
 
         {/* Footer actions */}
-        <div className="flex-shrink-0 border-t border-[#ead9c7] bg-white/80 backdrop-blur-sm px-6 py-4 flex items-center gap-3">
+        <div className="flex-shrink-0 border-t border-[var(--portal-border)] bg-white/80 backdrop-blur-sm px-6 py-4 flex items-center gap-3">
           <button
             type="button"
             onClick={onSave}
@@ -670,7 +659,7 @@ function PuppyDetailDrawer({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-2xl border border-[#e4d2be] bg-white px-5 py-3 text-sm font-semibold text-[#5d4330] transition hover:bg-[#faf3ea]"
+            className="rounded-2xl border border-[var(--portal-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:bg-[var(--portal-surface-muted)]"
           >
             Close
           </button>
@@ -823,7 +812,7 @@ export default function AdminPortalPuppiesPage() {
   if (loading || loadingData) return (
     <div className="flex min-h-screen items-center justify-center bg-[#fffdf9]">
       <div className="flex flex-col items-center gap-4">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#ead9c7] border-t-[#c88c52]" />
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-[var(--portal-border)] border-t-[#c88c52]" />
         <div className="text-sm font-semibold text-[#7b5f46]">Loading puppies…</div>
       </div>
     </div>
@@ -848,7 +837,7 @@ export default function AdminPortalPuppiesPage() {
               <button
                 type="button"
                 onClick={() => { openDetail("", true); setForm(emptyForm()); }}
-                className="inline-flex items-center gap-2 rounded-2xl bg-[linear-gradient(135deg,#c88c52_0%,#a56733_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(159,99,49,0.28)] transition hover:-translate-y-0.5 hover:brightness-105"
+                className="inline-flex items-center gap-2 rounded-2xl bg-[linear-gradient(90deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--portal-shadow-md)] transition hover:-translate-y-0.5"
               >
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M8 2v12M2 8h12" /></svg>
                 Create Puppy
@@ -865,13 +854,33 @@ export default function AdminPortalPuppiesPage() {
           }
         />
 
-        {/* Metrics */}
-        <AdminMetricGrid>
-          <AdminMetricCard label="Total Puppies" value={String(puppies.length)} detail="All records across admin, portal, and public surfaces." />
-          <AdminMetricCard label="Available" value={String(puppies.filter((p) => available(p.status)).length)} detail="Puppies that can display publicly with price." accent="from-[#dfe8d8] via-[#c6d6ba] to-[#8aa07e]" />
-          <AdminMetricCard label="Reserved / Completed" value={String(puppies.filter((p) => shouldHidePublicPuppyPrice(p.status)).length)} detail="Public pricing hidden; records remain internal." accent="from-[#e7ddd3] via-[#c9b39a] to-[#8f6f53]" />
-          <AdminMetricCard label="Buyer Linked" value={String(puppies.filter((p) => p.buyer_id || p.owner_email).length)} detail="Puppies attached to a buyer record or email." accent="from-[#f0ddc5] via-[#d9b78e] to-[#be8650]" />
-        </AdminMetricGrid>
+        <AdminPanel
+          title="Placement Bench"
+          subtitle="The puppy page should immediately show availability, public-listing readiness, and where breeder records still need assignment work."
+        >
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <AdminInfoTile
+              label="Total Puppies"
+              value={String(puppies.length)}
+              detail="All records shared across the breeding hub, buyer portal, and public listing surfaces."
+            />
+            <AdminInfoTile
+              label="Available Listings"
+              value={String(puppies.filter((p) => available(p.status)).length)}
+              detail="Puppies still open for public availability, inquiry handling, or future placement."
+            />
+            <AdminInfoTile
+              label="Internal-Only Pricing"
+              value={String(puppies.filter((p) => shouldHidePublicPuppyPrice(p.status)).length)}
+              detail="Reserved and completed records that stay visible internally while public price is hidden."
+            />
+            <AdminInfoTile
+              label="Buyer Linked"
+              value={String(puppies.filter((p) => p.buyer_id || p.owner_email).length)}
+              detail={`${litters.length} litters currently feed lineage context into the puppy detail workspace.`}
+            />
+          </div>
+        </AdminPanel>
 
         {/* Directory */}
         <AdminPanel
@@ -888,7 +897,7 @@ export default function AdminPortalPuppiesPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search puppies, litters, lineage, buyer…"
-                className="w-full rounded-[16px] border border-[#e6d7c7] bg-[#fffdfa] pl-9 pr-3.5 py-2.5 text-sm text-[#33251a] outline-none transition focus:border-[#caa074] focus:ring-2 focus:ring-[#ead7c0]"
+                className="w-full rounded-[16px] border border-[var(--portal-border)] bg-white pl-9 pr-3.5 py-2.5 text-sm text-[var(--portal-text)] outline-none transition focus:border-[var(--portal-accent)] focus:ring-2 focus:ring-[rgba(90,142,245,0.14)]"
               />
             </div>
             <div className="flex gap-2 flex-wrap">
@@ -906,7 +915,7 @@ export default function AdminPortalPuppiesPage() {
                   className={`rounded-full border px-4 py-2 text-xs font-semibold transition ${
                     statusFilter === value
                       ? "bg-[#c88c52] border-[#a56733] text-white shadow-sm"
-                      : "border-[#e6d7c7] bg-white text-[#7a5c40] hover:border-[#d4b48b] hover:bg-[#faf3ea]"
+                      : "border-[var(--portal-border)] bg-white text-[var(--portal-text-soft)] hover:border-[var(--portal-border-strong)] hover:bg-[var(--portal-surface-muted)]"
                   }`}
                 >
                   {label}
@@ -917,7 +926,7 @@ export default function AdminPortalPuppiesPage() {
 
           {/* Count */}
           {filteredPuppies.length > 0 && (
-            <div className="mb-4 text-xs font-semibold text-[#a17345] uppercase tracking-widest">
+            <div className="mb-4 text-xs font-semibold text-[var(--portal-text-muted)] uppercase tracking-widest">
               {filteredPuppies.length} {filteredPuppies.length === 1 ? "puppy" : "puppies"} found
             </div>
           )}
@@ -962,10 +971,10 @@ export default function AdminPortalPuppiesPage() {
             />
           </div>
           <div className="mt-4 flex flex-wrap gap-3">
-            <Link href="/puppies" className="rounded-2xl border border-[#e4d2be] bg-white px-4 py-3 text-sm font-semibold text-[#5d4330] transition hover:border-[#d4b48b] hover:bg-[#faf3ea]">
+            <Link href="/puppies" className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)] hover:bg-[var(--portal-surface-muted)]">
               Open Public Puppies →
             </Link>
-            <Link href="/portal/available-puppies" className="rounded-2xl border border-[#e4d2be] bg-white px-4 py-3 text-sm font-semibold text-[#5d4330] transition hover:border-[#d4b48b] hover:bg-[#faf3ea]">
+            <Link href="/portal/available-puppies" className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)] hover:bg-[var(--portal-surface-muted)]">
               Open Portal Listings →
             </Link>
           </div>
@@ -995,3 +1004,4 @@ export default function AdminPortalPuppiesPage() {
     </AdminPageShell>
   );
 }
+
