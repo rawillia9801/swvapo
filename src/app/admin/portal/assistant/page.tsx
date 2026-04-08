@@ -41,6 +41,14 @@ function shortThreadId(value: string | null | undefined) {
   return text.length > 18 ? `${text.slice(0, 18)}...` : text;
 }
 
+const starterPrompts = [
+  "Show today's admin digest",
+  "Show public chat threads",
+  "Show CRM follow-ups",
+  "Show recent Zoho payments",
+  "Create Zoho payment link for Jane Doe for $500 deposit",
+];
+
 export default function AdminPortalAssistantPage() {
   const [user, setUser] = useState<{ id: string; email?: string | null } | null>(null);
   const [accessToken, setAccessToken] = useState("");
@@ -103,8 +111,8 @@ export default function AdminPortalAssistantPage() {
   );
   const hasOwnerWrite = isPortalAdminEmail(user?.email) || !!adminAuth?.canWriteCore;
 
-  async function sendMessage() {
-    const text = draft.trim();
+  async function sendMessage(overrideText?: string) {
+    const text = (overrideText ?? draft).trim();
     if (!text || sending) return;
 
     const userMessage: ChatMessage = {
@@ -115,7 +123,7 @@ export default function AdminPortalAssistantPage() {
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    setDraft("");
+    if (!overrideText) setDraft("");
     setSending(true);
     setStatusText("");
 
@@ -230,7 +238,7 @@ export default function AdminPortalAssistantPage() {
                 ChiChi
               </h1>
               <p className="mt-3 text-sm leading-7 text-[#617188]">
-                Direct owner control for portal records, changes, and live operations.
+                Direct owner control for portal records, website intelligence, CRM follow-ups, and Zoho payment operations.
               </p>
 
               <div className="mt-5 flex flex-wrap gap-2.5">
@@ -295,6 +303,9 @@ export default function AdminPortalAssistantPage() {
                   </div>
                   <div className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-[#142236] md:text-4xl">
                     Command Console
+                  </div>
+                  <div className="mt-2 text-sm leading-7 text-[#6c7f99]">
+                    ChiChi can pull live website activity, public thread history, CRM work queues, and Zoho payment data from here.
                   </div>
                 </div>
 
@@ -363,7 +374,19 @@ export default function AdminPortalAssistantPage() {
                         Start with what you want changed.
                       </div>
                       <div className="mt-3 text-sm leading-7 text-[#687a92]">
-                        Tell ChiChi exactly what to add, update, remove, approve, deny, or remember.
+                        Tell ChiChi exactly what to add, update, remove, approve, deny, remember, or pull live from website and CRM data.
+                      </div>
+                      <div className="mt-6 flex flex-wrap justify-center gap-3">
+                        {starterPrompts.map((prompt) => (
+                          <button
+                            key={prompt}
+                            type="button"
+                            onClick={() => void sendMessage(prompt)}
+                            className="inline-flex items-center rounded-full border border-[#d6e0f1] bg-white px-4 py-2 text-xs font-semibold text-[#50657f] shadow-[0_10px_26px_rgba(47,77,120,0.08)] transition hover:-translate-y-0.5 hover:border-[#adc2eb]"
+                          >
+                            {prompt}
+                          </button>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -383,7 +406,7 @@ export default function AdminPortalAssistantPage() {
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
                     rows={5}
-                    placeholder="Tell ChiChi exactly what to change..."
+                    placeholder="Ask for website activity, public threads, CRM follow-ups, records, or Zoho payment links..."
                     className="min-h-[150px] w-full resize-none rounded-[22px] border border-[#e2eaf7] bg-[linear-gradient(180deg,#fbfdff_0%,#f5f9ff_100%)] px-4 py-4 text-sm text-[#142236] outline-none transition placeholder:text-[#8ca0bc] focus:border-[#a5bbeb] md:text-[15px]"
                   />
 

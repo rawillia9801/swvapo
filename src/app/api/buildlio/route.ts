@@ -9,6 +9,12 @@ import {
 } from "@/lib/chichi-memory";
 import { buildPortalChiChiSystemPrompt } from "@/lib/chichi-portal-agent";
 import { isPortalAdminEmail } from "@/lib/portal-admin";
+import {
+  createZohoPaymentLink,
+  isZohoPaymentsConfigured,
+  listZohoCustomers,
+  listZohoPayments,
+} from "@/lib/zoho-payments";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -197,6 +203,93 @@ type DocumentRecord = {
   signed_at: string | null;
 };
 
+type WebsiteVisitorRecord = {
+  id?: string | number | null;
+  session_id?: string | null;
+  first_seen_at?: string | null;
+  last_seen_at?: string | null;
+  landing_page?: string | null;
+  referrer?: string | null;
+  utm_source?: string | null;
+  is_returning?: boolean | null;
+  visit_count?: number | null;
+  city?: string | null;
+  region?: string | null;
+  country?: string | null;
+};
+
+type PublicThreadRecord = {
+  id: string | number;
+  visitor_id?: string | null;
+  updated_at?: string | null;
+  lead_status?: string | null;
+  follow_up_needed?: boolean | null;
+  follow_up_reason?: string | null;
+  summary?: string | null;
+  intent_summary?: string | null;
+  tags?: string[] | null;
+  priority?: string | null;
+  source_page?: string | null;
+};
+
+type PublicMessageRecord = {
+  id: string | number;
+  thread_id?: string | null;
+  sender?: string | null;
+  content?: string | null;
+  intent?: string | null;
+  topic?: string | null;
+  created_at?: string | null;
+  requires_follow_up?: boolean | null;
+  follow_up_reason?: string | null;
+};
+
+type CrmLeadRecord = {
+  id: string | number;
+  visitor_id?: string | null;
+  thread_id?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  interest_timeline?: string | null;
+  lead_score?: number | null;
+  lead_status?: string | null;
+  wants_payment_plan?: boolean | null;
+  wants_wait_list?: boolean | null;
+  wants_available_puppy?: boolean | null;
+  wants_application?: boolean | null;
+  follow_up_needed?: boolean | null;
+  follow_up_status?: string | null;
+  follow_up_reason?: string | null;
+  last_contact_at?: string | null;
+  summary?: string | null;
+  tags?: string[] | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+type CrmFollowUpRecord = {
+  id: string | number;
+  lead_id?: string | number | null;
+  thread_id?: string | null;
+  visitor_id?: string | null;
+  task_type?: string | null;
+  reason?: string | null;
+  status?: string | null;
+  priority?: string | null;
+  due_at?: string | null;
+  notes?: string | null;
+  created_at?: string | null;
+};
+
+type AdminDigestRecord = {
+  id: string | number;
+  digest_date?: string | null;
+  summary?: string | null;
+  priorities?: string[] | null;
+  stats?: Record<string, unknown> | null;
+  created_at?: string | null;
+};
+
 type ActionIntent =
   | {
       action: "answer_only";
@@ -217,7 +310,16 @@ type ActionIntent =
         | "events"
         | "weights"
         | "health"
-        | "pickup_requests";
+        | "pickup_requests"
+        | "website_activity"
+        | "website_visitors"
+        | "public_threads"
+        | "public_messages"
+        | "crm_leads"
+        | "crm_followups"
+        | "admin_digests"
+        | "zoho_customers"
+        | "zoho_payments";
       query?: string | null;
       limit?: number | null;
     }
@@ -454,6 +556,21 @@ type ActionIntent =
       weight_date?: string | null;
       weight_oz?: number | null;
       weight_g?: number | null;
+    }
+  | {
+      action: "create_zoho_payment_link";
+      confidence?: string;
+      buyer_name?: string | null;
+      buyer_email?: string | null;
+      customer_email?: string | null;
+      customer_phone?: string | null;
+      amount?: number | null;
+      currency?: string | null;
+      description?: string | null;
+      reference_id?: string | null;
+      expires_at?: string | null;
+      send_email?: boolean | null;
+      payment_methods?: string[] | null;
     };
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
@@ -1318,8 +1435,10 @@ Allowed actions:
 - "add_puppy_weight"
 - "update_puppy_weight"
 - "delete_puppy_weight"
+- "create_zoho_payment_link"
 
 Use "answer_only" if the message is mostly a question, lookup, explanation, or lacks enough intent to act.
+Requests to show website activity, admin digests, public threads/messages, CRM leads/follow-ups, or Zoho data should usually be "list_records".
 
 For "list_records", try to extract:
 entity, query, limit
@@ -1336,6 +1455,15 @@ Valid entities for "list_records":
 - weights
 - health
 - pickup_requests
+- website_activity
+- website_visitors
+- public_threads
+- public_messages
+- crm_leads
+- crm_followups
+- admin_digests
+- zoho_customers
+- zoho_payments
 
 For "add_buyer", try to extract:
 full_name, name, email, phone, status, notes
@@ -1382,6 +1510,9 @@ weight_id, puppy_name, puppy_id, weight_date, new_weight_date, age_weeks, weight
 For "delete_puppy_weight", try to extract:
 weight_id, puppy_name, puppy_id, weight_date, weight_oz, weight_g
 
+For "create_zoho_payment_link", try to extract:
+buyer_name, buyer_email, customer_email, customer_phone, amount, currency, description, reference_id, expires_at, send_email, payment_methods
+
 Use null for missing fields.
 Use arrays when the user clearly listed multiple buyers or puppies to delete.
 Use ISO date format YYYY-MM-DD when possible.
@@ -1420,6 +1551,78 @@ function parseDirectActionIntent(userMessage: string): ActionIntent | null {
 
   const normalizedText = lower.replace(/[?.!]+$/g, "").trim();
 
+  if (
+    /^(?:create|make|generate|send)\s+(?:a\s+)?(?:zoho\s+)?payment link\b/i.test(text)
+  ) {
+    const directAmountMatch =
+      text.match(/\bamount(?:\s+of)?[:\s$-]*([\d]+(?:\.\d{1,2})?)/i) ||
+      text.match(/\$\s*([\d]+(?:\.\d{1,2})?)/i);
+    const trailingAmountMatches = Array.from(
+      text.matchAll(/\bfor\s+\$?([\d]+(?:\.\d{1,2})?)(?=\b|\s)/gi)
+    );
+    const trailingAmountMatch = trailingAmountMatches.length
+      ? trailingAmountMatches[trailingAmountMatches.length - 1]
+      : null;
+    const buyerMatch = text.match(
+      /\b(?:for|to)\s+([a-z][a-z .'-]{1,60}?)(?=\s+(?:for\s+\$?[\d]+|\$|amount\b|description\b|expires?\b|reference\b|email\b|phone\b|via\b|using\b)|$)/i
+    );
+    const emailMatch = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+    const phoneMatch = text.match(/(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}/);
+    const explicitDescription =
+      text.match(/\bdescription[:\s-]+(.+)$/i)?.[1]?.trim() ||
+      text.match(/\bfor\s+(deposit|remaining balance|balance|transport|reservation|application)\b/i)?.[0] ||
+      null;
+    const explicitCurrency =
+      text.match(/\b(USD|EUR|GBP|CAD|AUD)\b/i)?.[1]?.toUpperCase() ||
+      (text.includes("$") ? "USD" : null);
+    const referenceId =
+      text.match(/\breference(?:\s+id|\s+number)?[:\s-]*([a-z0-9._-]+)/i)?.[1] || null;
+    const expiresAt =
+      text.match(/\bexpires?(?:\s+on)?[:\s-]*([0-9]{4}-[0-9]{2}-[0-9]{2})/i)?.[1] || null;
+    const paymentMethods = [
+      /\bcard\b|\bcredit\b|\bdebit\b/i.test(text) ? "card" : null,
+      /\bach\b|\bbank\b/i.test(text) ? "ach_debit" : null,
+      /\bapple pay\b/i.test(text) ? "apple_pay" : null,
+    ].filter(Boolean) as string[];
+    const buyerName = buyerMatch?.[1]?.replace(/\s+/g, " ").trim() || null;
+    const resolvedAmount = Number(
+      directAmountMatch?.[1] || trailingAmountMatch?.[1] || ""
+    );
+
+    return {
+      action: "create_zoho_payment_link",
+      buyer_name: buyerName,
+      buyer_email: emailMatch?.[0]?.toLowerCase() || null,
+      customer_email: emailMatch?.[0]?.toLowerCase() || null,
+      customer_phone: phoneMatch?.[0] || null,
+      amount: Number.isFinite(resolvedAmount) && resolvedAmount > 0 ? resolvedAmount : null,
+      currency: explicitCurrency,
+      description:
+        explicitDescription ||
+        (buyerName || emailMatch?.[0]
+          ? `Payment link for ${buyerName || emailMatch?.[0]}`
+          : "Payment requested by ChiChi"),
+      reference_id: referenceId,
+      expires_at: expiresAt,
+      send_email: /\b(send|email|notify)\b/i.test(text) || !!emailMatch?.[0],
+      payment_methods: paymentMethods.length ? paymentMethods : null,
+    };
+  }
+
+  if (
+    /\bwebsite updates?\b/.test(normalizedText) ||
+    /\bwebsite activity\b/.test(normalizedText) ||
+    /\bsite updates?\b/.test(normalizedText) ||
+    /\bwebsite summary\b/.test(normalizedText)
+  ) {
+    return {
+      action: "list_records",
+      entity: "website_activity",
+      query: /\btoday\b/.test(normalizedText) ? "today" : null,
+      limit: 12,
+    };
+  }
+
   const entityMap: Array<{
     pattern: RegExp;
     entity: Extract<ActionIntent, { action: "list_records" }>["entity"];
@@ -1435,6 +1638,20 @@ function parseDirectActionIntent(userMessage: string): ActionIntent | null {
     { pattern: /\bweights?\b/, entity: "weights" },
     { pattern: /\bhealth\b|\bhealth records?\b/, entity: "health" },
     { pattern: /\bpickup requests?\b|\btransportation requests?\b/, entity: "pickup_requests" },
+    { pattern: /\bwebsite visitors?\b|\bsite visitors?\b/, entity: "website_visitors" },
+    {
+      pattern: /\bpublic chat threads?\b|\bpublic threads?\b|\bwebsite chat threads?\b/,
+      entity: "public_threads",
+    },
+    {
+      pattern: /\bpublic chat messages?\b|\bpublic messages?\b/,
+      entity: "public_messages",
+    },
+    { pattern: /\bcrm leads?\b|\bwebsite leads?\b/, entity: "crm_leads" },
+    { pattern: /\bcrm follow[- ]?ups?\b|\bfollow[- ]?ups?\b/, entity: "crm_followups" },
+    { pattern: /\badmin digests?\b|\bowner digest\b/, entity: "admin_digests" },
+    { pattern: /\bzoho customers?\b/, entity: "zoho_customers" },
+    { pattern: /\bzoho payments?\b/, entity: "zoho_payments" },
   ];
 
   const matchedEntity = entityMap.find((entry) => entry.pattern.test(normalizedText))?.entity;
@@ -1451,13 +1668,30 @@ function parseDirectActionIntent(userMessage: string): ActionIntent | null {
     normalizedText === "weights" ||
     normalizedText === "health" ||
     normalizedText === "pickup requests" ||
+    normalizedText === "website activity" ||
+    normalizedText === "website visitors" ||
+    normalizedText === "public threads" ||
+    normalizedText === "public messages" ||
+    normalizedText === "crm leads" ||
+    normalizedText === "crm followups" ||
+    normalizedText === "crm follow-ups" ||
+    normalizedText === "admin digests" ||
+    normalizedText === "zoho customers" ||
+    normalizedText === "zoho payments" ||
     /^(?:list|show|get|view)\b/.test(normalizedText) ||
     /^(?:who are|what are)\b/.test(normalizedText);
   const countMatch = /^(?:how many|count|total)\b/.test(normalizedText);
 
   if (matchedEntity && (listMatch || countMatch)) {
     const queryMatch =
-      normalizedText.match(/\b(?:for|named|called|with|about)\s+(.+)$/i)?.[1]?.trim() || null;
+      normalizedText.match(/\b(?:for|named|called|with|about)\s+(.+)$/i)?.[1]?.trim() ||
+      (/\btoday\b/.test(normalizedText)
+        ? "today"
+        : /\byesterday\b/.test(normalizedText)
+          ? "yesterday"
+          : /\brecent\b/.test(normalizedText)
+            ? "recent"
+            : null);
 
     return {
       action: "list_records",
@@ -1987,6 +2221,17 @@ function missingFieldsForAction(intent: ActionIntent): string[] {
     return missing;
   }
 
+  if (intent.action === "create_zoho_payment_link") {
+    const missing: string[] = [];
+    if (intent.amount === null || intent.amount === undefined || Number.isNaN(Number(intent.amount))) {
+      missing.push("amount");
+    }
+    if (!intent.description) {
+      missing.push("description");
+    }
+    return missing;
+  }
+
   return [];
 }
 
@@ -1997,6 +2242,186 @@ function recordLimit(value: number | null | undefined, fallback = 12) {
   return Math.min(Math.max(Math.round(parsed), 1), 50);
 }
 
+function previewText(value: string | null | undefined, fallback = "No summary available.", max = 140) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!text) return fallback;
+  return text.length > max ? `${text.slice(0, Math.max(0, max - 3)).trimEnd()}...` : text;
+}
+
+function sinceIso(days = 1) {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() - days);
+  return date.toISOString();
+}
+
+function portalDateToken(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value || "0000";
+  const month = parts.find((part) => part.type === "month")?.value || "00";
+  const day = parts.find((part) => part.type === "day")?.value || "00";
+  return `${year}-${month}-${day}`;
+}
+
+function matchesQueryText(values: unknown[], queryText: string) {
+  if (!queryText) return true;
+  return values
+    .map((value) => String(value || "").toLowerCase())
+    .join(" ")
+    .includes(queryText);
+}
+
+function matchesRelativeDateQuery(value: string | null | undefined, queryText: string) {
+  if (!queryText) return true;
+  if (!/\btoday\b|\byesterday\b/.test(queryText)) return true;
+  const token = String(value || "").slice(0, 10);
+  if (!token) return false;
+  if (/\btoday\b/.test(queryText)) return token === portalDateToken();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  return token === portalDateToken(yesterday);
+}
+
+function stripRelativeQueryTerms(queryText: string) {
+  return queryText
+    .replace(/\btoday\b|\byesterday\b|\brecent\b|\blatest\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function formatListDate(value: string | null | undefined) {
+  if (!value) return "No date";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function formatUnixDate(value: number | null | undefined) {
+  if (value === null || value === undefined) return "No date";
+  const date = new Date(Number(value));
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+async function safeCount(
+  queryFactory: () => PromiseLike<{ count: number | null; error: unknown }>
+): Promise<number> {
+  try {
+    const result = await queryFactory();
+    return result.count || 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function safeRows<T>(
+  queryFactory: () => PromiseLike<{ data: T[] | null; error: unknown }>
+): Promise<T[]> {
+  try {
+    const result = await queryFactory();
+    return (result.data || []) as T[];
+  } catch {
+    return [];
+  }
+}
+
+async function getWebsiteActivitySnapshot(admin: SupabaseClient) {
+  const since = sinceIso(1);
+  const [
+    visitors24h,
+    returningVisitors24h,
+    publicThreads24h,
+    publicMessages24h,
+    openFollowUps,
+    leadRows,
+    latestDigestRows,
+    publicThreadRows,
+  ] = await Promise.all([
+    safeCount(() =>
+      admin
+        .from("website_visitors")
+        .select("*", { count: "exact", head: true })
+        .gte("last_seen_at", since)
+    ),
+    safeCount(() =>
+      admin
+        .from("website_visitors")
+        .select("*", { count: "exact", head: true })
+        .gte("last_seen_at", since)
+        .eq("is_returning", true)
+    ),
+    safeCount(() =>
+      admin
+        .from("chichi_public_threads")
+        .select("*", { count: "exact", head: true })
+        .gte("updated_at", since)
+    ),
+    safeCount(() =>
+      admin
+        .from("chichi_public_messages")
+        .select("*", { count: "exact", head: true })
+        .gte("created_at", since)
+    ),
+    safeCount(() =>
+      admin
+        .from("crm_followups")
+        .select("*", { count: "exact", head: true })
+        .in("status", ["open", "scheduled"])
+    ),
+    safeRows<CrmLeadRecord>(() =>
+      admin
+        .from("crm_leads")
+        .select("id,email,phone,lead_status")
+        .gte("created_at", since)
+        .limit(200)
+    ),
+    safeRows<AdminDigestRecord>(() =>
+      admin
+        .from("chichi_admin_digests")
+        .select("id,digest_date,summary,priorities,stats,created_at")
+        .order("digest_date", { ascending: false })
+        .limit(1)
+    ),
+    safeRows<PublicThreadRecord>(() =>
+      admin
+        .from("chichi_public_threads")
+        .select("id,updated_at,lead_status,follow_up_needed,summary,intent_summary,tags")
+        .order("updated_at", { ascending: false })
+        .limit(3)
+    ),
+  ]);
+
+  return {
+    visitors24h,
+    returningVisitors24h,
+    publicThreads24h,
+    publicMessages24h,
+    openFollowUps,
+    hotLeads: leadRows.filter((row) => String(row.lead_status || "").toLowerCase() === "hot").length,
+    warmLeads: leadRows.filter((row) => String(row.lead_status || "").toLowerCase() === "warm").length,
+    sharedContacts: leadRows.filter((row) => !!String(row.email || "").trim() || !!String(row.phone || "").trim())
+      .length,
+    latestDigest: latestDigestRows[0] || null,
+    recentPublicThreads: publicThreadRows,
+  };
+}
+
 async function executeListRecords(
   admin: SupabaseClient,
   intent: Extract<ActionIntent, { action: "list_records" }>
@@ -2004,6 +2429,7 @@ async function executeListRecords(
   const entity = intent.entity;
   const limit = recordLimit(intent.limit, 12);
   const queryText = String(intent.query || "").trim().toLowerCase();
+  const searchQuery = stripRelativeQueryTerms(queryText);
 
   if (!entity) {
     throw new Error("I still need to know what records you want listed.");
@@ -2454,7 +2880,538 @@ async function executeListRecords(
     ].join("\n");
   }
 
+  if (entity === "website_activity") {
+    const snapshot = await getWebsiteActivitySnapshot(admin);
+    const latestDigest =
+      snapshot.latestDigest && matchesRelativeDateQuery(snapshot.latestDigest.digest_date, queryText)
+        ? snapshot.latestDigest
+        : /\btoday\b|\byesterday\b/.test(queryText)
+          ? null
+          : snapshot.latestDigest;
+
+    if (limit === 0) {
+      return `Website activity snapshot: ${snapshot.visitors24h} visitors, ${snapshot.publicThreads24h} public threads, and ${snapshot.openFollowUps} open follow-ups in the last 24 hours.`;
+    }
+
+    const lines = [
+      /\btoday\b/.test(queryText)
+        ? `Here is the website activity snapshot for ${portalDateToken()}:`
+        : "Here is the latest website activity snapshot:",
+      "",
+      `Visitors (24h): ${snapshot.visitors24h}`,
+      `Returning visitors (24h): ${snapshot.returningVisitors24h}`,
+      `Public threads (24h): ${snapshot.publicThreads24h}`,
+      `Public messages (24h): ${snapshot.publicMessages24h}`,
+      `Open follow-ups: ${snapshot.openFollowUps}`,
+      `Hot leads (24h): ${snapshot.hotLeads}`,
+      `Warm leads (24h): ${snapshot.warmLeads}`,
+      `Shared contacts (24h): ${snapshot.sharedContacts}`,
+      "",
+      latestDigest
+        ? `Latest admin digest (${latestDigest.digest_date || "No date"}): ${previewText(
+            latestDigest.summary,
+            "No admin digest summary yet."
+          )}`
+        : /\btoday\b|\byesterday\b/.test(queryText)
+          ? `No admin digest is stored for ${/\btoday\b/.test(queryText) ? portalDateToken() : "yesterday"}.`
+          : "No admin digest has been stored yet.",
+    ];
+
+    if (snapshot.recentPublicThreads.length) {
+      lines.push("", "Recent public threads:");
+      snapshot.recentPublicThreads.forEach((row, index) => {
+        lines.push(
+          `${index + 1}. ${String(row.lead_status || "visitor")} - ${formatListDate(
+            row.updated_at || null
+          )} - ${previewText(row.summary || row.intent_summary, "No thread summary yet.", 100)}`
+        );
+      });
+    }
+
+    return lines.join("\n");
+  }
+
+  if (entity === "website_visitors") {
+    const { data, error } = await admin
+      .from("website_visitors")
+      .select(
+        "id,session_id,first_seen_at,last_seen_at,landing_page,referrer,utm_source,is_returning,visit_count,city,region,country"
+      )
+      .order("last_seen_at", { ascending: false })
+      .limit(limit || 500)
+      .returns<WebsiteVisitorRecord[]>();
+    if (error) throw new Error(`Could not load website visitors: ${error.message}`);
+
+    const rows = (data || []).filter((row) => {
+      return (
+        matchesRelativeDateQuery(row.last_seen_at, queryText) &&
+        matchesQueryText(
+          [
+            row.id,
+            row.session_id,
+            row.landing_page,
+            row.referrer,
+            row.utm_source,
+            row.city,
+            row.region,
+            row.country,
+            row.visit_count,
+            row.is_returning ? "returning" : "new",
+          ],
+          searchQuery
+        )
+      );
+    });
+
+    if (limit === 0) {
+      return `I found ${rows.length} website visitor record${rows.length === 1 ? "" : "s"}${
+        queryText ? ` matching "${intent.query}".` : "."
+      }`;
+    }
+
+    if (!rows.length) {
+      return queryText
+        ? `I could not find any website visitors matching "${intent.query}".`
+        : "I could not find any website visitors yet.";
+    }
+
+    return [
+      `Here ${rows.length === 1 ? "is" : "are"} the latest website visitor${
+        rows.length === 1 ? "" : "s"
+      }${queryText ? ` matching "${intent.query}"` : ""}:`,
+      "",
+      ...rows.slice(0, limit).map((row, index) => {
+        const location = [row.city, row.region || row.country].filter(Boolean).join(", ");
+        return `${index + 1}. ${formatListDate(row.last_seen_at || row.first_seen_at || null)} - ${
+          row.is_returning ? "returning" : "new"
+        } visitor - ${row.landing_page || "No landing page"}${
+          location ? ` - ${location}` : ""
+        } - ${row.visit_count || 1} visit${Number(row.visit_count || 1) === 1 ? "" : "s"}`;
+      }),
+    ].join("\n");
+  }
+
+  if (entity === "public_threads") {
+    const { data, error } = await admin
+      .from("chichi_public_threads")
+      .select(
+        "id,visitor_id,updated_at,lead_status,follow_up_needed,follow_up_reason,summary,intent_summary,tags,priority,source_page"
+      )
+      .order("updated_at", { ascending: false })
+      .limit(limit || 500);
+    if (error) throw new Error(`Could not load public chat threads: ${error.message}`);
+
+    const rows = (data || []).filter((row) => {
+      return (
+        matchesRelativeDateQuery(row.updated_at, queryText) &&
+        matchesQueryText(
+          [
+            row.id,
+            row.visitor_id,
+            row.lead_status,
+            row.follow_up_reason,
+            row.summary,
+            row.intent_summary,
+            Array.isArray(row.tags) ? row.tags.join(" ") : "",
+            row.priority,
+            row.source_page,
+          ],
+          searchQuery
+        )
+      );
+    });
+
+    if (limit === 0) {
+      return `I found ${rows.length} public chat thread${rows.length === 1 ? "" : "s"}${
+        queryText ? ` matching "${intent.query}".` : "."
+      }`;
+    }
+
+    if (!rows.length) {
+      return queryText
+        ? `I could not find any public chat threads matching "${intent.query}".`
+        : "I could not find any public chat threads yet.";
+    }
+
+    return [
+      `Here ${rows.length === 1 ? "is" : "are"} the latest public chat thread${
+        rows.length === 1 ? "" : "s"
+      }${queryText ? ` matching "${intent.query}"` : ""}:`,
+      "",
+      ...rows.slice(0, limit).map((row, index) => {
+        const flags = [
+          row.lead_status || "visitor",
+          row.priority || null,
+          row.follow_up_needed ? "follow-up needed" : null,
+        ].filter(Boolean);
+        return `${index + 1}. ${formatListDate(row.updated_at || null)} - ${flags.join(" - ")} - ${previewText(
+          row.summary || row.intent_summary,
+          "No conversation summary yet.",
+          110
+        )}`;
+      }),
+    ].join("\n");
+  }
+
+  if (entity === "public_messages") {
+    const { data, error } = await admin
+      .from("chichi_public_messages")
+      .select("id,thread_id,sender,content,intent,topic,created_at,requires_follow_up,follow_up_reason")
+      .order("created_at", { ascending: false })
+      .limit(limit || 500)
+      .returns<PublicMessageRecord[]>();
+    if (error) throw new Error(`Could not load public chat messages: ${error.message}`);
+
+    const rows = (data || []).filter((row) => {
+      return (
+        matchesRelativeDateQuery(row.created_at, queryText) &&
+        matchesQueryText(
+          [
+            row.id,
+            row.thread_id,
+            row.sender,
+            row.content,
+            row.intent,
+            row.topic,
+            row.follow_up_reason,
+            row.requires_follow_up ? "follow-up" : "",
+          ],
+          searchQuery
+        )
+      );
+    });
+
+    if (limit === 0) {
+      return `I found ${rows.length} public chat message${rows.length === 1 ? "" : "s"}${
+        queryText ? ` matching "${intent.query}".` : "."
+      }`;
+    }
+
+    if (!rows.length) {
+      return queryText
+        ? `I could not find any public chat messages matching "${intent.query}".`
+        : "I could not find any public chat messages yet.";
+    }
+
+    return [
+      `Here ${rows.length === 1 ? "is" : "are"} the latest public chat message${
+        rows.length === 1 ? "" : "s"
+      }${queryText ? ` matching "${intent.query}"` : ""}:`,
+      "",
+      ...rows.slice(0, limit).map((row, index) => {
+        return `${index + 1}. ${formatListDate(row.created_at || null)} - ${
+          row.sender || "unknown"
+        } - ${previewText(row.content, "No message content.", 100)}`;
+      }),
+    ].join("\n");
+  }
+
+  if (entity === "crm_leads") {
+    const { data, error } = await admin
+      .from("crm_leads")
+      .select(
+        "id,visitor_id,thread_id,email,phone,interest_timeline,lead_score,lead_status,wants_payment_plan,wants_wait_list,wants_available_puppy,wants_application,follow_up_needed,follow_up_status,follow_up_reason,last_contact_at,summary,tags,created_at,updated_at"
+      )
+      .order("last_contact_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(limit || 500);
+    if (error) throw new Error(`Could not load CRM leads: ${error.message}`);
+
+    const rows = (data || []).filter((row) => {
+      return (
+        matchesRelativeDateQuery(row.last_contact_at || row.created_at, queryText) &&
+        matchesQueryText(
+          [
+            row.id,
+            row.email,
+            row.phone,
+            row.interest_timeline,
+            row.lead_score,
+            row.lead_status,
+            row.follow_up_status,
+            row.follow_up_reason,
+            row.summary,
+            Array.isArray(row.tags) ? row.tags.join(" ") : "",
+            row.wants_payment_plan ? "payment plan" : "",
+            row.wants_wait_list ? "wait list" : "",
+            row.wants_available_puppy ? "available puppy" : "",
+            row.wants_application ? "application" : "",
+          ],
+          searchQuery
+        )
+      );
+    });
+
+    if (limit === 0) {
+      return `I found ${rows.length} CRM lead${rows.length === 1 ? "" : "s"}${
+        queryText ? ` matching "${intent.query}".` : "."
+      }`;
+    }
+
+    if (!rows.length) {
+      return queryText
+        ? `I could not find any CRM leads matching "${intent.query}".`
+        : "I could not find any CRM leads yet.";
+    }
+
+    return [
+      `Here ${rows.length === 1 ? "is" : "are"} the latest CRM lead${
+        rows.length === 1 ? "" : "s"
+      }${queryText ? ` matching "${intent.query}"` : ""}:`,
+      "",
+      ...rows.slice(0, limit).map((row, index) => {
+        const tags = Array.isArray(row.tags) ? row.tags.slice(0, 3).join(", ") : "";
+        return `${index + 1}. ${row.email || row.phone || `Lead ${row.id}`} - ${
+          row.lead_status || "new"
+        } - score ${Number(row.lead_score || 0)} - ${formatListDate(
+          row.last_contact_at || row.created_at || null
+        )}${tags ? ` - ${tags}` : ""}`;
+      }),
+    ].join("\n");
+  }
+
+  if (entity === "crm_followups") {
+    const { data, error } = await admin
+      .from("crm_followups")
+      .select("id,lead_id,thread_id,visitor_id,task_type,reason,status,priority,due_at,notes,created_at")
+      .order("due_at", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: false })
+      .limit(limit || 500)
+      .returns<CrmFollowUpRecord[]>();
+    if (error) throw new Error(`Could not load CRM follow-ups: ${error.message}`);
+
+    const rows = (data || []).filter((row) => {
+      return (
+        matchesRelativeDateQuery(row.due_at || row.created_at, queryText) &&
+        matchesQueryText(
+          [
+            row.id,
+            row.lead_id,
+            row.thread_id,
+            row.visitor_id,
+            row.task_type,
+            row.reason,
+            row.status,
+            row.priority,
+            row.notes,
+          ],
+          searchQuery
+        )
+      );
+    });
+
+    if (limit === 0) {
+      return `I found ${rows.length} CRM follow-up${rows.length === 1 ? "" : "s"}${
+        queryText ? ` matching "${intent.query}".` : "."
+      }`;
+    }
+
+    if (!rows.length) {
+      return queryText
+        ? `I could not find any CRM follow-ups matching "${intent.query}".`
+        : "I could not find any CRM follow-ups yet.";
+    }
+
+    return [
+      `Here ${rows.length === 1 ? "is" : "are"} the latest CRM follow-up${
+        rows.length === 1 ? "" : "s"
+      }${queryText ? ` matching "${intent.query}"` : ""}:`,
+      "",
+      ...rows.slice(0, limit).map((row, index) => {
+        return `${index + 1}. ${row.task_type || "follow_up"} - ${row.status || "open"} - ${
+          row.priority || "normal"
+        } - due ${formatListDate(row.due_at || row.created_at || null)} - ${previewText(
+          row.reason || row.notes,
+          "No follow-up note.",
+          90
+        )}`;
+      }),
+    ].join("\n");
+  }
+
+  if (entity === "admin_digests") {
+    const { data, error } = await admin
+      .from("chichi_admin_digests")
+      .select("id,digest_date,summary,priorities,stats,created_at")
+      .order("digest_date", { ascending: false })
+      .limit(limit || 500);
+    if (error) throw new Error(`Could not load admin digests: ${error.message}`);
+
+    const rows = (data || []).filter((row) => {
+      return (
+        matchesRelativeDateQuery(row.digest_date || row.created_at, queryText) &&
+        matchesQueryText(
+          [
+            row.id,
+            row.digest_date,
+            row.summary,
+            Array.isArray(row.priorities) ? row.priorities.join(" ") : "",
+          ],
+          searchQuery
+        )
+      );
+    });
+
+    if (limit === 0) {
+      return `I found ${rows.length} admin digest${rows.length === 1 ? "" : "s"}${
+        queryText ? ` matching "${intent.query}".` : "."
+      }`;
+    }
+
+    if (!rows.length) {
+      return queryText
+        ? `I could not find any admin digests matching "${intent.query}".`
+        : "I could not find any admin digests yet.";
+    }
+
+    return [
+      `Here ${rows.length === 1 ? "is" : "are"} the latest admin digest${
+        rows.length === 1 ? "" : "s"
+      }${queryText ? ` matching "${intent.query}"` : ""}:`,
+      "",
+      ...rows.slice(0, limit).map((row, index) => {
+        const priorities = Array.isArray(row.priorities) ? row.priorities.slice(0, 3).join(" | ") : "";
+        return `${index + 1}. ${row.digest_date || formatListDate(row.created_at || null)} - ${previewText(
+          row.summary,
+          "No digest summary."
+        )}${priorities ? ` - priorities: ${priorities}` : ""}`;
+      }),
+    ].join("\n");
+  }
+
+  if (entity === "zoho_customers") {
+    if (!isZohoPaymentsConfigured()) {
+      return "Zoho Payments is not configured yet, so I cannot load Zoho customers right now.";
+    }
+
+    const rows = await listZohoCustomers({
+      query: intent.query,
+      limit: limit === 0 ? 50 : limit || 12,
+    });
+
+    if (limit === 0) {
+      return `I found ${rows.length} Zoho customer${rows.length === 1 ? "" : "s"}${
+        queryText ? ` matching "${intent.query}".` : "."
+      }`;
+    }
+
+    if (!rows.length) {
+      return queryText
+        ? `I could not find any Zoho customers matching "${intent.query}".`
+        : "I could not find any Zoho customers yet.";
+    }
+
+    return [
+      `Here ${rows.length === 1 ? "is" : "are"} the latest Zoho customer${
+        rows.length === 1 ? "" : "s"
+      }${queryText ? ` matching "${intent.query}"` : ""}:`,
+      "",
+      ...rows.map((row, index) => {
+        return `${index + 1}. ${row.customer_name || row.customer_email || row.customer_id} - ${
+          row.customer_email || "No email"
+        } - ${row.customer_phone || "No phone"} - ${row.customer_status || "active"}`;
+      }),
+    ].join("\n");
+  }
+
+  if (entity === "zoho_payments") {
+    if (!isZohoPaymentsConfigured()) {
+      return "Zoho Payments is not configured yet, so I cannot load Zoho payments right now.";
+    }
+
+    const rows = await listZohoPayments({
+      query: intent.query,
+      limit: limit === 0 ? 50 : limit || 12,
+    });
+
+    if (limit === 0) {
+      return `I found ${rows.length} Zoho payment${rows.length === 1 ? "" : "s"}${
+        queryText ? ` matching "${intent.query}".` : "."
+      }`;
+    }
+
+    if (!rows.length) {
+      return queryText
+        ? `I could not find any Zoho payments matching "${intent.query}".`
+        : "I could not find any Zoho payments yet.";
+    }
+
+    return [
+      `Here ${rows.length === 1 ? "is" : "are"} the latest Zoho payment${
+        rows.length === 1 ? "" : "s"
+      }${queryText ? ` matching "${intent.query}"` : ""}:`,
+      "",
+      ...rows.map((row, index) => {
+        return `${index + 1}. ${row.payment_id} - $${Number(row.amount || 0).toFixed(2)} ${
+          row.currency || "USD"
+        } - ${row.status || "recorded"} - ${formatUnixDate(row.date || null)}`;
+      }),
+    ].join("\n");
+  }
+
   return "I do not have a list handler for that record type yet.";
+}
+
+async function executeCreateZohoPaymentLink(
+  admin: SupabaseClient,
+  intent: Extract<ActionIntent, { action: "create_zoho_payment_link" }>
+) {
+  if (!isZohoPaymentsConfigured()) {
+    return "Zoho Payments is not configured yet. Add the Zoho Payments account and OAuth environment variables first, then I can create links from chat.";
+  }
+
+  const buyer = await findBuyerByNameOrEmail(
+    admin,
+    intent.buyer_name || null,
+    intent.buyer_email || intent.customer_email || null
+  );
+
+  const recipientName =
+    buyer?.full_name ||
+    buyer?.name ||
+    intent.buyer_name ||
+    intent.customer_email ||
+    intent.customer_phone ||
+    "the customer";
+  const recipientEmail = intent.customer_email || intent.buyer_email || buyer?.email || null;
+  const recipientPhone = intent.customer_phone || buyer?.phone || null;
+  const amount = Number(intent.amount || 0);
+  const description =
+    String(intent.description || "").trim() || `Payment link for ${recipientName}`;
+  const paymentMethods = Array.from(
+    new Set(
+      (intent.payment_methods || [])
+        .map((value) => String(value || "").trim().toLowerCase())
+        .filter((value) => value === "card" || value === "ach_debit" || value === "apple_pay")
+    )
+  );
+
+  const link = await createZohoPaymentLink({
+    amount,
+    currency: intent.currency || "USD",
+    email: recipientEmail,
+    phone: recipientPhone,
+    description,
+    referenceId: intent.reference_id || null,
+    expiresAt: intent.expires_at || null,
+    sendEmail: intent.send_email ?? Boolean(recipientEmail),
+    paymentMethods: paymentMethods.length ? (paymentMethods as ("ach_debit" | "apple_pay" | "card")[]) : null,
+  });
+
+  return [
+    `Zoho payment link created for ${recipientName}.`,
+    `Amount: $${amount.toFixed(2)} ${String(link.currency || intent.currency || "USD").toUpperCase()}`,
+    `Status: ${link.status || "active"}`,
+    `Link: ${link.url}`,
+    link.expires_at ? `Expires: ${link.expires_at}` : null,
+    recipientEmail
+      ? intent.send_email ?? true
+        ? `Customer email: ${recipientEmail} (notification enabled)`
+        : `Customer email: ${recipientEmail}`
+      : "Customer email: not provided",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 async function localAdminFallback(
@@ -2483,6 +3440,42 @@ async function localAdminFallback(
 
   if (/\bapplications?\b/.test(lower)) {
     return executeListRecords(admin, { action: "list_records", entity: "applications", limit: 12 });
+  }
+
+  if (/\bwebsite (?:updates?|activity|traffic|summary)\b|\bsite updates?\b/.test(lower)) {
+    return executeListRecords(admin, { action: "list_records", entity: "website_activity", limit: 12 });
+  }
+
+  if (/\bwebsite visitors?\b|\bsite visitors?\b/.test(lower)) {
+    return executeListRecords(admin, { action: "list_records", entity: "website_visitors", limit: 12 });
+  }
+
+  if (/\bpublic chat threads?\b|\bpublic threads?\b/.test(lower)) {
+    return executeListRecords(admin, { action: "list_records", entity: "public_threads", limit: 12 });
+  }
+
+  if (/\bpublic chat messages?\b|\bpublic messages?\b/.test(lower)) {
+    return executeListRecords(admin, { action: "list_records", entity: "public_messages", limit: 12 });
+  }
+
+  if (/\bcrm leads?\b|\bwebsite leads?\b/.test(lower)) {
+    return executeListRecords(admin, { action: "list_records", entity: "crm_leads", limit: 12 });
+  }
+
+  if (/\bcrm follow[- ]?ups?\b|\bfollow[- ]?ups?\b/.test(lower)) {
+    return executeListRecords(admin, { action: "list_records", entity: "crm_followups", limit: 12 });
+  }
+
+  if (/\badmin digests?\b|\bowner digest\b/.test(lower)) {
+    return executeListRecords(admin, { action: "list_records", entity: "admin_digests", limit: 12 });
+  }
+
+  if (/\bzoho customers?\b/.test(lower)) {
+    return executeListRecords(admin, { action: "list_records", entity: "zoho_customers", limit: 12 });
+  }
+
+  if (/\bzoho payments?\b/.test(lower)) {
+    return executeListRecords(admin, { action: "list_records", entity: "zoho_payments", limit: 12 });
   }
 
   return "";
@@ -3356,7 +4349,7 @@ export async function POST(req: Request) {
         getDocuments(admin, user.id),
       ]);
 
-    const summary = buildContextSummary({
+    const summaryBase = buildContextSummary({
       buyer,
       puppy,
       payments,
@@ -3373,6 +4366,36 @@ export async function POST(req: Request) {
       id: user.id,
       email: user.email,
     });
+    const summary = canWriteCore
+      ? {
+          ...summaryBase,
+          admin_capabilities: {
+            live_entities: [
+              "buyers",
+              "puppies",
+              "payments",
+              "applications",
+              "documents",
+              "forms",
+              "messages",
+              "events",
+              "weights",
+              "health",
+              "pickup_requests",
+              "website_activity",
+              "website_visitors",
+              "public_threads",
+              "public_messages",
+              "crm_leads",
+              "crm_followups",
+              "admin_digests",
+              "zoho_customers",
+              "zoho_payments",
+            ],
+            zoho_payments_configured: isZohoPaymentsConfigured(),
+          },
+        }
+      : summaryBase;
     const adminAuth: AdminAuthContext = {
       userId: user.id,
       email: user.email || null,
@@ -3480,6 +4503,8 @@ export async function POST(req: Request) {
           text = await executeUpdatePuppyWeight(admin, intent);
         } else if (intent.action === "delete_puppy_weight") {
           text = await executeDeletePuppyWeight(admin, intent);
+        } else if (intent.action === "create_zoho_payment_link") {
+          text = await executeCreateZohoPaymentLink(admin, intent);
         }
       }
     }
