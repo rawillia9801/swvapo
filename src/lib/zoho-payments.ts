@@ -185,7 +185,7 @@ async function getZohoPaymentsAccessToken(config: ZohoPaymentsConfig) {
   return payload.access_token;
 }
 
-async function zohoPaymentsRequest<T extends ZohoApiResponse>(
+async function zohoPaymentsRequest<T>(
   path: string,
   options: {
     method?: "GET" | "POST";
@@ -218,7 +218,7 @@ async function zohoPaymentsRequest<T extends ZohoApiResponse>(
   const payload = parseJson<T>(text);
 
   if (!response.ok || !payload) {
-    const detail = payload?.message || text || "Unknown error";
+    const detail = (payload as ZohoApiResponse | null)?.message || text || "Unknown error";
     throw new Error(`Zoho Payments request failed: ${detail}`);
   }
 
