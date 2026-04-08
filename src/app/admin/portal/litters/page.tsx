@@ -61,6 +61,15 @@ type PuppyEditorForm = {
 type NoticeTone = "success" | "error" | "neutral";
 type NoticeState = { tone: NoticeTone; message: string };
 
+const LITTER_STATUS_OPTIONS = [
+  { value: "all", label: "All statuses" },
+  { value: "planned", label: "Planned" },
+  { value: "whelped", label: "Whelped" },
+  { value: "active", label: "Active" },
+  { value: "completed", label: "Completed" },
+  { value: "archived", label: "Archived" },
+];
+
 const emptyForm = (): LitterForm => ({
   litter_code: "",
   litter_name: "",
@@ -132,12 +141,15 @@ async function requestLineageWorkspace(accessToken: string) {
     headers: { Authorization: `Bearer ${accessToken}` },
     cache: "no-store",
   });
+
   const payload = (await response.json().catch(() => null)) as
     | { workspace?: AdminLineageWorkspace; error?: string }
     | null;
+
   if (!response.ok || !payload?.workspace) {
     throw new Error(payload?.error || "Could not load the litter workspace.");
   }
+
   return payload.workspace;
 }
 
@@ -149,30 +161,97 @@ function Notice({ tone, message }: NoticeState) {
   };
 
   return (
-    <div className={`mb-4 rounded-[18px] border px-4 py-3 text-sm font-semibold ${tones[tone]}`}>
+    <div className={`rounded-[18px] border px-4 py-3 text-sm font-semibold ${tones[tone]}`}>
       {message}
     </div>
   );
 }
 
-function MiniMetric({ label, value }: { label: string; value: string }) {
+function WorkspaceNavCard({
+  href,
+  title,
+  detail,
+}: {
+  href: string;
+  title: string;
+  detail: string;
+}) {
   return (
-    <div className="rounded-[18px] border border-[#ead9c7] bg-white px-3 py-3">
+    <Link
+      href={href}
+      className="rounded-[20px] border border-[#ead9c7] bg-[linear-gradient(180deg,#fffdf9_0%,#fbf6ef_100%)] px-4 py-4 transition hover:-translate-y-0.5 hover:border-[#d7b28a] hover:bg-white"
+    >
+      <div className="text-sm font-semibold text-[#2f2218]">{title}</div>
+      <div className="mt-1 text-xs leading-5 text-[#8a6a49]">{detail}</div>
+    </Link>
+  );
+}
+
+function WorkspaceMetric({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+}) {
+  return (
+    <div className="rounded-[18px] border border-[#ead9c7] bg-white px-4 py-4">
       <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
         {label}
       </div>
-      <div className="mt-2 text-sm font-semibold text-[#2f2218]">{value}</div>
+      <div className="mt-2 text-2xl font-semibold text-[#2f2218]">{value}</div>
+      {detail ? <div className="mt-1 text-xs leading-5 text-[#8a6a49]">{detail}</div> : null}
     </div>
   );
 }
 
-function SavedMeta({ label, value }: { label: string; value: string }) {
+function SavedMeta({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
   return (
     <div>
       <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
         {label}
       </div>
       <div className="mt-2 text-sm font-semibold text-[#2f2218]">{value}</div>
+    </div>
+  );
+}
+
+function SecondaryMeta({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-[16px] border border-[#ead9c7] bg-white px-3 py-3">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+        {label}
+      </div>
+      <div className="mt-2 text-sm font-semibold text-[#2f2218]">{value}</div>
+    </div>
+  );
+}
+
+function EmptySelection({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="rounded-[22px] border border-dashed border-[#e0ccb6] bg-[#fffaf4] px-5 py-8 text-center">
+      <div className="text-base font-semibold text-[#2f2218]">{title}</div>
+      <div className="mt-2 text-sm leading-6 text-[#7a5b3d]">{description}</div>
     </div>
   );
 }
@@ -196,6 +275,9 @@ function PuppyDrawer({
   litterOptions: Array<{ value: string; label: string }>;
   buyerOptions: Array<{ value: string; label: string }>;
 }) {
+  const internalSale = Number(form.price || 0);
+  const publicPrice = Number(form.list_price || form.price || 0);
+
   return (
     <div className="fixed inset-0 z-[80]">
       <button
@@ -205,17 +287,19 @@ function PuppyDrawer({
         aria-label="Close puppy editor"
       />
 
-      <div className="absolute right-0 top-0 h-full w-full max-w-[560px] border-l border-[#e7d7c6] bg-[linear-gradient(180deg,rgba(255,252,247,0.98),rgba(252,246,239,0.98))] shadow-[0_24px_60px_rgba(72,46,24,0.18)]">
+      <div className="absolute right-0 top-0 h-full w-full max-w-[620px] border-l border-[#e7d7c6] bg-[linear-gradient(180deg,rgba(255,252,247,0.99),rgba(252,246,239,0.99))] shadow-[0_24px_60px_rgba(72,46,24,0.18)]">
         <div className="flex h-full flex-col">
-          <div className="border-b border-[#ead9c7] px-5 py-5">
+          <div className="border-b border-[#ead9c7] px-6 py-5">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
-                  Linked Puppy
+                  Puppy Revenue Editor
                 </div>
-                <div className="mt-2 text-xl font-semibold text-[#2f2218]">{puppy.displayName}</div>
-                <div className="mt-1 text-sm text-[#7a5b3d]">
-                  Internal pricing edits here recalculate the saved litter revenue after each save.
+                <div className="mt-2 text-2xl font-semibold leading-tight text-[#2f2218]">
+                  {puppy.displayName}
+                </div>
+                <div className="mt-1 text-sm leading-6 text-[#7a5b3d]">
+                  Internal sale values update litter totals here without changing your public price rules.
                 </div>
               </div>
               <button
@@ -226,131 +310,145 @@ function PuppyDrawer({
                 Close
               </button>
             </div>
-          </div>
 
-          <div className="flex-1 overflow-y-auto px-5 py-5">
-            <div className="space-y-5">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <AdminInfoTile
-                  label="Internal Sale"
-                  value={fmtMoney(Number(form.price || 0))}
-                  detail="Used for contracted litter revenue in admin."
-                />
-                <AdminInfoTile
-                  label="Collected Payments"
-                  value={fmtMoney(puppy.paymentTotal || 0)}
-                  detail="Read-only here. Manage payment entries in Payments."
-                />
-                <AdminInfoTile
-                  label="Public Listing"
-                  value={
-                    shouldHidePublicPuppyPrice(form.status)
-                      ? "Hidden publicly"
-                      : fmtMoney(Number(form.list_price || form.price || 0))
-                  }
-                  detail="Public price visibility is separate from internal revenue."
-                />
-                <AdminInfoTile
-                  label="Lineage"
-                  value={`${dogName(puppy.damProfile)} / ${dogName(puppy.sireProfile)}`}
-                  detail="Resolved through the litter relationship."
-                />
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <AdminTextInput
-                  label="Puppy Name"
-                  value={form.call_name}
-                  onChange={(value) => onChange("call_name", value)}
-                  placeholder="Call name"
-                />
-                <AdminTextInput
-                  label="Record Name"
-                  value={form.name}
-                  onChange={(value) => onChange("name", value)}
-                  placeholder="Formal record name"
-                />
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <AdminTextInput
-                  label="Secondary Name"
-                  value={form.puppy_name}
-                  onChange={(value) => onChange("puppy_name", value)}
-                  placeholder="Optional alternate name"
-                />
-                <AdminSelectInput
-                  label="Status"
-                  value={form.status}
-                  onChange={(value) => onChange("status", value)}
-                  options={[
-                    { value: "available", label: "Available" },
-                    { value: "expected", label: "Expected" },
-                    { value: "reserved", label: "Reserved" },
-                    { value: "matched", label: "Matched" },
-                    { value: "sold", label: "Sold" },
-                    { value: "adopted", label: "Adopted" },
-                    { value: "completed", label: "Completed" },
-                  ]}
-                />
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <AdminSelectInput
-                  label="Buyer"
-                  value={form.buyer_id}
-                  onChange={(value) => onChange("buyer_id", value)}
-                  options={buyerOptions}
-                />
-                <AdminSelectInput
-                  label="Litter Assignment"
-                  value={form.litter_id}
-                  onChange={(value) => onChange("litter_id", value)}
-                  options={[{ value: "", label: "No litter" }, ...litterOptions]}
-                />
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <AdminNumberInput
-                  label="Internal Final Sale Price"
-                  value={form.price}
-                  onChange={(value) => onChange("price", value)}
-                  step="0.01"
-                />
-                <AdminNumberInput
-                  label="Listed / Public Price"
-                  value={form.list_price}
-                  onChange={(value) => onChange("list_price", value)}
-                  step="0.01"
-                />
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <AdminNumberInput
-                  label="Deposit Amount"
-                  value={form.deposit}
-                  onChange={(value) => onChange("deposit", value)}
-                  step="0.01"
-                />
-                <AdminNumberInput
-                  label="Balance"
-                  value={form.balance}
-                  onChange={(value) => onChange("balance", value)}
-                  step="0.01"
-                />
-              </div>
-
-              <AdminTextAreaInput
-                label="Notes"
-                value={form.notes}
-                onChange={(value) => onChange("notes", value)}
-                rows={5}
-                placeholder="Internal notes for this puppy."
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <WorkspaceMetric
+                label="Internal Sale"
+                value={fmtMoney(internalSale)}
+                detail="Counts toward contracted litter revenue."
+              />
+              <WorkspaceMetric
+                label="Collected"
+                value={fmtMoney(puppy.paymentTotal || 0)}
+                detail="Read from linked payment records."
+              />
+              <WorkspaceMetric
+                label="Public Price"
+                value={
+                  shouldHidePublicPuppyPrice(form.status)
+                    ? "Hidden"
+                    : fmtMoney(publicPrice)
+                }
+                detail="Still separated from internal revenue."
+              />
+              <WorkspaceMetric
+                label="Lineage"
+                value={`${dogName(puppy.damProfile)} / ${dogName(puppy.sireProfile)}`}
+                detail="Resolved from the litter relationship."
               />
             </div>
           </div>
 
-          <div className="border-t border-[#ead9c7] px-5 py-4">
+          <div className="flex-1 overflow-y-auto px-6 py-5">
+            <div className="space-y-5">
+              <div className="rounded-[22px] border border-[#ead9c7] bg-white p-5">
+                <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+                  Identity
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <AdminTextInput
+                    label="Call Name"
+                    value={form.call_name}
+                    onChange={(value) => onChange("call_name", value)}
+                    placeholder="Call name"
+                  />
+                  <AdminTextInput
+                    label="Record Name"
+                    value={form.name}
+                    onChange={(value) => onChange("name", value)}
+                    placeholder="Formal record name"
+                  />
+                  <AdminTextInput
+                    label="Secondary Name"
+                    value={form.puppy_name}
+                    onChange={(value) => onChange("puppy_name", value)}
+                    placeholder="Optional alternate name"
+                  />
+                  <AdminSelectInput
+                    label="Status"
+                    value={form.status}
+                    onChange={(value) => onChange("status", value)}
+                    options={[
+                      { value: "available", label: "Available" },
+                      { value: "expected", label: "Expected" },
+                      { value: "reserved", label: "Reserved" },
+                      { value: "matched", label: "Matched" },
+                      { value: "sold", label: "Sold" },
+                      { value: "adopted", label: "Adopted" },
+                      { value: "completed", label: "Completed" },
+                    ]}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-[22px] border border-[#ead9c7] bg-white p-5">
+                <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+                  Assignment
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <AdminSelectInput
+                    label="Buyer"
+                    value={form.buyer_id}
+                    onChange={(value) => onChange("buyer_id", value)}
+                    options={buyerOptions}
+                  />
+                  <AdminSelectInput
+                    label="Litter Assignment"
+                    value={form.litter_id}
+                    onChange={(value) => onChange("litter_id", value)}
+                    options={[{ value: "", label: "No litter" }, ...litterOptions]}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-[22px] border border-[#ead9c7] bg-white p-5">
+                <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+                  Revenue
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <AdminNumberInput
+                    label="Internal Final Sale Price"
+                    value={form.price}
+                    onChange={(value) => onChange("price", value)}
+                    step="0.01"
+                  />
+                  <AdminNumberInput
+                    label="Listed / Public Price"
+                    value={form.list_price}
+                    onChange={(value) => onChange("list_price", value)}
+                    step="0.01"
+                  />
+                  <AdminNumberInput
+                    label="Deposit"
+                    value={form.deposit}
+                    onChange={(value) => onChange("deposit", value)}
+                    step="0.01"
+                  />
+                  <AdminNumberInput
+                    label="Balance"
+                    value={form.balance}
+                    onChange={(value) => onChange("balance", value)}
+                    step="0.01"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-[22px] border border-[#ead9c7] bg-white p-5">
+                <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+                  Internal Notes
+                </div>
+                <AdminTextAreaInput
+                  label="Notes"
+                  value={form.notes}
+                  onChange={(value) => onChange("notes", value)}
+                  rows={5}
+                  placeholder="Internal notes for this puppy."
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-[#ead9c7] px-6 py-4">
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
@@ -382,16 +480,20 @@ function PuppyDrawer({
 
 export default function AdminPortalLittersPage() {
   const { user, accessToken, loading, isAdmin } = usePortalAdminSession();
+
   const [workspace, setWorkspace] = useState<AdminLineageWorkspace | null>(null);
   const [loadingData, setLoadingData] = useState(true);
   const [saving, setSaving] = useState(false);
   const [puppySaving, setPuppySaving] = useState(false);
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedId, setSelectedId] = useState("");
   const [createMode, setCreateMode] = useState(false);
+
   const [notice, setNotice] = useState<NoticeState | null>(null);
   const [form, setForm] = useState<LitterForm>(emptyForm());
+
   const [activePuppyId, setActivePuppyId] = useState("");
   const [puppyForm, setPuppyForm] = useState<PuppyEditorForm>(emptyPuppyForm());
 
@@ -399,13 +501,14 @@ export default function AdminPortalLittersPage() {
     preferredId?: string,
     nextCreateMode = false,
     preserveNotice = false,
-    preservePuppyId?: string
+    preservePuppyId?: string,
   ) => {
     if (!accessToken) return null;
 
     const nextWorkspace = await requestLineageWorkspace(accessToken);
     setWorkspace(nextWorkspace);
     setCreateMode(nextCreateMode);
+
     if (!preserveNotice) setNotice(null);
 
     if (nextCreateMode) {
@@ -422,6 +525,7 @@ export default function AdminPortalLittersPage() {
         : String(nextWorkspace.litters[0]?.id || "");
 
     setSelectedId(nextId);
+
     const selected =
       nextWorkspace.litters.find((item) => String(item.id) === nextId) || null;
     setForm(populateLitterForm(selected));
@@ -449,17 +553,19 @@ export default function AdminPortalLittersPage() {
       }
 
       setLoadingData(true);
+
       try {
         const nextWorkspace = await requestLineageWorkspace(accessToken);
         if (!active) return;
 
         setWorkspace(nextWorkspace);
+
         const nextId = String(nextWorkspace.litters[0]?.id || "");
         setSelectedId(nextId);
         setForm(
           populateLitterForm(
-            nextWorkspace.litters.find((item) => String(item.id) === nextId) || null
-          )
+            nextWorkspace.litters.find((item) => String(item.id) === nextId) || null,
+          ),
         );
       } catch (error) {
         if (!active) return;
@@ -483,25 +589,31 @@ export default function AdminPortalLittersPage() {
   }, [accessToken, isAdmin]);
 
   const dogs = workspace?.dogs || [];
-  const buyers = workspace?.buyers;
-  const damOptions = dogs.filter((dog) => String(dog.role || "").toLowerCase() === "dam");
-  const sireOptions = dogs.filter((dog) => String(dog.role || "").toLowerCase() === "sire");
+  const buyers = workspace?.buyers || [];
 
-  const litters = useMemo(() => {
+  const damOptions = dogs.filter(
+    (dog) => String(dog.role || "").toLowerCase() === "dam",
+  );
+  const sireOptions = dogs.filter(
+    (dog) => String(dog.role || "").toLowerCase() === "sire",
+  );
+
+  const filteredLitters = useMemo(() => {
     const q = search.trim().toLowerCase();
+
     return (workspace?.litters || []).filter((litter) => {
-      if (
-        statusFilter !== "all" &&
-        String(litter.status || "").toLowerCase() !== statusFilter
-      ) {
+      const litterStatus = String(litter.status || "").toLowerCase();
+
+      if (statusFilter !== "all" && litterStatus !== statusFilter) {
         return false;
       }
 
       if (!q) return true;
 
-      return [
+      const haystack = [
         litter.displayName,
         litter.litter_code,
+        litter.litter_name,
         litter.status,
         litter.notes,
         dogName(litter.damProfile),
@@ -509,13 +621,14 @@ export default function AdminPortalLittersPage() {
         ...litter.puppies.map((puppy) => puppy.displayName),
       ]
         .map((value) => String(value || "").toLowerCase())
-        .join(" ")
-        .includes(q);
+        .join(" ");
+
+      return haystack.includes(q);
     });
   }, [workspace?.litters, search, statusFilter]);
 
   const savedSelectedLitter =
-    litters.find((item) => String(item.id) === selectedId) ||
+    filteredLitters.find((item) => String(item.id) === selectedId) ||
     workspace?.litters.find((item) => String(item.id) === selectedId) ||
     null;
 
@@ -530,12 +643,15 @@ export default function AdminPortalLittersPage() {
   const buyerOptions = useMemo(
     () => [
       { value: "", label: "Unassigned" },
-      ...(buyers || [])
+      ...buyers
         .slice()
         .sort((a, b) => buyerName(a).localeCompare(buyerName(b)))
-        .map((buyer) => ({ value: String(buyer.id), label: buyerName(buyer) })),
+        .map((buyer) => ({
+          value: String(buyer.id),
+          label: buyerName(buyer),
+        })),
     ],
-    [buyers]
+    [buyers],
   );
 
   const litterOptions = useMemo(
@@ -543,8 +659,11 @@ export default function AdminPortalLittersPage() {
       (workspace?.litters || [])
         .slice()
         .sort((a, b) => litterName(a).localeCompare(litterName(b)))
-        .map((litter) => ({ value: String(litter.id), label: litterName(litter) })),
-    [workspace?.litters]
+        .map((litter) => ({
+          value: String(litter.id),
+          label: litterName(litter),
+        })),
+    [workspace?.litters],
   );
 
   useEffect(() => {
@@ -552,11 +671,11 @@ export default function AdminPortalLittersPage() {
   }, [createMode, selectedLitter]);
 
   useEffect(() => {
-    if (createMode || !litters.length || litters.some((item) => String(item.id) === selectedId)) {
-      return;
-    }
-    setSelectedId(String(litters[0].id));
-  }, [createMode, litters, selectedId]);
+    if (createMode) return;
+    if (!filteredLitters.length) return;
+    if (filteredLitters.some((item) => String(item.id) === selectedId)) return;
+    setSelectedId(String(filteredLitters[0].id));
+  }, [createMode, filteredLitters, selectedId]);
 
   useEffect(() => {
     setPuppyForm(populatePuppyForm(editingPuppy));
@@ -570,11 +689,6 @@ export default function AdminPortalLittersPage() {
     setPuppyForm((current) => ({ ...current, [key]: value }));
   };
 
-  const resetFilters = () => {
-    setSearch("");
-    setStatusFilter("all");
-  };
-
   const openCreate = () => {
     setCreateMode(true);
     setSelectedId("");
@@ -583,7 +697,8 @@ export default function AdminPortalLittersPage() {
     setPuppyForm(emptyPuppyForm());
     setNotice({
       tone: "neutral",
-      message: "Create mode is open. Save the litter to generate a synced lineage record.",
+      message:
+        "Create mode is open. Save the litter to turn it into a live registry record.",
     });
   };
 
@@ -597,6 +712,28 @@ export default function AdminPortalLittersPage() {
   const openPuppy = (puppyId: string) => {
     setActivePuppyId(puppyId);
     setNotice(null);
+  };
+
+  const resetFilters = () => {
+    setSearch("");
+    setStatusFilter("all");
+  };
+
+  const resetDetail = () => {
+    if (createMode) {
+      setForm(emptyForm());
+      setNotice({
+        tone: "neutral",
+        message: "Create mode has been reset to a blank litter form.",
+      });
+      return;
+    }
+
+    setForm(populateLitterForm(selectedLitter));
+    setNotice({
+      tone: "neutral",
+      message: "Litter detail has been reset to the saved record.",
+    });
   };
 
   const saveLitter = async () => {
@@ -618,17 +755,26 @@ export default function AdminPortalLittersPage() {
         }),
       });
 
-      const payload = (await response.json()) as { litterId?: number; error?: string };
+      const payload = (await response.json()) as {
+        litterId?: number;
+        error?: string;
+      };
+
       if (!response.ok) {
         throw new Error(payload.error || "Could not save the litter.");
       }
 
-      await loadWorkspace(payload.litterId ? String(payload.litterId) : selectedId, false, true);
+      await loadWorkspace(
+        payload.litterId ? String(payload.litterId) : selectedId,
+        false,
+        true,
+      );
+
       setNotice({
         tone: "success",
         message: createMode
-          ? "Litter created and synced from the saved lineage record."
-          : "Litter saved. Table, summary cards, and parent linkage were refreshed from the saved data.",
+          ? "Litter created and synced into the live registry."
+          : "Litter saved. Registry, parent linkage, and revenue surfaces were refreshed from saved data.",
       });
     } catch (error) {
       if (!createMode && selectedId) {
@@ -663,7 +809,11 @@ export default function AdminPortalLittersPage() {
         body: JSON.stringify({ id: editingPuppy.id, ...puppyForm }),
       });
 
-      const payload = (await response.json()) as { puppyId?: number; error?: string };
+      const payload = (await response.json()) as {
+        puppyId?: number;
+        error?: string;
+      };
+
       if (!response.ok) {
         throw new Error(payload.error || "Could not save the puppy.");
       }
@@ -672,13 +822,13 @@ export default function AdminPortalLittersPage() {
         String(selectedLitter?.id || selectedId),
         false,
         true,
-        payload.puppyId ? String(payload.puppyId) : String(editingPuppy.id)
+        payload.puppyId ? String(payload.puppyId) : String(editingPuppy.id),
       );
 
       setNotice({
         tone: "success",
         message:
-          "Puppy saved. Contracted revenue, collected payments, and linked litter totals were recalculated from the live admin data.",
+          "Puppy saved. Contracted revenue, collected payments, and linked litter totals were recalculated from live admin data.",
       });
     } catch (error) {
       setNotice({
@@ -718,22 +868,39 @@ export default function AdminPortalLittersPage() {
   }
 
   const summary = workspace?.summary;
+
+  const totalLitters = summary?.totalLitters ?? workspace?.litters.length ?? 0;
+  const contractedRevenue = summary?.contractedRevenue ?? 0;
+  const projectedRevenue = summary?.projectedRevenue ?? 0;
+  const totalPayments = summary?.totalPayments ?? 0;
   const lineageGapCount =
     workspace?.litters.filter((item) => !item.dam_id || !item.sire_id).length || 0;
+  const totalLinkedPuppies =
+    workspace?.litters.reduce((sum, litter) => sum + litter.puppies.length, 0) || 0;
+
   const selectedSummary = selectedLitter?.summary;
-  const contractedRevenue = selectedSummary?.contractedRevenue ?? 0;
-  const collectedPayments = selectedSummary?.totalPayments ?? 0;
-  const completedRevenue = selectedSummary?.realizedRevenue ?? 0;
-  const projectedPipeline = selectedSummary?.projectedRevenue ?? 0;
-  const deposits = selectedSummary?.totalDeposits ?? 0;
+  const selectedContracted = selectedSummary?.contractedRevenue ?? 0;
+  const selectedCollected = selectedSummary?.totalPayments ?? 0;
+  const selectedCompleted = selectedSummary?.realizedRevenue ?? 0;
+  const selectedProjected = selectedSummary?.projectedRevenue ?? 0;
+  const selectedDeposits = selectedSummary?.totalDeposits ?? 0;
+  const selectedAverageSale =
+    selectedPuppies.length > 0
+      ? selectedPuppies.reduce((sum, puppy) => sum + Number(puppy.price || 0), 0) /
+        selectedPuppies.length
+      : 0;
+
+  const linkedVisiblePrices = selectedPuppies.filter(
+    (puppy) => !shouldHidePublicPuppyPrice(puppy.status),
+  ).length;
 
   return (
     <AdminPageShell>
       <div className="space-y-5 pb-10">
         <AdminPageHero
-          eyebrow="Litters"
-          title="Run litters as a breeder operations registry, not a loose set of cards."
-          description="Contracted litter revenue now uses internal puppy sale values, while public price hiding stays separate. The registry, saved summary rail, and linked puppy editor all refresh from the same saved lineage workspace."
+          eyebrow="Breeding • Litters"
+          title="A cleaner litter registry with one control surface for lineage, puppies, and internal revenue."
+          description="This page is now focused on what actually belongs here: the litter registry, the selected litter workspace, and the linked puppy ledger. Repeated summary clutter is gone, the right rail is now a real editing workspace, and navigation into users, payments, puppies, and breeding is tighter."
           actions={
             <>
               <button
@@ -746,8 +913,8 @@ export default function AdminPortalLittersPage() {
               <AdminHeroPrimaryAction href="/admin/portal/dams-sires">
                 Open Breeding Program
               </AdminHeroPrimaryAction>
-              <AdminHeroSecondaryAction href="/admin/portal/puppies">
-                Open Puppies
+              <AdminHeroSecondaryAction href="/admin/portal/users">
+                Open Users
               </AdminHeroSecondaryAction>
             </>
           }
@@ -755,91 +922,142 @@ export default function AdminPortalLittersPage() {
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
               <AdminInfoTile
                 label="Contracted Revenue"
-                value={fmtMoney(summary?.contractedRevenue ?? 0)}
+                value={fmtMoney(contractedRevenue)}
                 detail="Reserved, sold, and completed puppy sale values counted internally."
               />
               <AdminInfoTile
                 label="Projected Pipeline"
-                value={fmtMoney(summary?.projectedRevenue ?? 0)}
-                detail="Available puppy opportunity still open across the breeding program."
+                value={fmtMoney(projectedRevenue)}
+                detail="Still-open value remaining across available puppies."
+              />
+              <AdminInfoTile
+                label="Collected Payments"
+                value={fmtMoney(totalPayments)}
+                detail="Read from linked buyer payment records."
               />
             </div>
           }
         />
 
+        <AdminPanel
+          title="Workspace Navigation"
+          subtitle="Quick routes that actually support the litter workflow."
+        >
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <WorkspaceNavCard
+              href="/admin/portal/users"
+              title="Users"
+              detail="buyer accounts and portal access"
+            />
+            <WorkspaceNavCard
+              href="/admin/portal/puppies"
+              title="Puppies"
+              detail="listings, assignments, pricing"
+            />
+            <WorkspaceNavCard
+              href="/admin/portal/dams-sires"
+              title="Breeding Program"
+              detail="dams, sires, lifetime output"
+            />
+            <WorkspaceNavCard
+              href="/admin/portal/payments"
+              title="Payments"
+              detail="deposits, balances, collected cash"
+            />
+            <WorkspaceNavCard
+              href="/admin/portal/applications"
+              title="Applications"
+              detail="review queue and conversion flow"
+            />
+          </div>
+        </AdminPanel>
+
+        {notice ? <Notice tone={notice.tone} message={notice.message} /> : null}
+
         <AdminMetricGrid>
           <AdminMetricCard
             label="Litters"
-            value={String(summary?.totalLitters || 0)}
-            detail="Saved litter records with live parent linkage and revenue summaries."
+            value={String(totalLitters)}
+            detail="Saved registry records across the breeding program."
+          />
+          <AdminMetricCard
+            label="Linked Puppies"
+            value={String(totalLinkedPuppies)}
+            detail="Puppies attached to live litter records."
+            accent="from-[#e7ddd3] via-[#c9b39a] to-[#8f6f53]"
           />
           <AdminMetricCard
             label="Parent Gaps"
             value={String(lineageGapCount)}
-            detail="Litters still missing a saved sire or dam relationship."
+            detail="Litters still missing a saved sire or dam."
             accent="from-[#efe1d2] via-[#d7b999] to-[#b88255]"
           />
           <AdminMetricCard
-            label="Contracted Sales"
-            value={fmtMoney(summary?.contractedRevenue ?? 0)}
-            detail="Internal contracted revenue from reserved, sold, and completed puppies."
-            accent="from-[#e2e5d4] via-[#bec49f] to-[#8c9873]"
-          />
-          <AdminMetricCard
             label="Collected Payments"
-            value={fmtMoney(summary?.totalPayments ?? 0)}
-            detail="Cash collected across linked buyer payment records."
-            accent="from-[#efe3d3] via-[#d7bf9f] to-[#bb8858]"
+            value={fmtMoney(totalPayments)}
+            detail="Cash collected across linked payment records."
+            accent="from-[#e2e5d4] via-[#bec49f] to-[#8c9873]"
           />
         </AdminMetricGrid>
 
-        <section className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.28fr)_460px]">
+        <section className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.22fr)_460px]">
           <div className="space-y-5">
             <AdminPanel
               title="Litter Registry"
-              subtitle="Saved litter rows read directly from persisted sire and dam relationships. Select a row to review the saved record and edit it in the detail rail."
+              subtitle="Search, filter, and select a saved litter. The registry is the source list. The right workspace handles detail and editing."
             >
-              <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_auto]">
+              <div className="mb-5 grid gap-3 xl:grid-cols-[minmax(0,1fr)_210px_auto_auto]">
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search litter, sire, dam, notes, or linked puppies..."
+                  placeholder="Search litter, code, parents, notes, or linked puppies..."
                   className="w-full rounded-[16px] border border-[#e6d7c7] bg-[#fffdfa] px-3.5 py-2.5 text-sm text-[#33251a] outline-none transition focus:border-[#caa074] focus:ring-2 focus:ring-[#ead7c0]"
                 />
+
                 <select
                   value={statusFilter}
                   onChange={(event) => setStatusFilter(event.target.value)}
                   className="w-full rounded-[16px] border border-[#e6d7c7] bg-[#fffdfa] px-3.5 py-2.5 text-sm text-[#33251a] outline-none transition focus:border-[#caa074] focus:ring-2 focus:ring-[#ead7c0]"
                 >
-                  <option value="all">All statuses</option>
-                  <option value="planned">Planned</option>
-                  <option value="active">Active</option>
-                  <option value="completed">Completed</option>
-                  <option value="archived">Archived</option>
+                  {LITTER_STATUS_OPTIONS.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
                 </select>
+
                 <button
                   type="button"
                   onClick={resetFilters}
                   className="rounded-[16px] border border-[#e4d2be] bg-white px-4 py-2.5 text-sm font-semibold text-[#5d4330] transition hover:border-[#d4b48b]"
                 >
-                  Clear filters
+                  Clear
+                </button>
+
+                <button
+                  type="button"
+                  onClick={openCreate}
+                  className="rounded-[16px] border border-[#d3b08b] bg-[#fff7ed] px-4 py-2.5 text-sm font-semibold text-[#8b5f36] transition hover:border-[#bf9467]"
+                >
+                  New Litter
                 </button>
               </div>
 
-              {litters.length ? (
+              {filteredLitters.length ? (
                 <div className="overflow-hidden rounded-[22px] border border-[#ead9c7]">
                   <table className="min-w-full divide-y divide-[#eee1d2] text-sm">
                     <thead className="bg-[#faf3ea] text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
                       <tr>
                         <th className="px-4 py-3">Litter</th>
                         <th className="px-4 py-3">Parents</th>
-                        <th className="px-4 py-3">Whelp Date</th>
-                        <th className="px-4 py-3">Revenue</th>
+                        <th className="px-4 py-3">Puppies</th>
+                        <th className="px-4 py-3">Contracted</th>
                         <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3 text-right">Open</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#f1e6da] bg-white">
-                      {litters.map((litter) => {
+                      {filteredLitters.map((litter) => {
                         const active = !createMode && String(litter.id) === selectedId;
                         return (
                           <tr
@@ -850,16 +1068,23 @@ export default function AdminPortalLittersPage() {
                             }`}
                           >
                             <td className="px-4 py-3">
-                              <div className="font-semibold text-[#2f2218]">{litterName(litter)}</div>
+                              <div className="font-semibold text-[#2f2218]">
+                                {litterName(litter)}
+                              </div>
                               <div className="mt-1 text-xs text-[#8a6a49]">
-                                {litter.puppies.length} puppies linked
+                                {litter.litter_code || "No code"} • {displayDate(litter.whelp_date)}
                               </div>
                             </td>
                             <td className="px-4 py-3 text-[#73583f]">
                               {dogName(litter.damProfile)} / {dogName(litter.sireProfile)}
                             </td>
-                            <td className="px-4 py-3 text-[#73583f]">
-                              {displayDate(litter.whelp_date)}
+                            <td className="px-4 py-3">
+                              <div className="font-semibold text-[#2f2218]">
+                                {litter.puppies.length}
+                              </div>
+                              <div className="mt-1 text-xs text-[#8a6a49]">
+                                linked puppies
+                              </div>
                             </td>
                             <td className="px-4 py-3">
                               <div className="font-semibold text-[#2f2218]">
@@ -872,11 +1097,23 @@ export default function AdminPortalLittersPage() {
                             <td className="px-4 py-3">
                               <span
                                 className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold capitalize ${adminStatusBadge(
-                                  litter.status
+                                  litter.status,
                                 )}`}
                               >
                                 {litter.status || "planned"}
                               </span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  openExisting(String(litter.id));
+                                }}
+                                className="rounded-full border border-[#e4d2be] bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#7a5b3d] transition hover:border-[#d4b48b]"
+                              >
+                                Open
+                              </button>
                             </td>
                           </tr>
                         );
@@ -893,16 +1130,16 @@ export default function AdminPortalLittersPage() {
             </AdminPanel>
 
             <AdminPanel
-              title="Linked Puppies"
+              title="Linked Puppy Ledger"
               subtitle={
                 createMode
-                  ? "Save the litter first to attach puppies and activate the revenue drill-down."
-                  : "Each row opens a live puppy editor so internal pricing updates can refresh this litter immediately."
+                  ? "Save the litter first, then linked puppies and revenue detail will activate here."
+                  : "This section belongs on the litter page because it explains the numbers. Puppy editing opens in the side drawer."
               }
             >
               {selectedLitter ? (
                 selectedPuppies.length ? (
-                  <>
+                  <div className="space-y-4">
                     <div className="overflow-hidden rounded-[22px] border border-[#ead9c7]">
                       <table className="min-w-full divide-y divide-[#eee1d2] text-sm">
                         <thead className="bg-[#faf3ea] text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
@@ -911,13 +1148,16 @@ export default function AdminPortalLittersPage() {
                             <th className="px-4 py-3">Buyer</th>
                             <th className="px-4 py-3">Status</th>
                             <th className="px-4 py-3">Internal Sale</th>
+                            <th className="px-4 py-3">Public</th>
                             <th className="px-4 py-3">Payments</th>
-                            <th className="px-4 py-3">Edit</th>
+                            <th className="px-4 py-3 text-right">Edit</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[#f1e6da] bg-white">
                           {selectedPuppies.map((puppy) => {
                             const active = String(puppy.id) === activePuppyId;
+                            const publicHidden = shouldHidePublicPuppyPrice(puppy.status);
+
                             return (
                               <tr
                                 key={puppy.id}
@@ -927,11 +1167,11 @@ export default function AdminPortalLittersPage() {
                                 }`}
                               >
                                 <td className="px-4 py-3">
-                                  <div className="font-semibold text-[#2f2218]">{puppy.displayName}</div>
+                                  <div className="font-semibold text-[#2f2218]">
+                                    {puppy.displayName}
+                                  </div>
                                   <div className="mt-1 text-xs text-[#8a6a49]">
-                                    {shouldHidePublicPuppyPrice(puppy.status)
-                                      ? "Public price hidden"
-                                      : "Public price visible"}
+                                    {publicHidden ? "Public price hidden" : "Public price visible"}
                                   </div>
                                 </td>
                                 <td className="px-4 py-3 text-[#73583f]">
@@ -940,7 +1180,7 @@ export default function AdminPortalLittersPage() {
                                 <td className="px-4 py-3">
                                   <span
                                     className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold capitalize ${adminStatusBadge(
-                                      puppy.status
+                                      puppy.status,
                                     )}`}
                                   >
                                     {puppy.status || "available"}
@@ -948,10 +1188,18 @@ export default function AdminPortalLittersPage() {
                                 </td>
                                 <td className="px-4 py-3">
                                   <div className="font-semibold text-[#2f2218]">
-                                    {fmtMoney(puppy.salePrice || 0)}
+                                    {fmtMoney(Number(puppy.price || 0))}
                                   </div>
                                   <div className="mt-1 text-xs text-[#8a6a49]">
-                                    Listed {fmtMoney(puppy.listPrice || 0)}
+                                    listed {fmtMoney(Number(puppy.list_price || puppy.price || 0))}
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="font-semibold text-[#2f2218]">
+                                    {publicHidden ? "Hidden" : "Visible"}
+                                  </div>
+                                  <div className="mt-1 text-xs text-[#8a6a49]">
+                                    {publicHidden ? "internal only" : "website eligible"}
                                   </div>
                                 </td>
                                 <td className="px-4 py-3">
@@ -959,17 +1207,17 @@ export default function AdminPortalLittersPage() {
                                     {fmtMoney(puppy.paymentTotal || 0)}
                                   </div>
                                   <div className="mt-1 text-xs text-[#8a6a49]">
-                                    Deposit {fmtMoney(puppy.depositTotal || 0)}
+                                    deposit {fmtMoney(Number(puppy.deposit || 0))}
                                   </div>
                                 </td>
-                                <td className="px-4 py-3">
+                                <td className="px-4 py-3 text-right">
                                   <button
                                     type="button"
                                     onClick={(event) => {
                                       event.stopPropagation();
                                       openPuppy(String(puppy.id));
                                     }}
-                                    className="rounded-full border border-[#e4d2be] bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-[#6b4c33] transition hover:border-[#d4b48b]"
+                                    className="rounded-full border border-[#d8b188] bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8b5f36] transition hover:border-[#c68e56]"
                                   >
                                     Edit
                                   </button>
@@ -981,194 +1229,243 @@ export default function AdminPortalLittersPage() {
                       </table>
                     </div>
 
-                    <div className="mt-4 grid gap-3 md:grid-cols-3">
-                      <MiniMetric label="Linked Puppies" value={String(selectedPuppies.length)} />
-                      <MiniMetric label="Contracted Revenue" value={fmtMoney(contractedRevenue)} />
-                      <MiniMetric label="Collected Payments" value={fmtMoney(collectedPayments)} />
+                    <div className="grid gap-3 md:grid-cols-5">
+                      <SecondaryMeta
+                        label="Linked Puppies"
+                        value={String(selectedPuppies.length)}
+                      />
+                      <SecondaryMeta
+                        label="Contracted Revenue"
+                        value={fmtMoney(selectedContracted)}
+                      />
+                      <SecondaryMeta
+                        label="Collected Payments"
+                        value={fmtMoney(selectedCollected)}
+                      />
+                      <SecondaryMeta
+                        label="Deposits"
+                        value={fmtMoney(selectedDeposits)}
+                      />
+                      <SecondaryMeta
+                        label="Visible Public Prices"
+                        value={String(linkedVisiblePrices)}
+                      />
                     </div>
-                  </>
+                  </div>
                 ) : (
-                  <AdminEmptyState
-                    title="No puppies linked to this litter yet"
-                    description="Assign puppies to this litter from the puppy workspace, then return here to review internal sale totals and lineage."
+                  <EmptySelection
+                    title="No puppies linked yet"
+                    description="This litter record exists, but it does not have any linked puppies yet. Once puppies are attached, this ledger becomes the quickest way to audit internal sale values, public visibility, and collected payments."
                   />
                 )
               ) : (
-                <AdminEmptyState
-                  title="Select or save a litter to review linked puppies"
-                  description="The linked puppy table becomes a live admin drill-down once a saved litter record is active."
+                <EmptySelection
+                  title="Select a litter to view its puppy ledger"
+                  description="The linked puppy ledger belongs under the registry because it explains exactly why the litter totals look the way they do."
                 />
               )}
             </AdminPanel>
           </div>
 
-          <div className="space-y-5 2xl:sticky 2xl:top-5 2xl:self-start">
+          <div className="space-y-5 2xl:sticky 2xl:top-5 self-start">
             <AdminPanel
-              title={createMode ? "Create Litter" : "Litter Detail"}
+              title={createMode ? "Create Litter Workspace" : "Selected Litter Workspace"}
               subtitle={
                 createMode
-                  ? "Build the saved litter record with explicit sire and dam linkage."
-                  : "Saved summary metrics stay tied to the live database record while edits happen below."
+                  ? "Create mode keeps the right side focused on one job: making a clean litter record."
+                  : "The right side is now a true editing workspace instead of a cluttered summary wall."
               }
             >
-              {notice ? <Notice {...notice} /> : null}
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <AdminInfoTile
-                  label="Dam"
-                  value={dogName(selectedLitter?.damProfile)}
-                  detail="Saved sire and dam values resolve from persisted lineage links."
-                />
-                <AdminInfoTile
-                  label="Sire"
-                  value={dogName(selectedLitter?.sireProfile)}
-                  detail="Every summary surface reads from the same saved litter record."
-                />
-                <AdminInfoTile
-                  label="Contracted Revenue"
-                  value={fmtMoney(contractedRevenue)}
-                  detail="Internal sale values for reserved, sold, and completed puppies."
-                />
-                <AdminInfoTile
-                  label="Collected Payments"
-                  value={fmtMoney(collectedPayments)}
-                  detail="Payments collected against linked buyer records."
-                />
-                <AdminInfoTile
-                  label="Completed Revenue"
-                  value={fmtMoney(completedRevenue)}
-                  detail="Realized completed-sales revenue for this litter."
-                />
-                <AdminInfoTile
-                  label="Projected Pipeline"
-                  value={fmtMoney(projectedPipeline)}
-                  detail="Still-open value from available puppy pricing."
-                />
-              </div>
-
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <MiniMetric label="Deposits" value={fmtMoney(deposits)} />
-                <MiniMetric
-                  label="Average Sale"
-                  value={fmtMoney(selectedSummary?.averageSalePrice ?? 0)}
-                />
-              </div>
-
-              <div className="mt-5 rounded-[22px] border border-[#ead9c7] bg-[#fffaf4] px-4 py-4">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
-                  Saved Record
+              {createMode ? (
+                <div className="mb-4 rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+                  You are creating a new litter record.
                 </div>
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                  <SavedMeta label="Litter" value={litterName(selectedLitter)} />
-                  <SavedMeta
-                    label="Parents"
-                    value={`${dogName(selectedLitter?.damProfile)} / ${dogName(
-                      selectedLitter?.sireProfile
+              ) : selectedLitter ? (
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-[#ead9c7] bg-[#fff9f2] px-4 py-3">
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+                      Active Record
+                    </div>
+                    <div className="mt-1 text-base font-semibold text-[#2f2218]">
+                      {litterName(selectedLitter)}
+                    </div>
+                  </div>
+                  <span
+                    className={`inline-flex rounded-full border px-3 py-1.5 text-[11px] font-semibold capitalize ${adminStatusBadge(
+                      selectedLitter.status,
                     )}`}
-                  />
-                  <SavedMeta label="Whelp Date" value={displayDate(selectedLitter?.whelp_date)} />
-                  <SavedMeta label="Status" value={selectedLitter?.status || "planned"} />
-                  <SavedMeta label="Puppy Count" value={String(selectedLitter?.puppies.length || 0)} />
-                  <SavedMeta label="Revenue Surface" value={`${fmtMoney(contractedRevenue)} contracted`} />
+                  >
+                    {selectedLitter.status || "planned"}
+                  </span>
                 </div>
-              </div>
+              ) : null}
 
-              <div className="mt-5 grid gap-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <AdminTextInput
-                    label="Litter Code"
-                    value={form.litter_code}
-                    onChange={(value) => updateForm("litter_code", value)}
-                    placeholder="Litter code"
+              <div className="space-y-5">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <WorkspaceMetric
+                    label="Contracted Revenue"
+                    value={fmtMoney(selectedContracted)}
+                    detail="Reserved, sold, and completed puppy values."
                   />
-                  <AdminTextInput
-                    label="Litter Name"
-                    value={form.litter_name}
-                    onChange={(value) => updateForm("litter_name", value)}
-                    placeholder="Litter name"
+                  <WorkspaceMetric
+                    label="Collected Payments"
+                    value={fmtMoney(selectedCollected)}
+                    detail="Read from linked buyer payment records."
                   />
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <AdminSelectInput
-                    label="Dam"
-                    value={form.dam_id}
-                    onChange={(value) => updateForm("dam_id", value)}
-                    options={[
-                      { value: "", label: "Select a dam" },
-                      ...damOptions.map((dog) => ({
-                        value: String(dog.id),
-                        label: dogName(dog),
-                      })),
-                    ]}
+                  <WorkspaceMetric
+                    label="Completed Revenue"
+                    value={fmtMoney(selectedCompleted)}
+                    detail="Realized revenue from completed puppies."
                   />
-                  <AdminSelectInput
-                    label="Sire"
-                    value={form.sire_id}
-                    onChange={(value) => updateForm("sire_id", value)}
-                    options={[
-                      { value: "", label: "Select a sire" },
-                      ...sireOptions.map((dog) => ({
-                        value: String(dog.id),
-                        label: dogName(dog),
-                      })),
-                    ]}
+                  <WorkspaceMetric
+                    label="Projected Pipeline"
+                    value={fmtMoney(selectedProjected)}
+                    detail="Still-open value from available puppies."
                   />
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <AdminDateInput
-                    label="Whelp Date"
-                    value={form.whelp_date}
-                    onChange={(value) => updateForm("whelp_date", value)}
-                  />
-                  <AdminSelectInput
-                    label="Status"
-                    value={form.status}
-                    onChange={(value) => updateForm("status", value)}
-                    options={[
-                      { value: "planned", label: "Planned" },
-                      { value: "active", label: "Active" },
-                      { value: "completed", label: "Completed" },
-                      { value: "archived", label: "Archived" },
-                    ]}
-                  />
+                {!createMode && selectedLitter ? (
+                  <div className="rounded-[22px] border border-[#ead9c7] bg-[#fffaf4] px-4 py-4">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+                      Saved Record
+                    </div>
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      <SavedMeta label="Litter" value={litterName(selectedLitter)} />
+                      <SavedMeta
+                        label="Parents"
+                        value={`${dogName(selectedLitter.damProfile)} / ${dogName(selectedLitter.sireProfile)}`}
+                      />
+                      <SavedMeta
+                        label="Whelp Date"
+                        value={displayDate(selectedLitter.whelp_date)}
+                      />
+                      <SavedMeta
+                        label="Status"
+                        value={String(selectedLitter.status || "planned")}
+                      />
+                      <SavedMeta
+                        label="Puppy Count"
+                        value={String(selectedPuppies.length)}
+                      />
+                      <SavedMeta
+                        label="Average Sale"
+                        value={fmtMoney(selectedAverageSale)}
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="rounded-[22px] border border-[#ead9c7] bg-white p-5">
+                  <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9c7043]">
+                    Litter Record
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <AdminTextInput
+                        label="Litter Code"
+                        value={form.litter_code}
+                        onChange={(value) => updateForm("litter_code", value)}
+                        placeholder="e.g. 01122026"
+                      />
+                      <AdminTextInput
+                        label="Litter Name"
+                        value={form.litter_name}
+                        onChange={(value) => updateForm("litter_name", value)}
+                        placeholder="Display name"
+                      />
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <AdminSelectInput
+                        label="Dam"
+                        value={form.dam_id}
+                        onChange={(value) => updateForm("dam_id", value)}
+                        options={[
+                          { value: "", label: "No dam selected" },
+                          ...damOptions.map((dog) => ({
+                            value: String(dog.id),
+                            label: dogName(dog),
+                          })),
+                        ]}
+                      />
+                      <AdminSelectInput
+                        label="Sire"
+                        value={form.sire_id}
+                        onChange={(value) => updateForm("sire_id", value)}
+                        options={[
+                          { value: "", label: "No sire selected" },
+                          ...sireOptions.map((dog) => ({
+                            value: String(dog.id),
+                            label: dogName(dog),
+                          })),
+                        ]}
+                      />
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <AdminDateInput
+                        label="Whelp Date"
+                        value={form.whelp_date}
+                        onChange={(value) => updateForm("whelp_date", value)}
+                      />
+                      <AdminSelectInput
+                        label="Status"
+                        value={form.status}
+                        onChange={(value) => updateForm("status", value)}
+                        options={LITTER_STATUS_OPTIONS.filter((item) => item.value !== "all")}
+                      />
+                    </div>
+
+                    <AdminTextAreaInput
+                      label="Notes"
+                      value={form.notes}
+                      onChange={(value) => updateForm("notes", value)}
+                      rows={5}
+                      placeholder="Internal litter notes."
+                    />
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={saveLitter}
+                      disabled={saving}
+                      className="rounded-2xl bg-[linear-gradient(135deg,#c88c52_0%,#a56733_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(159,99,49,0.22)] transition hover:brightness-105 disabled:opacity-60"
+                    >
+                      {saving ? "Saving..." : createMode ? "Create Litter" : "Save Litter"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={resetDetail}
+                      className="rounded-2xl border border-[#e4d2be] bg-white px-5 py-3 text-sm font-semibold text-[#5d4330] transition hover:border-[#d4b48b]"
+                    >
+                      {createMode ? "Reset Form" : "Reset to Saved"}
+                    </button>
+
+                    {createMode ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCreateMode(false);
+                          setSelectedId(String(workspace?.litters[0]?.id || ""));
+                          setForm(
+                            populateLitterForm(
+                              workspace?.litters.find(
+                                (item) => String(item.id) === String(workspace?.litters[0]?.id || ""),
+                              ) || null,
+                            ),
+                          );
+                          setNotice(null);
+                        }}
+                        className="rounded-2xl border border-[#e4d2be] bg-white px-5 py-3 text-sm font-semibold text-[#5d4330] transition hover:border-[#d4b48b]"
+                      >
+                        Cancel Create
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
-
-                <AdminTextAreaInput
-                  label="Notes"
-                  value={form.notes}
-                  onChange={(value) => updateForm("notes", value)}
-                  rows={5}
-                  placeholder="Internal litter notes"
-                />
-              </div>
-
-              <div className="mt-5 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => void saveLitter()}
-                  disabled={saving}
-                  className="rounded-2xl bg-[linear-gradient(135deg,#c88c52_0%,#a56733_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(159,99,49,0.22)] transition hover:brightness-105 disabled:opacity-60"
-                >
-                  {saving ? "Saving..." : createMode ? "Create Litter" : "Save Litter"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setForm(createMode ? emptyForm() : populateLitterForm(selectedLitter));
-                    setNotice({
-                      tone: "neutral",
-                      message: createMode
-                        ? "Draft reset."
-                        : "Draft reset to the saved litter record.",
-                    });
-                  }}
-                  className="rounded-2xl border border-[#e4d2be] bg-white px-5 py-3 text-sm font-semibold text-[#5d4330] transition hover:border-[#d4b48b]"
-                >
-                  Reset to Saved
-                </button>
               </div>
             </AdminPanel>
           </div>
@@ -1179,11 +1476,8 @@ export default function AdminPortalLittersPage() {
             puppy={editingPuppy}
             form={puppyForm}
             onChange={updatePuppyForm}
-            onClose={() => {
-              setActivePuppyId("");
-              setPuppyForm(emptyPuppyForm());
-            }}
-            onSave={() => void savePuppy()}
+            onClose={() => setActivePuppyId("")}
+            onSave={savePuppy}
             saving={puppySaving}
             litterOptions={litterOptions}
             buyerOptions={buyerOptions}
