@@ -2319,6 +2319,219 @@ function formatUnixDate(value: number | null | undefined) {
   });
 }
 
+function shortToken(value: string | number | null | undefined, max = 10) {
+  const text = String(value || "").trim();
+  if (!text) return "unknown";
+  return text.length > max ? `${text.slice(0, max)}...` : text;
+}
+
+function formatSenderLabel(value: string | null | undefined) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return "unknown";
+  if (["assistant", "bot", "chichi", "chi chi"].includes(normalized)) return "ChiChi";
+  if (["visitor", "user", "buyer", "lead"].includes(normalized)) return "Visitor";
+  return normalized.replace(/_/g, " ");
+}
+
+function formatLeadSignals(lead: CrmLeadRecord | null, thread: PublicThreadRecord) {
+  const signals = [
+    lead?.lead_status || thread.lead_status || "visitor",
+    thread.priority || null,
+    lead?.lead_score !== null && lead?.lead_score !== undefined
+      ? `score ${Number(lead.lead_score)}`
+      : null,
+    lead?.interest_timeline || null,
+    thread.follow_up_needed || lead?.follow_up_needed ? "follow-up needed" : null,
+  ].filter(Boolean);
+
+  return signals.join(" - ");
+}
+
+function formatLeadContact(lead: CrmLeadRecord | null) {
+  const parts = [lead?.email || null, lead?.phone || null].filter(Boolean);
+  return parts.length ? parts.join(" - ") : "No contact captured yet.";
+}
+
+function formatIntentSignals(lead: CrmLeadRecord | null) {
+  const intent = [
+    lead?.wants_payment_plan ? "payment plan" : null,
+    lead?.wants_available_puppy ? "available puppy" : null,
+    lead?.wants_wait_list ? "wait list" : null,
+    lead?.wants_application ? "application" : null,
+  ].filter(Boolean);
+
+  return intent.length ? intent.join(", ") : "";
+}
+
+function mergeTags(...groups: Array<string[] | null | undefined>) {
+  return Array.from(
+    new Set(
+      groups
+        .flatMap((group) => group || [])
+        .map((tag) => String(tag || "").trim())
+        .filter(Boolean)
+    )
+  );
+}
+
+type PublicThreadInsight = {
+  messages: PublicMessageRecord[];
+  lead: CrmLeadRecord | null;
+  followUps: CrmFollowUpRecord[];
+};
+
+async function loadPublicThreadInsights(
+  admin: SupabaseClient,
+  threadIds: Array<string | number | null | undefined>
+) {
+  const normalizedThreadIds = Array.from(
+    new Set(
+      threadIds
+        .map((value) => String(value || "").trim())
+        .filter(Boolean)
+    )
+  );
+  const details = new Map<string, PublicThreadInsight>();
+
+  if (!normalizedThreadIds.length) {
+    return details;
+  }
+
+  const [messageResult, leadResult, followUpResult] = await Promise.all([
+    admin
+      .from("chichi_public_messages")
+      .select("id,thread_id,sender,content,intent,topic,created_at,requires_follow_up,follow_up_reason")
+      .in("thread_id", normalizedThreadIds)
+      .order("created_at", { ascending: true })
+      .limit(Math.min(normalizedThreadIds.length * 24, 240))
+      .returns<PublicMessageRecord[]>(),
+    admin
+      .from("crm_leads")
+      .select(
+        "id,visitor_id,thread_id,email,phone,interest_timeline,lead_score,lead_status,wants_payment_plan,wants_wait_list,wants_available_puppy,wants_application,follow_up_needed,follow_up_status,follow_up_reason,last_contact_at,summary,tags,created_at,updated_at"
+      )
+      .in("thread_id", normalizedThreadIds)
+      .returns<CrmLeadRecord[]>(),
+    admin
+      .from("crm_followups")
+      .select("id,lead_id,thread_id,visitor_id,task_type,reason,status,priority,due_at,notes,created_at")
+      .in("thread_id", normalizedThreadIds)
+      .order("due_at", { ascending: true })
+      .limit(Math.min(normalizedThreadIds.length * 12, 120))
+      .returns<CrmFollowUpRecord[]>(),
+  ]);
+
+  if (messageResult.error) {
+    throw new Error(`Could not load public chat messages: ${messageResult.error.message}`);
+  }
+
+  if (leadResult.error) {
+    throw new Error(`Could not load CRM lead context: ${leadResult.error.message}`);
+  }
+
+  if (followUpResult.error) {
+    throw new Error(`Could not load CRM follow-up context: ${followUpResult.error.message}`);
+  }
+
+  const leadsByThreadId = new Map<string, CrmLeadRecord>();
+  for (const lead of leadResult.data || []) {
+    const threadId = String(lead.thread_id || "").trim();
+    if (!threadId) continue;
+
+    const current = leadsByThreadId.get(threadId);
+    const currentStamp = new Date(
+      current?.last_contact_at || current?.updated_at || current?.created_at || 0
+    ).getTime();
+    const nextStamp = new Date(lead.last_contact_at || lead.updated_at || lead.created_at || 0).getTime();
+    if (!current || nextStamp >= currentStamp) {
+      leadsByThreadId.set(threadId, lead);
+    }
+  }
+
+  for (const threadId of normalizedThreadIds) {
+    details.set(threadId, {
+      messages: (messageResult.data || []).filter((row) => String(row.thread_id || "").trim() === threadId),
+      lead: leadsByThreadId.get(threadId) || null,
+      followUps: (followUpResult.data || []).filter((row) => String(row.thread_id || "").trim() === threadId),
+    });
+  }
+
+  return details;
+}
+
+function formatPublicThreadTranscript(
+  row: PublicThreadRecord,
+  detail: PublicThreadInsight | undefined,
+  index: number
+) {
+  const lead = detail?.lead || null;
+  const followUps = detail?.followUps || [];
+  const messages = detail?.messages || [];
+  const mergedTags = mergeTags(row.tags, lead?.tags);
+  const intentSignals = formatIntentSignals(lead);
+  const summary =
+    lead?.summary ||
+    row.summary ||
+    row.intent_summary ||
+    (messages[0]?.content ? previewText(messages[0].content, "No conversation summary yet.", 180) : "");
+  const conversationWindow =
+    messages.length <= 8 ? messages : messages.slice(Math.max(0, messages.length - 8));
+  const lines = [
+    `${index + 1}. Thread ${shortToken(row.id, 12)} - ${formatListDate(row.updated_at || null)}`,
+    `   Visitor: ${row.visitor_id || "Unknown visitor"}${row.source_page ? ` - ${row.source_page}` : ""}`,
+    `   Lead: ${formatLeadSignals(lead, row)}`,
+    `   Contact: ${formatLeadContact(lead)}`,
+  ];
+
+  if (summary) {
+    lines.push(`   Summary: ${previewText(summary, "No conversation summary yet.", 220)}`);
+  }
+
+  if (intentSignals) {
+    lines.push(`   Intent: ${intentSignals}`);
+  }
+
+  if (mergedTags.length) {
+    lines.push(`   Tags: ${mergedTags.join(", ")}`);
+  }
+
+  const followUpText =
+    previewText(
+      followUps[0]?.reason ||
+        followUps[0]?.notes ||
+        lead?.follow_up_reason ||
+        row.follow_up_reason,
+      "",
+      180
+    ) || "";
+
+  if (followUpText) {
+    lines.push(
+      `   Follow-up: ${followUpText}${
+        followUps[0]?.due_at ? ` - due ${formatListDate(followUps[0].due_at)}` : ""
+      }`
+    );
+  }
+
+  lines.push("   Conversation:");
+
+  if (!conversationWindow.length) {
+    lines.push("   No stored public messages for this thread yet.");
+  } else {
+    for (const message of conversationWindow) {
+      lines.push(
+        `   ${formatSenderLabel(message.sender)}: ${previewText(
+          message.content,
+          "No message content.",
+          320
+        )}`
+      );
+    }
+  }
+
+  return lines.join("\n");
+}
+
 async function safeCount(
   queryFactory: () => PromiseLike<{ count: number | null; error: unknown }>
 ): Promise<number> {
@@ -3033,24 +3246,32 @@ async function executeListRecords(
         : "I could not find any public chat threads yet.";
     }
 
-    return [
-      `Here ${rows.length === 1 ? "is" : "are"} the latest public chat thread${
-        rows.length === 1 ? "" : "s"
-      }${queryText ? ` matching "${intent.query}"` : ""}:`,
+    const displayRows = rows.slice(0, Math.min(limit || 12, 6));
+    const insights = await loadPublicThreadInsights(
+      admin,
+      displayRows.map((row) => row.id)
+    );
+
+    const lines = [
+      `Here ${
+        rows.length === 1 ? "is" : "are"
+      } the latest public chat thread${rows.length === 1 ? "" : "s"} with conversation detail${
+        queryText ? ` matching "${intent.query}"` : ""
+      }:`,
       "",
-      ...rows.slice(0, limit).map((row, index) => {
-        const flags = [
-          row.lead_status || "visitor",
-          row.priority || null,
-          row.follow_up_needed ? "follow-up needed" : null,
-        ].filter(Boolean);
-        return `${index + 1}. ${formatListDate(row.updated_at || null)} - ${flags.join(" - ")} - ${previewText(
-          row.summary || row.intent_summary,
-          "No conversation summary yet.",
-          110
-        )}`;
-      }),
-    ].join("\n");
+      ...displayRows.map((row, index) =>
+        formatPublicThreadTranscript(row, insights.get(String(row.id)), index)
+      ),
+    ];
+
+    if (rows.length > displayRows.length) {
+      lines.push(
+        "",
+        `Showing ${displayRows.length} of ${rows.length} matching threads. Ask for a visitor, topic, date, or lead status to narrow the transcript list further.`
+      );
+    }
+
+    return lines.join("\n");
   }
 
   if (entity === "public_messages") {

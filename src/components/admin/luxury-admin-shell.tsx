@@ -28,6 +28,7 @@ type AdminNavItem = {
   href: string;
   label: string;
   helper: string;
+  aliases?: string[];
   icon: React.ReactNode;
 };
 
@@ -47,9 +48,10 @@ const ADMIN_NAV: AdminNavSection[] = [
         icon: <LayoutDashboard className="h-4 w-4" />,
       },
       {
-        href: "/admin/portal/users",
-        label: "Buyers",
-        helper: "Families, placements, balances",
+        href: "/admin/users",
+        label: "Users",
+        helper: "Families, placements, access",
+        aliases: ["/admin/portal/users"],
         icon: <Users className="h-4 w-4" />,
       },
       {
@@ -137,12 +139,36 @@ const adminSecondaryButtonClass = `${portalButtonSecondaryClass} shadow-[var(--p
 
 function navItemClass(active: boolean) {
   return [
-    "group flex w-full items-start justify-between gap-3 rounded-[1.15rem] border px-3.5 py-3 transition-all duration-200",
+    "group flex w-full items-center justify-between gap-3 rounded-[1.15rem] border px-3.5 py-3 transition-all duration-200",
     active
       ? "border-transparent bg-[linear-gradient(90deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] text-white shadow-[var(--portal-shadow-md)]"
       : "border-transparent bg-transparent text-[var(--portal-text-soft)] hover:border-[var(--portal-border)] hover:bg-white hover:text-[var(--portal-text)]",
   ].join(" ");
 }
+
+function matchesPath(pathname: string | null, href: string) {
+  return pathname === href || (href !== "/admin/portal" && pathname?.startsWith(href));
+}
+
+function isNavItemActive(pathname: string | null, item: AdminNavItem) {
+  return [item.href, ...(item.aliases || [])].some((candidate) => matchesPath(pathname, candidate));
+}
+
+const SUPPRESSED_ADMIN_PANEL_TITLES = new Set([
+  "Buyer Workbench",
+  "Command Navigation",
+  "Document Bench",
+  "Finance Bench",
+  "Governance Bench",
+  "Inbox Bench",
+  "Kennel Priorities",
+  "Litter Bench",
+  "Logistics Bench",
+  "Placement Bench",
+  "Program Bench",
+  "Puppy Ledger Bench",
+  "Review Bench",
+]);
 
 export function AdminPageShell({
   children,
@@ -170,9 +196,7 @@ export function AdminPageShell({
 
   for (const section of ADMIN_NAV) {
     for (const item of section.items) {
-      const active =
-        pathname === item.href ||
-        (item.href !== "/admin/portal" && pathname?.startsWith(item.href));
+      const active = isNavItemActive(pathname, item);
       if (active) {
         currentItem = {
           ...item,
@@ -195,7 +219,7 @@ export function AdminPageShell({
         <aside className="hidden border-r border-[var(--portal-border)] bg-white/70 px-4 py-4 backdrop-blur-sm lg:block">
           <div className="sticky top-4 flex h-[calc(100vh-2rem)] flex-col gap-4">
             <div className="premium-card rounded-[1.75rem] p-5">
-              <div className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-violet-700">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(200,168,132,0.45)] bg-[rgba(248,242,234,0.92)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#8c6848]">
                 Breeding Hub
               </div>
               <div className="mt-5 flex items-center gap-3">
@@ -212,8 +236,7 @@ export function AdminPageShell({
                 </div>
               </div>
               <p className="mt-4 text-sm leading-6 text-[var(--portal-text-soft)]">
-                Buyer placement, breeding program records, paperwork, finances, transport, and
-                owner messaging now share one cohesive admin shell.
+                Owner operations portal for placements, litters, finances, transport, and ChiChi.
               </p>
             </div>
 
@@ -227,13 +250,11 @@ export function AdminPageShell({
                       </div>
                       <nav className="mt-2 space-y-1.5">
                         {section.items.map((item) => {
-                          const active =
-                            pathname === item.href ||
-                            (item.href !== "/admin/portal" && pathname?.startsWith(item.href));
+                          const active = isNavItemActive(pathname, item);
 
                           return (
                             <Link key={item.href} href={item.href} className={navItemClass(active)}>
-                              <span className="flex min-w-0 items-start gap-3">
+                              <span className="flex min-w-0 items-center gap-3">
                                 <span
                                   className={[
                                     "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[0.95rem] text-sm",
@@ -244,23 +265,13 @@ export function AdminPageShell({
                                 >
                                   {item.icon}
                                 </span>
-                                <span className="min-w-0">
-                                  <span className="block truncate text-sm font-semibold">
-                                    {item.label}
-                                  </span>
-                                  <span
-                                    className={[
-                                      "mt-1 block text-xs leading-5",
-                                      active ? "text-white/76" : "text-[var(--portal-text-soft)]",
-                                    ].join(" ")}
-                                  >
-                                    {item.helper}
-                                  </span>
+                                <span className="block min-w-0 truncate text-sm font-semibold">
+                                  {item.label}
                                 </span>
                               </span>
                               <ChevronRight
                                 className={[
-                                  "mt-1 h-4 w-4 shrink-0 transition",
+                                  "h-4 w-4 shrink-0 transition",
                                   active
                                     ? "text-white/72"
                                     : "text-[var(--portal-text-muted)] opacity-0 group-hover:translate-x-0.5 group-hover:opacity-100",
@@ -308,9 +319,6 @@ export function AdminPageShell({
                     <div className="mt-2 text-[1.65rem] font-semibold tracking-[-0.04em] text-[var(--portal-text)] [font-family:var(--font-merriweather)]">
                       {currentItem.label}
                     </div>
-                    <p className="mt-1 text-sm text-[var(--portal-text-soft)]">
-                      {currentItem.helper}
-                    </p>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
@@ -346,23 +354,21 @@ export function AdminPageHero({
   actions?: React.ReactNode;
   aside?: React.ReactNode;
 }) {
+  void description;
+
   return (
-    <section className="hero-glow relative overflow-hidden rounded-[1.75rem] border border-[var(--portal-border)] px-6 py-7 shadow-[var(--portal-shadow-md)] md:px-8 md:py-8 xl:px-10">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(240,67,162,0.12),transparent_28%)]" />
-      <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_320px] xl:items-start">
-        <div className="max-w-4xl">
-          <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-violet-700 shadow-sm">
+    <section className="premium-card rounded-[1.5rem] p-5 md:p-6">
+      <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0 max-w-4xl">
+          <span className="inline-flex items-center rounded-full border border-[rgba(200,168,132,0.45)] bg-[rgba(248,242,234,0.92)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#8c6848] shadow-sm">
             {eyebrow}
           </span>
-          <h1 className="mt-5 max-w-3xl text-4xl font-semibold leading-[1.05] tracking-[-0.05em] text-[var(--portal-text)] [font-family:var(--font-merriweather)] md:text-5xl">
+          <h1 className="mt-4 max-w-3xl text-[1.9rem] font-semibold leading-[1.1] tracking-[-0.05em] text-[var(--portal-text)] [font-family:var(--font-merriweather)] md:text-[2.4rem]">
             {title}
           </h1>
-          <p className="mt-4 max-w-3xl text-[15px] leading-7 text-[var(--portal-text-soft)] md:text-base">
-            {description}
-          </p>
-          {actions ? <div className="mt-7 flex flex-wrap gap-3">{actions}</div> : null}
+          {actions ? <div className="mt-5 flex flex-wrap gap-3">{actions}</div> : null}
         </div>
-        {aside ? <div className="min-w-0 space-y-4">{aside}</div> : null}
+        {aside ? <div className="w-full min-w-0 xl:max-w-[420px]">{aside}</div> : null}
       </div>
     </section>
   );
@@ -440,6 +446,10 @@ export function AdminPanel({
   action?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  if (SUPPRESSED_ADMIN_PANEL_TITLES.has(title)) {
+    return null;
+  }
+
   return (
     <section className="premium-card overflow-hidden rounded-[1.5rem] p-5 md:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -556,7 +566,7 @@ export function AdminRestrictedState({
     <div className="min-h-screen bg-[var(--portal-bg)] text-[var(--portal-text)]">
       <div className="mx-auto flex min-h-screen w-full max-w-[980px] items-center justify-center px-6 py-10">
         <div className="premium-card w-full rounded-[2rem] p-8 md:p-10">
-          <div className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-violet-700">
+          <div className="inline-flex items-center rounded-full border border-[rgba(200,168,132,0.45)] bg-[rgba(248,242,234,0.92)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#8c6848]">
             Owner Access
           </div>
           <h1 className="mt-5 text-4xl font-semibold tracking-[-0.05em] text-[var(--portal-text)] [font-family:var(--font-merriweather)]">

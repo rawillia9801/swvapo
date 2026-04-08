@@ -502,7 +502,7 @@ function PuppyDetailDrawer({
                 <div className="rounded-2xl border border-[var(--portal-border)] bg-white p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div className="text-[11px] font-semibold uppercase tracking-widest text-[var(--portal-text-muted)]">Buyer Profile</div>
-                    <Link href="/admin/portal/users" className="text-[10px] font-semibold text-[#c88c52] hover:underline">Manage →</Link>
+                    <Link href="/admin/users" className="text-[10px] font-semibold text-[#c88c52] hover:underline">Manage →</Link>
                   </div>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between"><span className="text-[#9c7a55]">Name</span><span className="font-medium text-[var(--portal-text)] text-right">{buyerSummaryName}</span></div>
@@ -843,7 +843,7 @@ export default function AdminPortalPuppiesPage() {
                 Create Puppy
               </button>
               <AdminHeroPrimaryAction href="/admin/portal/litters">Open Litters</AdminHeroPrimaryAction>
-              <AdminHeroSecondaryAction href="/admin/portal/users">Open Buyers</AdminHeroSecondaryAction>
+              <AdminHeroSecondaryAction href="/admin/users">Open Users</AdminHeroSecondaryAction>
             </>
           }
           aside={

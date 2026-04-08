@@ -911,7 +911,7 @@ export default function AdminPortalLittersPage() {
               <AdminHeroPrimaryAction href="/admin/portal/dams-sires">
                 Open Breeding Program
               </AdminHeroPrimaryAction>
-              <AdminHeroSecondaryAction href="/admin/portal/users">
+              <AdminHeroSecondaryAction href="/admin/users">
                 Open Users
               </AdminHeroSecondaryAction>
             </>
@@ -943,7 +943,7 @@ export default function AdminPortalLittersPage() {
         >
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <WorkspaceNavCard
-              href="/admin/portal/users"
+              href="/admin/users"
               title="Users"
               detail="buyer accounts and portal access"
             />

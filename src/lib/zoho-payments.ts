@@ -1,3 +1,5 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
+
 type ZohoAllowedPaymentMethod = "ach_debit" | "apple_pay" | "card";
 
 type ZohoPaymentsConfig = {
@@ -65,6 +67,20 @@ export type ZohoPaymentLink = {
   }> | null;
 };
 
+export type ZohoPaymentSession = {
+  payments_session_id: string;
+  currency?: string | null;
+  amount?: string | null;
+  created_time?: number | null;
+  expiry_time?: number | null;
+  description?: string | null;
+  invoice_number?: string | null;
+  reference_number?: string | null;
+  configurations?: {
+    allowed_payment_methods?: ZohoAllowedPaymentMethod[] | null;
+  } | null;
+};
+
 type CreateZohoPaymentLinkInput = {
   amount: number;
   currency?: string | null;
@@ -76,6 +92,18 @@ type CreateZohoPaymentLinkInput = {
   sendEmail?: boolean | null;
   returnUrl?: string | null;
   paymentMethods?: ZohoAllowedPaymentMethod[] | null;
+};
+
+type CreateZohoPaymentSessionInput = {
+  amount: number;
+  currency?: string | null;
+  description: string;
+  invoiceNumber?: string | null;
+  referenceNumber?: string | null;
+  expiresIn?: number | null;
+  maxRetryCount?: number | null;
+  paymentMethods?: ZohoAllowedPaymentMethod[] | null;
+  metaData?: Record<string, unknown> | null;
 };
 
 function readOptionalEnv(...names: string[]) {
@@ -107,6 +135,37 @@ function cleanAllowedPaymentMethods(value: string): ZohoAllowedPaymentMethod[] {
   );
 
   return methods.length ? methods : ["card", "ach_debit"];
+}
+
+function clampWhole(value: number | null | undefined, min: number, max: number) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return null;
+  return Math.min(Math.max(Math.round(Number(value)), min), max);
+}
+
+function normalizeSignature(value: string | null | undefined) {
+  return String(value || "")
+    .trim()
+    .toLowerCase();
+}
+
+function getZohoPaymentsWidgetApiKeyInternal() {
+  return (
+    readOptionalEnv(
+      "NEXT_PUBLIC_ZOHO_PAYMENTS_WIDGET_KEY",
+      "ZOHO_PAYMENTS_WIDGET_API_KEY",
+      "ZOHO_PAYMENTS_API_KEY"
+    ) || null
+  );
+}
+
+function getZohoPaymentsSigningKeyInternal() {
+  return (
+    readOptionalEnv(
+      "ZOHO_PAYMENTS_SIGNING_KEY",
+      "ZOHO_PAYMENTS_PAYMENT_LINK_SIGNING_KEY",
+      "ZOHO_PAYMENTS_WIDGET_SIGNING_KEY"
+    ) || null
+  );
 }
 
 function getZohoPaymentsConfig(): ZohoPaymentsConfig | null {
@@ -235,6 +294,132 @@ function matchesQuery(values: unknown[], query: string) {
 
 export function isZohoPaymentsConfigured() {
   return !!getZohoPaymentsConfig();
+}
+
+export function getZohoPaymentsWidgetApiKey() {
+  return getZohoPaymentsWidgetApiKeyInternal();
+}
+
+export function hasZohoPaymentsSigningKey() {
+  return !!getZohoPaymentsSigningKeyInternal();
+}
+
+export async function createZohoPaymentSession(input: CreateZohoPaymentSessionInput) {
+  const config = ensureZohoPaymentsConfig();
+  const amount = Number(input.amount || 0);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error("A positive amount is required to create a Zoho payment session.");
+  }
+
+  const currency = String(input.currency || "USD")
+    .trim()
+    .toUpperCase();
+  const description = String(input.description || "").trim();
+  if (!description) {
+    throw new Error("A description is required to create a Zoho payment session.");
+  }
+
+  const paymentMethods =
+    input.paymentMethods?.length && input.paymentMethods.length > 0
+      ? input.paymentMethods
+      : config.defaultAllowedPaymentMethods;
+  const expiresIn = clampWhole(input.expiresIn ?? null, 300, 900);
+  const maxRetryCount = clampWhole(input.maxRetryCount ?? null, 1, 5);
+  const payload = await zohoPaymentsRequest<{
+    payments_session?: ZohoPaymentSession;
+    payment_session?: ZohoPaymentSession;
+  }>("/paymentsessions", {
+    method: "POST",
+    body: {
+      amount: Number(amount.toFixed(2)),
+      currency,
+      description,
+      ...(input.invoiceNumber ? { invoice_number: input.invoiceNumber } : {}),
+      ...(input.referenceNumber ? { reference_number: input.referenceNumber } : {}),
+      ...(expiresIn ? { expires_in: expiresIn } : {}),
+      ...(maxRetryCount ? { max_retry_count: maxRetryCount } : {}),
+      ...(paymentMethods.length
+        ? {
+            configurations: {
+              allowed_payment_methods: paymentMethods,
+            },
+          }
+        : {}),
+      ...(input.metaData ? { meta_data: input.metaData } : {}),
+    },
+  });
+
+  const session = payload.payments_session || payload.payment_session;
+  if (!session?.payments_session_id) {
+    throw new Error("Zoho Payments did not return a payment session id.");
+  }
+
+  return session;
+}
+
+function computeZohoSignature(payload: string) {
+  const signingKey = getZohoPaymentsSigningKeyInternal();
+  if (!signingKey) {
+    throw new Error(
+      "Zoho Payments signing key is not configured. Add ZOHO_PAYMENTS_SIGNING_KEY to verify signatures."
+    );
+  }
+
+  return createHmac("sha256", signingKey).update(payload, "utf8").digest("hex").toLowerCase();
+}
+
+function signaturesMatch(expected: string, provided: string) {
+  const left = Buffer.from(normalizeSignature(expected), "utf8");
+  const right = Buffer.from(normalizeSignature(provided), "utf8");
+  if (!left.length || left.length !== right.length) return false;
+  return timingSafeEqual(left, right);
+}
+
+export function verifyZohoWidgetSignature(input: {
+  paymentId: string | null | undefined;
+  paymentSessionId: string | null | undefined;
+  signature: string | null | undefined;
+}) {
+  const paymentId = String(input.paymentId || "").trim();
+  const paymentSessionId = String(input.paymentSessionId || "").trim();
+  const providedSignature = String(input.signature || "").trim();
+
+  if (!(paymentId && paymentSessionId && providedSignature)) {
+    return false;
+  }
+
+  const payload = `${paymentId}|${paymentSessionId}`;
+  return signaturesMatch(computeZohoSignature(payload), providedSignature);
+}
+
+export function verifyZohoPaymentLinkSignature(input: {
+  paymentLinkId: string | null | undefined;
+  paymentId: string | null | undefined;
+  amount: string | number | null | undefined;
+  status: string | null | undefined;
+  paymentLinkReference?: string | null | undefined;
+  signature: string | null | undefined;
+}) {
+  const paymentLinkId = String(input.paymentLinkId || "").trim();
+  const paymentId = String(input.paymentId || "").trim();
+  const amount = String(input.amount ?? "").trim();
+  const status = String(input.status || "").trim();
+  const paymentLinkReference = String(input.paymentLinkReference || "").trim();
+  const providedSignature = String(input.signature || "").trim();
+
+  if (!(paymentLinkId && paymentId && amount && status && providedSignature)) {
+    return false;
+  }
+
+  const payload = [
+    paymentLinkId,
+    paymentId,
+    amount,
+    status,
+    paymentLinkReference,
+  ].join(".");
+
+  return signaturesMatch(computeZohoSignature(payload), providedSignature);
 }
 
 export async function listZohoCustomers(params: { query?: string | null; limit?: number | null } = {}) {

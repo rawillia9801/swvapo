@@ -160,6 +160,26 @@ function puppyName(puppy: PuppyRow | null) {
   return firstValue(puppy?.call_name, puppy?.puppy_name, puppy?.name, "Unnamed Puppy");
 }
 
+function formatShortDate(value: string | null | undefined) {
+  if (!value) return "No due date";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function daysUntilDate(value: string | null | undefined) {
+  if (!value) return null;
+  const dueDate = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(dueDate.getTime())) return null;
+  const today = new Date();
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12, 0, 0);
+  return Math.round((dueDate.getTime() - startOfToday.getTime()) / 86_400_000);
+}
+
 function paymentCountsTowardBalance(status: string | null | undefined) {
   const normalized = String(status || "").trim().toLowerCase();
   if (!normalized) return true;
@@ -250,6 +270,10 @@ function flattenPuppyAccounts(accounts: BuyerAccount[]) {
       ),
     }));
   });
+}
+
+function financedPuppyAccounts(accounts: BuyerAccount[]) {
+  return flattenPuppyAccounts(accounts).filter((account) => Boolean(account.buyer.finance_enabled));
 }
 
 function calculatePuppyBalanceSummary(account: PuppyPaymentAccount, form: EditForm): PuppyBalanceSummary {
@@ -363,7 +387,7 @@ export default function AdminPortalPuppyPaymentsPage() {
         setAccessToken(token);
 
         if (currentUser && isPortalAdminEmail(currentUser.email)) {
-          const nextAccounts = flattenPuppyAccounts(await fetchBuyerPaymentAccounts(token));
+          const nextAccounts = financedPuppyAccounts(await fetchBuyerPaymentAccounts(token));
           if (!mounted) return;
           setAccounts(nextAccounts);
           setSelectedKey(nextAccounts[0]?.key || "");
@@ -384,7 +408,7 @@ export default function AdminPortalPuppyPaymentsPage() {
       setAccessToken(token);
 
       if (currentUser && isPortalAdminEmail(currentUser.email)) {
-        const nextAccounts = flattenPuppyAccounts(await fetchBuyerPaymentAccounts(token));
+        const nextAccounts = financedPuppyAccounts(await fetchBuyerPaymentAccounts(token));
         if (!mounted) return;
         setAccounts(nextAccounts);
         setSelectedKey(
@@ -480,8 +504,22 @@ export default function AdminPortalPuppyPaymentsPage() {
     [form, selectedAccount]
   );
 
+  const dueSoonCount = useMemo(
+    () =>
+      accounts.filter((account) => {
+        const days = daysUntilDate(account.buyer.finance_next_due_date);
+        return days !== null && days >= 0 && days <= 14;
+      }).length,
+    [accounts]
+  );
+
+  const missingDueDateCount = useMemo(
+    () => accounts.filter((account) => !account.buyer.finance_next_due_date).length,
+    [accounts]
+  );
+
   async function refreshAccounts(nextSelectedKey?: string) {
-    const nextAccounts = flattenPuppyAccounts(await fetchBuyerPaymentAccounts(accessToken));
+    const nextAccounts = financedPuppyAccounts(await fetchBuyerPaymentAccounts(accessToken));
     setAccounts(nextAccounts);
     setSelectedKey(
       nextSelectedKey || nextAccounts.find((account) => account.key === selectedKey)?.key || nextAccounts[0]?.key || ""
@@ -619,8 +657,8 @@ export default function AdminPortalPuppyPaymentsPage() {
   if (!isPortalAdminEmail(user.email)) {
     return (
       <AdminRestrictedState
-        title="This puppy payment workspace is limited to approved owner accounts."
-        details="Only the approved owner emails can manage puppy-by-puppy financial records here."
+        title="This puppy financing workspace is limited to approved owner accounts."
+        details="Only the approved owner emails can manage financed puppy payment plans here."
       />
     );
   }
@@ -629,68 +667,44 @@ export default function AdminPortalPuppyPaymentsPage() {
     <AdminPageShell>
       <div className="space-y-6 pb-12">
         <AdminPageHero
-          eyebrow="Puppy Payments"
-          title="Manage pricing, deposits, payments, fees, credits, and transportation one puppy at a time."
-          description="This workspace is grouped by puppy instead of buyer, so each puppy account can be reviewed cleanly even when one buyer has purchased more than one puppy."
+          eyebrow="Puppy Financing"
+          title="Manage financed puppy plans one puppy at a time."
+          description="Only puppies tied to active financing stay in this workspace so due dates, payment plans, and balances remain easy to operate."
           actions={
             <>
               <AdminHeroPrimaryAction href="/admin/portal/payments">Open Buyer Payments</AdminHeroPrimaryAction>
-              <AdminHeroSecondaryAction href="/admin/portal/users">Open Buyers</AdminHeroSecondaryAction>
+              <AdminHeroSecondaryAction href="/admin/users">Open Users</AdminHeroSecondaryAction>
             </>
           }
           aside={
-            <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
               <AdminInfoTile
-                label="Puppy Accounts"
+                label="Financed Puppies"
                 value={String(accounts.length)}
-                detail="Linked puppy records currently available for payment management."
+                detail="Only puppy payment plans with financing enabled are shown here."
               />
               <AdminInfoTile
-                label="Buyer-Level Plans"
-                value={String(accounts.filter((account) => account.buyer.finance_enabled).length)}
-                detail="Puppy accounts whose linked buyer has financing enabled."
+                label="Due Soon"
+                value={String(dueSoonCount)}
+                detail={
+                  missingDueDateCount > 0
+                    ? `${missingDueDateCount} financed account${missingDueDateCount === 1 ? "" : "s"} still need a next due date.`
+                    : "All financed puppy plans have a recorded next due date."
+                }
               />
             </div>
           }
         />
 
-        <AdminPanel
-          title="Puppy Ledger Bench"
-          subtitle="This page should make it easy to spot puppy-level balances, plan spillover from buyer accounts, and account-specific adjustments."
-        >
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <AdminInfoTile
-              label="Puppy Ledgers"
-              value={String(accounts.length)}
-              detail="Each puppy account stays reviewable even when one family has multiple placements."
-            />
-            <AdminInfoTile
-              label="Payment Records"
-              value={String(accounts.reduce((sum, account) => sum + account.payments.length, 0))}
-              detail="Puppy-tagged or single-puppy payment entries already recorded in the ledger."
-            />
-            <AdminInfoTile
-              label="Manual Entries"
-              value={String(accounts.reduce((sum, account) => sum + account.adjustments.length, 0))}
-              detail="Fees, credits, and transportation adjustments tied directly back to puppy accounts."
-            />
-            <AdminInfoTile
-              label="Buyer Plan Spillover"
-              value={String(accounts.filter((account) => account.buyer.finance_enabled).length)}
-              detail={`${filteredAccounts.length} puppy cards match the current search and status filters.`}
-            />
-          </div>
-        </AdminPanel>
-
         <section className="grid grid-cols-1 gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
           <AdminPanel
-            title="Puppy Cards"
-            subtitle="Search by puppy name, status, buyer name, or buyer email."
+            title="Financed Puppy Cards"
+            subtitle="Search financed puppies by puppy name, buyer, status, or due date."
           >
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search puppies..."
+              placeholder="Search financed puppies..."
               className="w-full rounded-[20px] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3 text-sm text-[var(--portal-text)] outline-none focus:border-[#c8a884]"
             />
 
@@ -703,7 +717,14 @@ export default function AdminPortalPuppyPaymentsPage() {
                     onClick={() => setSelectedKey(account.key)}
                     title={puppyName(account.puppy)}
                     subtitle={firstValue(account.buyer.full_name, account.buyer.name, account.buyer.email, "Buyer not linked")}
-                    meta={`${account.puppy.status || "pending"} - ${fmtMoney(account.puppy.price || 0)} price`}
+                    meta={[
+                      account.puppy.status || "pending",
+                      `${fmtMoney(account.puppy.price || 0)} price`,
+                      account.buyer.finance_monthly_amount
+                        ? `${fmtMoney(account.buyer.finance_monthly_amount)} / month`
+                        : "Monthly amount not set",
+                      `Due ${formatShortDate(account.buyer.finance_next_due_date)}`,
+                    ].join(" - ")}
                     badge={
                       <span
                         className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(
@@ -717,8 +738,8 @@ export default function AdminPortalPuppyPaymentsPage() {
                 ))
               ) : (
                 <AdminEmptyState
-                  title="No puppy accounts matched your search"
-                  description="Try a different puppy name, buyer, or status."
+                  title="No financed puppy accounts matched your search"
+                  description="Try a different puppy name, buyer, status, or due date."
                 />
               )}
             </div>
@@ -728,19 +749,36 @@ export default function AdminPortalPuppyPaymentsPage() {
             <div className="space-y-6">
               <AdminPanel
                 title="Puppy Financial Snapshot"
-                subtitle="Review the selected puppy, the linked buyer, and the current balance."
+                subtitle="Review the selected financed puppy, the linked buyer, and the current balance."
               >
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
                   <AdminInfoTile label="Puppy" value={puppyName(selectedAccount.puppy)} />
                   <AdminInfoTile
                     label="Buyer"
                     value={firstValue(selectedAccount.buyer.full_name, selectedAccount.buyer.name, selectedAccount.buyer.email, "Not linked")}
+                  />
+                  <AdminInfoTile
+                    label="Plan"
+                    value={
+                      selectedAccount.buyer.finance_monthly_amount
+                        ? `${fmtMoney(selectedAccount.buyer.finance_monthly_amount)} / month`
+                        : "Monthly amount not set"
+                    }
+                    detail={
+                      selectedAccount.buyer.finance_months
+                        ? `${selectedAccount.buyer.finance_months} month term`
+                        : "Finance term not set"
+                    }
                   />
                   <AdminInfoTile label="Payments" value={fmtMoney(balanceSummary.paymentsApplied)} />
                   <AdminInfoTile
                     label="Fees / Credits"
                     value={`${fmtMoney(balanceSummary.adjustmentCharges)} / ${fmtMoney(balanceSummary.adjustmentCredits)}`}
                     detail="Charges and credits tagged to this puppy account."
+                  />
+                  <AdminInfoTile
+                    label="Next Due"
+                    value={formatShortDate(selectedAccount.buyer.finance_next_due_date)}
                   />
                   <AdminInfoTile label="Balance" value={fmtMoney(balanceSummary.balance)} />
                 </div>
@@ -750,7 +788,7 @@ export default function AdminPortalPuppyPaymentsPage() {
                 <div className="space-y-6">
                   <AdminPanel
                     title="Puppy Account Settings"
-                    subtitle="Update the puppy price, deposit, puppy status, and linked buyer financing details when needed."
+                    subtitle="Update puppy pricing, deposits, and financing terms for this financed puppy plan."
                   >
                     {statusText ? (
                       <div className="mb-4 rounded-[18px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm font-semibold text-[var(--portal-text-soft)]">
@@ -786,7 +824,7 @@ export default function AdminPortalPuppyPaymentsPage() {
                 <div className="space-y-6">
                   <AdminPanel
                     title="Add Puppy Entry"
-                    subtitle="Record payments, fees, credits, and transportation charges directly to this puppy account."
+                    subtitle="Record payments, fees, credits, and transportation charges directly to this financed puppy account."
                   >
                     <div className="grid gap-2 sm:grid-cols-2">
                       <EntryModeButton active={entryMode === "payment"} label="Add Payment" onClick={() => setEntryModeAndReset("payment")} />
@@ -867,7 +905,7 @@ export default function AdminPortalPuppyPaymentsPage() {
 
                   <AdminPanel
                     title="Puppy Balance Logic"
-                    subtitle="Balance is calculated from this puppy's price, deposit, tagged entries, and payment history."
+                    subtitle="Balance is calculated from this financed puppy's price, deposit, plan uplift, tagged entries, and payment history."
                   >
                     <div className="grid gap-4">
                       <AdminInfoTile label="Price" value={fmtMoney(balanceSummary.price)} />
@@ -894,10 +932,10 @@ export default function AdminPortalPuppyPaymentsPage() {
               </section>
             </div>
           ) : (
-            <AdminPanel title="Puppy Payments" subtitle="Choose a puppy card to begin.">
+            <AdminPanel title="Puppy Financing" subtitle="Choose a financed puppy card to begin.">
               <AdminEmptyState
-                title="No puppy selected"
-                description="Choose a puppy card from the left to review pricing, payments, fees, credits, and transportation charges."
+                title="No financed puppy selected"
+                description="Choose a financed puppy card from the left to review pricing, payments, fees, credits, and transportation charges."
               />
             </AdminPanel>
           )}

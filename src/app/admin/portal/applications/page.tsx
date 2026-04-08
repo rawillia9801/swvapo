@@ -375,7 +375,7 @@ export default function AdminPortalApplicationsPage() {
               >
                 {refreshing ? "Refreshing..." : "Refresh Queue"}
               </button>
-              <AdminHeroPrimaryAction href="/admin/portal/users">Open Buyers</AdminHeroPrimaryAction>
+              <AdminHeroPrimaryAction href="/admin/users">Open Users</AdminHeroPrimaryAction>
               <AdminHeroSecondaryAction href="/admin/portal/puppies">Open Puppies</AdminHeroSecondaryAction>
             </>
           }
@@ -630,7 +630,7 @@ export default function AdminPortalApplicationsPage() {
                   </div>
 
                   <div className="mt-5 flex flex-wrap gap-3">
-                    <Link href="/admin/portal/users" className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]">Open Buyers</Link>
+                    <Link href="/admin/users" className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]">Open Users</Link>
                     <Link href="/admin/portal/puppies" className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]">Open Puppies</Link>
                   </div>
                 </AdminPanel>

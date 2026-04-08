@@ -675,7 +675,7 @@ export default function AdminPortalPaymentsPage() {
           description="Review balances, edit financing, log manual payments, add fees or credits, and keep the buyer-facing ledger clear and consistent."
           actions={
             <>
-              <AdminHeroPrimaryAction href="/admin/portal/users">Open Buyers</AdminHeroPrimaryAction>
+              <AdminHeroPrimaryAction href="/admin/users">Open Users</AdminHeroPrimaryAction>
               <AdminHeroSecondaryAction href="/admin/portal/messages">Open Messages</AdminHeroSecondaryAction>
             </>
           }

@@ -209,7 +209,7 @@ export default function AdminPortalDocumentsPage() {
           actions={
             <>
               <AdminHeroPrimaryAction href="/admin/portal/messages">Open Messages</AdminHeroPrimaryAction>
-              <AdminHeroSecondaryAction href="/admin/portal/users">Open Buyers</AdminHeroSecondaryAction>
+              <AdminHeroSecondaryAction href="/admin/users">Open Users</AdminHeroSecondaryAction>
             </>
           }
           aside={

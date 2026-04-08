@@ -178,7 +178,7 @@ export default function AdminPortalPage() {
     totalPuppies > 0 ? completedPuppies / totalPuppies : 0;
 
   const commandLinks = [
-    { href: "/admin/portal/users", label: "Users", detail: "buyers & portal users" },
+    { href: "/admin/users", label: "Users", detail: "buyers & portal users" },
     { href: "/admin/portal/applications", label: "Applications", detail: "review queue" },
     { href: "/admin/portal/puppies", label: "Puppies", detail: "listings & assignments" },
     { href: "/admin/portal/litters", label: "Litters", detail: "program tracking" },
@@ -192,7 +192,7 @@ export default function AdminPortalPage() {
 
   const queueRows = [
     {
-      href: "/admin/portal/users",
+      href: "/admin/users",
       label: "Users / Buyers",
       value: String(stats.buyers || stats.users),
       detail: `${stats.paymentPlans} active payment plans`,
@@ -300,7 +300,7 @@ export default function AdminPortalPage() {
           description="This admin overview is rebuilt as a real command surface: faster scanning, cleaner queue management, stronger lineage visibility, and clearer movement into users, puppies, litters, payments, transport, and message follow-up."
           actions={
             <>
-              <AdminHeroPrimaryAction href="/admin/portal/users">
+              <AdminHeroPrimaryAction href="/admin/users">
                 Open Users
               </AdminHeroPrimaryAction>
               <AdminHeroSecondaryAction href="/admin/portal/puppies">
@@ -589,7 +589,7 @@ export default function AdminPortalPage() {
               </div>
 
               <div className="mt-5 grid grid-cols-2 gap-3">
-                <QuickJump href="/admin/portal/users" title="Users" detail="buyer accounts & access" />
+                <QuickJump href="/admin/users" title="Users" detail="buyer accounts & access" />
                 <QuickJump href="/admin/portal/puppies" title="Puppies" detail="listings, lineage, assignments" />
                 <QuickJump href="/admin/portal/payments" title="Payments" detail="revenue, balances, plans" />
                 <QuickJump href="/admin/portal/dams-sires" title="Dams & Sires" detail="profiles and output" />
