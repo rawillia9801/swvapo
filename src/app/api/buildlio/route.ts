@@ -1671,6 +1671,8 @@ function extractListQueryForEntity(
   normalizedText: string,
   entity: Extract<ActionIntent, { action: "list_records" }>["entity"]
 ) {
+  type ListEntity = NonNullable<Extract<ActionIntent, { action: "list_records" }>["entity"]>;
+
   const directMatch =
     normalizedText.match(/\b(?:for|named|called|with|about)\s+(.+)$/i)?.[1]?.trim() || null;
 
@@ -1714,6 +1716,34 @@ function extractListQueryForEntity(
       .replace(/\bcrm\b|\bwebsite\b|\bleads?\b/gi, "")
       .replace(/\s+/g, " ")
       .trim();
+  }
+
+  const bareEntityPatternMap: Partial<Record<ListEntity, RegExp>> = {
+    buyers: /^\s*buyers?\s*$/i,
+    puppies: /^\s*pupp(?:y|ies)\s*$/i,
+    payments: /^\s*payments?\s*$/i,
+    applications: /^\s*applications?\s*$/i,
+    documents: /^\s*documents?\s*$/i,
+    forms: /^\s*forms?\s*$/i,
+    messages: /^\s*messages?\s*$/i,
+    events: /^\s*(?:events?|updates?)\s*$/i,
+    weights: /^\s*weights?\s*$/i,
+    health: /^\s*(?:health|health records?)\s*$/i,
+    pickup_requests: /^\s*(?:pickup requests?|transportation requests?)\s*$/i,
+    website_activity: /^\s*(?:website|site)?\s*(?:activity|traffic|summary|updates?)?\s*$/i,
+    website_visitors: /^\s*(?:website visitors?|site visitors?)\s*$/i,
+    public_threads: /^\s*(?:(?:public|website)\s*)?(?:chat\s*)?threads?\s*$/i,
+    public_messages: /^\s*(?:(?:public|website)\s*)?(?:chat\s*)?messages?\s*$/i,
+    crm_leads: /^\s*(?:crm|website)?\s*leads?\s*$/i,
+    crm_followups: /^\s*(?:crm\s*)?follow[- ]?ups?\s*$/i,
+    admin_digests: /^\s*(?:admin digests?|owner digest)\s*$/i,
+    payment_alerts: /^\s*(?:customer\s*)?payment alerts?\s*$/i,
+    zoho_customers: /^\s*zoho customers?\s*$/i,
+    zoho_payments: /^\s*zoho payments?\s*$/i,
+  };
+
+  if (entity && cleaned && bareEntityPatternMap[entity]?.test(cleaned)) {
+    return null;
   }
 
   return cleaned || null;
