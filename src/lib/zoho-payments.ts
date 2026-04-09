@@ -139,7 +139,7 @@ function cleanAllowedPaymentMethods(value: string): ZohoAllowedPaymentMethod[] {
     )
   );
 
-  return methods.length ? methods : ["card", "ach_debit"];
+  return methods.length ? methods : ["card"];
 }
 
 function clampWhole(value: number | null | undefined, min: number, max: number) {
@@ -311,6 +311,38 @@ function matchesQuery(values: unknown[], query: string) {
   return haystack.includes(query);
 }
 
+function describeErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message || "Unknown Zoho Payments error.";
+  }
+
+  if (typeof error === "string" && error.trim()) {
+    return error.trim();
+  }
+
+  return "Unknown Zoho Payments error.";
+}
+
+function isUnsupportedPaymentMethodError(error: unknown) {
+  return describeErrorMessage(error)
+    .toLowerCase()
+    .includes("payment method is currently not supported");
+}
+
+function uniquePaymentMethods(methods: ZohoAllowedPaymentMethod[] | null | undefined) {
+  return Array.from(new Set((methods || []).filter(Boolean)));
+}
+
+function fallbackPaymentMethods(
+  methods: ZohoAllowedPaymentMethod[],
+  explicitInput: ZohoAllowedPaymentMethod[] | null | undefined
+) {
+  if (explicitInput?.length) return null;
+  if (methods.length <= 1) return null;
+  if (!methods.includes("card")) return null;
+  return ["card"] as ZohoAllowedPaymentMethod[];
+}
+
 export function isZohoPaymentsConfigured() {
   return getZohoPaymentsConfig().then(Boolean);
 }
@@ -338,35 +370,58 @@ export async function createZohoPaymentSession(input: CreateZohoPaymentSessionIn
     throw new Error("A description is required to create a Zoho payment session.");
   }
 
-  const paymentMethods =
+  const paymentMethods = uniquePaymentMethods(
     input.paymentMethods?.length && input.paymentMethods.length > 0
       ? input.paymentMethods
-      : config.defaultAllowedPaymentMethods;
+      : config.defaultAllowedPaymentMethods
+  );
   const expiresIn = clampWhole(input.expiresIn ?? null, 300, 900);
   const maxRetryCount = clampWhole(input.maxRetryCount ?? null, 1, 5);
-  const payload = await zohoPaymentsRequest<{
+  const createBody = (resolvedPaymentMethods: ZohoAllowedPaymentMethod[]) => ({
+    amount: Number(amount.toFixed(2)),
+    currency,
+    description,
+    ...(input.invoiceNumber ? { invoice_number: input.invoiceNumber } : {}),
+    ...(input.referenceNumber ? { reference_number: input.referenceNumber } : {}),
+    ...(expiresIn ? { expires_in: expiresIn } : {}),
+    ...(maxRetryCount ? { max_retry_count: maxRetryCount } : {}),
+    ...(resolvedPaymentMethods.length
+      ? {
+          configurations: {
+            allowed_payment_methods: resolvedPaymentMethods,
+          },
+        }
+      : {}),
+    ...(input.metaData ? { meta_data: input.metaData } : {}),
+  });
+
+  let payload: {
     payments_session?: ZohoPaymentSession;
     payment_session?: ZohoPaymentSession;
-  }>("/paymentsessions", {
-    method: "POST",
-    body: {
-      amount: Number(amount.toFixed(2)),
-      currency,
-      description,
-      ...(input.invoiceNumber ? { invoice_number: input.invoiceNumber } : {}),
-      ...(input.referenceNumber ? { reference_number: input.referenceNumber } : {}),
-      ...(expiresIn ? { expires_in: expiresIn } : {}),
-      ...(maxRetryCount ? { max_retry_count: maxRetryCount } : {}),
-      ...(paymentMethods.length
-        ? {
-            configurations: {
-              allowed_payment_methods: paymentMethods,
-            },
-          }
-        : {}),
-      ...(input.metaData ? { meta_data: input.metaData } : {}),
-    },
-  });
+  };
+
+  try {
+    payload = await zohoPaymentsRequest<{
+      payments_session?: ZohoPaymentSession;
+      payment_session?: ZohoPaymentSession;
+    }>("/paymentsessions", {
+      method: "POST",
+      body: createBody(paymentMethods),
+    });
+  } catch (error) {
+    const retryMethods = fallbackPaymentMethods(paymentMethods, input.paymentMethods);
+    if (!(retryMethods && isUnsupportedPaymentMethodError(error))) {
+      throw error;
+    }
+
+    payload = await zohoPaymentsRequest<{
+      payments_session?: ZohoPaymentSession;
+      payment_session?: ZohoPaymentSession;
+    }>("/paymentsessions", {
+      method: "POST",
+      body: createBody(retryMethods),
+    });
+  }
 
   const session = payload.payments_session || payload.payment_session;
   if (!session?.payments_session_id) {
@@ -512,39 +567,58 @@ export async function createZohoPaymentLink(input: CreateZohoPaymentLinkInput) {
     throw new Error("A description is required to create a Zoho payment link.");
   }
 
-  const paymentMethods =
+  const paymentMethods = uniquePaymentMethods(
     input.paymentMethods?.length && input.paymentMethods.length > 0
       ? input.paymentMethods
-      : config.defaultAllowedPaymentMethods;
-
-  const payload = await zohoPaymentsRequest<{ payment_links?: ZohoPaymentLink; payment_link?: ZohoPaymentLink }>(
-    "/paymentlinks",
-    {
-      method: "POST",
-      body: {
-        amount: Number(amount.toFixed(2)),
-        currency,
-        description,
-        ...(input.email ? { email: input.email } : {}),
-        ...(input.phone ? { phone: input.phone } : {}),
-        ...(input.referenceId ? { reference_id: input.referenceId } : {}),
-        ...(input.expiresAt ? { expires_at: input.expiresAt } : {}),
-        ...((input.sendEmail ?? Boolean(input.email)) && input.email
-          ? { notify_customer: { email: true } }
-          : {}),
-        ...(input.returnUrl || config.defaultReturnUrl
-          ? { return_url: input.returnUrl || config.defaultReturnUrl }
-          : {}),
-        ...(paymentMethods.length
-          ? {
-              configurations: {
-                allowed_payment_methods: paymentMethods,
-              },
-            }
-          : {}),
-      },
-    }
+      : config.defaultAllowedPaymentMethods
   );
+  const createBody = (resolvedPaymentMethods: ZohoAllowedPaymentMethod[]) => ({
+    amount: Number(amount.toFixed(2)),
+    currency,
+    description,
+    ...(input.email ? { email: input.email } : {}),
+    ...(input.phone ? { phone: input.phone } : {}),
+    ...(input.referenceId ? { reference_id: input.referenceId } : {}),
+    ...(input.expiresAt ? { expires_at: input.expiresAt } : {}),
+    ...((input.sendEmail ?? Boolean(input.email)) && input.email
+      ? { notify_customer: { email: true } }
+      : {}),
+    ...(input.returnUrl || config.defaultReturnUrl
+      ? { return_url: input.returnUrl || config.defaultReturnUrl }
+      : {}),
+    ...(resolvedPaymentMethods.length
+      ? {
+          configurations: {
+            allowed_payment_methods: resolvedPaymentMethods,
+          },
+        }
+      : {}),
+  });
+
+  let payload: { payment_links?: ZohoPaymentLink; payment_link?: ZohoPaymentLink };
+
+  try {
+    payload = await zohoPaymentsRequest<{ payment_links?: ZohoPaymentLink; payment_link?: ZohoPaymentLink }>(
+      "/paymentlinks",
+      {
+        method: "POST",
+        body: createBody(paymentMethods),
+      }
+    );
+  } catch (error) {
+    const retryMethods = fallbackPaymentMethods(paymentMethods, input.paymentMethods);
+    if (!(retryMethods && isUnsupportedPaymentMethodError(error))) {
+      throw error;
+    }
+
+    payload = await zohoPaymentsRequest<{ payment_links?: ZohoPaymentLink; payment_link?: ZohoPaymentLink }>(
+      "/paymentlinks",
+      {
+        method: "POST",
+        body: createBody(retryMethods),
+      }
+    );
+  }
 
   const paymentLink = payload.payment_links || payload.payment_link;
   if (!paymentLink?.url) {
