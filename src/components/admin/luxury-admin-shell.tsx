@@ -48,9 +48,16 @@ const ADMIN_NAV: AdminNavSection[] = [
         icon: <LayoutDashboard className="h-4 w-4" />,
       },
       {
+        href: "/admin/portal/buyers",
+        label: "Buyers",
+        helper: "Families, placements, balances",
+        aliases: ["/admin/buyers"],
+        icon: <Users className="h-4 w-4" />,
+      },
+      {
         href: "/admin/users",
         label: "Users",
-        helper: "Families, placements, access",
+        helper: "Portal signups, access, activity",
         aliases: ["/admin/portal/users"],
         icon: <Users className="h-4 w-4" />,
       },

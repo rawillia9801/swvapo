@@ -1,384 +1,388 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AdminEmptyState,
-  AdminHeroPrimaryAction,
-  AdminHeroSecondaryAction,
   AdminInfoTile,
-  AdminPageHero,
+  AdminListCard,
   AdminPageShell,
   AdminPanel,
   AdminRestrictedState,
   adminStatusBadge,
 } from "@/components/admin/luxury-admin-shell";
-import {
-  AdminSelectInput,
-  AdminTextAreaInput,
-  AdminTextInput,
-} from "@/components/admin/admin-form-fields";
-import { fmtDate, fmtMoney } from "@/lib/utils";
+import { fetchAdminAccounts, type AdminPortalAccount } from "@/lib/admin-portal";
+import { fmtMoney } from "@/lib/utils";
 import { usePortalAdminSession } from "@/lib/use-portal-admin-session";
 
-type BuyerRecord = {
+type UserFilter = "all" | "confirmed" | "linked" | "unlinked" | "active";
+
+type ActivityRow = {
   key: string;
-  buyer: {
-    id: number;
-    full_name?: string | null;
-    name?: string | null;
-    email?: string | null;
-    phone?: string | null;
-    status?: string | null;
-    notes?: string | null;
-    city?: string | null;
-    state?: string | null;
-    created_at?: string | null;
-  };
-  displayName: string;
-  email: string;
-  phone: string;
-  hasPortalAccount: boolean;
-  portalUser: { email: string; last_sign_in_at?: string | null } | null;
-  applicationCount: number;
-  formCount: number;
-  linkedPuppies: Array<{
-    id: number;
-    buyer_id?: number | null;
-    call_name?: string | null;
-    puppy_name?: string | null;
-    name?: string | null;
-    litter_name?: string | null;
-    sire?: string | null;
-    dam?: string | null;
-    status?: string | null;
-    price?: number | null;
-    list_price?: number | null;
-  }>;
-};
-
-type PuppyOption = BuyerRecord["linkedPuppies"][number] & { buyerName?: string | null };
-type BuyerAccount = {
-  buyer: {
-    id: number;
-    sale_price?: number | null;
-    deposit_amount?: number | null;
-    finance_enabled?: boolean | null;
-    finance_monthly_amount?: number | null;
-    finance_next_due_date?: string | null;
-    finance_last_payment_date?: string | null;
-  };
-  payments: Array<{ id: string; amount: number; payment_date: string; payment_type?: string | null; method?: string | null; note?: string | null; status?: string | null }>;
-  adjustments: Array<{ id: number; amount: number; entry_date: string; label?: string | null; description?: string | null; entry_type?: string | null; status?: string | null }>;
-  linkedPuppies: PuppyOption[];
-  lastPaymentAt: string | null;
-};
-
-type BuyerForm = {
-  full_name: string;
-  email: string;
-  phone: string;
+  kind: string;
+  title: string;
+  detail: string;
   status: string;
-  city: string;
-  state: string;
-  notes: string;
+  timestamp: string | null;
 };
 
-function emptyForm(): BuyerForm {
-  return { full_name: "", email: "", phone: "", status: "pending", city: "", state: "", notes: "" };
-}
-
-function puppyLabel(puppy: PuppyOption) {
-  return puppy.call_name || puppy.puppy_name || puppy.name || `Puppy #${puppy.id}`;
-}
-
-function num(value: unknown) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function complete(status: string | null | undefined) {
-  return String(status || "").toLowerCase().includes("completed");
-}
-
-function summaryForBuyer(buyer: BuyerRecord, account: BuyerAccount | null) {
-  const puppies = account?.linkedPuppies?.length ? account.linkedPuppies : buyer.linkedPuppies;
-  const purchasePrice = puppies.length ? puppies.reduce((sum, puppy) => sum + num(puppy.price || puppy.list_price), 0) : num(account?.buyer.sale_price);
-  const deposit = num(account?.buyer.deposit_amount);
-  const totalPaid = account?.payments.filter((item) => !["failed", "void", "cancelled", "canceled"].includes(String(item.status || "").toLowerCase())).reduce((sum, item) => sum + num(item.amount), 0) || 0;
-  const adjustments = account?.adjustments.filter((item) => !["void", "cancelled", "canceled"].includes(String(item.status || "").toLowerCase())).reduce((sum, item) => sum + num(item.amount), 0) || 0;
-  return {
-    purchasePrice,
-    deposit,
-    totalPaid,
-    balance: Math.max(0, purchasePrice + adjustments - totalPaid),
-    monthlyAmount: num(account?.buyer.finance_monthly_amount),
-    financeEnabled: Boolean(account?.buyer.finance_enabled),
-    nextDueDate: account?.buyer.finance_next_due_date || "",
-    lastPaymentAt: account?.lastPaymentAt || account?.buyer.finance_last_payment_date || "",
-    activityCount: (account?.payments.length || 0) + (account?.adjustments.length || 0),
-  };
-}
-
-async function fetchBuyers(accessToken: string) {
-  const [buyersRes, accountsRes] = await Promise.all([
-    fetch("/api/admin/portal/buyers", { headers: { Authorization: `Bearer ${accessToken}` } }),
-    fetch("/api/admin/portal/payments", { headers: { Authorization: `Bearer ${accessToken}` } }),
-  ]);
-  const buyersPayload = buyersRes.ok ? ((await buyersRes.json()) as { buyers?: BuyerRecord[]; puppies?: PuppyOption[] }) : {};
-  const accountsPayload = accountsRes.ok ? ((await accountsRes.json()) as { accounts?: BuyerAccount[] }) : {};
-  return {
-    buyers: Array.isArray(buyersPayload.buyers) ? buyersPayload.buyers : [],
-    puppies: Array.isArray(buyersPayload.puppies) ? buyersPayload.puppies : [],
-    accounts: Array.isArray(accountsPayload.accounts) ? accountsPayload.accounts : [],
-  };
-}
-
-export default function AdminPortalBuyersPage() {
-  const { user, accessToken, loading, isAdmin } = usePortalAdminSession();
-  const [buyers, setBuyers] = useState<BuyerRecord[]>([]);
-  const [puppies, setPuppies] = useState<PuppyOption[]>([]);
-  const [accounts, setAccounts] = useState<BuyerAccount[]>([]);
-  const [loadingData, setLoadingData] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [createMode, setCreateMode] = useState(false);
-  const [search, setSearch] = useState("");
-  const [puppySearch, setPuppySearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [viewMode, setViewMode] = useState<"active" | "completed">("active");
-  const [selectedKey, setSelectedKey] = useState("");
-  const [selectedPuppyIds, setSelectedPuppyIds] = useState<number[]>([]);
-  const [form, setForm] = useState<BuyerForm>(emptyForm());
-  const [statusText, setStatusText] = useState("");
-
-  async function refresh(preferredKey?: string, nextCreateMode = false) {
-    if (!accessToken) return;
-    const payload = await fetchBuyers(accessToken);
-    setBuyers(payload.buyers);
-    setPuppies(payload.puppies);
-    setAccounts(payload.accounts);
-    setCreateMode(nextCreateMode);
-    setSelectedKey(nextCreateMode ? "" : preferredKey && payload.buyers.some((buyer) => buyer.key === preferredKey) ? preferredKey : payload.buyers[0]?.key || "");
+function firstFilled(...values: Array<string | null | undefined>) {
+  for (const value of values) {
+    const text = String(value || "").trim();
+    if (text) return text;
   }
+  return "";
+}
 
-  useEffect(() => {
-    let active = true;
-    async function bootstrap() {
-      if (!accessToken || !isAdmin) {
-        if (active) setLoadingData(false);
-        return;
-      }
-      setLoadingData(true);
-      try {
-        const payload = await fetchBuyers(accessToken);
-        if (!active) return;
-        setBuyers(payload.buyers);
-        setPuppies(payload.puppies);
-        setAccounts(payload.accounts);
-        setSelectedKey(payload.buyers[0]?.key || "");
-      } finally {
-        if (active) setLoadingData(false);
-      }
-    }
-    void bootstrap();
-    return () => {
-      active = false;
-    };
-  }, [accessToken, isAdmin]);
+function dt(value: string | null | undefined, fallback = "Not recorded") {
+  if (!value) return fallback;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return fallback;
+  return parsed.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
 
-  const accountsByBuyerId = useMemo(() => new Map(accounts.map((account) => [account.buyer.id, account] as const)), [accounts]);
-  const filteredBuyers = useMemo(() => buyers.filter((record) => {
-    if (viewMode === "active" && complete(record.buyer.status)) return false;
-    if (viewMode === "completed" && !complete(record.buyer.status)) return false;
-    if (statusFilter !== "all" && String(record.buyer.status || "").toLowerCase() !== statusFilter) return false;
-    const q = search.trim().toLowerCase();
-    if (!q) return true;
-    return [record.displayName, record.email, record.phone, record.buyer.city, record.buyer.state, record.buyer.notes, ...record.linkedPuppies.map((puppy) => puppyLabel(puppy))].map((value) => String(value || "").toLowerCase()).join(" ").includes(q);
-  }), [buyers, search, statusFilter, viewMode]);
+function puppyName(
+  puppy: NonNullable<AdminPortalAccount["linkedPuppies"]>[number]
+) {
+  return firstFilled(puppy.call_name, puppy.puppy_name, puppy.name, `Puppy #${puppy.id}`);
+}
 
-  const selectedBuyer = createMode ? null : filteredBuyers.find((buyer) => buyer.key === selectedKey) || buyers.find((buyer) => buyer.key === selectedKey) || null;
-  const selectedAccount = selectedBuyer ? accountsByBuyerId.get(selectedBuyer.buyer.id) || null : null;
-  const selectedSummary = selectedBuyer ? summaryForBuyer(selectedBuyer, selectedAccount) : null;
-  const selectedActivity = (selectedAccount ? [
-    ...selectedAccount.payments.map((item) => ({ key: `p-${item.id}`, date: item.payment_date, title: item.payment_type || "Payment", amount: num(item.amount), detail: [item.method, item.note].filter(Boolean).join(" • "), status: item.status || "recorded" })),
-    ...selectedAccount.adjustments.map((item) => ({ key: `a-${item.id}`, date: item.entry_date, title: item.label || item.entry_type || "Adjustment", amount: num(item.amount), detail: item.description || "", status: item.status || "recorded" })),
-  ] : []).sort((left, right) => new Date(right.date).getTime() - new Date(left.date).getTime()).slice(0, 6);
+function provider(account: AdminPortalAccount) {
+  const direct = String(account.appMetadata?.provider || "").trim();
+  if (direct) return direct;
+  const providers = Array.isArray(account.appMetadata?.providers)
+    ? account.appMetadata.providers
+    : [];
+  const listed = providers.find((value) => typeof value === "string" && value.trim());
+  if (typeof listed === "string") return listed;
+  const identity = Array.isArray(account.identities) ? account.identities[0] : null;
+  return typeof identity?.provider === "string" && identity.provider.trim()
+    ? identity.provider
+    : "email";
+}
 
-  useEffect(() => {
-    if (createMode) {
-      setForm(emptyForm());
-      setSelectedPuppyIds([]);
+function activityRows(account: AdminPortalAccount) {
+  const forms = account.forms.map((form) => ({
+    key: `form-${form.id}`,
+    kind: "Form",
+    title: firstFilled(form.form_title, form.form_key, `Submission ${form.id}`),
+    detail: firstFilled(form.signed_name, form.user_email, "Portal form submission"),
+    status: form.status || "submitted",
+    timestamp: form.submitted_at || form.created_at || null,
+  }));
+  const documents = (account.documents || []).map((document) => ({
+    key: `document-${document.id}`,
+    kind: "Document",
+    title: firstFilled(document.title, document.file_name, `Document ${document.id}`),
+    detail: firstFilled(document.category, document.file_name, "Portal document"),
+    status: document.status || "filed",
+    timestamp: document.created_at || null,
+  }));
+  const messages = (account.messages || []).map((message) => ({
+    key: `message-${message.id}`,
+    kind: "Message",
+    title: firstFilled(message.subject, `Message ${message.id}`),
+    detail: firstFilled(message.message, message.sender, "Portal message"),
+    status: message.status || (message.read_by_admin ? "read" : "unread"),
+    timestamp: message.created_at || null,
+  }));
+  const pickups = (account.pickupRequests || []).map((pickup) => ({
+    key: `pickup-${pickup.id}`,
+    kind: "Pickup",
+    title: firstFilled(pickup.request_type, `Request ${pickup.id}`),
+    detail: firstFilled(pickup.location_text, pickup.address_text, pickup.notes, "Pickup request"),
+    status: pickup.status || "pending",
+    timestamp: pickup.request_date || pickup.created_at || null,
+  }));
+  return [...forms, ...documents, ...messages, ...pickups]
+    .sort((left, right) => {
+      const leftTime = left.timestamp ? new Date(left.timestamp).getTime() : 0;
+      const rightTime = right.timestamp ? new Date(right.timestamp).getTime() : 0;
+      return rightTime - leftTime;
+    })
+    .slice(0, 10);
+}
+
+function json(value: unknown) {
+  try {
+    return JSON.stringify(value ?? null, null, 2);
+  } catch {
+    return String(value ?? "");
+  }
+}
+
+function searchBlob(account: AdminPortalAccount) {
+  return [
+    account.displayName,
+    account.email,
+    account.phone,
+    account.buyer?.full_name,
+    account.buyer?.name,
+    account.buyer?.email,
+    account.application?.full_name,
+    account.application?.email,
+    ...(account.linkedPuppies || []).map((puppy) => puppyName(puppy)),
+    ...(account.forms || []).map((form) => `${form.form_title || ""} ${form.form_key || ""}`),
+    ...(account.documents || []).map((document) => `${document.title || ""} ${document.category || ""}`),
+    ...(account.messages || []).map((message) => `${message.subject || ""} ${message.message || ""}`),
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
+export default function AdminPortalUsersPage() {
+  const { user, accessToken, loading, isAdmin } = usePortalAdminSession();
+  const [accounts, setAccounts] = useState<AdminPortalAccount[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<UserFilter>("all");
+  const [selectedKey, setSelectedKey] = useState("");
+
+  const loadAccounts = useCallback(async (showRefreshing = false) => {
+    if (!accessToken || !isAdmin) {
+      setAccounts([]);
+      setLoadingData(false);
+      setRefreshing(false);
       return;
     }
-    if (!selectedBuyer) return;
-    setForm({
-      full_name: String(selectedBuyer.buyer.full_name || selectedBuyer.buyer.name || selectedBuyer.displayName || ""),
-      email: String(selectedBuyer.buyer.email || selectedBuyer.email || ""),
-      phone: String(selectedBuyer.buyer.phone || selectedBuyer.phone || ""),
-      status: String(selectedBuyer.buyer.status || "pending"),
-      city: String(selectedBuyer.buyer.city || ""),
-      state: String(selectedBuyer.buyer.state || ""),
-      notes: String(selectedBuyer.buyer.notes || ""),
-    });
-    setSelectedPuppyIds(selectedBuyer.linkedPuppies.map((puppy) => puppy.id));
-    setStatusText("");
-  }, [createMode, selectedBuyer]);
+    if (showRefreshing) setRefreshing(true);
+    else setLoadingData(true);
+    try {
+      const nextAccounts = await fetchAdminAccounts(accessToken);
+      setAccounts(nextAccounts);
+      setSelectedKey((current) => current || nextAccounts[0]?.key || "");
+    } finally {
+      setLoadingData(false);
+      setRefreshing(false);
+    }
+  }, [accessToken, isAdmin]);
 
   useEffect(() => {
-    if (createMode || !filteredBuyers.length || filteredBuyers.some((buyer) => buyer.key === selectedKey)) return;
-    setSelectedKey(filteredBuyers[0].key);
-  }, [createMode, filteredBuyers, selectedKey]);
+    void loadAccounts();
+  }, [loadAccounts]);
 
-  async function saveBuyer() {
-    if (!accessToken) return;
-    setSaving(true);
-    setStatusText("");
-    try {
-      const response = await fetch("/api/admin/portal/buyers", {
-        method: createMode ? "POST" : "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ id: createMode ? undefined : selectedBuyer?.buyer.id, ...form, linked_puppy_ids: selectedPuppyIds }),
-      });
-      const payload = (await response.json()) as { buyerId?: number; error?: string };
-      if (!response.ok) throw new Error(payload.error || "Could not save buyer.");
-      await refresh(payload.buyerId ? String(payload.buyerId) : selectedKey, false);
-      setStatusText(createMode ? "Buyer created." : "Buyer updated.");
-    } catch (error) {
-      setStatusText(error instanceof Error ? error.message : "Could not save buyer.");
-    } finally {
-      setSaving(false);
+  const filteredAccounts = useMemo(
+    () =>
+      accounts.filter((account) => {
+        if (filter === "confirmed" && !account.emailConfirmedAt) return false;
+        if (filter === "linked" && !account.buyer) return false;
+        if (filter === "unlinked" && account.buyer) return false;
+        if (filter === "active" && !account.lastSignInAt && !activityRows(account).length) {
+          return false;
+        }
+        const query = search.trim().toLowerCase();
+        return !query || searchBlob(account).includes(query);
+      }),
+    [accounts, filter, search]
+  );
+
+  useEffect(() => {
+    if (!filteredAccounts.length) {
+      setSelectedKey("");
+      return;
     }
+    if (!filteredAccounts.some((account) => account.key === selectedKey)) {
+      setSelectedKey(filteredAccounts[0].key);
+    }
+  }, [filteredAccounts, selectedKey]);
+
+  const selected =
+    filteredAccounts.find((account) => account.key === selectedKey) ||
+    accounts.find((account) => account.key === selectedKey) ||
+    null;
+
+  const confirmedCount = accounts.filter((account) => Boolean(account.emailConfirmedAt)).length;
+  const linkedBuyerCount = accounts.filter((account) => Boolean(account.buyer)).length;
+  const activeCount = accounts.filter(
+    (account) => Boolean(account.lastSignInAt) || activityRows(account).length > 0
+  ).length;
+
+  if (loading || loadingData) {
+    return <div className="py-20 text-center text-sm font-semibold text-[#7b5f46]">Loading portal users...</div>;
   }
 
-  if (loading || loadingData) return <div className="py-20 text-center text-sm font-semibold text-[#7b5f46]">Loading buyers...</div>;
-  if (!user) return <AdminRestrictedState title="Sign in to access buyers." details="This workspace is reserved for the Southwest Virginia Chihuahua owner accounts." />;
-  if (!isAdmin) return <AdminRestrictedState title="This buyer workspace is limited to approved owner accounts." details="Only the approved owner emails can manage buyer records and assignments." />;
+  if (!user) {
+    return <AdminRestrictedState title="Sign in to access users." details="This workspace is reserved for the Southwest Virginia Chihuahua owner accounts." />;
+  }
 
-  const totalDeposits = buyers.reduce((sum, buyer) => sum + summaryForBuyer(buyer, accountsByBuyerId.get(buyer.buyer.id) || null).deposit, 0);
+  if (!isAdmin) {
+    return <AdminRestrictedState title="This user workspace is limited to approved owner accounts." details="Only approved owner emails can review signed-up portal users and their linked activity." />;
+  }
 
   return (
     <AdminPageShell>
       <div className="space-y-5 pb-10">
-        <AdminPageHero eyebrow="Buyers" title="Run buyer accounts as placement files, not loose contact records." description="Families, puppy assignments, financing context, portal access, and recent payment activity stay together here so the buyer side of the breeding hub is easy to operate and hard to miss details in." actions={<><button type="button" onClick={() => { setCreateMode(true); setForm(emptyForm()); setSelectedPuppyIds([]); setStatusText(""); }} className="inline-flex items-center rounded-2xl bg-[linear-gradient(90deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--portal-shadow-md)] transition hover:-translate-y-0.5">Create Buyer</button><AdminHeroPrimaryAction href="/admin/portal/payments">Open Payments</AdminHeroPrimaryAction><AdminHeroSecondaryAction href="/admin/portal/messages">Open Messages</AdminHeroSecondaryAction></>} aside={<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1"><AdminInfoTile label="Portal Accounts" value={String(buyers.filter((buyer) => buyer.hasPortalAccount).length)} detail="Buyer records already linked to a portal login." /><AdminInfoTile label="Deposits Recorded" value={fmtMoney(totalDeposits)} detail="Deposits tied to buyer and puppy records across the directory." /></div>} />
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <AdminInfoTile label="Portal Users" value={String(accounts.length)} detail="Signed-up portal accounts only, separate from buyer records." />
+          <AdminInfoTile label="Email Confirmed" value={String(confirmedCount)} detail={`${accounts.length - confirmedCount} still need confirmation.`} />
+          <AdminInfoTile label="Linked Buyers" value={String(linkedBuyerCount)} detail={`${accounts.length - linkedBuyerCount} users are still unmatched to a buyer record.`} />
+          <AdminInfoTile label="Active Accounts" value={String(activeCount)} detail="Last sign-in or portal activity detected on the account." />
+        </section>
 
-        <AdminPanel
-          title="Buyer Workbench"
-          subtitle="The buyer page should highlight placement and account hygiene, not just totals."
-        >
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <AdminInfoTile
-              label="Active Families"
-              value={String(buyers.filter((buyer) => !complete(buyer.buyer.status)).length)}
-              detail={`${buyers.length} buyer records total across active and completed placements.`}
-            />
-            <AdminInfoTile
-              label="Financing Households"
-              value={String(accounts.filter((account) => Boolean(account.buyer.finance_enabled)).length)}
-              detail="Families with payment-plan terms that need due-date and ledger visibility."
-            />
-            <AdminInfoTile
-              label="Portal Setup Gaps"
-              value={String(buyers.filter((buyer) => !buyer.hasPortalAccount).length)}
-              detail="Buyer records still missing an account connection for the portal experience."
-            />
-            <AdminInfoTile
-              label="Unassigned Puppies"
-              value={String(puppies.filter((puppy) => !puppy.buyer_id).length)}
-              detail="Available puppy records that are still open for matching or reassignment."
-            />
-          </div>
-        </AdminPanel>
-
-        <section className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.24fr)_430px]">
-          <AdminPanel title="Buyer Directory" subtitle="Search by buyer, linked puppy, location, or notes.">
+        <section className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.18fr)_460px]">
+          <AdminPanel
+            title="Portal User Directory"
+            subtitle="Every self-created portal login with linked buyer, application, forms, documents, messages, pickup requests, and auth metadata."
+            action={<button type="button" onClick={() => void loadAccounts(true)} className="inline-flex items-center rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]">{refreshing ? "Refreshing..." : "Refresh Users"}</button>}
+          >
             <div className="mb-4 flex flex-wrap gap-2">
-              <Toggle active={viewMode === "active"} label="Active" onClick={() => setViewMode("active")} />
-              <Toggle active={viewMode === "completed"} label="Completed" onClick={() => setViewMode("completed")} />
-            </div>
-            <div className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
-              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search buyers, puppies, notes, or location..." className="w-full rounded-[16px] border border-[var(--portal-border)] bg-white px-3.5 py-2.5 text-sm text-[var(--portal-text)] outline-none transition focus:border-[var(--portal-accent)] focus:ring-2 focus:ring-[rgba(90,142,245,0.14)]" />
-              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="w-full rounded-[16px] border border-[var(--portal-border)] bg-white px-3.5 py-2.5 text-sm text-[var(--portal-text)] outline-none transition focus:border-[var(--portal-accent)] focus:ring-2 focus:ring-[rgba(90,142,245,0.14)]"><option value="all">All statuses</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="completed">Completed</option><option value="denied">Denied</option><option value="withdrawn">Withdrawn</option></select>
+              {(["all", "confirmed", "linked", "unlinked", "active"] as UserFilter[]).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setFilter(value)}
+                  className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition ${filter === value ? "border-[#cfab84] bg-[var(--portal-surface-muted)] text-[var(--portal-text)]" : "border-[var(--portal-border)] bg-white text-[var(--portal-text-soft)] hover:border-[#d8b48b]"}`}
+                >
+                  {value === "all" ? "All users" : value === "confirmed" ? "Confirmed email" : value === "linked" ? "Linked buyers" : value === "unlinked" ? "Unlinked users" : "Active recently"}
+                </button>
+              ))}
             </div>
 
-            {filteredBuyers.length ? (
-              <div className="overflow-hidden rounded-[24px] border border-[var(--portal-border)]">
-                <table className="min-w-full divide-y divide-[#eee1d2] text-sm">
-                  <thead className="bg-[var(--portal-surface-muted)] text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]"><tr><th className="px-4 py-3">Buyer</th><th className="px-4 py-3">Linked Puppies</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Portal</th><th className="px-4 py-3">Balance</th></tr></thead>
-                  <tbody className="divide-y divide-[#f1e6da] bg-white">
-                    {filteredBuyers.map((record) => {
-                      const active = !createMode && record.key === selectedKey;
-                      const summary = summaryForBuyer(record, accountsByBuyerId.get(record.buyer.id) || null);
-                      return (
-                        <tr key={record.key} onClick={() => { setCreateMode(false); setSelectedKey(record.key); setStatusText(""); }} className={`cursor-pointer transition hover:bg-[var(--portal-surface-muted)] ${active ? "bg-[var(--portal-surface-muted)]" : ""}`}>
-                          <td className="px-4 py-3"><div className="font-semibold text-[var(--portal-text)]">{record.displayName}</div><div className="mt-1 text-xs text-[var(--portal-text-soft)]">{record.email || "No email"} • {record.phone || "No phone"}</div></td>
-                          <td className="px-4 py-3 text-[var(--portal-text-soft)]">{record.linkedPuppies.length ? record.linkedPuppies.slice(0, 2).map((puppy) => puppyLabel(puppy)).join(", ") : "No puppy linked"}{record.linkedPuppies.length > 2 ? ` +${record.linkedPuppies.length - 2}` : ""}</td>
-                          <td className="px-4 py-3"><span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(record.buyer.status || "pending")}`}>{record.buyer.status || "pending"}</span></td>
-                          <td className="px-4 py-3 text-[var(--portal-text-soft)]">{record.hasPortalAccount ? "Connected" : "No login"}</td>
-                          <td className="px-4 py-3"><div className="font-semibold text-[var(--portal-text)]">{fmtMoney(summary.balance)}</div><div className="mt-1 text-xs text-[var(--portal-text-soft)]">{summary.activityCount} activity entries</div></td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+            <div className="mb-4">
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search users, emails, linked buyers, puppies, forms, documents, or messages..." className="w-full rounded-[16px] border border-[var(--portal-border)] bg-white px-3.5 py-2.5 text-sm text-[var(--portal-text)] outline-none transition focus:border-[var(--portal-accent)] focus:ring-2 focus:ring-[rgba(90,142,245,0.14)]" />
+            </div>
+
+            {filteredAccounts.length ? (
+              <div className="space-y-3">
+                {filteredAccounts.map((account) => (
+                  <AdminListCard
+                    key={account.key}
+                    selected={account.key === selectedKey}
+                    onClick={() => setSelectedKey(account.key)}
+                    title={account.displayName}
+                    subtitle={`${account.email || "No email"} / ${account.buyer ? firstFilled(account.buyer.full_name, account.buyer.name, account.buyer.email, `Buyer #${account.buyer.id}`) : "No buyer linked"}`}
+                    meta={`Created ${dt(account.createdAt)} / Last sign-in ${dt(account.lastSignInAt, "Never")}`}
+                    badge={<span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(account.emailConfirmedAt ? "confirmed" : "pending")}`}>{account.emailConfirmedAt ? "confirmed" : "needs setup"}</span>}
+                  />
+                ))}
               </div>
-            ) : <AdminEmptyState title="No buyers match the current filters" description="Adjust the filters or create a new buyer record to restart the workflow." />}
+            ) : (
+              <AdminEmptyState title="No users match the current filters" description="Try a different search or refresh the directory to pull the latest signups." />
+            )}
           </AdminPanel>
 
           <div className="space-y-5">
-            <AdminPanel title={createMode ? "Create Buyer" : "Buyer Detail"} subtitle={createMode ? "Create a buyer record and attach puppies right away." : "Profile, assignment, financial context, and recent activity stay grouped together here."}>
-              {statusText ? <div className="mb-4 rounded-[18px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm font-semibold text-[var(--portal-text-soft)]">{statusText}</div> : null}
-              <div className="grid gap-3 sm:grid-cols-2">
-                <AdminInfoTile label="Portal Account" value={selectedBuyer?.hasPortalAccount ? "Connected" : createMode ? "New record" : "Not connected"} detail={selectedBuyer?.portalUser?.email || "Buyer login status and last sign-in stay visible here."} />
-                <AdminInfoTile label="Applications" value={String(selectedBuyer?.applicationCount || 0)} detail={`${selectedBuyer?.formCount || 0} submitted forms`} />
-                <AdminInfoTile label="Balance" value={fmtMoney(selectedSummary?.balance || 0)} detail="Live balance view from pricing, payments, and adjustments." />
-                <AdminInfoTile label="Last Payment" value={selectedSummary?.lastPaymentAt ? fmtDate(selectedSummary.lastPaymentAt) : "No payment yet"} detail={selectedSummary?.nextDueDate ? `Next due ${fmtDate(selectedSummary.nextDueDate)}` : "No next due date saved"} />
-              </div>
+            <AdminPanel title="User Detail" subtitle={selected ? "Auth details, linked records, and recent portal activity for the selected user." : "Select a signed-in portal user to inspect the full account trail."}>
+              {selected ? (
+                <div className="space-y-5">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <AdminInfoTile label="Email" value={selected.email || "No email"} detail={`Provider ${provider(selected)} / User id ${selected.userId || "Not returned"}`} />
+                    <AdminInfoTile label="Phone" value={selected.phone || "No phone"} detail={`Phone confirmed ${selected.phoneConfirmedAt ? "yes" : "no"}`} />
+                    <AdminInfoTile label="Created" value={dt(selected.createdAt)} detail={`Updated ${dt(selected.updatedAt)}`} />
+                    <AdminInfoTile label="Last Sign-In" value={dt(selected.lastSignInAt, "Never")} detail={`Email confirmed ${dt(selected.emailConfirmedAt)}`} />
+                  </div>
 
-              <div className="mt-5 grid gap-4">
-                <AdminTextInput label="Full Name" value={form.full_name} onChange={(value) => setForm((current) => ({ ...current, full_name: value }))} placeholder="Buyer name" />
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <AdminTextInput label="Email" value={form.email} onChange={(value) => setForm((current) => ({ ...current, email: value }))} placeholder="buyer@email.com" />
-                  <AdminTextInput label="Phone" value={form.phone} onChange={(value) => setForm((current) => ({ ...current, phone: value }))} placeholder="Phone number" />
+                  <div className="rounded-[1.25rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] p-4 shadow-sm">
+                    <div className="flex flex-wrap gap-2">
+                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(selected.emailConfirmedAt ? "confirmed" : "pending")}`}>{selected.emailConfirmedAt ? "Email confirmed" : "Email pending"}</span>
+                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(selected.buyer ? "linked" : "pending")}`}>{selected.buyer ? "Buyer linked" : "Buyer unlinked"}</span>
+                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(selected.application ? "active" : "quiet")}`}>{selected.application ? "Application linked" : "No application"}</span>
+                    </div>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-3 py-3"><div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">Audience</div><div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">{selected.audience || "Not returned"}</div></div>
+                      <div className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-3 py-3"><div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">Role</div><div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">{selected.role || "Not returned"}</div></div>
+                      <div className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-3 py-3"><div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">Pending Email Change</div><div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">{selected.pendingEmail || "None"}</div></div>
+                      <div className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-3 py-3"><div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">Banned Until</div><div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">{dt(selected.bannedUntil, "Not banned")}</div></div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3">
+                    <div className="rounded-[1.25rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] p-4 shadow-sm">
+                      <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">Linked Buyer</div>
+                      <div className="mt-2 text-base font-semibold text-[var(--portal-text)]">{selected.buyer ? firstFilled(selected.buyer.full_name, selected.buyer.name, selected.buyer.email, `Buyer #${selected.buyer.id}`) : "No buyer linked"}</div>
+                      <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">{selected.buyer ? `${selected.buyer.email || "No email"} / ${selected.buyer.phone || "No phone"} / ${selected.buyer.status || "pending"}` : "This user has not been matched to a buyer record yet."}</div>
+                      {selected.buyer ? <div className="mt-4"><Link href="/admin/portal/buyers" className="inline-flex items-center rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]">Open Buyers</Link></div> : null}
+                    </div>
+                    <div className="rounded-[1.25rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] p-4 shadow-sm">
+                      <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">Linked Application</div>
+                      <div className="mt-2 text-base font-semibold text-[var(--portal-text)]">{selected.application ? firstFilled(selected.application.full_name, selected.application.email, selected.application.applicant_email, `Application #${selected.application.id}`) : "No application linked"}</div>
+                      <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">{selected.application ? `${selected.application.phone || "No phone"} / ${selected.application.status || "pending"} / ${dt(selected.application.created_at)}` : "No application was matched to this signed-in user."}</div>
+                      {selected.application ? <div className="mt-4"><Link href="/admin/portal/applications" className="inline-flex items-center rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]">Open Applications</Link></div> : null}
+                    </div>
+                  </div>
                 </div>
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <AdminSelectInput label="Status" value={form.status} onChange={(value) => setForm((current) => ({ ...current, status: value }))} options={[{ value: "pending", label: "Pending" }, { value: "approved", label: "Approved" }, { value: "completed", label: "Completed" }, { value: "denied", label: "Denied" }, { value: "withdrawn", label: "Withdrawn" }]} />
-                  <AdminTextInput label="City" value={form.city} onChange={(value) => setForm((current) => ({ ...current, city: value }))} placeholder="City" />
-                  <AdminTextInput label="State" value={form.state} onChange={(value) => setForm((current) => ({ ...current, state: value }))} placeholder="State" />
+              ) : (
+                <AdminEmptyState title="Select a user" description="Choose a portal signup from the directory to inspect the full account trail." />
+              )}
+            </AdminPanel>
+
+            {selected ? (
+              <AdminPanel title="Activity And Records" subtitle="Everything available for this signed-in account, including payments, linked puppies, forms, documents, messages, pickup requests, and raw auth metadata.">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <AdminInfoTile label="Payments" value={selected.paymentSummary ? fmtMoney(selected.paymentSummary.totalPaid) : "$0"} detail={selected.paymentSummary ? `${selected.paymentSummary.count} payment records / last paid ${dt(selected.paymentSummary.lastPaymentAt)}` : "No linked buyer payment summary yet."} />
+                  <AdminInfoTile label="Linked Puppies" value={String(selected.linkedPuppies?.length || 0)} detail={`${selected.forms.length} forms / ${selected.documents?.length || 0} documents / ${selected.messages?.length || 0} messages`} />
                 </div>
-                <AdminTextAreaInput label="Notes" value={form.notes} onChange={(value) => setForm((current) => ({ ...current, notes: value }))} rows={5} placeholder="Internal notes, follow-up details, or buyer context." />
-              </div>
 
-              <div className="mt-5 flex flex-wrap gap-3">
-                <button type="button" onClick={() => void saveBuyer()} disabled={saving} className="rounded-2xl bg-[linear-gradient(135deg,#c88c52_0%,#a56733_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(159,99,49,0.22)] transition hover:brightness-105 disabled:opacity-60">{saving ? "Saving..." : createMode ? "Create Buyer" : "Save Buyer"}</button>
-                <button type="button" onClick={() => { setCreateMode(false); setStatusText(""); if (!selectedBuyer) return; setSelectedPuppyIds(selectedBuyer.linkedPuppies.map((puppy) => puppy.id)); }} className="rounded-2xl border border-[var(--portal-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]">Reset</button>
-              </div>
-            </AdminPanel>
+                <div className="mt-5 space-y-3">
+                  {activityRows(selected).length ? (
+                    activityRows(selected).map((row: ActivityRow) => (
+                      <div key={row.key} className="rounded-[1.25rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4 shadow-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">{row.kind}</div>
+                            <div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">{row.title}</div>
+                            <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">{row.detail || "No additional detail saved."}</div>
+                          </div>
+                          <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(row.status)}`}>{row.status}</span>
+                        </div>
+                        <div className="mt-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">{dt(row.timestamp)}</div>
+                      </div>
+                    ))
+                  ) : (
+                    <AdminEmptyState title="No portal activity recorded" description="Forms, messages, documents, and pickup requests will appear here as this user works through the portal." />
+                  )}
+                </div>
 
-            <AdminPanel title="Linked Puppies" subtitle="Use buyer assignment here to keep the shared puppy relationship in sync.">
-              <div className="mb-4"><input value={puppySearch} onChange={(event) => setPuppySearch(event.target.value)} placeholder="Search puppies by name, litter, or lineage..." className="w-full rounded-[16px] border border-[var(--portal-border)] bg-white px-3.5 py-2.5 text-sm text-[var(--portal-text)] outline-none transition focus:border-[var(--portal-accent)] focus:ring-2 focus:ring-[rgba(90,142,245,0.14)]" /></div>
-              <div className="max-h-[300px] space-y-3 overflow-y-auto pr-1">
-                {puppies.filter((puppy) => [puppyLabel(puppy), puppy.status, puppy.litter_name, puppy.sire, puppy.dam, puppy.buyerName].map((value) => String(value || "").toLowerCase()).join(" ").includes(puppySearch.trim().toLowerCase())).map((puppy) => {
-                  const checked = selectedPuppyIds.includes(puppy.id);
-                  const linkedElsewhere = puppy.buyer_id && (!selectedBuyer || puppy.buyer_id !== selectedBuyer.buyer.id);
-                  return <label key={puppy.id} className={`flex cursor-pointer items-start gap-3 rounded-[20px] border px-4 py-3 transition ${checked ? "border-[#cfab84] bg-[var(--portal-surface-muted)]" : "border-[var(--portal-border)] bg-[var(--portal-surface-muted)] hover:border-[#d8b48b]"}`}><input type="checkbox" checked={checked} onChange={() => setSelectedPuppyIds((current) => current.includes(puppy.id) ? current.filter((value) => value !== puppy.id) : [...current, puppy.id])} className="mt-1 h-4 w-4 rounded border-[#d3b596] text-[#a56733] focus:ring-[#cba379]" /><div className="min-w-0"><div className="text-sm font-semibold text-[var(--portal-text)]">{puppyLabel(puppy)}</div><div className="mt-1 text-xs text-[var(--portal-text-soft)]">{puppy.status || "No status"} • {puppy.litter_name || "No litter"} • {fmtMoney(num(puppy.price || puppy.list_price))}</div><div className="mt-1 text-[11px] text-[var(--portal-text-muted)]">{linkedElsewhere ? `Currently linked to ${puppy.buyerName || `Buyer #${puppy.buyer_id}`}` : "Available to assign"}</div></div></label>;
-                })}
-              </div>
-            </AdminPanel>
+                <div className="mt-5 grid gap-5">
+                  <RecordGroup title="Linked Puppies" emptyText="No puppies are linked to this user yet.">
+                    {(selected.linkedPuppies || []).map((puppy) => (
+                      <RecordRow key={puppy.id} title={puppyName(puppy)} detail={`${puppy.litter_name || "No litter"} / ${puppy.status || "No status"}`} meta={`${fmtMoney(Number(puppy.price || 0))} price / ${fmtMoney(Number(puppy.deposit || 0))} deposit`} />
+                    ))}
+                  </RecordGroup>
 
-            <AdminPanel title="Financial Snapshot" subtitle="Buyer pricing, plan context, and recent financial activity stay grouped together.">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <InfoLine label="Purchase Price" value={fmtMoney(selectedSummary?.purchasePrice || 0)} />
-                <InfoLine label="Deposit" value={fmtMoney(selectedSummary?.deposit || 0)} />
-                <InfoLine label="Payments Applied" value={fmtMoney(selectedSummary?.totalPaid || 0)} />
-                <InfoLine label="Balance" value={fmtMoney(selectedSummary?.balance || 0)} />
-                <InfoLine label="Monthly Payment" value={selectedSummary?.monthlyAmount ? fmtMoney(selectedSummary.monthlyAmount) : "Not set"} />
-                <InfoLine label="Next Due" value={selectedSummary?.nextDueDate ? fmtDate(selectedSummary.nextDueDate) : "Not set"} />
-              </div>
-              <div className="mt-5 space-y-3">
-                {selectedActivity.length ? selectedActivity.map((activity) => <div key={activity.key} className="rounded-[20px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4"><div className="flex items-start justify-between gap-3"><div><div className="text-sm font-semibold text-[var(--portal-text)]">{activity.title}</div><div className="mt-1 text-xs text-[var(--portal-text-soft)]">{fmtDate(activity.date)}</div></div><div className="text-right"><div className="text-sm font-semibold text-[var(--portal-text)]">{fmtMoney(activity.amount)}</div><span className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(activity.status)}`}>{activity.status}</span></div></div>{activity.detail ? <div className="mt-3 text-sm leading-6 text-[var(--portal-text-soft)]">{activity.detail}</div> : null}</div>) : <AdminEmptyState title="No financial activity yet" description="Payments, fees, credits, and transport adjustments will appear here once they are logged." />}
-              </div>
-              <div className="mt-4 flex flex-wrap gap-3"><Link href="/admin/portal/payments" className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]">Open Payments</Link><Link href="/admin/portal/messages" className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]">Open Messages</Link></div>
-            </AdminPanel>
+                  <RecordGroup title="Forms" emptyText="No forms submitted yet.">
+                    {selected.forms.map((form) => (
+                      <RecordRow key={form.id} title={firstFilled(form.form_title, form.form_key, `Submission ${form.id}`)} detail={`Status ${form.status || "submitted"} / Signed ${form.signed_name || "Not signed"}`} meta={`Submitted ${dt(form.submitted_at || form.created_at)}`} />
+                    ))}
+                  </RecordGroup>
+
+                  <RecordGroup title="Documents" emptyText="No documents uploaded yet.">
+                    {(selected.documents || []).map((document) => (
+                      <RecordRow key={document.id} title={firstFilled(document.title, document.file_name, `Document ${document.id}`)} detail={`Category ${document.category || "Not set"} / Status ${document.status || "filed"}`} meta={`Created ${dt(document.created_at)}`} />
+                    ))}
+                  </RecordGroup>
+
+                  <RecordGroup title="Messages" emptyText="No portal messages yet.">
+                    {(selected.messages || []).map((message) => (
+                      <RecordRow key={message.id} title={firstFilled(message.subject, `Message ${message.id}`)} detail={firstFilled(message.message, message.sender, "No message text")} meta={`${message.status || "active"} / ${dt(message.created_at)}`} />
+                    ))}
+                  </RecordGroup>
+
+                  <RecordGroup title="Pickup Requests" emptyText="No pickup requests yet.">
+                    {(selected.pickupRequests || []).map((pickup) => (
+                      <RecordRow key={pickup.id} title={firstFilled(pickup.request_type, `Request ${pickup.id}`)} detail={firstFilled(pickup.location_text, pickup.address_text, pickup.notes, "No location saved")} meta={`${pickup.status || "pending"} / ${dt(pickup.request_date || pickup.created_at)}`} />
+                    ))}
+                  </RecordGroup>
+
+                  <div>
+                    <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">Raw Auth Metadata</div>
+                    <div className="mt-3 grid gap-3">
+                      <JsonCard label="User Metadata" value={json(selected.userMetadata)} />
+                      <JsonCard label="App Metadata" value={json(selected.appMetadata)} />
+                      <JsonCard label="Identities" value={json(selected.identities)} />
+                      <JsonCard label="Factors" value={json(selected.factors)} />
+                    </div>
+                  </div>
+                </div>
+              </AdminPanel>
+            ) : null}
           </div>
         </section>
       </div>
@@ -386,11 +390,33 @@ export default function AdminPortalBuyersPage() {
   );
 }
 
-function Toggle({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition ${active ? "border-[#cfab84] bg-[var(--portal-surface-muted)] text-[var(--portal-text)]" : "border-[var(--portal-border)] bg-white text-[var(--portal-text-soft)] hover:border-[#d8b48b]"}`}>{label}</button>;
+function RecordGroup({ title, emptyText, children }: { title: string; emptyText: string; children: React.ReactNode }) {
+  const rows = React.Children.toArray(children).filter(Boolean);
+  return (
+    <div>
+      <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">{title}</div>
+      <div className="mt-3 space-y-3">
+        {rows.length ? rows : <div className="rounded-[1rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm text-[var(--portal-text-soft)]">{emptyText}</div>}
+      </div>
+    </div>
+  );
 }
 
-function InfoLine({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-[18px] border border-[var(--portal-border)] bg-white px-3 py-3"><div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">{label}</div><div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">{value}</div></div>;
+function RecordRow({ title, detail, meta }: { title: string; detail: string; meta: string }) {
+  return (
+    <div className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3">
+      <div className="text-sm font-semibold text-[var(--portal-text)]">{title}</div>
+      <div className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
+      <div className="mt-2 text-xs font-semibold text-[var(--portal-text-muted)]">{meta}</div>
+    </div>
+  );
 }
 
+function JsonCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[1rem] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-4">
+      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">{label}</div>
+      <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-6 text-[var(--portal-text-soft)]">{value}</pre>
+    </div>
+  );
+}

@@ -82,8 +82,23 @@ export async function listAllAuthUsers() {
     email?: string | null;
     phone?: string | null;
     created_at?: string | null;
+    updated_at?: string | null;
     last_sign_in_at?: string | null;
+    confirmed_at?: string | null;
+    email_confirmed_at?: string | null;
+    phone_confirmed_at?: string | null;
+    confirmation_sent_at?: string | null;
+    recovery_sent_at?: string | null;
+    email_change_sent_at?: string | null;
+    new_email?: string | null;
+    banned_until?: string | null;
+    aud?: string | null;
+    role?: string | null;
+    is_anonymous?: boolean | null;
     user_metadata?: Record<string, unknown> | null;
+    app_metadata?: Record<string, unknown> | null;
+    identities?: Array<Record<string, unknown>> | null;
+    factors?: Array<Record<string, unknown>> | null;
   }> = [];
 
   let page = 1;
@@ -93,7 +108,33 @@ export async function listAllAuthUsers() {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
     if (error) throw new Error(error.message);
 
-    const nextUsers = data?.users || [];
+    const nextUsers = (data?.users || []).map((user) => ({
+      id: user.id,
+      email: user.email || null,
+      phone: user.phone || null,
+      created_at: user.created_at || null,
+      updated_at: user.updated_at || null,
+      last_sign_in_at: user.last_sign_in_at || null,
+      confirmed_at: user.confirmed_at || null,
+      email_confirmed_at: user.email_confirmed_at || null,
+      phone_confirmed_at: user.phone_confirmed_at || null,
+      confirmation_sent_at: user.confirmation_sent_at || null,
+      recovery_sent_at: user.recovery_sent_at || null,
+      email_change_sent_at: user.email_change_sent_at || null,
+      new_email: user.new_email || null,
+      banned_until: user.banned_until || null,
+      aud: user.aud || null,
+      role: user.role || null,
+      is_anonymous: user.is_anonymous || false,
+      user_metadata: user.user_metadata || null,
+      app_metadata: user.app_metadata || null,
+      identities: Array.isArray(user.identities)
+        ? user.identities.map((identity) => ({ ...(identity as Record<string, unknown>) }))
+        : null,
+      factors: Array.isArray(user.factors)
+        ? user.factors.map((factor) => ({ ...(factor as Record<string, unknown>) }))
+        : null,
+    }));
     users.push(...nextUsers);
 
     if (nextUsers.length < perPage) break;

@@ -843,7 +843,7 @@ export default function AdminPortalPuppiesPage() {
                 Create Puppy
               </button>
               <AdminHeroPrimaryAction href="/admin/portal/litters">Open Litters</AdminHeroPrimaryAction>
-              <AdminHeroSecondaryAction href="/admin/users">Open Users</AdminHeroSecondaryAction>
+              <AdminHeroSecondaryAction href="/admin/portal/buyers">Open Buyers</AdminHeroSecondaryAction>
             </>
           }
           aside={

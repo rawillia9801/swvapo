@@ -43,10 +43,74 @@ export type AdminPortalAccount = {
   displayName: string;
   phone: string;
   createdAt?: string | null;
+  updatedAt?: string | null;
   lastSignInAt?: string | null;
+  confirmedAt?: string | null;
+  emailConfirmedAt?: string | null;
+  phoneConfirmedAt?: string | null;
+  confirmationSentAt?: string | null;
+  recoverySentAt?: string | null;
+  emailChangeSentAt?: string | null;
+  pendingEmail?: string | null;
+  bannedUntil?: string | null;
+  audience?: string | null;
+  role?: string | null;
+  isAnonymous?: boolean | null;
+  userMetadata?: Record<string, unknown> | null;
+  appMetadata?: Record<string, unknown> | null;
+  identities?: Array<Record<string, unknown>> | null;
+  factors?: Array<Record<string, unknown>> | null;
   buyer: AdminBuyerRecord | null;
   application: AdminApplicationRecord | null;
   forms: AdminFormRecord[];
+  documents?: Array<{
+    id: string;
+    title?: string | null;
+    description?: string | null;
+    category?: string | null;
+    status?: string | null;
+    created_at?: string | null;
+    source_table?: string | null;
+    file_name?: string | null;
+  }>;
+  messages?: Array<{
+    id: string;
+    user_id: string | null;
+    user_email: string | null;
+    subject: string | null;
+    message: string;
+    status: string | null;
+    sender: "user" | "admin";
+    created_at: string;
+    read_by_admin: boolean;
+    read_by_user: boolean;
+  }>;
+  pickupRequests?: Array<{
+    id: number;
+    created_at?: string | null;
+    request_date?: string | null;
+    request_type?: string | null;
+    location_text?: string | null;
+    address_text?: string | null;
+    notes?: string | null;
+    status?: string | null;
+    miles?: number | null;
+  }>;
+  linkedPuppies?: Array<{
+    id: number;
+    call_name?: string | null;
+    puppy_name?: string | null;
+    name?: string | null;
+    litter_name?: string | null;
+    status?: string | null;
+    price?: number | null;
+    deposit?: number | null;
+  }>;
+  paymentSummary?: {
+    count: number;
+    totalPaid: number;
+    lastPaymentAt?: string | null;
+  } | null;
 };
 
 export type AdminDigestBrief = {

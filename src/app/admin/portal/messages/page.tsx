@@ -345,7 +345,7 @@ export default function AdminPortalMessagesPage() {
           actions={
             <>
               <AdminHeroPrimaryAction href="/admin/portal/documents">Open Documents</AdminHeroPrimaryAction>
-              <AdminHeroSecondaryAction href="/admin/users">Open Users</AdminHeroSecondaryAction>
+              <AdminHeroSecondaryAction href="/admin/portal/buyers">Open Buyers</AdminHeroSecondaryAction>
             </>
           }
           aside={

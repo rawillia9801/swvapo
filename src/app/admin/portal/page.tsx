@@ -7,7 +7,6 @@ import {
   AdminHeroPrimaryAction,
   AdminHeroSecondaryAction,
   AdminInfoTile,
-  AdminPageHero,
   AdminPageShell,
   AdminPanel,
   AdminRestrictedState,
@@ -178,7 +177,8 @@ export default function AdminPortalPage() {
     totalPuppies > 0 ? completedPuppies / totalPuppies : 0;
 
   const commandLinks = [
-    { href: "/admin/users", label: "Users", detail: "buyers & portal users" },
+    { href: "/admin/portal/buyers", label: "Buyers", detail: "placements, balances, linked puppies" },
+    { href: "/admin/users", label: "Users", detail: "portal signups, auth, activity" },
     { href: "/admin/portal/applications", label: "Applications", detail: "review queue" },
     { href: "/admin/portal/puppies", label: "Puppies", detail: "listings & assignments" },
     { href: "/admin/portal/litters", label: "Litters", detail: "program tracking" },
@@ -192,11 +192,18 @@ export default function AdminPortalPage() {
 
   const queueRows = [
     {
+      href: "/admin/portal/buyers",
+      label: "Buyers",
+      value: String(stats.buyers),
+      detail: `${stats.paymentPlans} active payment plans across placed households`,
+      status: stats.buyers > 0 ? "active" : "pending",
+    },
+    {
       href: "/admin/users",
-      label: "Users / Buyers",
-      value: String(stats.buyers || stats.users),
-      detail: `${stats.paymentPlans} active payment plans`,
-      status: stats.buyers > 0 || stats.users > 0 ? "active" : "pending",
+      label: "Users",
+      value: String(stats.users),
+      detail: `${stats.documents} documents and ${stats.unreadBuyerMessages} unread buyer messages tied to portal accounts`,
+      status: stats.users > 0 ? "active" : "pending",
     },
     {
       href: "/admin/portal/applications",
@@ -248,6 +255,41 @@ export default function AdminPortalPage() {
     },
   ];
 
+  const chichiUpdates = [
+    {
+      href: "/admin/portal/payments",
+      label: "Payments",
+      value: stats.payments ? `${stats.payments} recorded` : "No new payments",
+      detail: `${fmtMoney(realizedRevenue)} realized and ${fmtMoney(totalDeposits)} in deposits recorded.`,
+      tone: stats.payments > 0 ? "completed" : "pending",
+    },
+    {
+      href: "/admin/portal/applications",
+      label: "Applications",
+      value: `${stats.applications} in queue`,
+      detail: `${stats.hotLeads} hot leads, ${stats.warmLeads} warm leads, and ${stats.openFollowUps} follow-ups still open.`,
+      tone: stats.applications > 0 || stats.hotLeads > 0 ? "reserved" : "completed",
+    },
+    {
+      href: "/admin/portal/messages",
+      label: "Buyer Inbox",
+      value: stats.unreadBuyerMessages ? `${stats.unreadBuyerMessages} unread` : "Inbox caught up",
+      detail:
+        stats.buyerConversationSummaries[0]?.preview ||
+        "ChiChi is not seeing a buyer thread that needs attention yet.",
+      tone: stats.unreadBuyerMessages > 0 ? "reserved" : "completed",
+    },
+    {
+      href: "/admin/portal/assistant",
+      label: "Website And ChiChi",
+      value: `${stats.visitors24h} visitors / ${stats.publicThreads24h} chats`,
+      detail:
+        stats.latestDigest?.summary ||
+        `${stats.publicMessages24h} public messages and ${stats.sharedContacts} shared contacts were logged in the last 24 hours.`,
+      tone: stats.publicThreads24h > 0 || stats.visitors24h > 0 ? "active" : "pending",
+    },
+  ];
+
   const operationalAlerts = [
     {
       title: "Lineage Gaps",
@@ -294,28 +336,66 @@ export default function AdminPortalPage() {
   return (
     <AdminPageShell>
       <div className="space-y-5 pb-10">
-        <AdminPageHero
-          eyebrow="Kennel Command"
-          title="A tighter software-style kennel workspace for buyers, litters, puppies, lineage, and revenue."
-          description="This admin overview is rebuilt as a real command surface: faster scanning, cleaner queue management, stronger lineage visibility, and clearer movement into users, puppies, litters, payments, transport, and message follow-up."
-          actions={
-            <>
-              <AdminHeroPrimaryAction href="/admin/users">
-                Open Users
-              </AdminHeroPrimaryAction>
-              <AdminHeroSecondaryAction href="/admin/portal/puppies">
-                Open Puppies
-              </AdminHeroSecondaryAction>
-              <button
-                type="button"
-                onClick={() => window.location.reload()}
-                className="inline-flex items-center rounded-2xl border border-[var(--portal-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--portal-text)] shadow-[0_12px_28px_rgba(106,76,45,0.08)] transition hover:-translate-y-0.5 hover:border-[var(--portal-border-strong)]"
-              >
-                {refreshing ? "Refreshing..." : "Refresh Workspace"}
-              </button>
-            </>
-          }
-          aside={
+        <section className="premium-card rounded-[1.5rem] p-5 md:p-6">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_360px]">
+            <div className="min-w-0">
+              <span className="inline-flex items-center rounded-full border border-[rgba(200,168,132,0.45)] bg-[rgba(248,242,234,0.92)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#8c6848] shadow-sm">
+                ChiChi Updates
+              </span>
+              <h2 className="mt-4 max-w-3xl text-[1.75rem] font-semibold leading-[1.1] tracking-[-0.05em] text-[var(--portal-text)] [font-family:var(--font-merriweather)] md:text-[2.2rem]">
+                ChiChi is watching payments, applications, buyer inbox activity, and live website traffic.
+              </h2>
+              <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--portal-text-soft)]">
+                The overview now starts with what ChiChi wants your attention on right now instead
+                of a generic workspace headline.
+              </p>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-2">
+                {chichiUpdates.map((item) => (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    className="rounded-[1.25rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4 transition hover:border-[var(--portal-border-strong)] hover:bg-white"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                          {item.label}
+                        </div>
+                        <div className="mt-2 text-base font-semibold text-[var(--portal-text)]">
+                          {item.value}
+                        </div>
+                        <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
+                          {item.detail}
+                        </div>
+                      </div>
+                      <span
+                        className={`inline-flex shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(item.tone)}`}
+                      >
+                        {item.tone}
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-3">
+                <AdminHeroPrimaryAction href="/admin/portal/assistant">
+                  Open ChiChi
+                </AdminHeroPrimaryAction>
+                <AdminHeroSecondaryAction href="/admin/portal/buyers">
+                  Open Buyers
+                </AdminHeroSecondaryAction>
+                <button
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="inline-flex items-center rounded-2xl border border-[var(--portal-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--portal-text)] shadow-[0_12px_28px_rgba(106,76,45,0.08)] transition hover:-translate-y-0.5 hover:border-[var(--portal-border-strong)]"
+                >
+                  {refreshing ? "Refreshing..." : "Refresh Workspace"}
+                </button>
+              </div>
+            </div>
+
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
               <AdminInfoTile
                 label="Realized Revenue"
@@ -333,8 +413,8 @@ export default function AdminPortalPage() {
                 detail={`${totalDams} dams / ${totalSires} sires / ${totalPuppies} puppies`}
               />
             </div>
-          }
-        />
+          </div>
+        </section>
 
         <AdminPanel
           title="Kennel Priorities"
@@ -366,7 +446,7 @@ export default function AdminPortalPage() {
 
         <AdminPanel
           title="Command Navigation"
-          subtitle="Core admin routes in one place, including the users page."
+          subtitle="Core admin routes in one place, with buyers and users split cleanly."
         >
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {commandLinks.map((item) => (
@@ -589,7 +669,8 @@ export default function AdminPortalPage() {
               </div>
 
               <div className="mt-5 grid grid-cols-2 gap-3">
-                <QuickJump href="/admin/users" title="Users" detail="buyer accounts & access" />
+                <QuickJump href="/admin/portal/buyers" title="Buyers" detail="placements, balances, linked puppies" />
+                <QuickJump href="/admin/users" title="Users" detail="portal signups, auth, activity" />
                 <QuickJump href="/admin/portal/puppies" title="Puppies" detail="listings, lineage, assignments" />
                 <QuickJump href="/admin/portal/payments" title="Payments" detail="revenue, balances, plans" />
                 <QuickJump href="/admin/portal/dams-sires" title="Dams & Sires" detail="profiles and output" />

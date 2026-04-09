@@ -673,7 +673,7 @@ export default function AdminPortalPuppyPaymentsPage() {
           actions={
             <>
               <AdminHeroPrimaryAction href="/admin/portal/payments">Open Buyer Payments</AdminHeroPrimaryAction>
-              <AdminHeroSecondaryAction href="/admin/users">Open Users</AdminHeroSecondaryAction>
+              <AdminHeroSecondaryAction href="/admin/portal/buyers">Open Buyers</AdminHeroSecondaryAction>
             </>
           }
           aside={
