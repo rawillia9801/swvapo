@@ -1,4 +1,9 @@
+import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import {
+  extractZohoPaymentsAccountId,
+  loadZohoPaymentsConnection,
+} from "@/lib/zoho-payments-connection";
 
 type ZohoAllowedPaymentMethod = "ach_debit" | "apple_pay" | "card";
 
@@ -168,11 +173,25 @@ function getZohoPaymentsSigningKeyInternal() {
   );
 }
 
-function getZohoPaymentsConfig(): ZohoPaymentsConfig | null {
-  const accountId = readOptionalEnv("ZOHO_PAYMENTS_ACCOUNT_ID");
+function readZohoPaymentsAccountIdFromEnv() {
+  return (
+    extractZohoPaymentsAccountId(readOptionalEnv("ZOHO_PAYMENTS_ACCOUNT_ID")) ||
+    extractZohoPaymentsAccountId(readOptionalEnv("ZOHO_PAYMENTS_SOID")) ||
+    ""
+  );
+}
+
+async function getZohoPaymentsConfig(): Promise<ZohoPaymentsConfig | null> {
+  const storedConnection = await loadZohoPaymentsConnection();
+  const accountId =
+    readZohoPaymentsAccountIdFromEnv() ||
+    extractZohoPaymentsAccountId(storedConnection?.account_id) ||
+    extractZohoPaymentsAccountId(storedConnection?.soid);
   const clientId = readOptionalEnv("ZOHO_PAYMENTS_CLIENT_ID");
   const clientSecret = readOptionalEnv("ZOHO_PAYMENTS_CLIENT_SECRET");
-  const refreshToken = readOptionalEnv("ZOHO_PAYMENTS_REFRESH_TOKEN");
+  const refreshToken =
+    readOptionalEnv("ZOHO_PAYMENTS_REFRESH_TOKEN") ||
+    String(storedConnection?.refresh_token || "").trim();
 
   if (!(accountId && clientId && clientSecret && refreshToken)) {
     return null;
@@ -196,11 +215,11 @@ function getZohoPaymentsConfig(): ZohoPaymentsConfig | null {
   };
 }
 
-function ensureZohoPaymentsConfig(): ZohoPaymentsConfig {
-  const config = getZohoPaymentsConfig();
+async function ensureZohoPaymentsConfig(): Promise<ZohoPaymentsConfig> {
+  const config = await getZohoPaymentsConfig();
   if (!config) {
     throw new Error(
-      "Zoho Payments is not configured. Add ZOHO_PAYMENTS_ACCOUNT_ID, ZOHO_PAYMENTS_CLIENT_ID, ZOHO_PAYMENTS_CLIENT_SECRET, and ZOHO_PAYMENTS_REFRESH_TOKEN."
+      "Zoho Payments is not configured. Add the Zoho OAuth client env values and connect a refresh token, or provide ZOHO_PAYMENTS_REFRESH_TOKEN directly."
     );
   }
   return config;
@@ -252,7 +271,7 @@ async function zohoPaymentsRequest<T>(
     query?: Record<string, string | number | boolean | null | undefined>;
   } = {}
 ) {
-  const config = ensureZohoPaymentsConfig();
+  const config = await ensureZohoPaymentsConfig();
   const accessToken = await getZohoPaymentsAccessToken(config);
   const url = new URL(
     path.startsWith("/") ? `${config.apiBaseUrl}${path}` : `${config.apiBaseUrl}/${path}`
@@ -293,7 +312,7 @@ function matchesQuery(values: unknown[], query: string) {
 }
 
 export function isZohoPaymentsConfigured() {
-  return !!getZohoPaymentsConfig();
+  return getZohoPaymentsConfig().then(Boolean);
 }
 
 export function getZohoPaymentsWidgetApiKey() {
@@ -305,7 +324,7 @@ export function hasZohoPaymentsSigningKey() {
 }
 
 export async function createZohoPaymentSession(input: CreateZohoPaymentSessionInput) {
-  const config = ensureZohoPaymentsConfig();
+  const config = await ensureZohoPaymentsConfig();
   const amount = Number(input.amount || 0);
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new Error("A positive amount is required to create a Zoho payment session.");
@@ -479,7 +498,7 @@ export async function listZohoPayments(params: { query?: string | null; limit?: 
 }
 
 export async function createZohoPaymentLink(input: CreateZohoPaymentLinkInput) {
-  const config = ensureZohoPaymentsConfig();
+  const config = await ensureZohoPaymentsConfig();
   const amount = Number(input.amount || 0);
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new Error("A positive amount is required to create a Zoho payment link.");

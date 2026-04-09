@@ -3628,7 +3628,7 @@ async function executeListRecords(
   }
 
   if (entity === "zoho_customers") {
-    if (!isZohoPaymentsConfigured()) {
+    if (!(await isZohoPaymentsConfigured())) {
       return "Zoho Payments is not configured yet, so I cannot load Zoho customers right now.";
     }
 
@@ -3663,7 +3663,7 @@ async function executeListRecords(
   }
 
   if (entity === "zoho_payments") {
-    if (!isZohoPaymentsConfigured()) {
+    if (!(await isZohoPaymentsConfigured())) {
       return "Zoho Payments is not configured yet, so I cannot load Zoho payments right now.";
     }
 
@@ -3705,7 +3705,7 @@ async function executeCreateZohoPaymentLink(
   admin: SupabaseClient,
   intent: Extract<ActionIntent, { action: "create_zoho_payment_link" }>
 ) {
-  if (!isZohoPaymentsConfigured()) {
+  if (!(await isZohoPaymentsConfigured())) {
     return "Zoho Payments is not configured yet. Add the Zoho Payments account and OAuth environment variables first, then I can create links from chat.";
   }
 
@@ -4774,7 +4774,7 @@ export async function POST(req: Request) {
               "zoho_customers",
               "zoho_payments",
             ],
-            zoho_payments_configured: isZohoPaymentsConfigured(),
+            zoho_payments_configured: await isZohoPaymentsConfigured(),
           },
         }
       : summaryBase;

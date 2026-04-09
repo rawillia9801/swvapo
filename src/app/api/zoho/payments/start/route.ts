@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifyOwner } from "@/lib/admin-api";
 
 export const runtime = "nodejs";
+
+type ZohoOauthStartPayload = {
+  ok: boolean;
+  url?: string;
+  message?: string;
+};
 
 function required(name: string) {
   const value = process.env[name];
@@ -10,7 +17,18 @@ function required(name: string) {
   return value;
 }
 
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
+  const owner = await verifyOwner(req);
+  if (!owner) {
+    return NextResponse.json<ZohoOauthStartPayload>(
+      {
+        ok: false,
+        message: "Please sign in with an approved owner account before connecting Zoho Payments.",
+      },
+      { status: 401 }
+    );
+  }
+
   const clientId = required("ZOHO_PAYMENTS_CLIENT_ID");
   const redirectUri = required("ZOHO_PAYMENTS_REDIRECT_URI");
   const soid = required("ZOHO_PAYMENTS_SOID");
@@ -29,7 +47,10 @@ export async function GET(_req: NextRequest) {
   authUrl.searchParams.set("state", state);
   authUrl.searchParams.set("access_type", "offline");
 
-  const response = NextResponse.redirect(authUrl.toString());
+  const response = NextResponse.json<ZohoOauthStartPayload>({
+    ok: true,
+    url: authUrl.toString(),
+  });
 
   response.cookies.set("zoho_payments_oauth_state", state, {
     httpOnly: true,
@@ -38,6 +59,24 @@ export async function GET(_req: NextRequest) {
     path: "/",
     maxAge: 60 * 10,
   });
+
+  response.cookies.set(
+    "zoho_payments_oauth_context",
+    JSON.stringify({
+      userId: owner.id,
+      email: owner.email || "",
+      soid,
+      scope,
+      startedAt: new Date().toISOString(),
+    }),
+    {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 10,
+    }
+  );
 
   return response;
 }

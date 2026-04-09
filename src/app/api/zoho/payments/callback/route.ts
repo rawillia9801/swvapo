@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  extractZohoPaymentsAccountId,
+  loadZohoPaymentsConnection,
+  upsertZohoPaymentsConnection,
+} from "@/lib/zoho-payments-connection";
 
 export const runtime = "nodejs";
 
@@ -10,6 +15,14 @@ type ZohoTokenResponse = {
   token_type?: string;
   error?: string;
   error_description?: string;
+};
+
+type ZohoOauthContext = {
+  userId?: string | null;
+  email?: string | null;
+  soid?: string | null;
+  scope?: string | null;
+  startedAt?: string | null;
 };
 
 function required(name: string) {
@@ -32,6 +45,17 @@ function buildErrorRedirect(message: string) {
   return NextResponse.redirect(redirectUrl.toString());
 }
 
+function parseJson<T>(value: string | null | undefined): T | null {
+  const normalized = String(value || "").trim();
+  if (!normalized) return null;
+
+  try {
+    return JSON.parse(normalized) as T;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
@@ -41,6 +65,9 @@ export async function GET(req: NextRequest) {
     const oauthError = url.searchParams.get("error");
 
     const savedState = req.cookies.get("zoho_payments_oauth_state")?.value || "";
+    const oauthContext = parseJson<ZohoOauthContext>(
+      req.cookies.get("zoho_payments_oauth_context")?.value
+    );
 
     if (oauthError) {
       return buildErrorRedirect(oauthError);
@@ -87,61 +114,70 @@ export async function GET(req: NextRequest) {
     const postConnectRedirect =
       process.env.ZOHO_PAYMENTS_POST_CONNECT_REDIRECT ||
       "https://portal.swvachihuahua.com/admin/portal/settings?zoho_payments=connected";
+    const successRedirectUrl = new URL(postConnectRedirect);
+    successRedirectUrl.searchParams.set("zoho_payments", "connected");
 
-    const response = NextResponse.redirect(postConnectRedirect);
+    const existingConnection = await loadZohoPaymentsConnection();
+    const refreshToken =
+      tokenJson.refresh_token || existingConnection?.refresh_token || "";
 
-    const expiresIn = Number(tokenJson.expires_in || 3600);
-    const refreshMaxAge = 60 * 60 * 24 * 365;
-
-    response.cookies.set("zoho_payments_access_token", tokenJson.access_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: expiresIn,
-    });
-
-    if (tokenJson.refresh_token) {
-      response.cookies.set("zoho_payments_refresh_token", tokenJson.refresh_token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: refreshMaxAge,
-      });
+    if (!refreshToken) {
+      return buildErrorRedirect(
+        "Zoho did not return a refresh token. Please reconnect with offline access enabled."
+      );
     }
 
-    response.cookies.set(
-      "zoho_payments_access_token_expires_at",
-      String(Date.now() + expiresIn * 1000),
-      {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: refreshMaxAge,
+    const soid =
+      process.env.ZOHO_PAYMENTS_SOID ||
+      oauthContext?.soid ||
+      existingConnection?.soid ||
+      "";
+    const accountId =
+      extractZohoPaymentsAccountId(process.env.ZOHO_PAYMENTS_ACCOUNT_ID) ||
+      extractZohoPaymentsAccountId(soid) ||
+      extractZohoPaymentsAccountId(existingConnection?.account_id) ||
+      extractZohoPaymentsAccountId(existingConnection?.soid);
+
+    if (!accountId) {
+      return buildErrorRedirect(
+        "Zoho Payments account id is missing. Add ZOHO_PAYMENTS_ACCOUNT_ID or ZOHO_PAYMENTS_SOID."
+      );
+    }
+
+    await upsertZohoPaymentsConnection({
+      status: "connected",
+      accountId,
+      soid: soid || null,
+      scope:
+        process.env.ZOHO_PAYMENTS_SCOPE ||
+        oauthContext?.scope ||
+        existingConnection?.scope ||
+        null,
+      apiDomain: tokenJson.api_domain || existingConnection?.api_domain || null,
+      refreshToken,
+      tokenType: tokenJson.token_type || existingConnection?.token_type || "Zoho-oauthtoken",
+      connectedAt: existingConnection?.connected_at || new Date().toISOString(),
+      lastRefreshedAt: new Date().toISOString(),
+      connectedByUserId:
+        oauthContext?.userId || existingConnection?.connected_by_user_id || null,
+      connectedByEmail:
+        oauthContext?.email || existingConnection?.connected_by_email || null,
+      meta: {
+        source: "oauth_callback",
+        redirect_uri: redirectUri,
+        started_at: oauthContext?.startedAt || null,
       },
-    );
-
-    if (tokenJson.api_domain) {
-      response.cookies.set("zoho_payments_api_domain", tokenJson.api_domain, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: refreshMaxAge,
-      });
-    }
-
-    response.cookies.set("zoho_payments_connected", "yes", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: refreshMaxAge,
     });
+
+    const response = NextResponse.redirect(successRedirectUrl);
 
     response.cookies.delete("zoho_payments_oauth_state");
+    response.cookies.delete("zoho_payments_oauth_context");
+    response.cookies.delete("zoho_payments_access_token");
+    response.cookies.delete("zoho_payments_refresh_token");
+    response.cookies.delete("zoho_payments_access_token_expires_at");
+    response.cookies.delete("zoho_payments_api_domain");
+    response.cookies.delete("zoho_payments_connected");
 
     return response;
   } catch (error) {

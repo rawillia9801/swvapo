@@ -166,7 +166,7 @@ export async function POST(req: Request) {
       return jsonError("Please sign in again before creating a payment link.", 401);
     }
 
-    if (!isZohoPaymentsConfigured()) {
+    if (!(await isZohoPaymentsConfigured())) {
       return jsonError(
         "Secure Zoho payments are not configured yet. Please contact us if you need help completing a payment.",
         503
