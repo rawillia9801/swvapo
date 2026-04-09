@@ -34,6 +34,25 @@ function normalizeRole(role: string | null | undefined) {
   return String(role || "").trim().toLowerCase() === "sire" ? "sire" : "dam";
 }
 
+export function isMissingBreedingGeneticsColumnError(error: unknown) {
+  const message =
+    error instanceof Error
+      ? error.message
+      : error && typeof error === "object" && "message" in error
+        ? String((error as { message?: unknown }).message || "")
+        : String(error || "");
+
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("bp_dogs.genetics_summary") ||
+    lower.includes("bp_dogs.genetics_raw") ||
+    lower.includes("bp_dogs.genetics_report_url") ||
+    lower.includes("column genetics_summary does not exist") ||
+    lower.includes("column genetics_raw does not exist") ||
+    lower.includes("column genetics_report_url does not exist")
+  );
+}
+
 export async function loadBreedingGeneticsPromptContext(
   service: SupabaseClient,
   limit = 16
@@ -51,6 +70,9 @@ export async function loadBreedingGeneticsPromptContext(
     .returns<BreedingDogGeneticsRow[]>();
 
   if (error) {
+    if (isMissingBreedingGeneticsColumnError(error)) {
+      return "";
+    }
     throw new Error(`Could not load breeding genetics context: ${error.message}`);
   }
 

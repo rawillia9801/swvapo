@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceSupabase } from "@/lib/admin-api";
+import { isMissingBreedingGeneticsColumnError } from "@/lib/breeding-genetics";
 import {
   buildRevenueSnapshot,
   type BreedingDogRecord,
@@ -81,16 +82,7 @@ export async function loadAdminLineageWorkspace(service = createServiceSupabase(
 
 async function loadLineageRows(service: SupabaseClient): Promise<LineageRows> {
   const [dogs, litters, puppies, buyers, payments] = await Promise.all([
-    safeRows<BreedingDogRecord>(
-      service
-        .from("bp_dogs")
-        .select(
-          "id,role,dog_name,name,call_name,status,dob,date_of_birth,color,coat,registry,genetics_summary,genetics_raw,genetics_report_url,genetics_updated_at,notes,created_at,is_active"
-        )
-        .order("role", { ascending: true })
-        .order("dog_name", { ascending: true })
-        .order("call_name", { ascending: true })
-    ),
+    loadBreedingDogs(service),
     safeRows<LitterRecord>(
       service
         .from("litters")
@@ -122,6 +114,55 @@ async function loadLineageRows(service: SupabaseClient): Promise<LineageRows> {
   ]);
 
   return { dogs, litters, puppies, buyers, payments };
+}
+
+async function loadBreedingDogs(service: SupabaseClient): Promise<BreedingDogRecord[]> {
+  const geneticsSelect =
+    "id,role,dog_name,name,call_name,status,dob,date_of_birth,color,coat,registry,genetics_summary,genetics_raw,genetics_report_url,genetics_updated_at,notes,created_at,is_active";
+  const fallbackSelect =
+    "id,role,dog_name,name,call_name,status,dob,date_of_birth,color,coat,registry,notes,created_at,is_active";
+
+  try {
+    const { data, error } = await service
+      .from("bp_dogs")
+      .select(geneticsSelect)
+      .order("role", { ascending: true })
+      .order("dog_name", { ascending: true })
+      .order("call_name", { ascending: true })
+      .returns<BreedingDogRecord[]>();
+
+    if (error) {
+      if (!isMissingBreedingGeneticsColumnError(error)) return [];
+
+      const fallback = await service
+        .from("bp_dogs")
+        .select(fallbackSelect)
+        .order("role", { ascending: true })
+        .order("dog_name", { ascending: true })
+        .order("call_name", { ascending: true })
+        .returns<BreedingDogRecord[]>();
+
+      return fallback.error ? [] : fallback.data || [];
+    }
+
+    return data || [];
+  } catch (error) {
+    if (!isMissingBreedingGeneticsColumnError(error)) return [];
+
+    try {
+      const { data, error: fallbackError } = await service
+        .from("bp_dogs")
+        .select(fallbackSelect)
+        .order("role", { ascending: true })
+        .order("dog_name", { ascending: true })
+        .order("call_name", { ascending: true })
+        .returns<BreedingDogRecord[]>();
+
+      return fallbackError ? [] : data || [];
+    } catch {
+      return [];
+    }
+  }
 }
 
 export function buildAdminLineageWorkspace(rows: LineageRows): AdminLineageWorkspace {

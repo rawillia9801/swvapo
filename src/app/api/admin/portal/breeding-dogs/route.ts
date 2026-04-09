@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceSupabase, firstValue, verifyOwner } from "@/lib/admin-api";
+import { isMissingBreedingGeneticsColumnError } from "@/lib/breeding-genetics";
 
 function normalizeUuid(value: unknown) {
   const text = String(value || "").trim();
@@ -52,6 +53,15 @@ function asDogPayload(body: Record<string, unknown>) {
   };
 }
 
+function stripGeneticsFields<T extends Record<string, unknown>>(payload: T) {
+  const nextPayload = { ...payload };
+  delete nextPayload.genetics_summary;
+  delete nextPayload.genetics_raw;
+  delete nextPayload.genetics_report_url;
+  delete nextPayload.genetics_updated_at;
+  return nextPayload;
+}
+
 export async function POST(req: Request) {
   try {
     const owner = await verifyOwner(req);
@@ -70,7 +80,7 @@ export async function POST(req: Request) {
     }
 
     const service = createServiceSupabase();
-    const { data, error } = await service
+    let { data, error } = await service
       .from("bp_dogs")
       .insert({
         ...payload,
@@ -79,7 +89,24 @@ export async function POST(req: Request) {
       .select("id")
       .single<{ id: string }>();
 
+    if (error && isMissingBreedingGeneticsColumnError(error)) {
+      const retry = await service
+        .from("bp_dogs")
+        .insert({
+          ...stripGeneticsFields(payload),
+          user_id: owner.id,
+        })
+        .select("id")
+        .single<{ id: string }>();
+
+      data = retry.data;
+      error = retry.error;
+    }
+
     if (error) throw error;
+    if (!data?.id) {
+      throw new Error("The breeding dog was saved, but no profile id was returned.");
+    }
 
     return NextResponse.json({
       ok: true,
@@ -123,7 +150,16 @@ export async function PATCH(req: Request) {
     }
 
     const service = createServiceSupabase();
-    const { error } = await service.from("bp_dogs").update(payload).eq("id", dogId);
+    let { error } = await service.from("bp_dogs").update(payload).eq("id", dogId);
+
+    if (error && isMissingBreedingGeneticsColumnError(error)) {
+      const retry = await service
+        .from("bp_dogs")
+        .update(stripGeneticsFields(payload))
+        .eq("id", dogId);
+      error = retry.error;
+    }
+
     if (error) throw error;
 
     return NextResponse.json({
