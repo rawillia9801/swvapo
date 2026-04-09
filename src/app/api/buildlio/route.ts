@@ -299,6 +299,18 @@ type AdminDigestRecord = {
   created_at?: string | null;
 };
 
+type PlannedLitterDraft = {
+  litter_name?: string | null;
+  litter_code?: string | null;
+  dam_name?: string | null;
+  sire_name?: string | null;
+  whelp_date?: string | null;
+  timing_note?: string | null;
+  registry?: string | null;
+  status?: string | null;
+  notes?: string | null;
+};
+
 type ActionIntent =
   | {
       action: "answer_only";
@@ -310,6 +322,7 @@ type ActionIntent =
       confidence?: string;
       entity?:
         | "buyers"
+        | "litters"
         | "puppies"
         | "payments"
         | "puppy_financing"
@@ -333,6 +346,11 @@ type ActionIntent =
         | "zoho_payments";
       query?: string | null;
       limit?: number | null;
+    }
+  | {
+      action: "add_litters";
+      confidence?: string;
+      litters?: PlannedLitterDraft[] | null;
     }
   | {
       action: "add_puppy";
@@ -1440,6 +1458,7 @@ No explanation.
 Allowed actions:
 - "answer_only"
 - "list_records"
+- "add_litters"
 - "add_buyer"
 - "update_buyer"
 - "delete_buyer"
@@ -1459,12 +1478,14 @@ Allowed actions:
 
 Use "answer_only" if the message is mostly a question, lookup, explanation, or lacks enough intent to act.
 Requests to show website activity, admin digests, public threads/messages, CRM leads/follow-ups, or Zoho data should usually be "list_records".
+Use "add_litters" when the admin is planning or scheduling litters from breeding dogs, even when no puppy names exist yet.
 
 For "list_records", try to extract:
 entity, query, limit
 
 Valid entities for "list_records":
 - buyers
+- litters
 - puppies
 - payments
 - applications
@@ -1485,6 +1506,12 @@ Valid entities for "list_records":
 - payment_alerts
 - zoho_customers
 - zoho_payments
+
+For "add_litters", try to extract:
+litters[]
+
+Each litter item can include:
+litter_name, litter_code, dam_name, sire_name, whelp_date, timing_note, registry, status, notes
 
 For "add_buyer", try to extract:
 full_name, name, email, phone, status, notes
@@ -1552,6 +1579,257 @@ function parseMultiNameList(raw: string): string[] {
     .split(/\band\b|,|&/i)
     .map((value) => value.replace(/\bpupp(y|ies)\b/gi, "").trim())
     .filter(Boolean);
+}
+
+const MONTH_NAME_TO_NUMBER: Record<string, number> = {
+  january: 1,
+  february: 2,
+  march: 3,
+  april: 4,
+  may: 5,
+  june: 6,
+  july: 7,
+  august: 8,
+  september: 9,
+  october: 10,
+  november: 11,
+  december: 12,
+};
+
+const ORDINAL_WORD_TO_DAY: Record<string, number> = {
+  first: 1,
+  second: 2,
+  third: 3,
+  fourth: 4,
+  fifth: 5,
+  sixth: 6,
+  seventh: 7,
+  eighth: 8,
+  ninth: 9,
+  tenth: 10,
+  eleventh: 11,
+  twelfth: 12,
+  thirteenth: 13,
+  fourteenth: 14,
+  fifteenth: 15,
+  sixteenth: 16,
+  seventeenth: 17,
+  eighteenth: 18,
+  nineteenth: 19,
+  twentieth: 20,
+  "twenty first": 21,
+  "twenty-first": 21,
+  "twenty second": 22,
+  "twenty-second": 22,
+  "twenty third": 23,
+  "twenty-third": 23,
+  "twenty fourth": 24,
+  "twenty-fourth": 24,
+  "twenty fifth": 25,
+  "twenty-fifth": 25,
+  "twenty sixth": 26,
+  "twenty-sixth": 26,
+  "twenty seventh": 27,
+  "twenty-seventh": 27,
+  "twenty eighth": 28,
+  "twenty-eighth": 28,
+  "twenty ninth": 29,
+  "twenty-ninth": 29,
+  thirtieth: 30,
+  "thirty first": 31,
+  "thirty-first": 31,
+};
+
+function normalizeSearchLabel(value: string | null | undefined) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function formatMonthLabel(month: number) {
+  return new Date(Date.UTC(2026, Math.max(0, month - 1), 1)).toLocaleString("en-US", {
+    month: "long",
+    timeZone: "UTC",
+  });
+}
+
+function toIsoDate(year: number, month: number, day: number) {
+  const safeMonth = String(month).padStart(2, "0");
+  const safeDay = String(day).padStart(2, "0");
+  return `${year}-${safeMonth}-${safeDay}`;
+}
+
+function extractSharedPlanningYear(text: string) {
+  const years = Array.from(new Set(Array.from(String(text || "").matchAll(/\b(20\d{2})\b/g)).map((match) => Number(match[1]))));
+  return years.length === 1 ? years[0] : null;
+}
+
+function parseNaturalDateReference(fragment: string, fallbackYear?: number | null) {
+  const text = String(fragment || "").replace(/[.,]/g, " ").replace(/\s+/g, " ").trim();
+  const lower = text.toLowerCase();
+  if (!lower) {
+    return { whelp_date: null, timing_note: null };
+  }
+
+  const isoMatch = lower.match(/\b(20\d{2})-(\d{2})-(\d{2})\b/);
+  if (isoMatch) {
+    return {
+      whelp_date: `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`,
+      timing_note: null,
+    };
+  }
+
+  const monthPattern =
+    "january|february|march|april|may|june|july|august|september|october|november|december";
+
+  const wordOrdinalMatch = lower.match(
+    new RegExp(`\\b(?:the\\s+)?([a-z-]+(?:\\s+[a-z-]+)?)\\s+of\\s+(${monthPattern})(?:\\s+(20\\d{2}))?\\b`, "i")
+  );
+  if (wordOrdinalMatch) {
+    const day = ORDINAL_WORD_TO_DAY[wordOrdinalMatch[1]];
+    const month = MONTH_NAME_TO_NUMBER[wordOrdinalMatch[2]];
+    const year = Number(wordOrdinalMatch[3] || fallbackYear || 0);
+    if (day && month && year) {
+      return {
+        whelp_date: toIsoDate(year, month, day),
+        timing_note: null,
+      };
+    }
+  }
+
+  const monthDayMatch = lower.match(
+    new RegExp(`\\b(${monthPattern})\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:\\s*,)?(?:\\s+(20\\d{2}))?\\b`, "i")
+  );
+  if (monthDayMatch) {
+    const month = MONTH_NAME_TO_NUMBER[monthDayMatch[1]];
+    const day = Number(monthDayMatch[2] || 0);
+    const year = Number(monthDayMatch[3] || fallbackYear || 0);
+    if (day && month && year) {
+      return {
+        whelp_date: toIsoDate(year, month, day),
+        timing_note: null,
+      };
+    }
+  }
+
+  const fuzzyMatch = lower.match(
+    new RegExp(`\\b(early|mid|late)[-\\s]+(${monthPattern})(?:\\s+(20\\d{2}))?\\b`, "i")
+  );
+  if (fuzzyMatch) {
+    const month = MONTH_NAME_TO_NUMBER[fuzzyMatch[2]];
+    const year = Number(fuzzyMatch[3] || fallbackYear || 0) || null;
+    const monthLabel = month ? formatMonthLabel(month) : fuzzyMatch[2];
+    const timing = `${fuzzyMatch[1]} ${monthLabel}${year ? ` ${year}` : ""}`;
+    return {
+      whelp_date: null,
+      timing_note: timing,
+    };
+  }
+
+  const plainMonthMatch = lower.match(new RegExp(`\\b(${monthPattern})(?:\\s+(20\\d{2}))?\\b`, "i"));
+  if (plainMonthMatch) {
+    const month = MONTH_NAME_TO_NUMBER[plainMonthMatch[1]];
+    const year = Number(plainMonthMatch[2] || fallbackYear || 0) || null;
+    const timing = `${month ? formatMonthLabel(month) : plainMonthMatch[1]}${year ? ` ${year}` : ""}`;
+    return {
+      whelp_date: null,
+      timing_note: timing,
+    };
+  }
+
+  return {
+    whelp_date: null,
+    timing_note: null,
+  };
+}
+
+function buildPlannedLitterName(draft: PlannedLitterDraft, index: number) {
+  const leadName = firstValue(draft.dam_name, draft.sire_name, draft.litter_name, `Litter ${index + 1}`);
+  const dateLabel = draft.whelp_date
+    ? new Date(`${draft.whelp_date}T00:00:00Z`).toLocaleString("en-US", {
+        month: "long",
+        year: "numeric",
+        timeZone: "UTC",
+      })
+    : draft.timing_note || null;
+  return [leadName, dateLabel, "planned litter"].filter(Boolean).join(" ");
+}
+
+function buildPlannedLitterCode(draft: PlannedLitterDraft, index: number) {
+  const leadName = firstValue(draft.dam_name, draft.sire_name, draft.litter_name, `litter-${index + 1}`)
+    .replace(/[^a-z0-9]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .toUpperCase()
+    .slice(0, 18);
+  const dateToken = draft.whelp_date
+    ? draft.whelp_date.replace(/-/g, "")
+    : String(draft.timing_note || "PLANNED")
+        .replace(/[^a-z0-9]+/gi, "-")
+        .replace(/^-+|-+$/g, "")
+        .toUpperCase()
+        .slice(0, 12) || "PLANNED";
+  return `${leadName || `LITTER-${index + 1}`}-${dateToken}`.slice(0, 40);
+}
+
+function extractPlannedLitterDrafts(userMessage: string): PlannedLitterDraft[] {
+  const text = String(userMessage || "").replace(/[–—]/g, "-").trim();
+  if (!/\blitter\b/i.test(text)) {
+    return [];
+  }
+
+  const sharedYear = extractSharedPlanningYear(text);
+  const pattern =
+    /([a-z][a-z0-9 .'-]{1,60}?)\s+(?:will\s+have|is\s+having|is\s+expecting|is\s+due\s+for|has)\s+(?:an?\s+)?(?:planned\s+)?litter\b([\s\S]*?)(?=(?:\s*(?:,|-)?\s*and\s+[a-z][a-z0-9 .'-]{1,60}?\s+(?:will\s+have|is\s+having|is\s+expecting|is\s+due\s+for|has)\s+(?:an?\s+)?(?:planned\s+)?litter\b)|$)/gi;
+
+  const drafts: PlannedLitterDraft[] = [];
+  let match: RegExpExecArray | null = null;
+
+  while ((match = pattern.exec(text))) {
+    const leadDogName = String(match[1] || "").trim().replace(/[,:-]+$/g, "");
+    const detail = String(match[2] || "").trim().replace(/^(?:-|,)\s*/, "");
+    if (!leadDogName) continue;
+
+    const registry = detail.match(/\b(AKC|ACA|CKC|UKC)\b/i)?.[1]?.toUpperCase() || null;
+    const sireName =
+      detail.match(/\b(?:with|to|bred to|paired with|by)\s+([a-z][a-z0-9 .'-]{1,60})\b/i)?.[1]?.trim() ||
+      null;
+    const timing = parseNaturalDateReference(detail, sharedYear);
+    const cleanedNote = detail
+      .replace(
+        /\b(?:the\s+)?[a-z-]+(?:\s+[a-z-]+)?\s+of\s+(?:january|february|march|april|may|june|july|august|september|october|november|december)(?:\s+20\d{2})?\b/gi,
+        ""
+      )
+      .replace(
+        /\b(?:early|mid|late)[-\s]+(?:january|february|march|april|may|june|july|august|september|october|november|december)(?:\s+20\d{2})?\b/gi,
+        ""
+      )
+      .replace(
+        /\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:st|nd|rd|th)?(?:\s*,)?(?:\s+20\d{2})?\b/gi,
+        ""
+      )
+      .replace(/\b(AKC|ACA|CKC|UKC)\b\s+puppies?\b/gi, "")
+      .replace(/\b(AKC|ACA|CKC|UKC)\b/gi, "")
+      .replace(/\bpuppies?\b/gi, "")
+      .replace(/\b(?:with|to|bred to|paired with|by)\s+[a-z][a-z0-9 .'-]{1,60}\b/gi, "")
+      .replace(/\s+/g, " ")
+      .replace(/^[-, ]+|[-, ]+$/g, "")
+      .trim();
+
+    drafts.push({
+      dam_name: leadDogName,
+      sire_name: sireName,
+      whelp_date: timing.whelp_date,
+      timing_note: timing.timing_note,
+      registry,
+      status: "planned",
+      notes: cleanedNote || detail || null,
+    });
+  }
+
+  return drafts;
 }
 
 function inferZohoChargeKind(text: string | null | undefined): PortalChargeKind | null {
@@ -1739,6 +2017,7 @@ function extractListQueryForEntity(
 
   const bareEntityPatternMap: Partial<Record<ListEntity, RegExp>> = {
     buyers: /^\s*buyers?\s*$/i,
+    litters: /^\s*(?:planned\s+|upcoming\s+)?litters?\s*$/i,
     puppies: /^\s*pupp(?:y|ies)\s*$/i,
     payments: /^\s*payments?\s*$/i,
     puppy_financing: /^\s*(?:puppy\s*)?(?:financing|finance|payment plans?|financed accounts?)\s*$/i,
@@ -1786,6 +2065,18 @@ function parseDirectActionIntent(userMessage: string): ActionIntent | null {
   }
 
   const normalizedText = lower.replace(/[?.!]+$/g, "").trim();
+
+  const plannedLitterDrafts = extractPlannedLitterDrafts(text);
+  if (plannedLitterDrafts.length) {
+    return {
+      action: "add_litters",
+      litters: plannedLitterDrafts.map((draft, index) => ({
+        ...draft,
+        litter_name: draft.litter_name || buildPlannedLitterName(draft, index),
+        litter_code: draft.litter_code || buildPlannedLitterCode(draft, index),
+      })),
+    };
+  }
 
   if (
     /^(?:create|make|generate|send)\s+(?:a\s+)?(?:zoho\s+)?payment link\b/i.test(text)
@@ -1865,6 +2156,7 @@ function parseDirectActionIntent(userMessage: string): ActionIntent | null {
     pattern: RegExp;
     entity: Extract<ActionIntent, { action: "list_records" }>["entity"];
   }> = [
+    { pattern: /\bplanned litters?\b|\bupcoming litters?\b|\blitters?\b/, entity: "litters" },
     { pattern: /\bpuppy financing\b|\bpuppy payment plans?\b|\bpayment plans?\b|\bfinancing accounts?\b|\bfinanced accounts?\b/, entity: "puppy_financing" },
     { pattern: /\bbuyers?\b/, entity: "buyers" },
     { pattern: /\bpupp(?:y|ies)\b/, entity: "puppies" },
@@ -1897,6 +2189,9 @@ function parseDirectActionIntent(userMessage: string): ActionIntent | null {
   const matchedEntity = entityMap.find((entry) => entry.pattern.test(normalizedText))?.entity;
   const listMatch =
     normalizedText === "buyers" ||
+    normalizedText === "litters" ||
+    normalizedText === "planned litters" ||
+    normalizedText === "upcoming litters" ||
     normalizedText === "puppies" ||
     normalizedText === "payments" ||
     normalizedText === "puppy financing" ||
@@ -2286,6 +2581,13 @@ async function findPuppyByNameOrId(
 function missingFieldsForAction(intent: ActionIntent): string[] {
   if (intent.action === "list_records") {
     return intent.entity ? [] : ["what to list"];
+  }
+
+  if (intent.action === "add_litters") {
+    if (intent.litters?.length) {
+      return [];
+    }
+    return ["planned litter details"];
   }
 
   if (intent.action === "add_buyer") {
@@ -3172,6 +3474,58 @@ async function executeListRecords(
 
   if (!entity) {
     throw new Error("I still need to know what records you want listed.");
+  }
+
+  if (entity === "litters") {
+    const workspace = await loadAdminLineageWorkspace(admin);
+    const rows = workspace.litters.filter((row) => {
+      return (
+        matchesRelativeDateQuery(row.whelp_date || null, queryText) &&
+        matchesQueryText(
+          [
+            row.displayName,
+            row.litter_code,
+            row.litter_name,
+            row.status,
+            row.notes,
+            row.whelp_date,
+            row.damProfile?.displayName,
+            row.damProfile?.dog_name,
+            row.damProfile?.call_name,
+            row.sireProfile?.displayName,
+            row.sireProfile?.dog_name,
+            row.sireProfile?.call_name,
+          ],
+          searchQuery
+        )
+      );
+    });
+
+    if (limit === 0) {
+      return `I found ${rows.length} litter record${rows.length === 1 ? "" : "s"}${queryText ? ` matching "${intent.query}".` : "."}`;
+    }
+
+    if (!rows.length) {
+      return queryText
+        ? `I could not find any litters matching "${intent.query}".`
+        : "I could not find any litters yet.";
+    }
+
+    return [
+      `Here ${rows.length === 1 ? "is" : "are"} the latest litter${rows.length === 1 ? "" : "s"}${queryText ? ` matching "${intent.query}"` : ""}:`,
+      "",
+      ...rows.slice(0, limit).map((row, index) => {
+        const name = row.displayName || row.litter_name || row.litter_code || `Litter ${row.id}`;
+        const detailParts = [
+          row.whelp_date ? `whelp date ${row.whelp_date}` : "planned date not set",
+          row.status || "planned",
+          row.damProfile?.displayName ? `dam ${row.damProfile.displayName}` : null,
+          row.sireProfile?.displayName ? `sire ${row.sireProfile.displayName}` : null,
+        ].filter(Boolean);
+        const note = previewText(row.notes, "", 110);
+        return `${index + 1}. ${name} - ${detailParts.join(" - ")}${note ? ` - ${note}` : ""}`;
+      }),
+    ].join("\n");
   }
 
   if (entity === "buyers") {
@@ -4391,6 +4745,10 @@ async function localAdminFallback(
     return executeListRecords(admin, { action: "list_records", entity: "buyers", limit: 12 });
   }
 
+  if (/\bplanned litters?\b|\bupcoming litters?\b|\blitters?\b/.test(lower)) {
+    return executeListRecords(admin, { action: "list_records", entity: "litters", limit: 12 });
+  }
+
   if (/\bpupp(?:y|ies)\b/.test(lower)) {
     return executeListRecords(admin, { action: "list_records", entity: "puppies", limit: 12 });
   }
@@ -4444,6 +4802,148 @@ async function localAdminFallback(
   }
 
   return "";
+}
+
+type AdminLineageWorkspaceSnapshot = Awaited<ReturnType<typeof loadAdminLineageWorkspace>>;
+
+function findMatchingBreedingDog(
+  workspace: AdminLineageWorkspaceSnapshot,
+  rawName: string | null | undefined,
+  preferredRole?: "dam" | "sire"
+) {
+  const target = normalizeSearchLabel(rawName);
+  if (!target) return null;
+
+  const dogs = preferredRole
+    ? workspace.dogs.filter((dog) => normalizeSearchLabel(dog.role) === preferredRole)
+    : workspace.dogs;
+  const exact = dogs.find((dog) =>
+    [
+      dog.displayName,
+      dog.dog_name,
+      dog.name,
+      dog.call_name,
+      dog.registered_name,
+    ].some((value) => normalizeSearchLabel(value) === target)
+  );
+  if (exact) return exact;
+
+  const partialMatches = dogs.filter((dog) =>
+    [
+      dog.displayName,
+      dog.dog_name,
+      dog.name,
+      dog.call_name,
+      dog.registered_name,
+    ].some((value) => normalizeSearchLabel(value).includes(target) || target.includes(normalizeSearchLabel(value)))
+  );
+
+  return partialMatches.length === 1 ? partialMatches[0] : null;
+}
+
+function composePlannedLitterNotes(
+  draft: PlannedLitterDraft,
+  resolvedDamName: string | null,
+  resolvedSireName: string | null
+) {
+  const lines = [
+    draft.notes || null,
+    draft.registry ? `Registry: ${draft.registry}` : null,
+    draft.timing_note ? `Timing note: ${draft.timing_note}` : null,
+    draft.dam_name && !resolvedDamName ? `Breeding dog mentioned: ${draft.dam_name}` : null,
+    draft.sire_name && !resolvedSireName ? `Breeding dog mentioned: ${draft.sire_name}` : null,
+  ]
+    .filter(Boolean)
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+
+  return lines.length ? Array.from(new Set(lines)).join("\n") : null;
+}
+
+async function executeAddLitters(
+  admin: SupabaseClient,
+  intent: Extract<ActionIntent, { action: "add_litters" }>
+) {
+  const drafts = (intent.litters || []).filter(Boolean);
+  if (!drafts.length) {
+    throw new Error("I still need the planned litter details to save.");
+  }
+
+  const workspace = await loadAdminLineageWorkspace(admin);
+  const existingCodes = new Set(
+    workspace.litters.map((litter) => normalizeSearchLabel(litter.litter_code || litter.litter_name || ""))
+  );
+
+  const created: string[] = [];
+  const skipped: string[] = [];
+
+  for (let index = 0; index < drafts.length; index += 1) {
+    const draft = drafts[index];
+    const matchedPrimaryDog = findMatchingBreedingDog(workspace, draft.dam_name || draft.sire_name);
+    const matchedDam =
+      findMatchingBreedingDog(workspace, draft.dam_name, "dam") ||
+      (matchedPrimaryDog && normalizeSearchLabel(matchedPrimaryDog.role) !== "sire" ? matchedPrimaryDog : null);
+    const matchedSire =
+      findMatchingBreedingDog(workspace, draft.sire_name, "sire") ||
+      (matchedPrimaryDog && normalizeSearchLabel(matchedPrimaryDog.role) === "sire" ? matchedPrimaryDog : null);
+
+    const litterName = draft.litter_name || buildPlannedLitterName(draft, index);
+    const litterCode = draft.litter_code || buildPlannedLitterCode(draft, index);
+    const codeKey = normalizeSearchLabel(litterCode);
+
+    if (existingCodes.has(codeKey)) {
+      skipped.push(`${litterName} already exists, so I skipped creating it again.`);
+      continue;
+    }
+
+    const payload = {
+      litter_code: litterCode,
+      litter_name: litterName,
+      dam_id: matchedDam?.id || null,
+      sire_id: matchedSire?.id || null,
+      whelp_date: draft.whelp_date || null,
+      status: draft.status || "planned",
+      notes: composePlannedLitterNotes(
+        draft,
+        matchedDam?.displayName || matchedDam?.dog_name || matchedDam?.call_name || null,
+        matchedSire?.displayName || matchedSire?.dog_name || matchedSire?.call_name || null
+      ),
+    };
+
+    const { data, error } = await admin
+      .from("litters")
+      .insert(payload)
+      .select("id,litter_name,litter_code,whelp_date,status")
+      .single();
+
+    if (error) {
+      throw new Error(`Could not save planned litter "${litterName}": ${error.message}`);
+    }
+
+    existingCodes.add(codeKey);
+    created.push(
+      [
+        data?.litter_name || data?.litter_code || litterName,
+        payload.whelp_date ? `whelp date ${payload.whelp_date}` : draft.timing_note || "planned date noted in notes",
+        payload.status || "planned",
+        matchedDam ? `dam ${matchedDam.displayName || matchedDam.dog_name || matchedDam.call_name}` : null,
+        matchedSire ? `sire ${matchedSire.displayName || matchedSire.dog_name || matchedSire.call_name}` : null,
+      ]
+        .filter(Boolean)
+        .join(" - ")
+    );
+  }
+
+  if (!created.length && skipped.length) {
+    return `Core action skipped. ${skipped.join(" ")}`;
+  }
+
+  return [
+    `Core action completed. I saved ${created.length} planned litter${created.length === 1 ? "" : "s"}.`,
+    "",
+    ...created.map((line, index) => `${index + 1}. ${line}`),
+    ...(skipped.length ? ["", ...skipped.map((line, index) => `Skipped ${index + 1}: ${line}`)] : []),
+  ].join("\n");
 }
 
 async function executeAddBuyer(
@@ -5339,6 +5839,7 @@ export async function POST(req: Request) {
           admin_capabilities: {
             live_entities: [
               "buyers",
+              "litters",
               "puppies",
               "payments",
               "puppy_financing",
@@ -5456,6 +5957,8 @@ export async function POST(req: Request) {
           text = `I can do that, but I still need: ${missing.join(", ")}.`;
         } else if (intent.action === "list_records") {
           text = await executeListRecords(admin, intent);
+        } else if (intent.action === "add_litters") {
+          text = await executeAddLitters(admin, intent);
         } else if (intent.action === "add_buyer") {
           text = await executeAddBuyer(admin, intent);
         } else if (intent.action === "update_buyer") {
