@@ -58,6 +58,16 @@ function signatureHeader(req: Request) {
   );
 }
 
+export async function GET() {
+  return NextResponse.json({
+    ok: true,
+    provider: "zoho_payments",
+    endpoint: "webhook",
+    message: "Zoho Payments webhook endpoint is live. Send signed POST requests from Zoho to this URL.",
+    method: "POST",
+  });
+}
+
 export async function POST(req: Request) {
   try {
     const rawBody = await req.text();
