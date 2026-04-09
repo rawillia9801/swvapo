@@ -163,12 +163,31 @@ function getZohoPaymentsWidgetApiKeyInternal() {
   );
 }
 
-function getZohoPaymentsSigningKeyInternal() {
+function getZohoPaymentsWidgetSigningKeyInternal() {
   return (
     readOptionalEnv(
-      "ZOHO_PAYMENTS_SIGNING_KEY",
+      "ZOHO_PAYMENTS_WIDGET_SIGNING_KEY",
       "ZOHO_PAYMENTS_PAYMENT_LINK_SIGNING_KEY",
-      "ZOHO_PAYMENTS_WIDGET_SIGNING_KEY"
+      "ZOHO_PAYMENTS_SIGNING_KEY"
+    ) || null
+  );
+}
+
+function getZohoPaymentsPaymentLinkSigningKeyInternal() {
+  return (
+    readOptionalEnv(
+      "ZOHO_PAYMENTS_PAYMENT_LINK_SIGNING_KEY",
+      "ZOHO_PAYMENTS_WIDGET_SIGNING_KEY",
+      "ZOHO_PAYMENTS_SIGNING_KEY"
+    ) || null
+  );
+}
+
+function getZohoPaymentsWebhookSigningKeyInternal() {
+  return (
+    readOptionalEnv(
+      "ZOHO_PAYMENTS_WEBHOOK_SIGNING_KEY",
+      "ZOHO_PAYMENTS_SIGNING_KEY"
     ) || null
   );
 }
@@ -352,7 +371,18 @@ export function getZohoPaymentsWidgetApiKey() {
 }
 
 export function hasZohoPaymentsSigningKey() {
-  return !!getZohoPaymentsSigningKeyInternal();
+  return !!(
+    getZohoPaymentsPaymentLinkSigningKeyInternal() ||
+    getZohoPaymentsWebhookSigningKeyInternal()
+  );
+}
+
+export function hasZohoPaymentsPaymentLinkSigningKey() {
+  return !!getZohoPaymentsPaymentLinkSigningKeyInternal();
+}
+
+export function hasZohoPaymentsWebhookSigningKey() {
+  return !!getZohoPaymentsWebhookSigningKeyInternal();
 }
 
 export function getZohoPaymentsDefaultPaymentMethods() {
@@ -435,15 +465,13 @@ export async function createZohoPaymentSession(input: CreateZohoPaymentSessionIn
   return session;
 }
 
-function computeZohoSignature(payload: string) {
-  const signingKey = getZohoPaymentsSigningKeyInternal();
-  if (!signingKey) {
-    throw new Error(
-      "Zoho Payments signing key is not configured. Add ZOHO_PAYMENTS_SIGNING_KEY to verify signatures."
-    );
-  }
-
-  return createHmac("sha256", signingKey).update(payload, "utf8").digest("hex").toLowerCase();
+function computeZohoSignature(payload: string, signingKey: string | null | undefined) {
+  const normalizedSigningKey = String(signingKey || "").trim();
+  if (!normalizedSigningKey) return "";
+  return createHmac("sha256", normalizedSigningKey)
+    .update(payload, "utf8")
+    .digest("hex")
+    .toLowerCase();
 }
 
 function signaturesMatch(expected: string, provided: string) {
@@ -482,7 +510,12 @@ export function verifyZohoWidgetSignature(input: {
   }
 
   const payload = `${paymentId}|${paymentSessionId}`;
-  return signaturesMatch(computeZohoSignature(payload), providedSignature);
+  const expectedSignature = computeZohoSignature(
+    payload,
+    getZohoPaymentsWidgetSigningKeyInternal()
+  );
+  if (!expectedSignature) return false;
+  return signaturesMatch(expectedSignature, providedSignature);
 }
 
 export function verifyZohoPaymentLinkSignature(input: {
@@ -512,7 +545,12 @@ export function verifyZohoPaymentLinkSignature(input: {
     paymentLinkReference,
   ].join(".");
 
-  return signaturesMatch(computeZohoSignature(payload), providedSignature);
+  const expectedSignature = computeZohoSignature(
+    payload,
+    getZohoPaymentsPaymentLinkSigningKeyInternal()
+  );
+  if (!expectedSignature) return false;
+  return signaturesMatch(expectedSignature, providedSignature);
 }
 
 export function verifyZohoWebhookSignature(input: {
@@ -525,7 +563,12 @@ export function verifyZohoWebhookSignature(input: {
     return false;
   }
 
-  return signaturesMatch(computeZohoSignature(`${header.timestamp}.${rawBody}`), header.signature);
+  const expectedSignature = computeZohoSignature(
+    `${header.timestamp}.${rawBody}`,
+    getZohoPaymentsWebhookSigningKeyInternal()
+  );
+  if (!expectedSignature) return false;
+  return signaturesMatch(expectedSignature, header.signature);
 }
 
 export async function listZohoCustomers(params: { query?: string | null; limit?: number | null } = {}) {

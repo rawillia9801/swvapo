@@ -27,6 +27,8 @@ type ZohoPaymentsStatus = {
   token_type: string | null;
   has_widget_key: boolean;
   has_signing_key: boolean;
+  has_payment_link_signing_key?: boolean;
+  has_webhook_signing_key?: boolean;
   default_payment_methods: string[];
   has_return_url: boolean;
   redirect_uri: string | null;
@@ -374,9 +376,19 @@ export default function AdminPortalSettingsPage() {
                     </span>
                   </div>
                   <div>
-                    Signing key:
+                    Payment-link signing key:
                     <span className="ml-2 font-semibold text-[var(--portal-text)]">
-                      {zohoStatus?.has_signing_key ? "Configured" : "Missing"}
+                      {zohoStatus?.has_payment_link_signing_key || zohoStatus?.has_signing_key
+                        ? "Configured"
+                        : "Missing"}
+                    </span>
+                  </div>
+                  <div>
+                    Webhook signing key:
+                    <span className="ml-2 font-semibold text-[var(--portal-text)]">
+                      {zohoStatus?.has_webhook_signing_key || zohoStatus?.has_signing_key
+                        ? "Configured"
+                        : "Missing"}
                     </span>
                   </div>
                   <div>

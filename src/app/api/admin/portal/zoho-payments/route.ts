@@ -7,7 +7,9 @@ import {
 import {
   getZohoPaymentsDefaultPaymentMethods,
   getZohoPaymentsWidgetApiKey,
+  hasZohoPaymentsPaymentLinkSigningKey,
   hasZohoPaymentsSigningKey,
+  hasZohoPaymentsWebhookSigningKey,
   isZohoPaymentsConfigured,
 } from "@/lib/zoho-payments";
 
@@ -70,6 +72,8 @@ export async function GET(req: Request) {
       token_type: connection?.token_type || null,
       has_widget_key: Boolean(getZohoPaymentsWidgetApiKey()),
       has_signing_key: hasZohoPaymentsSigningKey(),
+      has_payment_link_signing_key: hasZohoPaymentsPaymentLinkSigningKey(),
+      has_webhook_signing_key: hasZohoPaymentsWebhookSigningKey(),
       default_payment_methods: getZohoPaymentsDefaultPaymentMethods(),
       has_return_url: yes(process.env.ZOHO_PAYMENTS_RETURN_URL),
       redirect_uri: redirectUri,
