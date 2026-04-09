@@ -407,6 +407,8 @@ export default function AdminPortalPaymentsPage() {
   const [search, setSearch] = useState("");
   const [accounts, setAccounts] = useState<BuyerAccount[]>([]);
   const [selectedKey, setSelectedKey] = useState("");
+  const [handledQuerySelection, setHandledQuerySelection] = useState("");
+  const [requestedBuyerId, setRequestedBuyerId] = useState("");
   const [entryMode, setEntryMode] = useState<EntryMode>("payment");
   const [form, setForm] = useState<EditForm>({
     price: "",
@@ -421,6 +423,12 @@ export default function AdminPortalPaymentsPage() {
     finance_next_due_date: "",
   });
   const [entryForm, setEntryForm] = useState<EntryForm>(entryFormForMode("payment"));
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    setRequestedBuyerId(params.get("buyer") || "");
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -501,6 +509,20 @@ export default function AdminPortalPaymentsPage() {
     filteredAccounts.find((account) => account.key === selectedKey) ||
     accounts.find((account) => account.key === selectedKey) ||
     null;
+  const requestedAccountKey = useMemo(() => {
+    if (!requestedBuyerId) return "";
+    return accounts.find((account) => String(account.buyer.id) === requestedBuyerId)?.key || "";
+  }, [accounts, requestedBuyerId]);
+
+  useEffect(() => {
+    if (!requestedBuyerId) {
+      setHandledQuerySelection("");
+      return;
+    }
+    if (!requestedAccountKey || handledQuerySelection === requestedAccountKey) return;
+    setSelectedKey(requestedAccountKey);
+    setHandledQuerySelection(requestedAccountKey);
+  }, [handledQuerySelection, requestedAccountKey, requestedBuyerId]);
 
   useEffect(() => {
     if (!selectedAccount) return;

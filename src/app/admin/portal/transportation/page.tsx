@@ -177,6 +177,9 @@ export default function AdminPortalTransportationPage() {
   const [sortMode, setSortMode] = useState<SortMode>("created_desc");
   const [requests, setRequests] = useState<TransportationRequest[]>([]);
   const [selectedKey, setSelectedKey] = useState("");
+  const [handledQuerySelection, setHandledQuerySelection] = useState("");
+  const [requestedRequestId, setRequestedRequestId] = useState("");
+  const [requestedBuyerId, setRequestedBuyerId] = useState("");
   const [form, setForm] = useState<RequestForm>({
     status: "pending",
     request_type: "",
@@ -186,6 +189,13 @@ export default function AdminPortalTransportationPage() {
     address_text: "",
     notes: "",
   });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    setRequestedRequestId(params.get("request") || "");
+    setRequestedBuyerId(params.get("buyer") || "");
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -308,6 +318,14 @@ export default function AdminPortalTransportationPage() {
     filteredRequests.find((request) => String(request.id) === selectedKey) ||
     requests.find((request) => String(request.id) === selectedKey) ||
     null;
+  const requestedSelectionKey = useMemo(() => {
+    const match = requests.find((request) => {
+      if (requestedRequestId && String(request.id) === requestedRequestId) return true;
+      if (requestedBuyerId && String(request.buyer?.id || "") === requestedBuyerId) return true;
+      return false;
+    });
+    return match?.id ? String(match.id) : "";
+  }, [requests, requestedBuyerId, requestedRequestId]);
 
   const selectedEstimate = useMemo(
     () =>
@@ -328,6 +346,21 @@ export default function AdminPortalTransportationPage() {
       setSelectedKey(String(filteredRequests[0].id));
     }
   }, [filteredRequests, selectedKey]);
+
+  useEffect(() => {
+    if (!requestedBuyerId && !requestedRequestId) {
+      setHandledQuerySelection("");
+      return;
+    }
+    if (!requestedSelectionKey || handledQuerySelection === requestedSelectionKey) return;
+    setSelectedKey(requestedSelectionKey);
+    setHandledQuerySelection(requestedSelectionKey);
+  }, [
+    handledQuerySelection,
+    requestedBuyerId,
+    requestedRequestId,
+    requestedSelectionKey,
+  ]);
 
   useEffect(() => {
     if (!selectedRequest) return;

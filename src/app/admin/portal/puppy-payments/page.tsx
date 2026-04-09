@@ -357,6 +357,9 @@ export default function AdminPortalPuppyPaymentsPage() {
   const [search, setSearch] = useState("");
   const [accounts, setAccounts] = useState<PuppyPaymentAccount[]>([]);
   const [selectedKey, setSelectedKey] = useState("");
+  const [handledQuerySelection, setHandledQuerySelection] = useState("");
+  const [requestedBuyerId, setRequestedBuyerId] = useState("");
+  const [requestedPuppyId, setRequestedPuppyId] = useState("");
   const [entryMode, setEntryMode] = useState<EntryMode>("payment");
   const [form, setForm] = useState<EditForm>({
     price: "",
@@ -370,6 +373,13 @@ export default function AdminPortalPuppyPaymentsPage() {
     finance_next_due_date: "",
   });
   const [entryForm, setEntryForm] = useState<EntryForm>(entryFormForMode("payment"));
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    setRequestedBuyerId(params.get("buyer") || "");
+    setRequestedPuppyId(params.get("puppy") || "");
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -450,6 +460,14 @@ export default function AdminPortalPuppyPaymentsPage() {
     filteredAccounts.find((account) => account.key === selectedKey) ||
     accounts.find((account) => account.key === selectedKey) ||
     null;
+  const requestedAccountKey = useMemo(() => {
+    const match = accounts.find((account) => {
+      if (requestedPuppyId && String(account.puppy.id) !== requestedPuppyId) return false;
+      if (requestedBuyerId && String(account.buyer.id) !== requestedBuyerId) return false;
+      return Boolean(requestedPuppyId || requestedBuyerId);
+    });
+    return match?.key || "";
+  }, [accounts, requestedBuyerId, requestedPuppyId]);
 
   useEffect(() => {
     if (!filteredAccounts.length) {
@@ -460,6 +478,21 @@ export default function AdminPortalPuppyPaymentsPage() {
       setSelectedKey(filteredAccounts[0].key);
     }
   }, [filteredAccounts, selectedKey]);
+
+  useEffect(() => {
+    if (!requestedBuyerId && !requestedPuppyId) {
+      setHandledQuerySelection("");
+      return;
+    }
+    if (!requestedAccountKey || handledQuerySelection === requestedAccountKey) return;
+    setSelectedKey(requestedAccountKey);
+    setHandledQuerySelection(requestedAccountKey);
+  }, [
+    handledQuerySelection,
+    requestedAccountKey,
+    requestedBuyerId,
+    requestedPuppyId,
+  ]);
 
   useEffect(() => {
     if (!selectedAccount) return;

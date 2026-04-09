@@ -20,6 +20,15 @@ type BuyerRow = {
   notes?: string | null;
   city?: string | null;
   state?: string | null;
+  delivery_option?: string | null;
+  delivery_date?: string | null;
+  delivery_location?: string | null;
+  delivery_miles?: number | null;
+  delivery_fee?: number | null;
+  expense_gas?: number | null;
+  expense_hotel?: number | null;
+  expense_tolls?: number | null;
+  expense_misc?: string | null;
   created_at?: string | null;
 };
 
@@ -75,6 +84,15 @@ type BreedingDogRow = {
   call_name?: string | null;
 };
 
+function numberOrNull(value: unknown) {
+  const normalized = String(value ?? "")
+    .replace(/[^0-9.-]/g, "")
+    .trim();
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function asBuyerPayload(body: Record<string, unknown>) {
   return {
     full_name: firstValue(body.full_name as string | null, body.name as string | null) || null,
@@ -85,6 +103,15 @@ function asBuyerPayload(body: Record<string, unknown>) {
     notes: firstValue(body.notes as string | null) || null,
     city: firstValue(body.city as string | null) || null,
     state: firstValue(body.state as string | null) || null,
+    delivery_option: firstValue(body.delivery_option as string | null) || null,
+    delivery_date: firstValue(body.delivery_date as string | null) || null,
+    delivery_location: firstValue(body.delivery_location as string | null) || null,
+    delivery_miles: numberOrNull(body.delivery_miles),
+    delivery_fee: numberOrNull(body.delivery_fee),
+    expense_gas: numberOrNull(body.expense_gas),
+    expense_hotel: numberOrNull(body.expense_hotel),
+    expense_tolls: numberOrNull(body.expense_tolls),
+    expense_misc: firstValue(body.expense_misc as string | null) || null,
   };
 }
 
@@ -149,7 +176,7 @@ export async function GET(req: Request) {
       await Promise.all([
       service
         .from("buyers")
-        .select("id,user_id,puppy_id,full_name,name,email,phone,status,notes,city,state,created_at")
+        .select("id,user_id,puppy_id,full_name,name,email,phone,status,notes,city,state,delivery_option,delivery_date,delivery_location,delivery_miles,delivery_fee,expense_gas,expense_hotel,expense_tolls,expense_misc,created_at")
         .order("created_at", { ascending: false }),
       service
         .from("puppy_applications")

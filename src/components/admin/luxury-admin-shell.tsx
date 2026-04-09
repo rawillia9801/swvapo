@@ -22,7 +22,6 @@ import {
   portalButtonPrimaryClass,
   portalButtonSecondaryClass,
 } from "@/components/portal/luxury-shell";
-import { getPortalAdminEmails } from "@/lib/portal-admin";
 
 type AdminNavItem = {
   href: string;
@@ -225,26 +224,18 @@ export function AdminPageShell({
       <div className="grid min-h-screen lg:grid-cols-[312px_minmax(0,1fr)] xl:grid-cols-[328px_minmax(0,1fr)]">
         <aside className="hidden border-r border-[var(--portal-border)] bg-white/70 px-4 py-4 backdrop-blur-sm lg:block">
           <div className="sticky top-4 flex h-[calc(100vh-2rem)] flex-col gap-4">
-            <div className="premium-card rounded-[1.75rem] p-5">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(200,168,132,0.45)] bg-[rgba(248,242,234,0.92)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#8c6848]">
-                Breeding Hub
+            <div className="flex items-center gap-3 rounded-[1.4rem] border border-[var(--portal-border)] bg-white/88 px-4 py-3 shadow-[var(--portal-shadow-sm)]">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.95rem] bg-[linear-gradient(90deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] text-white shadow-[var(--portal-shadow-md)]">
+                <PawPrint className="h-5 w-5" />
               </div>
-              <div className="mt-5 flex items-center gap-3">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[1rem] bg-[linear-gradient(90deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] text-white shadow-[var(--portal-shadow-md)]">
-                  <PawPrint className="h-5 w-5" />
+              <div className="min-w-0">
+                <div className="truncate text-base font-semibold text-[var(--portal-text)] [font-family:var(--font-merriweather)]">
+                  Southwest Virginia Chihuahua
                 </div>
-                <div className="min-w-0">
-                  <div className="truncate text-lg font-semibold text-[var(--portal-text)] [font-family:var(--font-merriweather)]">
-                    Southwest Virginia Chihuahua
-                  </div>
-                  <div className="mt-1 text-sm text-[var(--portal-text-soft)]">
-                    Owner operations portal
-                  </div>
+                <div className="mt-0.5 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                  Owner workspace
                 </div>
               </div>
-              <p className="mt-4 text-sm leading-6 text-[var(--portal-text-soft)]">
-                Owner operations portal for placements, litters, finances, transport, and ChiChi.
-              </p>
             </div>
 
             <div className="premium-card min-h-0 flex-1 rounded-[1.75rem] p-4">
@@ -293,48 +284,30 @@ export function AdminPageShell({
                 </div>
               </div>
             </div>
-
-            <div className="premium-card rounded-[1.75rem] p-4">
-              <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
-                Approved Owners
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {getPortalAdminEmails().map((email) => (
-                  <div
-                    key={email}
-                    className="rounded-full border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-3 py-1.5 text-xs font-semibold text-[var(--portal-text-soft)]"
-                  >
-                    {email}
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         </aside>
 
         <div className="min-w-0">
           <main className="min-h-screen px-4 py-5 md:px-6 md:py-6 xl:px-8 xl:py-8">
             <div className="mx-auto w-full max-w-[1480px]">
-              <div className="premium-card mb-4 rounded-[1.5rem] px-5 py-4 md:px-6">
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
-                      <span>{currentItem.section}</span>
-                      <ChevronRight className="h-3.5 w-3.5" />
-                      <span>{currentItem.label}</span>
-                    </div>
-                    <div className="mt-2 text-[1.65rem] font-semibold tracking-[-0.04em] text-[var(--portal-text)] [font-family:var(--font-merriweather)]">
-                      {currentItem.label}
-                    </div>
+              <div className="mb-4 flex flex-col gap-3 border-b border-[var(--portal-border)] pb-4 xl:flex-row xl:items-end xl:justify-between">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                    <span>{currentItem.section}</span>
+                    <ChevronRight className="h-3.5 w-3.5" />
+                    <span>{currentItem.label}</span>
                   </div>
+                  <div className="mt-2 text-[1.55rem] font-semibold tracking-[-0.04em] text-[var(--portal-text)] [font-family:var(--font-merriweather)]">
+                    {currentItem.label}
+                  </div>
+                </div>
 
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="inline-flex rounded-full border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-soft)]">
-                      Owner Workspace
-                    </div>
-                    <div className="inline-flex rounded-full border border-[var(--portal-border)] bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-soft)]">
-                      {dateLabel}
-                    </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="inline-flex rounded-full border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-soft)]">
+                    Owner Workspace
+                  </div>
+                  <div className="inline-flex rounded-full border border-[var(--portal-border)] bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-soft)]">
+                    {dateLabel}
                   </div>
                 </div>
               </div>
@@ -364,18 +337,20 @@ export function AdminPageHero({
   void description;
 
   return (
-    <section className="premium-card rounded-[1.5rem] p-5 md:p-6">
-      <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-        <div className="min-w-0 max-w-4xl">
-          <span className="inline-flex items-center rounded-full border border-[rgba(200,168,132,0.45)] bg-[rgba(248,242,234,0.92)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#8c6848] shadow-sm">
-            {eyebrow}
-          </span>
-          <h1 className="mt-4 max-w-3xl text-[1.9rem] font-semibold leading-[1.1] tracking-[-0.05em] text-[var(--portal-text)] [font-family:var(--font-merriweather)] md:text-[2.4rem]">
-            {title}
-          </h1>
-          {actions ? <div className="mt-5 flex flex-wrap gap-3">{actions}</div> : null}
+    <section className="premium-card rounded-[1.4rem] p-4 md:p-5">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div className="min-w-0 max-w-4xl">
+            <span className="inline-flex items-center rounded-full border border-[rgba(200,168,132,0.45)] bg-[rgba(248,242,234,0.92)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#8c6848] shadow-sm">
+              {eyebrow}
+            </span>
+            <h1 className="mt-3 max-w-3xl text-[1.45rem] font-semibold leading-[1.08] tracking-[-0.04em] text-[var(--portal-text)] [font-family:var(--font-merriweather)] md:text-[1.85rem]">
+              {title}
+            </h1>
+          </div>
+          {actions ? <div className="flex flex-wrap gap-3">{actions}</div> : null}
         </div>
-        {aside ? <div className="w-full min-w-0 xl:max-w-[420px]">{aside}</div> : null}
+        {aside ? <div className="w-full min-w-0">{aside}</div> : null}
       </div>
     </section>
   );

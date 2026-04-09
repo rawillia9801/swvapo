@@ -685,6 +685,8 @@ export default function AdminPortalPuppiesPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedId, setSelectedId] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [handledQueryPuppyId, setHandledQueryPuppyId] = useState("");
+  const [requestedPuppyId, setRequestedPuppyId] = useState("");
   const [statusText, setStatusText] = useState("");
   const [form, setForm] = useState<PuppyForm>(emptyForm());
 
@@ -741,9 +743,29 @@ export default function AdminPortalPuppiesPage() {
   }, [createMode, selectedPuppy]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    setRequestedPuppyId(params.get("puppy") || "");
+  }, []);
+
+  useEffect(() => {
     if (createMode || !filteredPuppies.length || filteredPuppies.some((p) => String(p.id) === selectedId)) return;
     setSelectedId(String(filteredPuppies[0].id));
   }, [createMode, filteredPuppies, selectedId]);
+
+  useEffect(() => {
+    if (!requestedPuppyId) {
+      setHandledQueryPuppyId("");
+      return;
+    }
+    if (handledQueryPuppyId === requestedPuppyId) return;
+    if (!puppies.some((puppy) => String(puppy.id) === requestedPuppyId)) return;
+    setCreateMode(false);
+    setSelectedId(requestedPuppyId);
+    setStatusText("");
+    setDrawerOpen(true);
+    setHandledQueryPuppyId(requestedPuppyId);
+  }, [handledQueryPuppyId, puppies, requestedPuppyId]);
 
   function updateField(key: string, value: string) {
     setForm((c) => ({ ...c, [key]: value }));
