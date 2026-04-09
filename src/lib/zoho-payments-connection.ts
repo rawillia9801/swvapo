@@ -37,8 +37,12 @@ type UpsertZohoPaymentsConnectionInput = {
 };
 
 function isMissingTableError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error || "");
-  return message.toLowerCase().includes("does not exist");
+  const message = (error instanceof Error ? error.message : String(error || "")).toLowerCase();
+  return (
+    message.includes("does not exist") ||
+    message.includes("could not find the table") ||
+    message.includes("schema cache")
+  );
 }
 
 export function extractZohoPaymentsAccountId(value: string | null | undefined) {
@@ -79,35 +83,51 @@ export async function loadZohoPaymentsConnection() {
 }
 
 export async function upsertZohoPaymentsConnection(input: UpsertZohoPaymentsConnectionInput) {
-  const admin = createServiceSupabase();
-  const now = new Date().toISOString();
-  const payload = {
-    provider: ZOHO_PROVIDER,
-    status: input.status || "connected",
-    account_id: input.accountId || null,
-    soid: input.soid || null,
-    scope: input.scope || null,
-    api_domain: input.apiDomain || null,
-    refresh_token: input.refreshToken || null,
-    token_type: input.tokenType || null,
-    connected_at:
-      input.status === "connected"
-        ? input.connectedAt || now
-        : input.connectedAt === null
-          ? null
-          : input.connectedAt || null,
-    last_refreshed_at: input.lastRefreshedAt || null,
-    connected_by_user_id: input.connectedByUserId || null,
-    connected_by_email: input.connectedByEmail || null,
-    meta: input.meta || {},
-  };
+  try {
+    const admin = createServiceSupabase();
+    const now = new Date().toISOString();
+    const payload = {
+      provider: ZOHO_PROVIDER,
+      status: input.status || "connected",
+      account_id: input.accountId || null,
+      soid: input.soid || null,
+      scope: input.scope || null,
+      api_domain: input.apiDomain || null,
+      refresh_token: input.refreshToken || null,
+      token_type: input.tokenType || null,
+      connected_at:
+        input.status === "connected"
+          ? input.connectedAt || now
+          : input.connectedAt === null
+            ? null
+            : input.connectedAt || null,
+      last_refreshed_at: input.lastRefreshedAt || null,
+      connected_by_user_id: input.connectedByUserId || null,
+      connected_by_email: input.connectedByEmail || null,
+      meta: input.meta || {},
+    };
 
-  const { error } = await admin.from("integration_credentials").upsert(payload, {
-    onConflict: "provider",
-  });
+    const { error } = await admin.from("integration_credentials").upsert(payload, {
+      onConflict: "provider",
+    });
 
-  if (error) {
-    throw new Error(error.message);
+    if (error) {
+      if (isMissingTableError(error)) {
+        throw new Error(
+          "Zoho integration storage is not available yet. Apply the Supabase migration 20260408_zoho_integration_credentials.sql first."
+        );
+      }
+
+      throw new Error(error.message);
+    }
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      throw new Error(
+        "Zoho integration storage is not available yet. Apply the Supabase migration 20260408_zoho_integration_credentials.sql first."
+      );
+    }
+
+    throw error;
   }
 }
 
