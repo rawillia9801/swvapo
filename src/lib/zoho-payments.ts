@@ -355,6 +355,10 @@ export function hasZohoPaymentsSigningKey() {
   return !!getZohoPaymentsSigningKeyInternal();
 }
 
+export function getZohoPaymentsDefaultPaymentMethods() {
+  return cleanAllowedPaymentMethods(readOptionalEnv("ZOHO_PAYMENTS_ALLOWED_METHODS"));
+}
+
 export async function createZohoPaymentSession(input: CreateZohoPaymentSessionInput) {
   const config = await ensureZohoPaymentsConfig();
   const amount = Number(input.amount || 0);
@@ -449,6 +453,21 @@ function signaturesMatch(expected: string, provided: string) {
   return timingSafeEqual(left, right);
 }
 
+function parseZohoWebhookSignatureHeader(value: string | null | undefined) {
+  const header = String(value || "").trim();
+  if (!header) return null;
+
+  const parts = header.split(",").map((part) => part.trim());
+  const timestamp = parts.find((part) => part.startsWith("t="))?.slice(2).trim() || "";
+  const signature = parts.find((part) => part.startsWith("v="))?.slice(2).trim() || "";
+
+  if (!(timestamp && signature)) {
+    return null;
+  }
+
+  return { timestamp, signature };
+}
+
 export function verifyZohoWidgetSignature(input: {
   paymentId: string | null | undefined;
   paymentSessionId: string | null | undefined;
@@ -494,6 +513,19 @@ export function verifyZohoPaymentLinkSignature(input: {
   ].join(".");
 
   return signaturesMatch(computeZohoSignature(payload), providedSignature);
+}
+
+export function verifyZohoWebhookSignature(input: {
+  rawBody: string;
+  signatureHeader: string | null | undefined;
+}) {
+  const rawBody = String(input.rawBody || "");
+  const header = parseZohoWebhookSignatureHeader(input.signatureHeader);
+  if (!(rawBody && header?.timestamp && header.signature)) {
+    return false;
+  }
+
+  return signaturesMatch(computeZohoSignature(`${header.timestamp}.${rawBody}`), header.signature);
 }
 
 export async function listZohoCustomers(params: { query?: string | null; limit?: number | null } = {}) {

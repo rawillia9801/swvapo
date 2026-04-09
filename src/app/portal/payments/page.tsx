@@ -26,8 +26,10 @@ import {
   PortalMetricGrid,
   PortalPageHero,
   PortalPanel,
+  PortalSecondaryButton,
   PortalStatusBadge,
   PortalTable,
+  portalInputClass,
 } from "@/components/portal/luxury-shell";
 import { calculateTransportEstimate, type PickupRequestType } from "@/lib/transportation-pricing";
 import {
@@ -145,6 +147,7 @@ function adjustmentTypeLabel(adjustment: PortalFeeCreditRecord) {
 function paymentActionLabel(kind: PortalChargeKind) {
   if (kind === "deposit") return "Pay Deposit";
   if (kind === "transportation") return "Pay Transportation Fee";
+  if (kind === "general") return "Make Payment";
   return "Pay Installment";
 }
 
@@ -152,7 +155,48 @@ function paymentSuccessText(kind: string | null) {
   if (kind === "deposit") return "Deposit payment recorded successfully.";
   if (kind === "transportation") return "Transportation payment recorded successfully.";
   if (kind === "installment") return "Installment payment recorded successfully.";
+  if (kind === "general") return "Payment recorded successfully.";
   return "Payment recorded successfully.";
+}
+
+function parseAmountInput(value: string) {
+  const normalized = String(value || "").replace(/[^0-9.]/g, "").trim();
+  if (!normalized) return 0;
+  const amount = Number(normalized);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function formatAmountInput(value: number) {
+  const amount = Number(value || 0);
+  if (!(amount > 0)) return "";
+  return amount.toFixed(2);
+}
+
+function paymentPolicyMessage(snapshot: ReturnType<typeof buildPortalPaymentChargeSnapshot>) {
+  if (snapshot.finalBalanceDueNow) {
+    return `Your scheduled receive date is ${snapshot.scheduledReceiveDate ? fmtDate(snapshot.scheduledReceiveDate) : "coming up soon"}, so the full remaining balance must be paid now.`;
+  }
+
+  if (snapshot.financeEnabled) {
+    return "Your puppy payment plan is active, so you can make any amount payment up to the current balance.";
+  }
+
+  if (snapshot.balanceDueByDate && snapshot.scheduledReceiveDate) {
+    return `You can make any amount payment up to the current balance, but the account must be paid in full by ${fmtDate(snapshot.balanceDueByDate)} for the scheduled receive date of ${fmtDate(snapshot.scheduledReceiveDate)}.`;
+  }
+
+  return "You can make any amount payment up to the current balance. Secure checkout opens through Zoho Payments.";
+}
+
+function defaultCustomAmount(snapshot: ReturnType<typeof buildPortalPaymentChargeSnapshot>) {
+  if (!(snapshot.currentBalance > 0)) return "";
+  if (snapshot.finalBalanceDueNow) return formatAmountInput(snapshot.currentBalance);
+  return formatAmountInput(
+    snapshot.depositDue ||
+      snapshot.installmentDue ||
+      snapshot.transportationDue ||
+      Math.min(snapshot.currentBalance, 25)
+  );
 }
 
 function includesKeyword(value: string | null | undefined, keywords: string[]) {
@@ -281,7 +325,18 @@ function buildLedgerEntries(state: PaymentPageState): {
       paymentCountsTowardBalance(payment.status) &&
       includesKeyword(payment.payment_type, ["deposit"])
   );
-  const depositApplied = Boolean(buyer?.deposit_date) || hasLoggedDeposit;
+  const totalPaymentCredits = payments.reduce((sum, payment) => {
+    const effect = classifyLedgerEffect(payment);
+    return sum + effect.credit;
+  }, 0);
+  const totalAdjustmentCredits = adjustments.reduce((sum, adjustment) => {
+    const effect = classifyAdjustmentEffect(adjustment);
+    return sum + effect.credit;
+  }, 0);
+  const depositApplied =
+    Boolean(buyer?.deposit_date) ||
+    hasLoggedDeposit ||
+    (depositAmount > 0 && totalPaymentCredits + totalAdjustmentCredits >= depositAmount - 0.01);
   const hasLoggedTransportation = payments.some(
     (payment) =>
       paymentCountsTowardBalance(payment.status) &&
@@ -537,6 +592,7 @@ export default function PortalPaymentsPage() {
   const [paymentStatusText, setPaymentStatusText] = useState("");
   const [paymentErrorText, setPaymentErrorText] = useState("");
   const [payingKind, setPayingKind] = useState<PortalChargeKind | "">("");
+  const [customAmount, setCustomAmount] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -587,6 +643,69 @@ export default function PortalPaymentsPage() {
 
   const { entries, summary } = useMemo(() => buildLedgerEntries(data), [data]);
   const paymentSnapshot = useMemo(() => buildPortalPaymentChargeSnapshot(data), [data]);
+  const customAmountNumber = useMemo(() => parseAmountInput(customAmount), [customAmount]);
+  const quickAmounts = useMemo(
+    () =>
+      [
+        paymentSnapshot.depositDue > 0
+          ? { label: "Deposit Due", amount: paymentSnapshot.depositDue }
+          : null,
+        paymentSnapshot.installmentDue > 0
+          ? { label: "Installment", amount: paymentSnapshot.installmentDue }
+          : null,
+        paymentSnapshot.transportationDue > 0
+          ? { label: "Transportation", amount: paymentSnapshot.transportationDue }
+          : null,
+        paymentSnapshot.currentBalance > 0
+          ? { label: "Full Balance", amount: paymentSnapshot.currentBalance }
+          : null,
+      ]
+        .filter((item): item is { label: string; amount: number } => Boolean(item))
+        .filter(
+          (item, index, array) =>
+            array.findIndex((candidate) => Math.abs(candidate.amount - item.amount) < 0.001) === index
+        ),
+    [
+      paymentSnapshot.currentBalance,
+      paymentSnapshot.depositDue,
+      paymentSnapshot.installmentDue,
+      paymentSnapshot.transportationDue,
+    ]
+  );
+  const customAmountError = useMemo(() => {
+    if (!(paymentSnapshot.currentBalance > 0)) return "";
+    if (!customAmount.trim()) return "Enter the amount you want to pay.";
+    if (!(customAmountNumber > 0)) return "Enter a valid payment amount.";
+    if (customAmountNumber > paymentSnapshot.customPaymentMax + 0.001) {
+      return "That amount is higher than the current balance on this account.";
+    }
+    if (paymentSnapshot.finalBalanceDueNow && customAmountNumber < paymentSnapshot.currentBalance - 0.001) {
+      return "The full remaining balance is required now before pickup or delivery.";
+    }
+    return "";
+  }, [
+    customAmount,
+    customAmountNumber,
+    paymentSnapshot.currentBalance,
+    paymentSnapshot.customPaymentMax,
+    paymentSnapshot.finalBalanceDueNow,
+  ]);
+
+  useEffect(() => {
+    setCustomAmount((current) => {
+      const currentNumber = parseAmountInput(current);
+      if (
+        !current.trim() ||
+        !(currentNumber > 0) ||
+        currentNumber > paymentSnapshot.customPaymentMax + 0.001 ||
+        (paymentSnapshot.finalBalanceDueNow &&
+          currentNumber < paymentSnapshot.currentBalance - 0.001)
+      ) {
+        return defaultCustomAmount(paymentSnapshot);
+      }
+      return current;
+    });
+  }, [paymentSnapshot]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -620,7 +739,7 @@ export default function PortalPaymentsPage() {
     }
   }, []);
 
-  async function startZohoPayment(chargeKind: PortalChargeKind) {
+  async function startZohoPayment(chargeKind: PortalChargeKind, amount?: number) {
     setPaymentStatusText("");
     setPaymentErrorText("");
     setPayingKind(chargeKind);
@@ -643,6 +762,7 @@ export default function PortalPaymentsPage() {
         },
         body: JSON.stringify({
           charge_kind: chargeKind,
+          ...(amount !== undefined ? { amount } : {}),
         }),
       });
 
@@ -804,9 +924,22 @@ export default function PortalPaymentsPage() {
         <div className="space-y-6">
           <PortalPanel
             title="Pay Online"
-            subtitle="Secure Zoho payment links are available for charges that are currently due on this account."
+            subtitle="Secure Zoho payment links are available for charges due on this account, along with flexible custom payments."
           >
             <div className="grid gap-4">
+              <PortalInfoTile
+                label={paymentSnapshot.finalBalanceDueNow ? "Final Balance Rule" : "Payment Flexibility"}
+                value={
+                  paymentSnapshot.finalBalanceDueNow
+                    ? toMoney(paymentSnapshot.currentBalance)
+                    : paymentSnapshot.currentBalance > 0
+                      ? "Any amount accepted"
+                      : "No balance due"
+                }
+                detail={paymentPolicyMessage(paymentSnapshot)}
+                tone={paymentSnapshot.finalBalanceDueNow ? "warning" : "neutral"}
+              />
+
               <PortalInfoTile
                 label="Deposit"
                 value={
@@ -825,7 +958,7 @@ export default function PortalPaymentsPage() {
                 }
                 tone={paymentSnapshot.depositDue > 0 ? "warning" : paymentSnapshot.depositPaid ? "success" : "neutral"}
               />
-              {paymentSnapshot.depositDue > 0 ? (
+              {paymentSnapshot.depositDue > 0 && !paymentSnapshot.finalBalanceDueNow ? (
                 <PortalButton
                   onClick={() => void startZohoPayment("deposit")}
                   disabled={payingKind !== "" && payingKind !== "deposit"}
@@ -853,7 +986,7 @@ export default function PortalPaymentsPage() {
                 }
                 tone={paymentSnapshot.installmentDue > 0 ? "warning" : "neutral"}
               />
-              {paymentSnapshot.installmentDue > 0 ? (
+              {paymentSnapshot.installmentDue > 0 && !paymentSnapshot.finalBalanceDueNow ? (
                 <PortalButton
                   onClick={() => void startZohoPayment("installment")}
                   disabled={payingKind !== "" && payingKind !== "installment"}
@@ -881,7 +1014,7 @@ export default function PortalPaymentsPage() {
                 }
                 tone={paymentSnapshot.transportationDue > 0 ? "warning" : paymentSnapshot.transportationChargeTotal > 0 ? "success" : "neutral"}
               />
-              {paymentSnapshot.transportationDue > 0 ? (
+              {paymentSnapshot.transportationDue > 0 && !paymentSnapshot.finalBalanceDueNow ? (
                 <PortalButton
                   onClick={() => void startZohoPayment("transportation")}
                   disabled={payingKind !== "" && payingKind !== "transportation"}
@@ -889,6 +1022,83 @@ export default function PortalPaymentsPage() {
                 >
                   {payingKind === "transportation" ? "Creating link..." : paymentActionLabel("transportation")}
                 </PortalButton>
+              ) : null}
+
+              {paymentSnapshot.currentBalance > 0 ? (
+                <div className="rounded-[1.25rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] p-4 shadow-sm">
+                  <div className="text-[11px] font-semibold tracking-[-0.01em] text-[var(--portal-text-muted)]">
+                    Custom Payment
+                  </div>
+                  <div className="mt-2 text-xl font-semibold text-[var(--portal-text)]">
+                    {paymentSnapshot.finalBalanceDueNow
+                      ? toMoney(paymentSnapshot.currentBalance)
+                      : "Choose your amount"}
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
+                    {paymentSnapshot.finalBalanceDueNow
+                      ? "Because the receive-date cutoff has been reached, only the full remaining balance can be paid right now."
+                      : `Enter any amount from ${toMoney(paymentSnapshot.customPaymentMin)} up to ${toMoney(paymentSnapshot.customPaymentMax)}.`}
+                  </div>
+
+                  <div className="mt-4 grid gap-3">
+                    <label className="grid gap-2">
+                      <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">
+                        Payment Amount
+                      </span>
+                      <input
+                        type="number"
+                        min={paymentSnapshot.customPaymentMin || undefined}
+                        max={paymentSnapshot.customPaymentMax || undefined}
+                        step="0.01"
+                        value={customAmount}
+                        onChange={(event) => setCustomAmount(event.target.value)}
+                        disabled={payingKind !== "" || paymentSnapshot.finalBalanceDueNow}
+                        className={portalInputClass}
+                        placeholder="25.00"
+                      />
+                    </label>
+
+                    {!paymentSnapshot.finalBalanceDueNow && quickAmounts.length ? (
+                      <div className="flex flex-wrap gap-2">
+                        {quickAmounts.map((option) => (
+                          <PortalSecondaryButton
+                            key={`${option.label}-${option.amount}`}
+                            onClick={() => setCustomAmount(formatAmountInput(option.amount))}
+                            disabled={payingKind !== ""}
+                            className="rounded-full px-3 py-2 text-[11px] font-bold uppercase tracking-[0.14em]"
+                          >
+                            {option.label} {toMoney(option.amount)}
+                          </PortalSecondaryButton>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {customAmountError ? (
+                      <div className="rounded-[18px] border border-[rgba(194,84,114,0.16)] bg-[linear-gradient(180deg,rgba(255,249,251,0.98)_0%,rgba(255,242,246,0.94)_100%)] px-4 py-3 text-sm font-semibold text-[#aa4f68]">
+                        {customAmountError}
+                      </div>
+                    ) : null}
+
+                    <PortalButton
+                      onClick={() =>
+                        void startZohoPayment(
+                          "general",
+                          paymentSnapshot.finalBalanceDueNow
+                            ? paymentSnapshot.currentBalance
+                            : customAmountNumber
+                        )
+                      }
+                      disabled={Boolean(customAmountError) || (payingKind !== "" && payingKind !== "general")}
+                      className="w-full"
+                    >
+                      {payingKind === "general"
+                        ? "Creating link..."
+                        : paymentSnapshot.finalBalanceDueNow
+                          ? "Pay Full Balance"
+                          : paymentActionLabel("general")}
+                    </PortalButton>
+                  </div>
+                </div>
               ) : null}
             </div>
           </PortalPanel>

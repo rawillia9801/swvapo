@@ -35,12 +35,29 @@ function renderChatText(text: string) {
     .split(/\n{2,}/)
     .map((paragraph) => paragraph.trim())
     .filter(Boolean);
+  const urlPattern = /(https?:\/\/[^\s]+)/gi;
 
   return (
     <div className="space-y-3">
       {paragraphs.map((paragraph, index) => (
         <p key={index} className="whitespace-pre-wrap leading-relaxed">
-          {paragraph}
+          {paragraph.split(urlPattern).map((part, partIndex) => {
+            if (/^https?:\/\//i.test(part)) {
+              return (
+                <a
+                  key={`${index}-${partIndex}`}
+                  href={part}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-semibold underline underline-offset-4"
+                >
+                  {part}
+                </a>
+              );
+            }
+
+            return <React.Fragment key={`${index}-${partIndex}`}>{part}</React.Fragment>;
+          })}
         </p>
       ))}
     </div>

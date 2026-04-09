@@ -1,6 +1,6 @@
 // FILE: app/api/buildlio/route.ts
 import { NextResponse } from "next/server";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import {
   deactivateChiChiMemory,
   formatChiChiMemories,
@@ -20,6 +20,7 @@ import {
   describePortalCharge,
   type PortalChargeKind,
 } from "@/lib/portal-payment-options";
+import { createPortalZohoPaymentLink } from "@/lib/portal-zoho-payments";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -323,6 +324,7 @@ type ActionIntent =
         | "crm_leads"
         | "crm_followups"
         | "admin_digests"
+        | "payment_alerts"
         | "zoho_customers"
         | "zoho_payments";
       query?: string | null;
@@ -1468,6 +1470,7 @@ Valid entities for "list_records":
 - crm_leads
 - crm_followups
 - admin_digests
+- payment_alerts
 - zoho_customers
 - zoho_payments
 
@@ -1558,6 +1561,52 @@ function inferZohoChargeKind(text: string | null | undefined): PortalChargeKind 
   return null;
 }
 
+function extractRequestedPaymentAmount(text: string | null | undefined) {
+  const value = String(text || "").trim();
+  if (!value) return null;
+
+  const directAmountMatch =
+    value.match(/\bamount(?:\s+of)?[:\s$-]*([\d]+(?:\.\d{1,2})?)/i) ||
+    value.match(/\$\s*([\d]+(?:\.\d{1,2})?)/i);
+  const trailingAmountMatches = Array.from(
+    value.matchAll(/\bfor\s+\$?([\d]+(?:\.\d{1,2})?)(?=\b|\s)/gi)
+  );
+  const trailingAmountMatch = trailingAmountMatches.length
+    ? trailingAmountMatches[trailingAmountMatches.length - 1]
+    : null;
+  const amount = Number(directAmountMatch?.[1] || trailingAmountMatch?.[1] || "");
+  return Number.isFinite(amount) && amount > 0 ? amount : null;
+}
+
+function extractPortalPaymentRequest(userMessage: string) {
+  const normalized = String(userMessage || "").trim().toLowerCase();
+  if (!normalized) return null;
+
+  const mentionsPaymentIntent =
+    /\bmake\b.*\bpayment\b/.test(normalized) ||
+    /\bpay\b/.test(normalized) ||
+    /\bpayment link\b/.test(normalized) ||
+    /\bdeposit\b/.test(normalized) ||
+    /\binstallment\b/.test(normalized) ||
+    /\btransport(?:ation)?\b/.test(normalized);
+
+  if (!mentionsPaymentIntent) {
+    return null;
+  }
+
+  const chargeKind = inferZohoChargeKind(normalized) || "general";
+  const amount = extractRequestedPaymentAmount(normalized);
+
+  if (chargeKind === "general" && amount === null) {
+    return null;
+  }
+
+  return {
+    chargeKind,
+    amount,
+  };
+}
+
 function defaultZohoChargeDescription(
   chargeKind: PortalChargeKind | null,
   recipientLabel: string | null | undefined
@@ -1580,7 +1629,42 @@ function defaultZohoChargeDescription(
       : "Transportation fee requested by ChiChi";
   }
 
+  if (chargeKind === "general") {
+    return recipient ? `Payment for ${recipient}` : "Payment requested by ChiChi";
+  }
+
   return recipient ? `Payment link for ${recipient}` : "Payment requested by ChiChi";
+}
+
+async function executePortalUserPaymentLink(
+  req: Request,
+  admin: SupabaseClient,
+  user: User,
+  requestInfo: { chargeKind: PortalChargeKind; amount: number | null }
+) {
+  if (!(await isZohoPaymentsConfigured())) {
+    return "Secure Zoho payments are not configured yet. Please contact us and we can help with payment manually.";
+  }
+
+  const paymentLink = await createPortalZohoPaymentLink({
+    admin,
+    user,
+    requestUrl: req.url,
+    chargeKind: requestInfo.chargeKind,
+    requestedAmount: requestInfo.amount,
+  });
+
+  return [
+    `I created a secure Zoho payment link for ${paymentLink.snapshot.puppyName}.`,
+    `Amount: $${paymentLink.amount.toFixed(2)} USD`,
+    `Charge type: ${paymentLink.chargeKind}`,
+    paymentLink.snapshot.finalBalanceDueNow
+      ? "Timing note: the full remaining balance is required now before the scheduled receive date."
+      : "You can use this secure link to complete the payment now.",
+    `Link: ${paymentLink.url}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function extractListQueryForEntity(
@@ -1733,6 +1817,7 @@ function parseDirectActionIntent(userMessage: string): ActionIntent | null {
   }> = [
     { pattern: /\bbuyers?\b/, entity: "buyers" },
     { pattern: /\bpupp(?:y|ies)\b/, entity: "puppies" },
+    { pattern: /\bcustomer payment alerts?\b|\bpayment alerts?\b|\bpayment notifications?\b/, entity: "payment_alerts" },
     { pattern: /\bpayments?\b/, entity: "payments" },
     { pattern: /\bapplications?\b/, entity: "applications" },
     { pattern: /\bdocuments?\b/, entity: "documents" },
@@ -1780,6 +1865,8 @@ function parseDirectActionIntent(userMessage: string): ActionIntent | null {
     normalizedText === "crm followups" ||
     normalizedText === "crm follow-ups" ||
     normalizedText === "admin digests" ||
+    normalizedText === "payment alerts" ||
+    normalizedText === "customer payment alerts" ||
     normalizedText === "zoho customers" ||
     normalizedText === "zoho payments" ||
     /^(?:list|show|get|view)\b/.test(normalizedText) ||
@@ -3627,6 +3714,61 @@ async function executeListRecords(
     ].join("\n");
   }
 
+  if (entity === "payment_alerts") {
+    const { data, error } = await admin
+      .from("chichi_admin_alerts")
+      .select("id,created_at,title,message,tone,event_type,payment_id,reference_id")
+      .eq("alert_scope", "payment")
+      .order("created_at", { ascending: false })
+      .limit(limit || 500);
+
+    if (error) {
+      const message = String(error.message || "").toLowerCase();
+      if (
+        message.includes("does not exist") ||
+        message.includes("could not find the table") ||
+        message.includes("schema cache")
+      ) {
+        return "I could not find any payment alerts yet because the payment alert feed has not been migrated into Supabase.";
+      }
+
+      throw new Error(`Could not load payment alerts: ${error.message}`);
+    }
+
+    const rows = (data || []).filter((row) => {
+      return matchesQueryText(
+        [row.id, row.title, row.message, row.tone, row.event_type, row.payment_id, row.reference_id],
+        searchQuery
+      );
+    });
+
+    if (limit === 0) {
+      return `I found ${rows.length} payment alert${rows.length === 1 ? "" : "s"}${
+        queryText ? ` matching "${intent.query}".` : "."
+      }`;
+    }
+
+    if (!rows.length) {
+      return queryText
+        ? `I could not find any payment alerts matching "${intent.query}".`
+        : "I could not find any payment alerts yet.";
+    }
+
+    return [
+      `Here ${rows.length === 1 ? "is" : "are"} the latest customer payment alert${
+        rows.length === 1 ? "" : "s"
+      }${queryText ? ` matching "${intent.query}"` : ""}:`,
+      "",
+      ...rows.slice(0, limit).map((row, index) => {
+        return `${index + 1}. ${formatListDate(row.created_at || null)} - ${row.title || "Payment alert"} - ${previewText(
+          row.message,
+          "No payment alert details.",
+          120
+        )}`;
+      }),
+    ].join("\n");
+  }
+
   if (entity === "zoho_customers") {
     if (!(await isZohoPaymentsConfigured())) {
       return "Zoho Payments is not configured yet, so I cannot load Zoho customers right now.";
@@ -3736,6 +3878,8 @@ async function executeCreateZohoPaymentLink(
       chargeKind = "deposit";
     } else if (buyer.finance_enabled && numbersRoughlyMatch(amount, buyer.finance_monthly_amount)) {
       chargeKind = "installment";
+    } else {
+      chargeKind = "general";
     }
   }
 
@@ -3846,6 +3990,10 @@ async function localAdminFallback(
 
   if (/\bcrm follow[- ]?ups?\b|\bfollow[- ]?ups?\b/.test(lower)) {
     return executeListRecords(admin, { action: "list_records", entity: "crm_followups", limit: 12 });
+  }
+
+  if (/\bcustomer payment alerts?\b|\bpayment alerts?\b|\bpayment notifications?\b/.test(lower)) {
+    return executeListRecords(admin, { action: "list_records", entity: "payment_alerts", limit: 12 });
   }
 
   if (/\badmin digests?\b|\bowner digest\b/.test(lower)) {
@@ -4771,6 +4919,7 @@ export async function POST(req: Request) {
               "crm_leads",
               "crm_followups",
               "admin_digests",
+              "payment_alerts",
               "zoho_customers",
               "zoho_payments",
             ],
@@ -4799,6 +4948,7 @@ export async function POST(req: Request) {
     const intent: ActionIntent = memoryCommand
       ? { action: "answer_only" }
       : await extractActionIntent(lastUserMessage, recentUserMessages);
+    const portalPaymentRequest = !canWriteCore ? extractPortalPaymentRequest(lastUserMessage) : null;
 
     let text = "";
 
@@ -4845,7 +4995,11 @@ export async function POST(req: Request) {
       }
     }
 
-    if (intent.action !== "answer_only") {
+    if (!text && portalPaymentRequest) {
+      text = await executePortalUserPaymentLink(req, admin, user, portalPaymentRequest);
+    }
+
+    if (!text && intent.action !== "answer_only") {
       if (!canWriteCore) {
         text =
           "You’re signed in, but Core write actions are limited to authorized admin accounts. I can still answer questions about the account and portal.";

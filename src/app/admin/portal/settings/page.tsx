@@ -27,9 +27,12 @@ type ZohoPaymentsStatus = {
   token_type: string | null;
   has_widget_key: boolean;
   has_signing_key: boolean;
+  default_payment_methods: string[];
   has_return_url: boolean;
   redirect_uri: string | null;
   post_connect_redirect: string | null;
+  webhook_url?: string | null;
+  webhook_events?: string[];
   message?: string;
 };
 
@@ -357,6 +360,14 @@ export default function AdminPortalSettingsPage() {
                     </div>
                   </div>
                   <div>
+                    Default payment methods:
+                    <div className="mt-1 font-semibold text-[var(--portal-text)]">
+                      {zohoStatus?.default_payment_methods?.length
+                        ? zohoStatus.default_payment_methods.join(", ")
+                        : "card"}
+                    </div>
+                  </div>
+                  <div>
                     Widget key:
                     <span className="ml-2 font-semibold text-[var(--portal-text)]">
                       {zohoStatus?.has_widget_key ? "Configured" : "Missing"}
@@ -373,6 +384,20 @@ export default function AdminPortalSettingsPage() {
                     <span className="ml-2 font-semibold text-[var(--portal-text)]">
                       {zohoStatus?.has_return_url ? "Configured" : "Using per-link return URLs"}
                     </span>
+                  </div>
+                  <div>
+                    Webhook endpoint:
+                    <div className="mt-1 font-semibold text-[var(--portal-text)]">
+                      {zohoStatus?.webhook_url || "Derived from the OAuth redirect once configured"}
+                    </div>
+                  </div>
+                  <div>
+                    Webhook events:
+                    <div className="mt-1 font-semibold text-[var(--portal-text)]">
+                      {zohoStatus?.webhook_events?.length
+                        ? zohoStatus.webhook_events.join(", ")
+                        : "payment_link.paid"}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -410,6 +435,14 @@ export default function AdminPortalSettingsPage() {
                     ChiChi admin actions:
                     <span className="ml-2 font-semibold text-[var(--portal-text)]">
                       {zohoStatus?.configured ? "Ready to create live Zoho links" : "Still waiting on runtime readiness"}
+                    </span>
+                  </div>
+                  <div>
+                    Webhook reconciliation:
+                    <span className="ml-2 font-semibold text-[var(--portal-text)]">
+                      {zohoStatus?.webhook_url
+                        ? "Route is ready once the webhook is added in Zoho"
+                        : "Waiting for runtime URL details"}
                     </span>
                   </div>
                 </div>

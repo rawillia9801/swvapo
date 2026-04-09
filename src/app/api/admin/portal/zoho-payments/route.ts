@@ -5,6 +5,7 @@ import {
   loadZohoPaymentsConnection,
 } from "@/lib/zoho-payments-connection";
 import {
+  getZohoPaymentsDefaultPaymentMethods,
   getZohoPaymentsWidgetApiKey,
   hasZohoPaymentsSigningKey,
   isZohoPaymentsConfigured,
@@ -27,6 +28,17 @@ export async function GET(req: Request) {
 
   try {
     const connection = await loadZohoPaymentsConnection();
+    const redirectUri = process.env.ZOHO_PAYMENTS_REDIRECT_URI || null;
+    const webhookUrl = redirectUri
+      ? (() => {
+          try {
+            const origin = new URL(redirectUri).origin;
+            return `${origin}/api/zoho/payments/webhook`;
+          } catch {
+            return null;
+          }
+        })()
+      : null;
     const accountId =
       extractZohoPaymentsAccountId(process.env.ZOHO_PAYMENTS_ACCOUNT_ID) ||
       extractZohoPaymentsAccountId(process.env.ZOHO_PAYMENTS_SOID) ||
@@ -58,10 +70,20 @@ export async function GET(req: Request) {
       token_type: connection?.token_type || null,
       has_widget_key: Boolean(getZohoPaymentsWidgetApiKey()),
       has_signing_key: hasZohoPaymentsSigningKey(),
+      default_payment_methods: getZohoPaymentsDefaultPaymentMethods(),
       has_return_url: yes(process.env.ZOHO_PAYMENTS_RETURN_URL),
-      redirect_uri: process.env.ZOHO_PAYMENTS_REDIRECT_URI || null,
+      redirect_uri: redirectUri,
       post_connect_redirect:
         process.env.ZOHO_PAYMENTS_POST_CONNECT_REDIRECT || null,
+      webhook_url: webhookUrl,
+      webhook_events: [
+        "payment_link.paid",
+        "payment_link.expired",
+        "payment_link.canceled",
+        "payment.succeeded",
+        "payment.pending",
+        "payment.failed",
+      ],
     });
   } catch (error) {
     return NextResponse.json(

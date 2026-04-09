@@ -145,6 +145,9 @@ type AccountActivity = {
   detail: string;
   status: string;
   referenceNumber: string;
+  sourceLabel: string;
+  isZoho: boolean;
+  isPortalLinked: boolean;
 };
 
 function firstValue(...values: Array<string | null | undefined>) {
@@ -310,6 +313,34 @@ function adjustmentTitle(adjustment: BuyerAdjustment) {
   );
 }
 
+function isZohoPayment(payment: BuyerPayment) {
+  const haystack = [payment.method, payment.note].map((value) => String(value || "").toLowerCase()).join(" ");
+  return haystack.includes("zoho");
+}
+
+function isPortalLinkedPayment(payment: BuyerPayment) {
+  return [payment.method, payment.note]
+    .map((value) => String(value || "").toLowerCase())
+    .join(" ")
+    .includes("via zoho payment link");
+}
+
+function countZohoPayments(account: BuyerAccount) {
+  return account.payments.filter((payment) => isZohoPayment(payment)).length;
+}
+
+function latestZohoPaymentDate(account: BuyerAccount) {
+  const latest = account.payments
+    .filter((payment) => isZohoPayment(payment))
+    .sort((left, right) => {
+      const leftTime = new Date(left.payment_date || left.created_at).getTime();
+      const rightTime = new Date(right.payment_date || right.created_at).getTime();
+      return rightTime - leftTime;
+    })[0];
+
+  return latest?.payment_date || latest?.created_at || null;
+}
+
 function buildAccountActivity(account: BuyerAccount): AccountActivity[] {
   const paymentRows: AccountActivity[] = account.payments.map((payment) => ({
     key: `payment-${payment.id}`,
@@ -322,6 +353,9 @@ function buildAccountActivity(account: BuyerAccount): AccountActivity[] {
       .join(" - "),
     status: firstValue(payment.status, "recorded"),
     referenceNumber: firstValue(payment.reference_number),
+    sourceLabel: isZohoPayment(payment) ? "Zoho receipt" : "Manual payment",
+    isZoho: isZohoPayment(payment),
+    isPortalLinked: isPortalLinkedPayment(payment),
   }));
 
   const adjustmentRows: AccountActivity[] = account.adjustments.map((adjustment) => ({
@@ -333,6 +367,9 @@ function buildAccountActivity(account: BuyerAccount): AccountActivity[] {
     detail: firstValue(adjustment.description, adjustment.entry_type),
     status: firstValue(adjustment.status, "recorded"),
     referenceNumber: firstValue(adjustment.reference_number),
+    sourceLabel: "Manual adjustment",
+    isZoho: false,
+    isPortalLinked: false,
   }));
 
   return [...paymentRows, ...adjustmentRows].sort((a, b) => {
@@ -749,7 +786,11 @@ export default function AdminPortalPaymentsPage() {
                       `Buyer #${account.buyer.id}`
                     )}
                     subtitle={`${account.buyer.email || "No email"} - ${puppyName(account.puppy)}`}
-                    meta={`${fmtMoney(account.totalPaid)} paid - ${account.adjustments.length} fee/credit entr${account.adjustments.length === 1 ? "y" : "ies"}`}
+                    meta={`${fmtMoney(account.totalPaid)} paid - ${account.adjustments.length} fee/credit entr${account.adjustments.length === 1 ? "y" : "ies"}${
+                      countZohoPayments(account)
+                        ? ` - ${countZohoPayments(account)} Zoho receipt${countZohoPayments(account) === 1 ? "" : "s"}`
+                        : ""
+                    }`}
                     badge={
                       <span
                         className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(
@@ -807,6 +848,34 @@ export default function AdminPortalPaymentsPage() {
                     value={fmtMoney(balanceSummary.balance)}
                     detail="Automatically recalculated from the full account ledger."
                   />
+                </div>
+
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <div className="rounded-[20px] border border-[rgba(47,143,103,0.18)] bg-[linear-gradient(180deg,rgba(246,253,249,0.98)_0%,rgba(240,249,245,0.94)_100%)] px-4 py-4">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#4d8a6d]">
+                      Zoho Receipts
+                    </div>
+                    <div className="mt-2 text-lg font-semibold text-[#275f47]">
+                      {countZohoPayments(selectedAccount)} synced payment{countZohoPayments(selectedAccount) === 1 ? "" : "s"}
+                    </div>
+                    <div className="mt-2 text-sm leading-6 text-[#3f735a]">
+                      Payments completed through Zoho and written back into this buyer ledger.
+                    </div>
+                  </div>
+
+                  <div className="rounded-[20px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                      Last Zoho Receipt
+                    </div>
+                    <div className="mt-2 text-lg font-semibold text-[var(--portal-text)]">
+                      {latestZohoPaymentDate(selectedAccount)
+                        ? fmtDate(latestZohoPaymentDate(selectedAccount) || "")
+                        : "No Zoho receipt yet"}
+                    </div>
+                    <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
+                      This helps confirm the most recent portal-synced customer payment for this account.
+                    </div>
+                  </div>
                 </div>
               </AdminPanel>
 
@@ -915,6 +984,21 @@ export default function AdminPortalPaymentsPage() {
                               >
                                 {entry.status}
                               </span>
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <span className="inline-flex rounded-full border border-[var(--portal-border)] bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+                                {entry.sourceLabel}
+                              </span>
+                              {entry.isZoho ? (
+                                <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                                  Customer paid you
+                                </span>
+                              ) : null}
+                              {entry.isPortalLinked ? (
+                                <span className="inline-flex rounded-full border border-[rgba(92,123,214,0.2)] bg-[rgba(243,246,255,0.95)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#5c7bd6]">
+                                  Portal synced
+                                </span>
+                              ) : null}
                             </div>
                             {entry.referenceNumber ? (
                               <div className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">

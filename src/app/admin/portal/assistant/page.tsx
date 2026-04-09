@@ -29,6 +29,17 @@ type ChiChiResponse = {
   };
 };
 
+type PaymentAlert = {
+  id: number;
+  created_at: string;
+  title: string;
+  message: string;
+  tone: "success" | "warning" | "danger" | "neutral";
+  payment_id?: string | null;
+  payment_link_id?: string | null;
+  reference_id?: string | null;
+};
+
 function makeId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }
@@ -49,9 +60,11 @@ function shortThreadId(value: string | null | undefined) {
 const starterPrompts = [
   "Show today's admin digest",
   "Show exact public chat transcripts",
-  "Show recent public chat threads about payment plans",
   "Show CRM follow-ups due today",
+  "Show recent customer payment alerts",
   "Create Zoho payment link for Jane Doe for $500 deposit",
+  "Create Zoho payment link for Jane Doe for $275 transportation fee",
+  "Create Zoho payment link for Jane Doe for $425 installment payment",
 ];
 
 const capabilityHighlights = [
@@ -59,7 +72,8 @@ const capabilityHighlights = [
   "Website activity",
   "CRM follow-ups",
   "Buyer and puppy records",
-  "Zoho customers and payments",
+  "Live customer payments",
+  "Deposits, installments, and transport links",
 ];
 
 export default function AdminPortalAssistantPage() {
@@ -76,7 +90,10 @@ export default function AdminPortalAssistantPage() {
     canWriteCore?: boolean;
   } | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [paymentAlerts, setPaymentAlerts] = useState<PaymentAlert[]>([]);
   const endRef = useRef<HTMLDivElement | null>(null);
+  const alertsInitializedRef = useRef(false);
+  const seenAlertIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let mounted = true;
@@ -113,6 +130,76 @@ export default function AdminPortalAssistantPage() {
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, sending]);
+
+  useEffect(() => {
+    if (!accessToken || !isPortalAdminEmail(user?.email)) return;
+
+    let active = true;
+
+    async function loadAlerts() {
+      try {
+        const response = await fetch("/api/admin/portal/payment-alerts?limit=8", {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        const payload = (await response.json()) as {
+          ok?: boolean;
+          alerts?: PaymentAlert[];
+        };
+
+        if (!response.ok || !payload.ok) {
+          return;
+        }
+
+        const alerts = payload.alerts || [];
+        if (!active) return;
+
+        setPaymentAlerts(alerts);
+
+        const nextIds = new Set(alerts.map((alert) => String(alert.id)));
+        if (!alertsInitializedRef.current) {
+          alertsInitializedRef.current = true;
+          seenAlertIdsRef.current = nextIds;
+          return;
+        }
+
+        const unseenAlerts = alerts
+          .filter((alert) => !seenAlertIdsRef.current.has(String(alert.id)))
+          .sort(
+            (left, right) =>
+              new Date(left.created_at).getTime() - new Date(right.created_at).getTime()
+          );
+
+        seenAlertIdsRef.current = nextIds;
+
+        if (unseenAlerts.length) {
+          setMessages((prev) => [
+            ...prev,
+            ...unseenAlerts.map((alert) => ({
+              id: makeId("assistant-alert"),
+              role: "assistant" as const,
+              text: `${alert.title}\n${alert.message}`,
+              createdAt: formatTime(new Date(alert.created_at)),
+            })),
+          ]);
+        }
+      } catch (error) {
+        console.error("Payment alert polling error:", error);
+      }
+    }
+
+    void loadAlerts();
+    const interval = window.setInterval(() => {
+      void loadAlerts();
+    }, 15000);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [accessToken, user?.email]);
 
   const routeMessages = useMemo(
     () =>
@@ -322,6 +409,52 @@ export default function AdminPortalAssistantPage() {
                     onClick={() => void sendMessage(prompt)}
                   />
                 ))}
+              </div>
+            </AdminPanel>
+
+            <AdminPanel
+              title="Live Payment Alerts"
+              subtitle="ChiChi surfaces fresh customer payment activity here as Zoho events arrive."
+            >
+              <div className="space-y-3">
+                {paymentAlerts.length ? (
+                  paymentAlerts.map((alert) => (
+                    <div
+                      key={alert.id}
+                      className="rounded-[1.25rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 shadow-[var(--portal-shadow-sm)]"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                            {alert.title}
+                          </div>
+                          <div className="mt-2 text-sm leading-6 text-[var(--portal-text)]">
+                            {alert.message}
+                          </div>
+                        </div>
+                        <span
+                          className={[
+                            "shrink-0 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em]",
+                            alert.tone === "success"
+                              ? "bg-[#f6fdf9] text-[#2f7657]"
+                              : alert.tone === "warning"
+                                ? "bg-[#fff8ef] text-[#8b6438]"
+                                : "bg-[#fff2f6] text-[#aa4f68]",
+                          ].join(" ")}
+                        >
+                          {alert.tone}
+                        </span>
+                      </div>
+                      <div className="mt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">
+                        {formatTime(new Date(alert.created_at))}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-[1.25rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm text-[var(--portal-text-soft)]">
+                    New customer payment events will appear here once the Zoho webhook is connected.
+                  </div>
+                )}
               </div>
             </AdminPanel>
           </div>
