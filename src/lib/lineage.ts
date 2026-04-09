@@ -17,6 +17,10 @@ export type BreedingDogRecord = {
   color?: string | null;
   coat_type?: string | null;
   registration_no?: string | null;
+  genetics_summary?: string | null;
+  genetics_raw?: string | null;
+  genetics_report_url?: string | null;
+  genetics_updated_at?: string | null;
   notes?: string | null;
   created_at?: string | null;
 };

@@ -21,6 +21,9 @@ import {
   type PortalChargeKind,
 } from "@/lib/portal-payment-options";
 import { createPortalZohoPaymentLink } from "@/lib/portal-zoho-payments";
+import { loadAdminLineageWorkspace } from "@/lib/admin-lineage";
+import { listAllAuthUsers } from "@/lib/admin-api";
+import { loadBreedingGeneticsPromptContext } from "@/lib/breeding-genetics";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -2585,6 +2588,263 @@ function formatUnixDate(value: number | null | undefined) {
   });
 }
 
+function formatCurrency(value: number | null | undefined, currency = "USD") {
+  const amount = Number(value || 0);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(Number.isFinite(amount) ? amount : 0);
+}
+
+function formatNaturalList(values: Array<string | null | undefined>, fallback = "None yet") {
+  const items = Array.from(
+    new Set(
+      values
+        .map((value) => String(value || "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  if (!items.length) return fallback;
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+
+function normalizeBreedingRoleValue(value: string | null | undefined) {
+  return String(value || "").trim().toLowerCase() === "sire" ? "sire" : "dam";
+}
+
+async function executeAdminOperationalIntelligence(
+  admin: SupabaseClient,
+  userMessage: string
+) {
+  const lower = String(userMessage || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[?.!]+$/g, "");
+
+  if (!lower) return "";
+
+  const wantsCount = /\bhow many\b|\bcount\b|\btotal\b/.test(lower);
+  const wantsList = /\bshow\b|\blist\b|\bwhich\b|\bwho\b|\bwhat\b/.test(lower);
+  const wantsReadback =
+    wantsCount ||
+    wantsList ||
+    /\bsummary\b|\boverview\b|\bsnapshot\b|\bstatus\b|\bdo i have\b|\bare there\b|\bwhat's\b|\bwhats\b/.test(
+      lower
+    );
+  const asksBreedingProgram =
+    wantsReadback &&
+    /\bdam'?s?\b|\bsires?\b|\blitters?\b|\bbreeding dogs?\b|\bbreeding program\b|\blineage\b/.test(
+      lower
+    );
+
+  if (asksBreedingProgram) {
+    const workspace = await loadAdminLineageWorkspace(admin);
+    const dams = workspace.dogs.filter((dog) => normalizeBreedingRoleValue(dog.role) === "dam");
+    const sires = workspace.dogs.filter((dog) => normalizeBreedingRoleValue(dog.role) === "sire");
+    const wantsDams = /\bdam'?s?\b/.test(lower);
+    const wantsSires = /\bsires?\b/.test(lower);
+    const wantsLitters = /\blitters?\b/.test(lower);
+    const wantsRoster = /\bbreeding dogs?\b|\broster\b/.test(lower);
+    const wantsSummary =
+      /\bsummary\b|\boverview\b|\bsnapshot\b|\bstatus\b|\bbreeding program\b|\blineage\b/.test(
+        lower
+      ) || (!wantsDams && !wantsSires && !wantsLitters && !wantsRoster);
+
+    const damNames = dams.map((dog) => dog.displayName);
+    const sireNames = sires.map((dog) => dog.displayName);
+    const latestLitters = workspace.litters.slice(0, 6).map((litter) => {
+      const name = litter.displayName || `Litter #${litter.id}`;
+      const pairing = formatNaturalList(
+        [
+          firstValue(
+            litter.damProfile?.display_name,
+            litter.damProfile?.dog_name,
+            litter.damProfile?.name,
+            litter.damProfile?.call_name
+          ),
+          firstValue(
+            litter.sireProfile?.display_name,
+            litter.sireProfile?.dog_name,
+            litter.sireProfile?.name,
+            litter.sireProfile?.call_name
+          ),
+        ],
+        "Dam and sire not fully linked"
+      );
+      return `${name} (${pairing})`;
+    });
+
+    if (wantsDams && wantsSires && !wantsLitters && !wantsRoster) {
+      return [
+        `You currently have ${dams.length} dam${dams.length === 1 ? "" : "s"} and ${sires.length} sire${sires.length === 1 ? "" : "s"} in the breeding program.`,
+        `Dams: ${formatNaturalList(damNames)}.`,
+        `Sires: ${formatNaturalList(sireNames)}.`,
+        `Litters on file: ${workspace.summary.totalLitters}.`,
+      ].join("\n");
+    }
+
+    if (wantsDams && !wantsSires && !wantsLitters && !wantsRoster) {
+      if (wantsCount && !wantsList) {
+        return `You currently have ${dams.length} dam${dams.length === 1 ? "" : "s"} in the breeding program: ${formatNaturalList(damNames)}.`;
+      }
+
+      return [
+        `Here ${dams.length === 1 ? "is" : "are"} the current dam${dams.length === 1 ? "" : "s"} in the breeding program:`,
+        "",
+        ...dams.map((dog, index) => {
+          const litterCount = Number(dog.summary.totalLitters || 0);
+          const puppyCount = Number(dog.summary.totalPuppies || 0);
+          return `${index + 1}. ${dog.displayName} - ${litterCount} litter${litterCount === 1 ? "" : "s"} - ${puppyCount} pupp${puppyCount === 1 ? "y" : "ies"}`;
+        }),
+      ].join("\n");
+    }
+
+    if (wantsSires && !wantsDams && !wantsLitters && !wantsRoster) {
+      if (wantsCount && !wantsList) {
+        return `You currently have ${sires.length} sire${sires.length === 1 ? "" : "s"} in the breeding program: ${formatNaturalList(sireNames)}.`;
+      }
+
+      return [
+        `Here ${sires.length === 1 ? "is" : "are"} the current sire${sires.length === 1 ? "" : "s"} in the breeding program:`,
+        "",
+        ...sires.map((dog, index) => {
+          const litterCount = Number(dog.summary.totalLitters || 0);
+          const puppyCount = Number(dog.summary.totalPuppies || 0);
+          return `${index + 1}. ${dog.displayName} - ${litterCount} litter${litterCount === 1 ? "" : "s"} - ${puppyCount} pupp${puppyCount === 1 ? "y" : "ies"}`;
+        }),
+      ].join("\n");
+    }
+
+    if (wantsLitters && !wantsDams && !wantsSires && !wantsRoster) {
+      if (wantsCount && !wantsList) {
+        return [
+          `You currently have ${workspace.summary.totalLitters} litter${workspace.summary.totalLitters === 1 ? "" : "s"} on file.`,
+          latestLitters.length ? `Recent litters: ${formatNaturalList(latestLitters)}.` : null,
+        ]
+          .filter(Boolean)
+          .join("\n");
+      }
+
+      return [
+        `Here ${workspace.litters.length === 1 ? "is" : "are"} the current litter${workspace.litters.length === 1 ? "" : "s"} on file:`,
+        "",
+        ...workspace.litters.slice(0, 12).map((litter, index) => {
+          const pairing = formatNaturalList(
+            [
+              firstValue(
+                litter.damProfile?.display_name,
+                litter.damProfile?.dog_name,
+                litter.damProfile?.name,
+                litter.damProfile?.call_name
+              ),
+              firstValue(
+                litter.sireProfile?.display_name,
+                litter.sireProfile?.dog_name,
+                litter.sireProfile?.name,
+                litter.sireProfile?.call_name
+              ),
+            ],
+            "Dam and sire not fully linked"
+          );
+          return `${index + 1}. ${litter.displayName} - ${pairing} - ${litter.summary.totalPuppies} pupp${litter.summary.totalPuppies === 1 ? "y" : "ies"}`;
+        }),
+      ].join("\n");
+    }
+
+    if (wantsRoster && wantsCount && !wantsList) {
+      return `You currently have ${workspace.dogs.length} breeding dog profiles total: ${dams.length} dams and ${sires.length} sires.`;
+    }
+
+    if (wantsSummary || wantsRoster || wantsList || wantsCount) {
+      return [
+        "Breeding program snapshot:",
+        "",
+        `Dams: ${dams.length}`,
+        `Sires: ${sires.length}`,
+        `Litters: ${workspace.summary.totalLitters}`,
+        `Puppies tracked: ${workspace.summary.totalPuppies}`,
+        `Available / Reserved / Completed: ${workspace.summary.availableCount} / ${workspace.summary.reservedCount} / ${workspace.summary.completedCount}`,
+        `Realized revenue: ${formatCurrency(workspace.summary.realizedRevenue)}`,
+        `Projected pipeline: ${formatCurrency(workspace.summary.projectedRevenue)}`,
+        damNames.length ? `Dam roster: ${formatNaturalList(damNames)}.` : null,
+        sireNames.length ? `Sire roster: ${formatNaturalList(sireNames)}.` : null,
+      ]
+        .filter(Boolean)
+        .join("\n");
+    }
+  }
+
+  const asksPortalUsers =
+    wantsReadback &&
+    /\bportal users?\b|\blogged[- ]?in users?\b|\bsigned[- ]?in users?\b|\bregistered users?\b|\buser accounts?\b/.test(
+      lower
+    );
+
+  if (asksPortalUsers) {
+    const [authUsers, buyersResult] = await Promise.all([
+      listAllAuthUsers(),
+      admin
+        .from("buyers")
+        .select("id,user_id,full_name,name,email,status,created_at")
+        .order("created_at", { ascending: false })
+        .limit(5000),
+    ]);
+
+    if (buyersResult.error) {
+      throw new Error(`Could not load linked buyer accounts: ${buyersResult.error.message}`);
+    }
+
+    const portalUsers = authUsers.filter((account) => !isPortalAdminEmail(account.email));
+    const buyerRows = buyersResult.data || [];
+    const buyersByUserId = new Map(
+      buyerRows
+        .filter((buyer) => String(buyer.user_id || "").trim())
+        .map((buyer) => [String(buyer.user_id), buyer] as const)
+    );
+    const activeWindow = Date.now() - 1000 * 60 * 60 * 24 * 30;
+    const activeRecently = portalUsers.filter((account) => {
+      const timestamp = new Date(String(account.last_sign_in_at || "")).getTime();
+      return Number.isFinite(timestamp) && timestamp >= activeWindow;
+    }).length;
+    const linkedBuyerCount = portalUsers.filter((account) => buyersByUserId.has(account.id)).length;
+
+    if (wantsCount && !wantsList) {
+      return [
+        `There are ${portalUsers.length} non-admin portal user account${portalUsers.length === 1 ? "" : "s"} right now.`,
+        `${linkedBuyerCount} ${linkedBuyerCount === 1 ? "is" : "are"} linked to buyer records.`,
+        `${activeRecently} signed in within the last 30 days.`,
+      ].join("\n");
+    }
+
+    const recentUsers = portalUsers
+      .slice()
+      .sort((left, right) => {
+        const leftTime = new Date(String(left.last_sign_in_at || left.created_at || 0)).getTime();
+        const rightTime = new Date(String(right.last_sign_in_at || right.created_at || 0)).getTime();
+        return rightTime - leftTime;
+      })
+      .slice(0, 12);
+
+    return [
+      `Here ${recentUsers.length === 1 ? "is" : "are"} the latest portal user account${recentUsers.length === 1 ? "" : "s"}:`,
+      "",
+      ...recentUsers.map((account, index) => {
+        const linkedBuyer = buyersByUserId.get(account.id);
+        const linkedLabel = linkedBuyer
+          ? `linked buyer: ${firstValue(linkedBuyer.full_name, linkedBuyer.name, linkedBuyer.email) || `Buyer #${linkedBuyer.id}`}`
+          : "no buyer linked";
+        return `${index + 1}. ${account.email || account.phone || account.id} - last sign-in ${formatListDate(account.last_sign_in_at || account.created_at || null)} - ${linkedLabel}`;
+      }),
+    ].join("\n");
+  }
+
+  return "";
+}
+
 function shortToken(value: string | number | null | undefined, max = 10) {
   const text = String(value || "").trim();
   if (!text) return "unknown";
@@ -4114,6 +4374,11 @@ async function localAdminFallback(
   admin: SupabaseClient,
   userMessage: string
 ) {
+  const directOperationalReply = await executeAdminOperationalIntelligence(admin, userMessage);
+  if (directOperationalReply) {
+    return directOperationalReply;
+  }
+
   const directIntent = parseDirectActionIntent(userMessage);
   if (directIntent?.action === "list_records") {
     return executeListRecords(admin, directIntent);
@@ -5066,14 +5331,17 @@ export async function POST(req: Request) {
       id: user.id,
       email: user.email,
     });
+    const breedingGeneticsContext = await loadBreedingGeneticsPromptContext(admin);
     const summary = canWriteCore
       ? {
           ...summaryBase,
+          breeding_genetics_context: breedingGeneticsContext || null,
           admin_capabilities: {
             live_entities: [
               "buyers",
               "puppies",
               "payments",
+              "puppy_financing",
               "applications",
               "documents",
               "forms",
@@ -5096,7 +5364,10 @@ export async function POST(req: Request) {
             zoho_payments_configured: await isZohoPaymentsConfigured(),
           },
         }
-      : summaryBase;
+      : {
+          ...summaryBase,
+          breeding_genetics_context: breedingGeneticsContext || null,
+        };
     const adminAuth: AdminAuthContext = {
       userId: user.id,
       email: user.email || null,
@@ -5115,12 +5386,10 @@ export async function POST(req: Request) {
       .filter((message) => message.role === "user")
       .slice(-6)
       .map((message) => message.content);
-    const intent: ActionIntent = memoryCommand
-      ? { action: "answer_only" }
-      : await extractActionIntent(lastUserMessage, recentUserMessages);
     const portalPaymentRequest = !canWriteCore ? extractPortalPaymentRequest(lastUserMessage) : null;
 
     let text = "";
+    let intent: ActionIntent = { action: "answer_only" };
 
     if (memoryCommand) {
       if (memoryCommand.action === "list") {
@@ -5167,6 +5436,14 @@ export async function POST(req: Request) {
 
     if (!text && portalPaymentRequest) {
       text = await executePortalUserPaymentLink(req, admin, user, portalPaymentRequest);
+    }
+
+    if (!text && canWriteCore) {
+      text = await executeAdminOperationalIntelligence(admin, lastUserMessage);
+    }
+
+    if (!text && !memoryCommand) {
+      intent = await extractActionIntent(lastUserMessage, recentUserMessages);
     }
 
     if (!text && intent.action !== "answer_only") {

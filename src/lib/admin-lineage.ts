@@ -85,7 +85,7 @@ async function loadLineageRows(service: SupabaseClient): Promise<LineageRows> {
       service
         .from("bp_dogs")
         .select(
-          "id,role,dog_name,name,call_name,status,dob,date_of_birth,color,coat,registry,notes,created_at,is_active"
+          "id,role,dog_name,name,call_name,status,dob,date_of_birth,color,coat,registry,genetics_summary,genetics_raw,genetics_report_url,genetics_updated_at,notes,created_at,is_active"
         )
         .order("role", { ascending: true })
         .order("dog_name", { ascending: true })

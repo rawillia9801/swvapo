@@ -99,10 +99,11 @@ const QUICK_LANES: QuickLane[] = [
 ];
 
 const COMMAND_DOCK_PROMPTS = [
-  "Show buyers",
+  "How many dams and sires do I have?",
+  "Show breeding program summary",
   "Show puppy financing accounts",
+  "Show recent portal users",
   "Show exact public chat transcripts",
-  "Show CRM follow-ups due today",
   "Show recent customer payment alerts",
   "Create Zoho payment link for Jane Doe for $500 deposit",
 ];
@@ -236,7 +237,7 @@ const DEFAULT_MESSAGES: ChatMessage[] = [
     id: makeId("assistant"),
     role: "assistant",
     content:
-      "I am online. Ask me to pull buyers, financing accounts, payment activity, CRM work, exact public chats, or a Zoho payment link.",
+      "I am online. Ask me for breeding-program totals, portal users, financing accounts, payment activity, CRM work, exact public chats, or a Zoho payment link.",
     createdAt: formatTime(),
   },
 ];
@@ -667,7 +668,7 @@ export default function AdminAssistantPage() {
                     onChange={(event) => setDraft(event.target.value)}
                     onKeyDown={handleComposerKeyDown}
                     rows={4}
-                    placeholder="Ask ChiChi for exact chats, buyer records, payment links, financing details, delivery costs, CRM follow-ups, or admin updates..."
+                    placeholder="Ask ChiChi for breeding-program totals, breeding dogs, portal users, exact chats, payment links, financing details, delivery costs, CRM follow-ups, or admin updates..."
                     className="min-h-[128px] w-full resize-none border-0 bg-transparent px-2 py-2 text-sm leading-7 text-[var(--portal-text)] outline-none placeholder:text-[var(--portal-text-muted)]"
                     disabled={isSending}
                   />

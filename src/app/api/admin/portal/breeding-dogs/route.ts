@@ -25,6 +25,11 @@ function asDogPayload(body: Record<string, unknown>) {
   const coat = firstValue(body.coat as string | null, body.coat_type as string | null) || null;
   const registry =
     firstValue(body.registry as string | null, body.registration_no as string | null) || null;
+  const geneticsSummary = firstValue(body.genetics_summary as string | null) || null;
+  const geneticsRaw = firstValue(body.genetics_raw as string | null) || null;
+  const geneticsReportUrl = firstValue(body.genetics_report_url as string | null) || null;
+  const geneticsUpdatedAt =
+    geneticsSummary || geneticsRaw || geneticsReportUrl ? new Date().toISOString() : null;
 
   return {
     role,
@@ -38,6 +43,10 @@ function asDogPayload(body: Record<string, unknown>) {
     color: firstValue(body.color as string | null) || null,
     coat,
     registry,
+    genetics_summary: geneticsSummary,
+    genetics_raw: geneticsRaw,
+    genetics_report_url: geneticsReportUrl,
+    genetics_updated_at: geneticsUpdatedAt,
     is_active: String(firstValue(body.status as string | null, "active")).toLowerCase() !== "archived",
     notes: firstValue(body.notes as string | null) || null,
   };

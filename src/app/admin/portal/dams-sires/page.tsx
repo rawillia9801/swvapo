@@ -37,6 +37,9 @@ type DogForm = {
   color: string;
   coat: string;
   registry: string;
+  genetics_summary: string;
+  genetics_report_url: string;
+  genetics_raw: string;
   notes: string;
 };
 
@@ -51,6 +54,9 @@ function emptyForm(role = "dam"): DogForm {
     color: "",
     coat: "",
     registry: "",
+    genetics_summary: "",
+    genetics_report_url: "",
+    genetics_raw: "",
     notes: "",
   };
 }
@@ -67,6 +73,9 @@ function populateForm(dog: AdminLineageDog | null): DogForm {
     color: String(dog.color || ""),
     coat: String(dog.coat || dog.coat_type || ""),
     registry: String(dog.registry || dog.registration_no || ""),
+    genetics_summary: String(dog.genetics_summary || ""),
+    genetics_report_url: String(dog.genetics_report_url || ""),
+    genetics_raw: String(dog.genetics_raw || ""),
     notes: String(dog.notes || ""),
   };
 }
@@ -152,6 +161,8 @@ export default function AdminPortalDamsSiresPage() {
       dog.color,
       dog.coat,
       dog.registry,
+      dog.genetics_summary,
+      dog.genetics_raw,
       ...dog.litters.map((litter) => litter.displayName),
       ...dog.puppies.map((puppy) => puppy.displayName),
     ]
@@ -523,6 +534,32 @@ export default function AdminPortalDamsSiresPage() {
                     placeholder="Short Hair"
                   />
                 </div>
+                <AdminTextAreaInput
+                  label="Genetics Summary"
+                  value={form.genetics_summary}
+                  onChange={(value) =>
+                    setForm((current) => ({ ...current, genetics_summary: value }))
+                  }
+                  rows={4}
+                  placeholder="Paste the breeder-facing takeaway here: coat/color genes, size notes, health carrier notes, pair-planning guidance, and anything ChiChi should answer from directly."
+                />
+                <AdminTextInput
+                  label="Genetics Report Link"
+                  value={form.genetics_report_url}
+                  onChange={(value) =>
+                    setForm((current) => ({ ...current, genetics_report_url: value }))
+                  }
+                  placeholder="Optional link to Embark, Paw Print, PDF, or stored report"
+                />
+                <AdminTextAreaInput
+                  label="Raw Genetics / Lab Paste"
+                  value={form.genetics_raw}
+                  onChange={(value) =>
+                    setForm((current) => ({ ...current, genetics_raw: value }))
+                  }
+                  rows={8}
+                  placeholder="Paste the full genetics panel, marker results, color/coat traits, size notes, health findings, or pairing notes here."
+                />
                 <AdminTextAreaInput
                   label="Notes"
                   value={form.notes}

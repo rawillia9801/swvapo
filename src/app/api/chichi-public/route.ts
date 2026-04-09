@@ -10,6 +10,7 @@ import {
   buildPublicChiChiSystemPrompt,
   publicChiChiLocalFallback,
 } from "@/lib/chichi-public-agent";
+import { loadBreedingGeneticsPromptContext } from "@/lib/breeding-genetics";
 
 // ─────────────────────────────────────────────
 // Types
@@ -448,8 +449,8 @@ function analyzeLead(message: string): LeadAnalysis {
 // System Prompt — strong Chihuahua knowledge + business grounding
 // ─────────────────────────────────────────────
 
-function buildSystemPrompt(memories?: string): string {
-  return buildPublicChiChiSystemPrompt(memories);
+function buildSystemPrompt(memories?: string, geneticsContext?: string): string {
+  return buildPublicChiChiSystemPrompt(memories, geneticsContext);
   return `
 You are ChiChi — the warm, knowledgeable assistant for Southwest Virginia Chihuahua in Marion, Virginia.
 
@@ -994,7 +995,8 @@ async function updateThread(
 async function generateChiChiReply(
   message: string,
   conversationHistory: { role: ChatRole; content: string }[],
-  memories: string
+  memories: string,
+  geneticsContext = ""
 ) {
   const apiKey = getAnthropicApiKey();
   const model = getAnthropicModel();
@@ -1014,7 +1016,7 @@ async function generateChiChiReply(
       body: JSON.stringify({
         model,
         max_tokens: 900,
-        system: buildSystemPrompt(memories),
+        system: buildSystemPrompt(memories, geneticsContext),
         messages: conversationHistory,
       }),
     });
@@ -1084,6 +1086,7 @@ export async function POST(req: Request) {
       limit: 12,
     });
     const memoryContext = formatChiChiMemories(memoryRecords);
+    const geneticsContext = await loadBreedingGeneticsPromptContext(admin);
 
     await insertMessage(admin, {
       threadId: thread.id,
@@ -1107,7 +1110,12 @@ export async function POST(req: Request) {
       conversationHistory = [...conversationHistory, { role: "user", content: message }];
     }
 
-    const text = await generateChiChiReply(message, conversationHistory, memoryContext);
+    const text = await generateChiChiReply(
+      message,
+      conversationHistory,
+      memoryContext,
+      geneticsContext
+    );
 
     await insertMessage(admin, {
       threadId: thread.id,
