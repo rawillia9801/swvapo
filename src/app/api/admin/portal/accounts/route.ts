@@ -44,11 +44,19 @@ type FormRow = {
   user_id?: string | null;
   created_at: string;
   user_email?: string | null;
+  email?: string | null;
   form_key: string;
   form_title?: string | null;
+  version?: string | null;
   status: string;
   signed_name?: string | null;
+  signed_date?: string | null;
+  signed_at?: string | null;
   submitted_at?: string | null;
+  updated_at?: string | null;
+  attachments?: Record<string, unknown> | unknown[] | null;
+  data?: Record<string, unknown> | null;
+  payload?: Record<string, unknown> | null;
 };
 
 type AccountRow = {
@@ -208,7 +216,7 @@ export async function GET(req: Request) {
     const [buyersRes, applicationsRes, formsRes] = await Promise.all([
       service.from("buyers").select("id,user_id,puppy_id,full_name,name,email,phone,status,notes,sale_price,deposit_amount,finance_enabled,finance_monthly_amount,finance_next_due_date,finance_last_payment_date,created_at"),
       service.from("puppy_applications").select("id,user_id,created_at,full_name,email,applicant_email,phone,status,admin_notes,assigned_puppy_id"),
-      service.from("portal_form_submissions").select("id,user_id,created_at,user_email,form_key,form_title,status,signed_name,submitted_at"),
+      service.from("portal_form_submissions").select("id,user_id,created_at,updated_at,user_email,email,form_key,form_title,version,status,signed_name,signed_date,signed_at,submitted_at,attachments,data,payload"),
     ]);
 
     const [documentsRes, messagesRes, pickupRes, puppiesRes, paymentsRes] = await Promise.all([

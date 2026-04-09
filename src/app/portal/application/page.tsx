@@ -365,6 +365,81 @@ function buildForm(
   };
 }
 
+async function syncApplicationDocumentCopy(
+  form: ApplicationForm,
+  nextStatus: string | null | undefined
+) {
+  const {
+    data: { session },
+  } = await sb.auth.getSession();
+
+  if (!session?.access_token) {
+    throw new Error("Your session expired before the application copy could be synced.");
+  }
+
+  const response = await fetch("/api/portal/forms", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({
+      documentKey: "application",
+      status: nextStatus || "submitted",
+      version: "2026-04",
+      data: {
+        full_name: form.fullName.trim(),
+        email: form.email.trim().toLowerCase(),
+        phone: form.phone.trim(),
+        street_address: form.streetAddress.trim(),
+        city: form.city.trim(),
+        state: form.state.trim(),
+        zip: form.zip.trim(),
+        preferred_contact_method: form.preferredContactMethod,
+        preferred_coat_type: form.preferredCoatType,
+        preferred_gender: form.preferredGender,
+        color_preference: form.colorPreference,
+        desired_adoption_date: form.desiredAdoptionDate,
+        interest_type: form.interestType,
+        other_pets: form.otherPets,
+        pet_details: form.petDetails,
+        owned_chihuahua_before: form.ownedChihuahuaBefore,
+        home_type: form.homeType,
+        fenced_yard: form.fencedYard,
+        work_status: form.workStatus,
+        who_cares_for_puppy: form.whoCaresForPuppy,
+        children_at_home: form.childrenAtHome,
+        payment_preference: form.paymentPreference,
+        how_did_you_hear: form.howDidYouHear,
+        ready_to_place_deposit: form.readyToPlaceDeposit,
+        questions: form.questions,
+        agree_terms: form.agreeTerms,
+        ack_age_capacity: form.ackAgeCapacity,
+        ack_accuracy: form.ackAccuracy,
+        ack_home_environment: form.ackHomeEnvironment,
+        ack_care_commitment: form.ackCareCommitment,
+        ack_health_guarantee: form.ackHealthGuarantee,
+        ack_nonrefundable_deposit: form.ackNonrefundableDeposit,
+        ack_purchase_price_tax: form.ackPurchasePriceTax,
+        ack_contractual_obligation: form.ackContractualObligation,
+        ack_return_rehoming: form.ackReturnRehoming,
+        ack_release_liability: form.ackReleaseLiability,
+        ack_agreement_terms: form.ackAgreementTerms,
+        ack_communications: form.ackCommunications,
+        signed_name: form.signature.trim(),
+        signed_date:
+          form.signedAt?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+        signed_at: form.signedAt || formatDateTimeLocal(new Date()),
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(payload.error || "Could not sync the application copy.");
+  }
+}
+
 export default function PortalApplicationPage() {
   const { user, loading: sessionLoading } = usePortalSession();
   const [buyer, setBuyer] = useState<PortalBuyer | null>(null);
@@ -587,7 +662,20 @@ export default function PortalApplicationPage() {
               assigned_puppy_id: nextRecord.assigned_puppy_id || null,
             }
       );
-      setStatusText(record?.id ? "Application updated." : "Application submitted.");
+      let syncWarning = "";
+      try {
+        await syncApplicationDocumentCopy(
+          form,
+          nextRecord.status || payload.status || "submitted"
+        );
+      } catch (syncError) {
+        console.error("Could not sync application document copy:", syncError);
+        syncWarning = " The portal document copy will finish syncing after the next successful save.";
+      }
+
+      setStatusText(
+        `${record?.id ? "Application updated." : "Application submitted."}${syncWarning}`
+      );
     } catch (error) {
       console.error("Could not save application:", error);
       setErrorText(error instanceof Error ? error.message : "Unable to save your application.");

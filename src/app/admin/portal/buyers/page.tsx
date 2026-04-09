@@ -18,6 +18,14 @@ import {
   AdminTextAreaInput,
   AdminTextInput,
 } from "@/components/admin/admin-form-fields";
+import {
+  type DocumentLikeFormSubmission,
+  documentPreviewRows,
+  findMatchingDocumentSubmission,
+  getDocumentSubmissionPayload,
+  getVisiblePortalDocumentPacket,
+  portalDocumentStatus,
+} from "@/lib/portal-document-packet";
 import { fmtDate, fmtMoney } from "@/lib/utils";
 import { usePortalAdminSession } from "@/lib/use-portal-admin-session";
 
@@ -50,8 +58,31 @@ type BuyerRecord = {
   hasPortalAccount: boolean;
   portalUser: { email: string; last_sign_in_at?: string | null } | null;
   applicationCount: number;
+  latestApplication: {
+    id: number;
+    full_name?: string | null;
+    email?: string | null;
+    applicant_email?: string | null;
+    status?: string | null;
+    created_at?: string | null;
+  } | null;
   latestApplicationStatus?: string | null;
   formCount: number;
+  forms: Array<{
+    id: number;
+    form_key?: string | null;
+    form_title?: string | null;
+    version?: string | null;
+    signed_name?: string | null;
+    signed_date?: string | null;
+    signed_at?: string | null;
+    status?: string | null;
+    submitted_at?: string | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+    data?: Record<string, unknown> | null;
+    payload?: Record<string, unknown> | null;
+  }>;
   linkedPuppies: Array<{
     id: number;
     buyer_id?: number | null;
@@ -187,6 +218,10 @@ function emptyForm(): BuyerForm {
 function puppyLabel(puppy: PuppyOption | TransportationRequest["puppy"]) {
   if (!puppy) return "No puppy linked";
   return puppy.call_name || puppy.puppy_name || puppy.name || `Puppy #${puppy.id}`;
+}
+
+function displayDocDate(value: string | null | undefined) {
+  return value ? fmtDate(value) : "Not filed yet";
 }
 
 function num(value: unknown) {
@@ -430,6 +465,39 @@ export default function AdminPortalBuyersPage() {
       .sort((left, right) => new Date(right.date).getTime() - new Date(left.date).getTime())
       .slice(0, 8);
   }, [selectedAccount]);
+
+  const buyerDocumentPacket = useMemo(() => {
+    if (!selectedBuyer) return [];
+
+    const packetContext: Parameters<typeof getVisiblePortalDocumentPacket>[0] = {
+      buyer: selectedBuyer.buyer,
+      application: selectedBuyer.latestApplication,
+      puppy: selectedAccount?.linkedPuppies?.[0] || selectedBuyer.linkedPuppies[0] || null,
+      documents: [],
+    };
+
+    return getVisiblePortalDocumentPacket(packetContext).map((definition) => {
+      const submission = findMatchingDocumentSubmission(
+        definition,
+        selectedBuyer.forms as DocumentLikeFormSubmission[]
+      );
+      const status = portalDocumentStatus(definition, packetContext, submission);
+      const availability = definition.getAvailability(packetContext);
+      return {
+        definition,
+        submission,
+        status,
+        availability,
+        previewRows: documentPreviewRows(
+          definition,
+          submission
+            ? getDocumentSubmissionPayload(submission)
+            : {},
+          4
+        ),
+      };
+    });
+  }, [selectedAccount, selectedBuyer]);
 
   useEffect(() => {
     if (createMode) {
@@ -1278,6 +1346,90 @@ export default function AdminPortalBuyersPage() {
                   <AdminEmptyState
                     title="Create a buyer before opening financing"
                     description="Once the buyer and puppy are linked, financing details will show here automatically."
+                  />
+                )}
+              </AdminPanel>
+
+              <AdminPanel
+                title="Buyer Documents"
+                subtitle="The signed portal packet for this buyer stays visible here so agreements do not disappear into a separate tab."
+                action={
+                  selectedBuyer ? (
+                    <Link
+                      href="/admin/portal/documents"
+                      className={secondaryButtonClass}
+                    >
+                      Open Documents
+                    </Link>
+                  ) : null
+                }
+              >
+                {selectedBuyer ? (
+                  buyerDocumentPacket.length ? (
+                    <div className="grid gap-3">
+                      {buyerDocumentPacket.map((entry) => (
+                        <div
+                          key={entry.definition.key}
+                          className="rounded-[18px] border border-[var(--portal-border)] bg-white px-4 py-4"
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                                {entry.definition.category}
+                              </div>
+                              <div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">
+                                {entry.definition.title}
+                              </div>
+                              <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
+                                {entry.definition.key === "application" &&
+                                selectedBuyer.latestApplication &&
+                                !entry.submission
+                                  ? `Application on file with status ${selectedBuyer.latestApplication.status || "submitted"}.`
+                                  : entry.previewRows.length
+                                  ? entry.previewRows
+                                      .map((row) => `${row.label}: ${row.value}`)
+                                      .join(" | ")
+                                  : entry.availability.enabled
+                                    ? entry.submission
+                                      ? "Signed copy is on file."
+                                      : "Waiting for the buyer to complete this document."
+                                    : entry.availability.reason}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <span
+                                className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(
+                                  entry.status.label
+                                )}`}
+                              >
+                                {entry.status.label}
+                              </span>
+                              <div className="mt-2 text-[11px] text-[var(--portal-text-muted)]">
+                                {entry.submission
+                                  ? displayDocDate(
+                                      entry.submission.submitted_at ||
+                                        entry.submission.updated_at ||
+                                        entry.submission.created_at
+                                    )
+                                  : entry.availability.enabled
+                                    ? "Not filed yet"
+                                    : "Pending activation"}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <AdminEmptyState
+                      title="No buyer packet items yet"
+                      description="Forms saved through the portal will appear here alongside the signed document statuses."
+                    />
+                  )
+                ) : (
+                  <AdminEmptyState
+                    title="Create a buyer before tracking documents"
+                    description="Once the buyer record exists, their portal packet and signed copies will surface here automatically."
                   />
                 )}
               </AdminPanel>

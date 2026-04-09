@@ -112,12 +112,15 @@ export type PortalFormSubmission = {
   id: number;
   user_id?: string | null;
   user_email?: string | null;
+  email?: string | null;
   form_key: string;
   form_title?: string | null;
   version?: string | null;
   signed_name?: string | null;
   signed_date?: string | null;
   signed_at?: string | null;
+  data?: Record<string, unknown> | null;
+  payload?: Record<string, unknown> | null;
   status: string;
   submitted_at?: string | null;
   attachments?: Record<string, unknown> | unknown[] | null;
@@ -505,7 +508,7 @@ export async function findFormSubmissionsForUser(user: User) {
           Promise.resolve(
             sb
               .from("portal_form_submissions")
-              .select("id,user_id,user_email,form_key,form_title,version,signed_name,signed_date,signed_at,status,submitted_at,attachments,created_at,updated_at")
+              .select("id,user_id,user_email,email,form_key,form_title,version,signed_name,signed_date,signed_at,data,payload,status,submitted_at,attachments,created_at,updated_at")
               .eq("user_id", user.id)
               .order("updated_at", { ascending: false })
           )
@@ -521,8 +524,22 @@ export async function findFormSubmissionsForUser(user: User) {
           Promise.resolve(
             sb
               .from("portal_form_submissions")
-              .select("id,user_id,user_email,form_key,form_title,version,signed_name,signed_date,signed_at,status,submitted_at,attachments,created_at,updated_at")
+              .select("id,user_id,user_email,email,form_key,form_title,version,signed_name,signed_date,signed_at,data,payload,status,submitted_at,attachments,created_at,updated_at")
               .ilike("user_email", email)
+              .order("updated_at", { ascending: false })
+          )
+        )
+      )
+    );
+
+    forms.push(
+      ...(
+        await safeList<PortalFormSubmission>(() =>
+          Promise.resolve(
+            sb
+              .from("portal_form_submissions")
+              .select("id,user_id,user_email,email,form_key,form_title,version,signed_name,signed_date,signed_at,data,payload,status,submitted_at,attachments,created_at,updated_at")
+              .ilike("email", email)
               .order("updated_at", { ascending: false })
           )
         )

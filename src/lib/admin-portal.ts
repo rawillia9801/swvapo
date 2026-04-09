@@ -29,11 +29,19 @@ export type AdminFormRecord = {
   user_id?: string | null;
   created_at: string;
   user_email?: string | null;
+  email?: string | null;
   form_key: string;
   form_title?: string | null;
+  version?: string | null;
   status: string;
   signed_name?: string | null;
+  signed_date?: string | null;
+  signed_at?: string | null;
   submitted_at?: string | null;
+  updated_at?: string | null;
+  attachments?: Record<string, unknown> | unknown[] | null;
+  data?: Record<string, unknown> | null;
+  payload?: Record<string, unknown> | null;
 };
 
 export type AdminPortalAccount = {

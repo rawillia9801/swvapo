@@ -35,6 +35,7 @@ type BuyerRow = {
 type ApplicationRow = {
   id: number;
   user_id?: string | null;
+  full_name?: string | null;
   email?: string | null;
   applicant_email?: string | null;
   status?: string | null;
@@ -45,8 +46,19 @@ type FormRow = {
   id: number;
   user_id?: string | null;
   user_email?: string | null;
+  email?: string | null;
+  form_key?: string | null;
+  form_title?: string | null;
+  version?: string | null;
+  signed_name?: string | null;
+  signed_date?: string | null;
+  signed_at?: string | null;
   status?: string | null;
+  submitted_at?: string | null;
   created_at?: string | null;
+  updated_at?: string | null;
+  data?: Record<string, unknown> | null;
+  payload?: Record<string, unknown> | null;
 };
 
 type PuppyRow = {
@@ -180,11 +192,11 @@ export async function GET(req: Request) {
         .order("created_at", { ascending: false }),
       service
         .from("puppy_applications")
-        .select("id,user_id,email,applicant_email,status,created_at")
+        .select("id,user_id,full_name,email,applicant_email,status,created_at")
         .order("created_at", { ascending: false }),
       service
         .from("portal_form_submissions")
-        .select("id,user_id,user_email,status,created_at")
+        .select("id,user_id,user_email,email,form_key,form_title,version,signed_name,signed_date,signed_at,status,submitted_at,created_at,updated_at,data,payload")
         .order("created_at", { ascending: false }),
       service
         .from("puppies")
@@ -262,7 +274,10 @@ export async function GET(req: Request) {
       const matchingForms = forms.filter(
         (form) =>
           (buyer.user_id && form.user_id === buyer.user_id) ||
-          (!!email && normalizeEmail(form.user_email) === email)
+          (!!email &&
+            [form.user_email, form.email].some(
+              (value) => normalizeEmail(String(value || "")) === email
+            ))
       );
 
       const linkedPuppies = [...(puppiesByBuyerId.get(buyer.id) || [])];
@@ -288,8 +303,10 @@ export async function GET(req: Request) {
             }
           : null,
         applicationCount: matchingApplications.length,
+        latestApplication: matchingApplications[0] || null,
         latestApplicationStatus: matchingApplications[0]?.status || null,
         formCount: matchingForms.length,
+        forms: matchingForms,
         linkedPuppies,
       };
     });
