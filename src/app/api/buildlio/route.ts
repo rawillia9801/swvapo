@@ -309,6 +309,7 @@ type ActionIntent =
         | "buyers"
         | "puppies"
         | "payments"
+        | "puppy_financing"
         | "applications"
         | "documents"
         | "forms"
@@ -646,6 +647,14 @@ function coalesceName(buyer: BuyerRecord | null, puppy: PuppyRecord | null): str
     buyer?.name ||
     "your puppy"
   );
+}
+
+function firstValue(...values: Array<string | null | undefined>) {
+  for (const value of values) {
+    const trimmed = String(value || "").trim();
+    if (trimmed) return trimmed;
+  }
+  return "";
 }
 
 function sumPayments(payments: PaymentRecord[]): number {
@@ -1718,10 +1727,18 @@ function extractListQueryForEntity(
       .trim();
   }
 
+  if (entity === "puppy_financing") {
+    cleaned = cleaned
+      .replace(/\bpuppy\b|\bfinancing\b|\bfinance\b|\bpayment plans?\b|\bfinanced\b|\baccounts?\b/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
   const bareEntityPatternMap: Partial<Record<ListEntity, RegExp>> = {
     buyers: /^\s*buyers?\s*$/i,
     puppies: /^\s*pupp(?:y|ies)\s*$/i,
     payments: /^\s*payments?\s*$/i,
+    puppy_financing: /^\s*(?:puppy\s*)?(?:financing|finance|payment plans?|financed accounts?)\s*$/i,
     applications: /^\s*applications?\s*$/i,
     documents: /^\s*documents?\s*$/i,
     forms: /^\s*forms?\s*$/i,
@@ -1845,6 +1862,7 @@ function parseDirectActionIntent(userMessage: string): ActionIntent | null {
     pattern: RegExp;
     entity: Extract<ActionIntent, { action: "list_records" }>["entity"];
   }> = [
+    { pattern: /\bpuppy financing\b|\bpuppy payment plans?\b|\bpayment plans?\b|\bfinancing accounts?\b|\bfinanced accounts?\b/, entity: "puppy_financing" },
     { pattern: /\bbuyers?\b/, entity: "buyers" },
     { pattern: /\bpupp(?:y|ies)\b/, entity: "puppies" },
     { pattern: /\bcustomer payment alerts?\b|\bpayment alerts?\b|\bpayment notifications?\b/, entity: "payment_alerts" },
@@ -1878,6 +1896,10 @@ function parseDirectActionIntent(userMessage: string): ActionIntent | null {
     normalizedText === "buyers" ||
     normalizedText === "puppies" ||
     normalizedText === "payments" ||
+    normalizedText === "puppy financing" ||
+    normalizedText === "payment plans" ||
+    normalizedText === "puppy payment plans" ||
+    normalizedText === "financing accounts" ||
     normalizedText === "applications" ||
     normalizedText === "documents" ||
     normalizedText === "forms" ||
@@ -2925,6 +2947,124 @@ async function executeListRecords(
         const name = row.full_name || row.name || row.email || `Buyer ${row.id}`;
         const parts = [row.email, row.phone, row.status].filter(Boolean);
         return `${index + 1}. ${name}${parts.length ? ` - ${parts.join(" - ")}` : ""}`;
+      }),
+    ].join("\n");
+  }
+
+  if (entity === "puppy_financing") {
+    const { data, error } = await admin
+      .from("buyers")
+      .select(
+        "id,full_name,name,email,status,puppy_id,sale_price,finance_enabled,finance_rate,finance_months,finance_monthly_amount,finance_next_due_date"
+      )
+      .eq("finance_enabled", true)
+      .order("finance_next_due_date", { ascending: true, nullsFirst: false })
+      .limit(limit || 500);
+    if (error) throw new Error(`Could not load puppy financing accounts: ${error.message}`);
+
+    const buyerRows = data || [];
+    const buyerIds = Array.from(new Set(buyerRows.map((row) => Number(row.id || 0)).filter(Boolean)));
+    const directPuppyIds = Array.from(
+      new Set(buyerRows.map((row) => Number(row.puppy_id || 0)).filter(Boolean))
+    );
+
+    const [buyerPuppiesResult, directPuppiesResult] = await Promise.all([
+      buyerIds.length
+        ? admin
+            .from("puppies")
+            .select("id,buyer_id,call_name,puppy_name,name,status,price")
+            .in("buyer_id", buyerIds)
+        : Promise.resolve({ data: [], error: null }),
+      directPuppyIds.length
+        ? admin
+            .from("puppies")
+            .select("id,buyer_id,call_name,puppy_name,name,status,price")
+            .in("id", directPuppyIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    if (buyerPuppiesResult.error) {
+      throw new Error(`Could not load financed puppies: ${buyerPuppiesResult.error.message}`);
+    }
+    if (directPuppiesResult.error) {
+      throw new Error(`Could not load linked financed puppies: ${directPuppiesResult.error.message}`);
+    }
+
+    const puppyMap = new Map<number, { names: string[]; statuses: string[]; prices: number[] }>();
+    const allPuppies = [...(buyerPuppiesResult.data || []), ...(directPuppiesResult.data || [])];
+
+    for (const puppy of allPuppies) {
+      const buyerId = Number(puppy.buyer_id || 0);
+      const resolvedBuyerId =
+        buyerId ||
+        buyerRows.find((row) => Number(row.puppy_id || 0) === Number(puppy.id || 0))?.id ||
+        0;
+      if (!resolvedBuyerId) continue;
+
+      const current = puppyMap.get(Number(resolvedBuyerId)) || {
+        names: [],
+        statuses: [],
+        prices: [],
+      };
+      const puppyName = firstValue(puppy.call_name, puppy.puppy_name, puppy.name, `Puppy ${puppy.id}`);
+      if (!current.names.includes(puppyName)) current.names.push(puppyName);
+      if (puppy.status && !current.statuses.includes(String(puppy.status))) {
+        current.statuses.push(String(puppy.status));
+      }
+      if (Number.isFinite(Number(puppy.price))) current.prices.push(Number(puppy.price));
+      puppyMap.set(Number(resolvedBuyerId), current);
+    }
+
+    const rows = buyerRows.filter((row) => {
+      const puppyInfo = puppyMap.get(Number(row.id)) || { names: [], statuses: [], prices: [] };
+      return (
+        matchesRelativeDateQuery(row.finance_next_due_date || null, queryText) &&
+        matchesQueryText(
+          [
+            row.full_name,
+            row.name,
+            row.email,
+            row.status,
+            row.finance_rate,
+            row.finance_months,
+            row.finance_monthly_amount,
+            row.finance_next_due_date,
+            row.sale_price,
+            puppyInfo.names.join(" "),
+            puppyInfo.statuses.join(" "),
+          ],
+          searchQuery
+        )
+      );
+    });
+
+    if (limit === 0) {
+      return `I found ${rows.length} puppy financing account${rows.length === 1 ? "" : "s"}${queryText ? ` matching "${intent.query}".` : "."}`;
+    }
+
+    if (!rows.length) {
+      return queryText
+        ? `I could not find any puppy financing accounts matching "${intent.query}".`
+        : "I could not find any puppy financing accounts yet.";
+    }
+
+    return [
+      `Here ${rows.length === 1 ? "is" : "are"} the active puppy financing account${rows.length === 1 ? "" : "s"}${queryText ? ` matching "${intent.query}"` : ""}:`,
+      "",
+      ...rows.slice(0, limit).map((row, index) => {
+        const puppyInfo = puppyMap.get(Number(row.id)) || { names: [], statuses: [], prices: [] };
+        const buyerName = row.full_name || row.name || row.email || `Buyer ${row.id}`;
+        const puppyLabel = puppyInfo.names.length ? puppyInfo.names.join(", ") : "No puppy linked";
+        const monthly =
+          row.finance_monthly_amount !== null && row.finance_monthly_amount !== undefined
+            ? `$${Number(row.finance_monthly_amount).toFixed(2)} / month`
+            : "Monthly amount not set";
+        const due = row.finance_next_due_date ? `due ${formatListDate(row.finance_next_due_date)}` : "no due date";
+        const term =
+          row.finance_months !== null && row.finance_months !== undefined
+            ? `${row.finance_months} month term`
+            : "term not set";
+        return `${index + 1}. ${buyerName} - ${puppyLabel} - ${monthly} - ${term} - ${due}`;
       }),
     ].join("\n");
   }

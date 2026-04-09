@@ -56,6 +56,19 @@ type ZohoStatus = {
   default_payment_methods?: string[] | null;
 };
 
+type OverviewSnapshot = {
+  buyers?: number;
+  paymentPlans?: number;
+  unreadBuyerMessages?: number;
+  visitors24h?: number;
+  publicThreads24h?: number;
+  openFollowUps?: number;
+  latestDigest?: {
+    digest_date?: string | null;
+    summary?: string | null;
+  } | null;
+};
+
 type QuickLane = {
   title: string;
   detail: string;
@@ -87,6 +100,7 @@ const QUICK_LANES: QuickLane[] = [
 
 const COMMAND_DOCK_PROMPTS = [
   "Show buyers",
+  "Show puppy financing accounts",
   "Show exact public chat transcripts",
   "Show CRM follow-ups due today",
   "Show recent customer payment alerts",
@@ -222,7 +236,7 @@ const DEFAULT_MESSAGES: ChatMessage[] = [
     id: makeId("assistant"),
     role: "assistant",
     content:
-      "I am online as the live operating brain for the breeding hub. Ask me for buyers, payment activity, CRM work, exact public chats, or a Zoho payment link.",
+      "I am online. Ask me to pull buyers, financing accounts, payment activity, CRM work, exact public chats, or a Zoho payment link.",
     createdAt: formatTime(),
   },
 ];
@@ -236,6 +250,7 @@ export default function AdminAssistantPage() {
   const [statusText, setStatusText] = useState("ChiChi is online and ready for the next command.");
   const [paymentAlerts, setPaymentAlerts] = useState<PaymentAlert[]>([]);
   const [zohoStatus, setZohoStatus] = useState<ZohoStatus | null>(null);
+  const [overview, setOverview] = useState<OverviewSnapshot | null>(null);
   const [intelLoading, setIntelLoading] = useState(false);
   const [lastIntelRefresh, setLastIntelRefresh] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -265,12 +280,16 @@ export default function AdminAssistantPage() {
       try {
         const headers = { Authorization: `Bearer ${accessToken}` };
 
-        const [alertsResponse, zohoResponse] = await Promise.all([
+        const [alertsResponse, zohoResponse, overviewResponse] = await Promise.all([
           fetch("/api/admin/portal/payment-alerts?limit=8", {
             headers,
             cache: "no-store",
           }),
           fetch("/api/admin/portal/zoho-payments", {
+            headers,
+            cache: "no-store",
+          }),
+          fetch("/api/admin/portal/overview", {
             headers,
             cache: "no-store",
           }),
@@ -280,12 +299,16 @@ export default function AdminAssistantPage() {
           alerts?: PaymentAlert[];
         };
         const zohoJson = (await zohoResponse.json()) as ZohoStatus;
+        const overviewJson = (await overviewResponse.json()) as {
+          overview?: OverviewSnapshot;
+        };
 
         if (!active) return;
 
         const nextAlerts = Array.isArray(alertsJson.alerts) ? alertsJson.alerts : [];
         setPaymentAlerts(nextAlerts);
         setZohoStatus(zohoJson);
+        setOverview(overviewJson.overview || null);
         setLastIntelRefresh(new Date().toISOString());
 
         if (!bootstrappedAlertsRef.current) {
@@ -457,6 +480,39 @@ export default function AdminAssistantPage() {
   const paymentMethods = Array.isArray(zohoStatus?.default_payment_methods)
     ? zohoStatus.default_payment_methods
     : [];
+  const autonomousWatchlist = [
+    {
+      label: "Financing",
+      value: `${Number(overview?.paymentPlans || 0)} active plans`,
+      detail:
+        Number(overview?.paymentPlans || 0) > 0
+          ? "ChiChi can pull exact puppy financing accounts, monthly amounts, and due dates."
+          : "No financed puppy accounts are active right now.",
+    },
+    {
+      label: "CRM",
+      value: `${Number(overview?.openFollowUps || 0)} follow-ups open`,
+      detail:
+        Number(overview?.openFollowUps || 0) > 0
+          ? "There is outreach work waiting and ChiChi can pull the exact queue."
+          : "No CRM follow-up queue is open right now.",
+    },
+    {
+      label: "Buyer Inbox",
+      value: `${Number(overview?.unreadBuyerMessages || 0)} unread`,
+      detail:
+        Number(overview?.unreadBuyerMessages || 0) > 0
+          ? "Buyer-side portal messages are waiting for review."
+          : "Buyer inbox is currently caught up.",
+    },
+    {
+      label: "Public Traffic",
+      value: `${Number(overview?.publicThreads24h || 0)} chats / ${Number(overview?.visitors24h || 0)} visitors`,
+      detail:
+        overview?.latestDigest?.summary?.trim() ||
+        "ChiChi is watching site traffic, public chats, and visitor behavior in the background.",
+    },
+  ];
 
   return (
     <AdminPageShell>
@@ -474,12 +530,11 @@ export default function AdminAssistantPage() {
                   ChiChi Core
                 </span>
                 <h1 className="mt-4 text-[1.8rem] font-semibold leading-[1.02] tracking-[-0.05em] text-[var(--portal-text)] [font-family:var(--font-merriweather)] md:text-[2.55rem]">
-                  The operating brain for buyers, payments, CRM, live chats, and kennel intelligence.
+                  ChiChi autonomous ops for buyers, financing, CRM, public chats, and payments.
                 </h1>
                 <p className="mt-3 max-w-4xl text-sm leading-7 text-[var(--portal-text-soft)] md:text-[15px]">
-                  ChiChi should feel like the nerve center of the breeding hub. This board keeps
-                  the live thread, payment stream, Zoho state, and active command lanes inside one
-                  operational surface instead of scattering them across repetitive cards.
+                  Pull, decide, and act from one command surface. ChiChi is wired into the live
+                  records, payment events, follow-up queues, and public conversation stream.
                 </p>
               </div>
 
@@ -715,6 +770,34 @@ export default function AdminAssistantPage() {
                       </div>
                     </div>
                   )}
+                </div>
+
+                <div className="border-t border-[var(--portal-border)] pt-5">
+                  <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+                    Autonomous Watchlist
+                  </div>
+                  <div className="mt-3 space-y-3">
+                    {autonomousWatchlist.map((item) => (
+                      <div
+                        key={item.label}
+                        className="rounded-[1.15rem] border border-[var(--portal-border)] bg-white/82 px-4 py-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-[var(--portal-text)]">
+                              {item.label}
+                            </div>
+                            <div className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">
+                              {item.detail}
+                            </div>
+                          </div>
+                          <span className="shrink-0 text-right text-[11px] font-bold uppercase tracking-[0.16em] text-[#8c6848]">
+                            {item.value}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="border-t border-[var(--portal-border)] pt-5">
