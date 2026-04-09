@@ -129,10 +129,10 @@ export async function listAllAuthUsers() {
       user_metadata: user.user_metadata || null,
       app_metadata: user.app_metadata || null,
       identities: Array.isArray(user.identities)
-        ? user.identities.map((identity) => ({ ...(identity as Record<string, unknown>) }))
+        ? user.identities.map((identity) => ({ ...(identity as unknown as Record<string, unknown>) }))
         : null,
       factors: Array.isArray(user.factors)
-        ? user.factors.map((factor) => ({ ...(factor as Record<string, unknown>) }))
+        ? user.factors.map((factor) => ({ ...(factor as unknown as Record<string, unknown>) }))
         : null,
     }));
     users.push(...nextUsers);
