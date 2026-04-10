@@ -473,3 +473,834 @@ async function persistBillingRecord(
 
   return loadBillingRecordByBuyer(admin, payload.buyer_id, payload.puppy_id);
 }
+
+async function loadBillingContext(
+  admin: SupabaseClient,
+  input: { buyerId: number; puppyId?: number | null }
+) {
+  const buyerResult = await admin
+    .from("buyers")
+    .select(
+      "id,user_id,puppy_id,full_name,name,email,phone,address_line1,address_line2,city,state,postal_code,sale_price,deposit_amount,finance_enabled,finance_rate,finance_months,finance_monthly_amount,finance_day_of_month,finance_next_due_date,finance_last_payment_date"
+    )
+    .eq("id", input.buyerId)
+    .limit(1)
+    .maybeSingle<BillingBuyer>();
+
+  if (buyerResult.error || !buyerResult.data) {
+    throw new Error("Buyer record not found for the Zoho Billing payment plan.");
+  }
+
+  const puppyId = Number(input.puppyId || buyerResult.data.puppy_id || 0) || null;
+  const puppyResult = puppyId
+    ? await admin
+        .from("puppies")
+        .select("id,buyer_id,call_name,puppy_name,name")
+        .eq("id", puppyId)
+        .limit(1)
+        .maybeSingle<BillingPuppy>()
+    : { data: null, error: null };
+
+  if (puppyResult.error) {
+    throw new Error(puppyResult.error.message);
+  }
+
+  return {
+    buyer: buyerResult.data,
+    puppy: puppyResult.data || null,
+    record: await loadBillingRecordByBuyer(admin, buyerResult.data.id, puppyId),
+  } satisfies BillingContext;
+}
+
+function buildCustomerAddress(buyer: BillingBuyer) {
+  const street = [buyer.address_line1, buyer.address_line2].filter(Boolean).join(", ").trim();
+  const city = normalizeText(buyer.city);
+  const state = normalizeText(buyer.state);
+  const zip = normalizeText(buyer.postal_code);
+
+  if (!(street || city || state || zip)) {
+    return null;
+  }
+
+  return {
+    attention: buyerDisplayName(buyer),
+    street: street || undefined,
+    city: city || undefined,
+    state: state || undefined,
+    zip: zip || undefined,
+    country: "United States",
+  };
+}
+
+async function ensureBillingCustomer(
+  context: BillingContext,
+  admin: SupabaseClient
+): Promise<ZohoBillingCustomer> {
+  if (context.record?.customer_id) {
+    return {
+      customer_id: context.record.customer_id,
+      display_name: context.record.customer_name,
+      email: context.record.customer_email,
+    };
+  }
+
+  const email = normalizeText(context.buyer.email);
+  if (!email) {
+    throw new Error("The buyer needs an email address before a Zoho Billing subscription can be created.");
+  }
+
+  const existingCustomers = await listZohoBillingCustomers({
+    query: email,
+    limit: 100,
+  });
+  const matchingCustomer =
+    existingCustomers.find((row) => normalizeLower(row.email) === normalizeLower(email)) || null;
+
+  if (matchingCustomer?.customer_id) {
+    return matchingCustomer;
+  }
+
+  const { firstName, lastName } = splitName(buyerDisplayName(context.buyer));
+  return createZohoBillingCustomer({
+    displayName: buyerDisplayName(context.buyer),
+    email,
+    firstName,
+    lastName,
+    phone: firstString(context.buyer.phone) || undefined,
+    currencyCode: "USD",
+    billingAddress: buildCustomerAddress(context.buyer),
+  });
+}
+
+function buildSubscriptionRecordUpdate(input: {
+  context: BillingContext;
+  customer?: ZohoBillingCustomer | null;
+  subscription?: ZohoBillingSubscription | null;
+  hostedPage?: ZohoBillingHostedPageDetails | ZohoBillingHostedPage | null;
+  eventId?: string | null;
+  eventType?: string | null;
+  eventTime?: string | null;
+  lastPaymentAt?: string | null;
+  lastPaymentAmount?: number | null;
+}) {
+  const subscription = input.subscription;
+  const hostedPage = input.hostedPage;
+
+  return {
+    buyer_id: input.context.buyer.id,
+    puppy_id: input.context.puppy?.id ?? null,
+    reference_id:
+      firstString(
+        subscription?.reference_id,
+        input.context.record?.reference_id,
+        buildBuyerBillingReference({
+          buyerId: input.context.buyer.id,
+          puppyId: input.context.puppy?.id ?? null,
+        })
+      ) || buildBuyerBillingReference({
+        buyerId: input.context.buyer.id,
+        puppyId: input.context.puppy?.id ?? null,
+      }),
+    customer_id:
+      firstString(
+        subscription?.customer?.customer_id,
+        input.customer?.customer_id,
+        input.context.record?.customer_id
+      ) || null,
+    customer_email:
+      firstString(
+        subscription?.customer?.email,
+        input.customer?.email,
+        input.context.buyer.email,
+        input.context.record?.customer_email
+      ) || null,
+    customer_name:
+      firstString(
+        subscription?.customer?.display_name,
+        input.customer?.display_name,
+        buyerDisplayName(input.context.buyer),
+        input.context.record?.customer_name
+      ) || null,
+    subscription_id:
+      firstString(subscription?.subscription_id, input.context.record?.subscription_id) || null,
+    subscription_status:
+      firstString(subscription?.status, input.context.record?.subscription_status) || null,
+    hostedpage_id:
+      firstString(hostedPage?.hostedpage_id, input.context.record?.hostedpage_id) || null,
+    hostedpage_url:
+      firstString(hostedPage?.url, input.context.record?.hostedpage_url) || null,
+    hostedpage_expires_at:
+      firstString(hostedPage?.expiring_time, input.context.record?.hostedpage_expires_at) || null,
+    plan_code:
+      firstString(
+        subscription?.plan?.plan_code,
+        input.context.record?.plan_code,
+        getZohoBillingDefaultPlanCode()
+      ) || null,
+    plan_name:
+      firstString(subscription?.plan?.name, input.context.record?.plan_name) || null,
+    recurring_price:
+      normalizeMoney(
+        subscription?.plan?.price ??
+          subscription?.amount ??
+          input.context.record?.recurring_price ??
+          input.context.buyer.finance_monthly_amount
+      ) ?? null,
+    currency_code:
+      firstString(subscription?.currency_code, input.context.record?.currency_code, "USD") || "USD",
+    interval_count: subscription?.interval ?? input.context.record?.interval_count ?? 1,
+    interval_unit:
+      firstString(subscription?.interval_unit, input.context.record?.interval_unit) || null,
+    billing_cycles:
+      subscription?.plan?.billing_cycles ??
+      input.context.record?.billing_cycles ??
+      input.context.buyer.finance_months ??
+      null,
+    current_term_ends_at:
+      firstString(subscription?.current_term_ends_at, input.context.record?.current_term_ends_at) || null,
+    next_billing_at:
+      firstString(subscription?.next_billing_at, input.context.record?.next_billing_at) || null,
+    started_at:
+      firstString(
+        subscription?.starts_at,
+        subscription?.created_at,
+        input.context.record?.started_at,
+        input.context.buyer.finance_next_due_date
+      ) || null,
+    last_payment_at:
+      firstString(input.lastPaymentAt, input.context.record?.last_payment_at) || null,
+    last_payment_amount:
+      normalizeMoney(input.lastPaymentAmount ?? input.context.record?.last_payment_amount) ?? null,
+    card_last_four:
+      firstString(subscription?.card?.last_four_digits, input.context.record?.card_last_four) || null,
+    card_expiry_month:
+      subscription?.card?.expiry_month ??
+      input.context.record?.card_expiry_month ??
+      null,
+    card_expiry_year:
+      subscription?.card?.expiry_year ??
+      input.context.record?.card_expiry_year ??
+      null,
+    last_event_id:
+      firstString(input.eventId, input.context.record?.last_event_id) || null,
+    last_event_type:
+      firstString(input.eventType, input.context.record?.last_event_type) || null,
+    last_event_at:
+      firstString(input.eventTime, input.context.record?.last_event_at) || null,
+    raw_subscription: subscription
+      ? (subscription as unknown as Record<string, unknown>)
+      : input.context.record?.raw_subscription || {},
+    raw_hostedpage: hostedPage
+      ? (hostedPage as unknown as Record<string, unknown>)
+      : input.context.record?.raw_hostedpage || {},
+  };
+}
+
+async function refreshRecordFromRemote(
+  admin: SupabaseClient,
+  context: BillingContext,
+  hints: {
+    subscriptionId?: string | null;
+    hostedPageId?: string | null;
+    eventId?: string | null;
+    eventType?: string | null;
+    eventTime?: string | null;
+  } = {}
+) {
+  if (firstString(hints.subscriptionId, context.record?.subscription_id)) {
+    const subscription = await retrieveZohoBillingSubscription(
+      firstString(hints.subscriptionId, context.record?.subscription_id)
+    );
+
+    return persistBillingRecord(
+      admin,
+      buildSubscriptionRecordUpdate({
+        context,
+        subscription,
+        eventId: hints.eventId,
+        eventType: hints.eventType,
+        eventTime: hints.eventTime,
+      })
+    );
+  }
+
+  if (firstString(hints.hostedPageId, context.record?.hostedpage_id)) {
+    const hostedPage = await retrieveZohoBillingHostedPage(
+      firstString(hints.hostedPageId, context.record?.hostedpage_id)
+    );
+
+    return persistBillingRecord(
+      admin,
+      buildSubscriptionRecordUpdate({
+        context,
+        subscription: hostedPage.data?.subscription || null,
+        hostedPage,
+        eventId: hints.eventId,
+        eventType: hints.eventType,
+        eventTime: hints.eventTime,
+      })
+    );
+  }
+
+  return context.record;
+}
+
+function inferEventData(payload: Record<string, unknown> | null) {
+  if (!payload) {
+    return {
+      subscription: null as Record<string, unknown> | null,
+      invoice: null as Record<string, unknown> | null,
+      payment: null as Record<string, unknown> | null,
+      referenceId: null as string | null,
+      subscriptionId: null as string | null,
+      customerId: null as string | null,
+      customerEmail: null as string | null,
+      customerName: null as string | null,
+      amount: null as number | null,
+      paymentId: null as string | null,
+      paymentDate: null as string | null,
+      invoiceId: null as string | null,
+      invoiceNumber: null as string | null,
+    };
+  }
+
+  const subscription = firstObjectByKeys(payload, ["subscription"]);
+  const invoice = firstObjectByKeys(payload, ["invoice"]);
+  const payment =
+    firstObjectByKeys(payload, ["payment"]) ||
+    (firstArrayByKeys(payload, ["payments"]) || []).find((item) => isPlainObject(item)) ||
+    null;
+
+  return {
+    subscription,
+    invoice,
+    payment: isPlainObject(payment) ? payment : null,
+    referenceId:
+      firstStringByKeys(subscription, ["reference_id"]) ||
+      firstStringByKeys(payload, ["reference_id"]),
+    subscriptionId:
+      firstStringByKeys(subscription, ["subscription_id"]) ||
+      firstStringByKeys(payload, ["subscription_id"]),
+    customerId:
+      firstStringByKeys(subscription?.customer, ["customer_id"]) ||
+      firstStringByKeys(invoice, ["customer_id"]) ||
+      firstStringByKeys(payload, ["customer_id"]),
+    customerEmail:
+      firstStringByKeys(subscription?.customer, ["email"]) ||
+      firstStringByKeys(invoice, ["email", "customer_email"]) ||
+      firstStringByKeys(payload, ["email", "customer_email"]),
+    customerName:
+      firstStringByKeys(subscription?.customer, ["display_name"]) ||
+      firstStringByKeys(invoice, ["customer_name"]) ||
+      firstStringByKeys(payload, ["customer_name", "display_name"]),
+    amount:
+      firstNumberByKeys(payment, ["amount"]) ||
+      firstNumberByKeys(invoice, ["amount", "total"]) ||
+      firstNumberByKeys(subscription, ["amount"]) ||
+      null,
+    paymentId:
+      firstStringByKeys(payment, ["payment_id", "invoice_payment_id", "reference_number"]) ||
+      firstStringByKeys(payload, ["payment_id"]),
+    paymentDate:
+      firstStringByKeys(payment, ["date", "payment_date"]) ||
+      firstStringByKeys(invoice, ["invoice_date", "date"]) ||
+      firstStringByKeys(payload, ["date"]),
+    invoiceId: firstStringByKeys(invoice, ["invoice_id"]),
+    invoiceNumber: firstStringByKeys(invoice, ["number"]),
+  };
+}
+
+async function createBillingAlert(
+  admin: SupabaseClient,
+  input: {
+    eventId: string;
+    eventType: string;
+    buyerId: number;
+    puppyId?: number | null;
+    userId?: string | null;
+    subscriptionId?: string | null;
+    message: string;
+    tone: "success" | "warning" | "danger" | "neutral";
+    title: string;
+    meta?: Record<string, unknown>;
+  }
+) {
+  try {
+    const { error } = await admin.from("chichi_admin_alerts").upsert(
+      {
+        external_event_id: input.eventId,
+        event_type: input.eventType,
+        alert_scope: "payment",
+        title: input.title,
+        message: input.message,
+        tone: input.tone,
+        buyer_id: input.buyerId,
+        puppy_id: input.puppyId || null,
+        user_id: input.userId || null,
+        payment_id: input.subscriptionId || null,
+        payment_link_id: null,
+        reference_id: null,
+        source: "zoho_billing",
+        meta: input.meta || {},
+      },
+      { onConflict: "external_event_id" }
+    );
+
+    if (error && !isMissingTableError(error)) {
+      throw new Error(error.message);
+    }
+  } catch (error) {
+    if (!isMissingTableError(error)) {
+      throw error;
+    }
+  }
+}
+
+function billingAlertPresentation(eventType: string) {
+  const normalized = normalizeLower(eventType);
+  if (normalized === "payment_thankyou") {
+    return {
+      title: "Subscription payment received",
+      tone: "success" as const,
+    };
+  }
+
+  if (["payment_declined", "subscription_unpaid"].includes(normalized)) {
+    return {
+      title: "Subscription payment failed",
+      tone: "danger" as const,
+    };
+  }
+
+  if (["subscription_cancelled", "subscription_expired"].includes(normalized)) {
+    return {
+      title: "Subscription closed",
+      tone: "warning" as const,
+    };
+  }
+
+  if (
+    ["subscription_created", "subscription_activation", "subscription_renewed", "subscription_reactivated"].includes(
+      normalized
+    )
+  ) {
+    return {
+      title: "Subscription synced",
+      tone: "success" as const,
+    };
+  }
+
+  return {
+    title: "Subscription update received",
+    tone: "neutral" as const,
+  };
+}
+
+async function recordBillingPayment(
+  admin: SupabaseClient,
+  input: {
+    context: BillingContext;
+    eventType: string;
+    eventTime?: string | null;
+    paymentId?: string | null;
+    invoiceId?: string | null;
+    invoiceNumber?: string | null;
+    amount?: number | null;
+    paymentDate?: string | null;
+    subscription?: ZohoBillingSubscription | null;
+  }
+) {
+  const amount = normalizeMoney(input.amount);
+  if (!(amount && amount > 0)) {
+    return null;
+  }
+
+  const paymentReference =
+    firstString(
+      input.paymentId,
+      input.invoiceId,
+      input.subscription?.subscription_id
+        ? `${input.subscription.subscription_id}:${input.eventType}:${toIsoDate(input.paymentDate) || todayIso()}`
+        : "",
+      `${input.context.buyer.id}:${input.eventType}:${toIsoDate(input.paymentDate) || todayIso()}`
+    ) || crypto.randomUUID();
+
+  const paymentDate = toIsoDate(input.paymentDate || input.eventTime || "") || todayIso();
+  const existing = await admin
+    .from("buyer_payments")
+    .select("id")
+    .eq("reference_number", paymentReference)
+    .limit(1)
+    .maybeSingle<{ id: string }>();
+
+  if (existing.error) {
+    throw new Error(existing.error.message);
+  }
+
+  const note = [
+    "Recurring puppy payment plan charge",
+    input.subscription?.plan?.name || input.context.record?.plan_name || "",
+    input.invoiceNumber ? `Invoice ${input.invoiceNumber}` : "",
+  ]
+    .filter(Boolean)
+    .join(" | ");
+
+  const paymentPayload = {
+    buyer_id: input.context.buyer.id,
+    puppy_id: input.context.puppy?.id ?? null,
+    user_id: input.context.buyer.user_id || null,
+    payment_date: paymentDate,
+    amount,
+    payment_type: "Installment Payment",
+    method: "Zoho Billing Subscription",
+    note,
+    status: "recorded",
+    reference_number: paymentReference,
+  };
+
+  if (existing.data?.id) {
+    const update = await admin
+      .from("buyer_payments")
+      .update(paymentPayload)
+      .eq("id", existing.data.id);
+
+    if (update.error) {
+      throw new Error(update.error.message);
+    }
+  } else {
+    const insert = await admin.from("buyer_payments").insert(paymentPayload);
+    if (insert.error) {
+      throw new Error(insert.error.message);
+    }
+  }
+
+  const buyerUpdate: Record<string, unknown> = {
+    finance_last_payment_date: paymentDate,
+  };
+
+  const nextBillingAt = toIsoDate(input.subscription?.next_billing_at || input.context.record?.next_billing_at);
+  if (nextBillingAt) {
+    buyerUpdate.finance_next_due_date = nextBillingAt;
+  }
+
+  const buyerResult = await admin
+    .from("buyers")
+    .update(buyerUpdate)
+    .eq("id", input.context.buyer.id);
+
+  if (buyerResult.error) {
+    throw new Error(buyerResult.error.message);
+  }
+
+  return {
+    paymentDate,
+    amount,
+  };
+}
+
+export function serializeBuyerBillingSubscription(record: BuyerBillingSubscriptionRecord | null) {
+  return sanitizeRecord(record);
+}
+
+export async function loadBuyerBillingSubscription(
+  admin: SupabaseClient,
+  input: { buyerId: number; puppyId?: number | null }
+) {
+  return loadBillingRecordByBuyer(admin, input.buyerId, input.puppyId);
+}
+
+export async function createBuyerBillingSubscriptionCheckout(input: {
+  admin: SupabaseClient;
+  buyerId: number;
+  puppyId?: number | null;
+  requestUrl: string;
+}) {
+  const context = await loadBillingContext(input.admin, {
+    buyerId: input.buyerId,
+    puppyId: input.puppyId,
+  });
+
+  if (!context.buyer.finance_enabled) {
+    throw new Error("Enable financing on this puppy account before creating a Zoho Billing subscription.");
+  }
+
+  const monthlyAmount = normalizeMoney(context.buyer.finance_monthly_amount);
+  if (!(monthlyAmount && monthlyAmount > 0)) {
+    throw new Error("Add the monthly payment amount before creating the Zoho Billing subscription.");
+  }
+
+  if (context.record && isActiveLikeSubscriptionStatus(context.record.subscription_status)) {
+    throw new Error("This puppy payment plan already has an active Zoho Billing subscription.");
+  }
+
+  if (hostedPageExpiryActive(context.record)) {
+    return {
+      record: sanitizeRecord(context.record) as BuyerBillingSubscriptionRecord,
+      url: context.record?.hostedpage_url || "",
+      hostedPageId: context.record?.hostedpage_id || "",
+      reusedExisting: true,
+    } satisfies HostedCheckoutResult;
+  }
+
+  const customer = await ensureBillingCustomer(context, input.admin);
+  const redirectUrl = new URL("/portal/payments", input.requestUrl).toString();
+  const referenceId =
+    context.record?.reference_id ||
+    buildBuyerBillingReference({
+      buyerId: context.buyer.id,
+      puppyId: context.puppy?.id ?? null,
+    });
+
+  const hostedPage = await createZohoBillingSubscriptionHostedPage({
+    customerId: customer.customer_id,
+    planCode: getZohoBillingDefaultPlanCode() || "",
+    price: monthlyAmount,
+    quantity: 1,
+    billingCycles:
+      context.buyer.finance_months !== null && context.buyer.finance_months !== undefined
+        ? Number(context.buyer.finance_months)
+        : null,
+    referenceId,
+    startsAt: context.buyer.finance_next_due_date || null,
+    redirectUrl,
+    customFields: [
+      { label: "buyer_id", value: String(context.buyer.id) },
+      { label: "puppy_id", value: String(context.puppy?.id || "") },
+      { label: "puppy_name", value: puppyDisplayName(context.puppy) },
+    ],
+  });
+
+  const record = await persistBillingRecord(
+    input.admin,
+    buildSubscriptionRecordUpdate({
+      context,
+      customer,
+      hostedPage,
+    })
+  );
+
+  if (!record?.hostedpage_url || !record.hostedpage_id) {
+    throw new Error("Could not save the Zoho Billing checkout details.");
+  }
+
+  return {
+    record,
+    url: record.hostedpage_url,
+    hostedPageId: record.hostedpage_id,
+    reusedExisting: false,
+  } satisfies HostedCheckoutResult;
+}
+
+export async function createBuyerBillingUpdateCardCheckout(input: {
+  admin: SupabaseClient;
+  buyerId: number;
+  puppyId?: number | null;
+  requestUrl: string;
+}) {
+  const context = await loadBillingContext(input.admin, {
+    buyerId: input.buyerId,
+    puppyId: input.puppyId,
+  });
+
+  const subscriptionId = firstString(context.record?.subscription_id);
+  if (!subscriptionId) {
+    throw new Error("This puppy payment plan does not have an active Zoho Billing subscription yet.");
+  }
+
+  const hostedPage = await createZohoBillingUpdateCardHostedPage({
+    subscriptionId,
+    redirectUrl: new URL("/portal/payments", input.requestUrl).toString(),
+  });
+
+  const record = await persistBillingRecord(
+    input.admin,
+    buildSubscriptionRecordUpdate({
+      context,
+      hostedPage,
+    })
+  );
+
+  if (!record?.hostedpage_url || !record.hostedpage_id) {
+    throw new Error("Could not save the Zoho Billing card-update page.");
+  }
+
+  return {
+    record,
+    url: record.hostedpage_url,
+    hostedPageId: record.hostedpage_id,
+    reusedExisting: false,
+  } satisfies HostedCheckoutResult;
+}
+
+export async function refreshBuyerBillingSubscription(input: {
+  admin: SupabaseClient;
+  buyerId: number;
+  puppyId?: number | null;
+}) {
+  const context = await loadBillingContext(input.admin, {
+    buyerId: input.buyerId,
+    puppyId: input.puppyId,
+  });
+
+  if (!(context.record?.subscription_id || context.record?.hostedpage_id)) {
+    return context.record;
+  }
+
+  return refreshRecordFromRemote(input.admin, context);
+}
+
+export async function syncZohoBillingEvent(input: {
+  admin: SupabaseClient;
+  eventId?: string | null;
+  eventType?: string | null;
+  eventTime?: string | null;
+  payload?: string | Record<string, unknown> | null;
+  rawPayload?: Record<string, unknown> | null;
+}) {
+  const payloadObject = parseEventPayload(input.payload);
+  const eventType =
+    firstString(input.eventType, firstStringByKeys(payloadObject, ["event_type"]) || "") || "update";
+  const eventTime =
+    firstString(input.eventTime, firstStringByKeys(payloadObject, ["event_time"]) || "") ||
+    new Date().toISOString();
+  const inferred = inferEventData(payloadObject);
+
+  let record =
+    (inferred.referenceId && (await loadBillingRecordByReference(input.admin, inferred.referenceId))) ||
+    (inferred.subscriptionId &&
+      (await loadBillingRecordBySubscriptionId(input.admin, inferred.subscriptionId))) ||
+    (inferred.customerId && (await loadBillingRecordByCustomerId(input.admin, inferred.customerId))) ||
+    null;
+
+  if (!record && inferred.referenceId) {
+    const parsedReference = parseBuyerBillingReference(inferred.referenceId);
+    if (parsedReference?.buyerId) {
+      const context = await loadBillingContext(input.admin, {
+        buyerId: parsedReference.buyerId,
+        puppyId: parsedReference.puppyId,
+      });
+
+      record = await persistBillingRecord(
+        input.admin,
+        buildSubscriptionRecordUpdate({
+          context,
+          eventId: input.eventId,
+          eventType,
+          eventTime,
+        })
+      );
+    }
+  }
+
+  if (!record) {
+    return {
+      handled: false,
+      record: null,
+      eventType,
+    };
+  }
+
+  const context = await loadBillingContext(input.admin, {
+    buyerId: record.buyer_id,
+    puppyId: record.puppy_id,
+  });
+
+  let subscription: ZohoBillingSubscription | null = null;
+  try {
+    if (firstString(inferred.subscriptionId, record.subscription_id)) {
+      subscription = await retrieveZohoBillingSubscription(
+        firstString(inferred.subscriptionId, record.subscription_id)
+      );
+    }
+  } catch {
+    subscription = (inferred.subscription as unknown as ZohoBillingSubscription | null) || null;
+  }
+
+  const paymentReceipt =
+    eventType === "payment_thankyou"
+      ? await recordBillingPayment(input.admin, {
+          context,
+          eventType,
+          eventTime,
+          paymentId: inferred.paymentId,
+          invoiceId: inferred.invoiceId,
+          invoiceNumber: inferred.invoiceNumber,
+          amount: inferred.amount,
+          paymentDate: inferred.paymentDate,
+          subscription,
+        })
+      : null;
+
+  const updatedRecord = await persistBillingRecord(
+    input.admin,
+    buildSubscriptionRecordUpdate({
+      context,
+      subscription,
+      eventId: input.eventId,
+      eventType,
+      eventTime,
+      lastPaymentAt: paymentReceipt?.paymentDate || context.record?.last_payment_at || null,
+      lastPaymentAmount: paymentReceipt?.amount || context.record?.last_payment_amount || null,
+    })
+  );
+
+  const alert = billingAlertPresentation(eventType);
+  await createBillingAlert(input.admin, {
+    eventId:
+      firstString(input.eventId, `${record.reference_id}:${eventType}:${toIsoDate(eventTime) || todayIso()}`) ||
+      `${record.reference_id}:${eventType}:${todayIso()}`,
+    eventType,
+    buyerId: context.buyer.id,
+    puppyId: context.puppy?.id ?? null,
+    userId: context.buyer.user_id || null,
+    subscriptionId: firstString(updatedRecord?.subscription_id, record.subscription_id) || null,
+    title: alert.title,
+    tone: alert.tone,
+    message: [
+      buyerDisplayName(context.buyer),
+      puppyDisplayName(context.puppy),
+      firstString(subscription?.status, updatedRecord?.subscription_status, eventType),
+      paymentReceipt?.amount ? `$${paymentReceipt.amount.toFixed(2)}` : "",
+    ]
+      .filter(Boolean)
+      .join(" | "),
+    meta: {
+      source: "zoho_billing",
+      raw_payload: input.rawPayload || payloadObject || {},
+    },
+  });
+
+  return {
+    handled: true,
+    record: updatedRecord,
+    eventType,
+  };
+}
+
+export async function syncZohoBillingHostedPage(input: {
+  admin: SupabaseClient;
+  hostedPageId: string;
+  buyerId: number;
+  puppyId?: number | null;
+  eventId?: string | null;
+  eventType?: string | null;
+  eventTime?: string | null;
+}) {
+  const context = await loadBillingContext(input.admin, {
+    buyerId: input.buyerId,
+    puppyId: input.puppyId,
+  });
+
+  const hostedPage = await retrieveZohoBillingHostedPage(input.hostedPageId);
+  return persistBillingRecord(
+    input.admin,
+    buildSubscriptionRecordUpdate({
+      context,
+      subscription: hostedPage.data?.subscription || null,
+      hostedPage,
+      eventId: input.eventId,
+      eventType: input.eventType,
+      eventTime: input.eventTime,
+    })
+  );
+}

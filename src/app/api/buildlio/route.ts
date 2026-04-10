@@ -3489,7 +3489,7 @@ async function executeListRecords(
             row.status,
             row.notes,
             row.whelp_date,
-            row.damProfile?.displayName,
+            row.damProfile?.display_Name,
             row.damProfile?.dog_name,
             row.damProfile?.call_name,
             row.sireProfile?.displayName,
