@@ -266,7 +266,7 @@ function financingStatusLabel(account: PlannerAccount) {
 }
 
 function flattenAccounts(accounts: BuyerAccount[]) {
-  return accounts.flatMap((account) => {
+  return accounts.flatMap<PlannerAccount>((account) => {
     const linkedPuppies = account.linkedPuppies || (account.puppy ? [account.puppy] : []);
 
     if (!linkedPuppies.length) {
@@ -280,7 +280,7 @@ function flattenAccounts(accounts: BuyerAccount[]) {
           adjustments: account.adjustments,
           totalPaid: account.totalPaid,
           lastPaymentAt: account.lastPaymentAt,
-        } satisfies PlannerAccount,
+        },
       ];
     }
 
@@ -299,7 +299,7 @@ function flattenAccounts(accounts: BuyerAccount[]) {
       }),
       totalPaid: account.totalPaid,
       lastPaymentAt: account.lastPaymentAt,
-    })) satisfies PlannerAccount[];
+    }));
   });
 }
 
