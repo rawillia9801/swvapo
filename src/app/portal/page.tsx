@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { Analytics } from "@vercel/analytics/next"
 import React, { useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
