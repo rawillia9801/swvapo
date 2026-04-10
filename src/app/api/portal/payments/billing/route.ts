@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createServiceSupabase, verifyPortalUser } from "@/lib/portal-api";
 import { loadPortalZohoPaymentState } from "@/lib/portal-zoho-payments";
 import {
-  createBuyerBillingUpdateCardCheckout,
+  createBuyerBillingPaymentMethodCheckout,
   loadBuyerBillingSubscription,
   serializeBuyerBillingSubscription,
 } from "@/lib/portal-zoho-billing";
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
       return jsonError("We could not find a buyer account linked to this portal login.", 404);
     }
 
-    const checkout = await createBuyerBillingUpdateCardCheckout({
+    const checkout = await createBuyerBillingPaymentMethodCheckout({
       admin,
       buyerId: state.buyer.id,
       puppyId: state.puppy?.id ?? null,
@@ -76,7 +76,7 @@ export async function POST(req: Request) {
       subscription: serializeBuyerBillingSubscription(checkout.record),
     });
   } catch (error) {
-    console.error("Portal billing update-card error:", error);
+    console.error("Portal billing payment-method error:", error);
     return jsonError(
       error instanceof Error ? error.message : "Could not open the secure payment-method update page.",
       500

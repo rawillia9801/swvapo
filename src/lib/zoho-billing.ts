@@ -570,23 +570,23 @@ export async function createZohoBillingSubscriptionHostedPage(
   return payload.hostedpage;
 }
 
-export async function createZohoBillingUpdateCardHostedPage(input: {
-  subscriptionId: string;
+export async function createZohoBillingAddPaymentMethodHostedPage(input: {
+  customerId: string;
   redirectUrl?: string | null;
 }) {
   const config = await ensureZohoBillingConfig();
-  const subscriptionId = String(input.subscriptionId || "").trim();
+  const customerId = String(input.customerId || "").trim();
 
-  if (!subscriptionId) {
-    throw new Error("A Zoho Billing subscription id is required to update the saved card.");
+  if (!customerId) {
+    throw new Error("A Zoho Billing customer id is required to add a payment method.");
   }
 
   const payload = await zohoBillingRequest<{ hostedpage?: ZohoBillingHostedPage }>(
-    "/hostedpages/updatecard",
+    "/hostedpages/addpaymentmethod",
     {
       method: "POST",
       body: cleanBodyValue({
-        subscription_id: subscriptionId,
+        customer_id: customerId,
         redirect_url:
           String(input.redirectUrl || config.defaultReturnUrl || "").trim() || undefined,
       }),
@@ -594,10 +594,69 @@ export async function createZohoBillingUpdateCardHostedPage(input: {
   );
 
   if (!payload.hostedpage?.hostedpage_id || !payload.hostedpage.url) {
-    throw new Error("Zoho Billing did not return the card-update checkout page.");
+    throw new Error("Zoho Billing did not return the payment-method checkout page.");
   }
 
   return payload.hostedpage;
+}
+
+export async function createZohoBillingUpdatePaymentMethodHostedPage(input: {
+  cardId?: string | null;
+  accountId?: string | null;
+  paypalId?: string | null;
+  redirectUrl?: string | null;
+}) {
+  const config = await ensureZohoBillingConfig();
+  const cardId = String(input.cardId || "").trim();
+  const accountId = String(input.accountId || "").trim();
+  const paypalId = String(input.paypalId || "").trim();
+
+  if (!(cardId || accountId || paypalId)) {
+    throw new Error("A Zoho Billing payment method id is required to update the saved payment method.");
+  }
+
+  const payload = await zohoBillingRequest<{ hostedpage?: ZohoBillingHostedPage }>(
+    "/hostedpages/updatepaymentmethod",
+    {
+      method: "POST",
+      body: cleanBodyValue({
+        card_id: cardId || undefined,
+        account_id: accountId || undefined,
+        paypal_id: paypalId || undefined,
+        redirect_url:
+          String(input.redirectUrl || config.defaultReturnUrl || "").trim() || undefined,
+      }),
+    }
+  );
+
+  if (!payload.hostedpage?.hostedpage_id || !payload.hostedpage.url) {
+    throw new Error("Zoho Billing did not return the payment-method update page.");
+  }
+
+  return payload.hostedpage;
+}
+
+export async function createZohoBillingUpdateCardHostedPage(input: {
+  subscriptionId: string;
+  redirectUrl?: string | null;
+}) {
+  const subscriptionId = String(input.subscriptionId || "").trim();
+
+  if (!subscriptionId) {
+    throw new Error("A Zoho Billing subscription id is required to update the saved card.");
+  }
+
+  const subscription = await retrieveZohoBillingSubscription(subscriptionId);
+  const cardId = String(subscription.card?.card_id || "").trim();
+
+  if (!cardId) {
+    throw new Error("Zoho Billing did not return a saved card for this subscription.");
+  }
+
+  return createZohoBillingUpdatePaymentMethodHostedPage({
+    cardId,
+    redirectUrl: input.redirectUrl,
+  });
 }
 
 export async function retrieveZohoBillingEvent(eventId: string) {

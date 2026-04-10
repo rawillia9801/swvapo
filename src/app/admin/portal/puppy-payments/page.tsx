@@ -305,6 +305,30 @@ function subscriptionIsActive(subscription: BillingSubscription | null | undefin
   );
 }
 
+function billingPaymentMethodValue(subscription: BillingSubscription | null | undefined) {
+  if (subscription?.card_last_four) {
+    return `Card ending in ${subscription.card_last_four}`;
+  }
+
+  if (subscription?.subscription_id) {
+    return "Managed in Zoho Billing";
+  }
+
+  return "No payment method synced yet";
+}
+
+function billingPaymentMethodDetail(subscription: BillingSubscription | null | undefined) {
+  if (subscription?.card_expiry_month && subscription?.card_expiry_year) {
+    return `Expires ${String(subscription.card_expiry_month).padStart(2, "0")}/${subscription.card_expiry_year}.`;
+  }
+
+  if (subscription?.subscription_id) {
+    return "Buyers can securely manage ACH bank accounts or cards in Zoho Billing.";
+  }
+
+  return "ACH bank account or card details appear here once Zoho Billing confirms the payment method.";
+}
+
 function paymentBelongsToPuppy(account: PuppyPaymentAccount, payment: BuyerPayment) {
   if (payment.puppy_id) return Number(payment.puppy_id) === account.puppy.id;
   return account.linkedPuppies.length <= 1;
@@ -646,7 +670,9 @@ export default function AdminPortalPuppyPaymentsPage() {
     );
   }
 
-  async function runBillingAction(action: "start_checkout" | "update_card" | "refresh") {
+  async function runBillingAction(
+    action: "start_checkout" | "update_payment_method" | "refresh"
+  ) {
     if (!selectedAccount) return;
 
     setBillingBusy(true);
@@ -689,8 +715,8 @@ export default function AdminPortalPuppyPaymentsPage() {
             ? "The existing Zoho Billing checkout link was reopened in a new tab."
             : "Zoho Billing checkout opened in a new tab."
         );
-      } else if (action === "update_card") {
-        setBillingStatusText("Zoho Billing card-update page opened in a new tab.");
+      } else if (action === "update_payment_method") {
+        setBillingStatusText("Zoho Billing payment-method page opened in a new tab.");
       } else {
         setBillingStatusText("Zoho Billing status refreshed.");
       }
@@ -1084,7 +1110,7 @@ export default function AdminPortalPuppyPaymentsPage() {
 
                   <AdminPanel
                     title="Zoho Billing Subscription"
-                    subtitle="Launch the recurring puppy payment-plan checkout, refresh the remote subscription state, and send the buyer to update the saved card when needed."
+                    subtitle="Launch the recurring puppy payment-plan checkout, refresh the remote subscription state, and send the buyer to manage the saved payment method when needed."
                   >
                     {billingStatusText ? (
                       <div className="mb-4 rounded-[18px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm font-semibold text-[var(--portal-text-soft)]">
@@ -1123,20 +1149,9 @@ export default function AdminPortalPuppyPaymentsPage() {
                         }
                       />
                       <AdminInfoTile
-                        label="Saved Card"
-                        value={
-                          selectedAccount.billing_subscription?.card_last_four
-                            ? `•••• ${selectedAccount.billing_subscription.card_last_four}`
-                            : "No card synced yet"
-                        }
-                        detail={
-                          selectedAccount.billing_subscription?.card_expiry_month &&
-                          selectedAccount.billing_subscription?.card_expiry_year
-                            ? `Expires ${String(
-                                selectedAccount.billing_subscription.card_expiry_month
-                              ).padStart(2, "0")}/${selectedAccount.billing_subscription.card_expiry_year}.`
-                            : "Card details appear here once Zoho Billing confirms the payment method."
-                        }
+                        label="Saved Payment Method"
+                        value={billingPaymentMethodValue(selectedAccount.billing_subscription)}
+                        detail={billingPaymentMethodDetail(selectedAccount.billing_subscription)}
                       />
                     </div>
 
@@ -1155,13 +1170,13 @@ export default function AdminPortalPuppyPaymentsPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => void runBillingAction("update_card")}
+                        onClick={() => void runBillingAction("update_payment_method")}
                         disabled={
                           billingBusy || !selectedAccount.billing_subscription?.subscription_id
                         }
                         className="rounded-2xl border border-[var(--portal-border)] bg-[#fffdfb] px-5 py-3 text-sm font-semibold text-[var(--portal-text)] shadow-[0_12px_30px_rgba(106,76,45,0.08)] transition hover:border-[#d8b48b] hover:bg-white disabled:opacity-60"
                       >
-                        Update Saved Card
+                        Manage Payment Method
                       </button>
                       <button
                         type="button"

@@ -2,9 +2,11 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  createZohoBillingAddPaymentMethodHostedPage,
   createZohoBillingCustomer,
   createZohoBillingSubscriptionHostedPage,
   createZohoBillingUpdateCardHostedPage,
+  createZohoBillingUpdatePaymentMethodHostedPage,
   getZohoBillingDefaultPlanCode,
   listZohoBillingCustomers,
   retrieveZohoBillingHostedPage,
@@ -279,6 +281,23 @@ function hostedPageExpiryActive(record: BuyerBillingSubscriptionRecord | null) {
   const expiryDate = new Date(expiry);
   if (Number.isNaN(expiryDate.getTime())) return false;
   return expiryDate.getTime() > Date.now();
+}
+
+function resolveSavedPaymentMethodIds(record: BuyerBillingSubscriptionRecord | null) {
+  return {
+    cardId:
+      firstStringByKeys(record?.raw_subscription, ["card_id"]) ||
+      firstStringByKeys(record?.raw_hostedpage, ["card_id"]) ||
+      null,
+    accountId:
+      firstStringByKeys(record?.raw_subscription, ["account_id", "bank_account_id"]) ||
+      firstStringByKeys(record?.raw_hostedpage, ["account_id", "bank_account_id"]) ||
+      null,
+    paypalId:
+      firstStringByKeys(record?.raw_subscription, ["paypal_id"]) ||
+      firstStringByKeys(record?.raw_hostedpage, ["paypal_id"]) ||
+      null,
+  };
 }
 
 function sanitizeRecord(record: BuyerBillingSubscriptionRecord | null) {
@@ -1089,7 +1108,7 @@ export async function createBuyerBillingSubscriptionCheckout(input: {
   } satisfies HostedCheckoutResult;
 }
 
-export async function createBuyerBillingUpdateCardCheckout(input: {
+export async function createBuyerBillingPaymentMethodCheckout(input: {
   admin: SupabaseClient;
   buyerId: number;
   puppyId?: number | null;
@@ -1100,26 +1119,47 @@ export async function createBuyerBillingUpdateCardCheckout(input: {
     puppyId: input.puppyId,
   });
 
+  const redirectUrl = new URL("/portal/payments", input.requestUrl).toString();
+  const customer =
+    context.record?.customer_id
+      ? ({
+          customer_id: context.record.customer_id,
+          email: context.record.customer_email,
+          display_name: context.record.customer_name,
+        } as ZohoBillingCustomer)
+      : await ensureBillingCustomer(context);
   const subscriptionId = firstString(context.record?.subscription_id);
-  if (!subscriptionId) {
-    throw new Error("This puppy payment plan does not have an active Zoho Billing subscription yet.");
-  }
+  const paymentMethod = resolveSavedPaymentMethodIds(context.record);
 
-  const hostedPage = await createZohoBillingUpdateCardHostedPage({
-    subscriptionId,
-    redirectUrl: new URL("/portal/payments", input.requestUrl).toString(),
-  });
+  const hostedPage =
+    paymentMethod.cardId || paymentMethod.accountId || paymentMethod.paypalId
+      ? await createZohoBillingUpdatePaymentMethodHostedPage({
+          cardId: paymentMethod.cardId,
+          accountId: paymentMethod.accountId,
+          paypalId: paymentMethod.paypalId,
+          redirectUrl,
+        })
+      : subscriptionId && context.record?.card_last_four
+        ? await createZohoBillingUpdateCardHostedPage({
+            subscriptionId,
+            redirectUrl,
+          })
+        : await createZohoBillingAddPaymentMethodHostedPage({
+            customerId: customer.customer_id,
+            redirectUrl,
+          });
 
   const record = await persistBillingRecord(
     input.admin,
     buildSubscriptionRecordUpdate({
       context,
+      customer,
       hostedPage,
     })
   );
 
   if (!record?.hostedpage_url || !record.hostedpage_id) {
-    throw new Error("Could not save the Zoho Billing card-update page.");
+    throw new Error("Could not save the Zoho Billing payment-method page.");
   }
 
   return {
@@ -1128,6 +1168,15 @@ export async function createBuyerBillingUpdateCardCheckout(input: {
     hostedPageId: record.hostedpage_id,
     reusedExisting: false,
   } satisfies HostedCheckoutResult;
+}
+
+export async function createBuyerBillingUpdateCardCheckout(input: {
+  admin: SupabaseClient;
+  buyerId: number;
+  puppyId?: number | null;
+  requestUrl: string;
+}) {
+  return createBuyerBillingPaymentMethodCheckout(input);
 }
 
 export async function refreshBuyerBillingSubscription(input: {

@@ -244,6 +244,30 @@ function billingSubscriptionActive(subscription: PortalBillingSubscription | nul
   );
 }
 
+function billingPaymentMethodValue(subscription: PortalBillingSubscription | null) {
+  if (subscription?.card_last_four) {
+    return `Card ending in ${subscription.card_last_four}`;
+  }
+
+  if (subscription?.subscription_id) {
+    return "Managed in Zoho Billing";
+  }
+
+  return "No payment method synced yet";
+}
+
+function billingPaymentMethodDetail(subscription: PortalBillingSubscription | null) {
+  if (subscription?.card_expiry_month && subscription?.card_expiry_year) {
+    return `Expires ${String(subscription.card_expiry_month).padStart(2, "0")}/${subscription.card_expiry_year}.`;
+  }
+
+  if (subscription?.subscription_id) {
+    return "You can securely manage an ACH bank account or card in Zoho Billing.";
+  }
+
+  return "ACH bank account or card details appear after Zoho Billing confirms the payment method.";
+}
+
 function includesKeyword(value: string | null | undefined, keywords: string[]) {
   const normalized = String(value || "").trim().toLowerCase();
   return keywords.some((keyword) => normalized.includes(keyword));
@@ -871,7 +895,7 @@ export default function PortalPaymentsPage() {
     }
   }
 
-  async function updateBillingCard() {
+  async function manageBillingPaymentMethod() {
     setBillingStatusText("");
     setBillingErrorText("");
     setBillingBusy(true);
@@ -1285,18 +1309,9 @@ export default function PortalPaymentsPage() {
                     }
                   />
                   <PortalInfoTile
-                    label="Saved Card"
-                    value={
-                      billingSubscription?.card_last_four
-                        ? `•••• ${billingSubscription.card_last_four}`
-                        : "No card synced yet"
-                    }
-                    detail={
-                      billingSubscription?.card_expiry_month &&
-                      billingSubscription?.card_expiry_year
-                        ? `Expires ${String(billingSubscription.card_expiry_month).padStart(2, "0")}/${billingSubscription.card_expiry_year}.`
-                        : "Card details appear after Zoho Billing confirms the payment method."
-                    }
+                    label="Saved Payment Method"
+                    value={billingPaymentMethodValue(billingSubscription)}
+                    detail={billingPaymentMethodDetail(billingSubscription)}
                   />
                 </div>
 
@@ -1314,10 +1329,10 @@ export default function PortalPaymentsPage() {
 
                   {billingSubscription?.subscription_id ? (
                     <PortalSecondaryButton
-                      onClick={() => void updateBillingCard()}
+                      onClick={() => void manageBillingPaymentMethod()}
                       disabled={billingBusy}
                     >
-                      {billingBusy ? "Opening..." : "Update Saved Card"}
+                      {billingBusy ? "Opening..." : "Manage Payment Method"}
                     </PortalSecondaryButton>
                   ) : null}
                 </div>

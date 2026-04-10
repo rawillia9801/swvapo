@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { createServiceSupabase, verifyOwner } from "@/lib/admin-api";
 import {
+  createBuyerBillingPaymentMethodCheckout,
   createBuyerBillingSubscriptionCheckout,
-  createBuyerBillingUpdateCardCheckout,
   loadBuyerBillingSubscription,
   refreshBuyerBillingSubscription,
   serializeBuyerBillingSubscription,
@@ -12,6 +12,7 @@ export const runtime = "nodejs";
 
 type BillingAction =
   | "start_checkout"
+  | "update_payment_method"
   | "update_card"
   | "refresh";
 
@@ -76,7 +77,7 @@ export async function POST(req: Request) {
       return errorJson("A buyer_id is required.");
     }
 
-    if (!["start_checkout", "update_card", "refresh"].includes(action)) {
+    if (!["start_checkout", "update_payment_method", "update_card", "refresh"].includes(action)) {
       return errorJson("Choose a valid billing subscription action.");
     }
 
@@ -100,8 +101,8 @@ export async function POST(req: Request) {
       });
     }
 
-    if (action === "update_card") {
-      const checkout = await createBuyerBillingUpdateCardCheckout({
+    if (action === "update_payment_method" || action === "update_card") {
+      const checkout = await createBuyerBillingPaymentMethodCheckout({
         admin,
         buyerId,
         puppyId,
