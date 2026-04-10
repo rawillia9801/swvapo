@@ -3,6 +3,7 @@ export type BreedingDogRole = "dam" | "sire";
 export type BreedingDogRecord = {
   id: string;
   role?: string | null;
+  displayName?: string | null;
   dog_name?: string | null;
   name?: string | null;
   call_name?: string | null;
@@ -148,6 +149,7 @@ export function toNumberOrNull(value: unknown) {
 
 export function resolveBreedingDogName(dog: Partial<BreedingDogRecord> | null | undefined) {
   return (
+    dog?.displayName ||
     dog?.display_name ||
     dog?.dog_name ||
     dog?.name ||
