@@ -66,6 +66,13 @@ export type LineagePuppyRecord = {
   owner_email?: string | null;
   dam?: string | null;
   sire?: string | null;
+  tail_dock_cost?: number | null;
+  dewclaw_cost?: number | null;
+  vaccination_cost?: number | null;
+  microchip_cost?: number | null;
+  registration_cost?: number | null;
+  other_vet_cost?: number | null;
+  total_medical_cost?: number | null;
   created_at?: string | null;
 };
 
@@ -78,6 +85,11 @@ export type LineageBuyerRecord = {
   status?: string | null;
   sale_price?: number | null;
   deposit_amount?: number | null;
+  delivery_fee?: number | null;
+  expense_gas?: number | null;
+  expense_hotel?: number | null;
+  expense_tolls?: number | null;
+  expense_misc?: string | number | null;
 };
 
 export type LineagePaymentRecord = {
@@ -103,6 +115,15 @@ export type RevenueSnapshot = {
   totalDeposits: number;
   totalPayments: number;
   averageSalePrice: number;
+  totalCosts: number;
+  projectedCosts: number;
+  reservedCosts: number;
+  realizedCosts: number;
+  totalProfit: number;
+  projectedProfit: number;
+  reservedProfit: number;
+  realizedProfit: number;
+  averageProfit: number;
 };
 
 export function normalizeLineageRole(value: string | null | undefined): BreedingDogRole {
@@ -138,12 +159,11 @@ export function shouldHidePublicPuppyPrice(value: string | null | undefined) {
 }
 
 export function toNumberOrZero(value: unknown) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
+  return parseLooseNumber(value);
 }
 
 export function toNumberOrNull(value: unknown) {
-  const parsed = Number(value);
+  const parsed = parseLooseNumber(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
@@ -201,6 +221,40 @@ export function resolvePublicPuppyPrice(puppy: Partial<LineagePuppyRecord> | nul
   return resolvePuppyListPrice(puppy);
 }
 
+export function resolvePuppyBreederCosts(puppy: Partial<LineagePuppyRecord> | null | undefined) {
+  if (!puppy) return 0;
+
+  const explicitTotal = toNumberOrZero(puppy.total_medical_cost);
+  if (explicitTotal > 0) return explicitTotal;
+
+  return [
+    puppy.tail_dock_cost,
+    puppy.dewclaw_cost,
+    puppy.vaccination_cost,
+    puppy.microchip_cost,
+    puppy.registration_cost,
+    puppy.other_vet_cost,
+  ].reduce((sum, value) => sum + toNumberOrZero(value), 0);
+}
+
+export function resolveBuyerTransportCosts(buyer: Partial<LineageBuyerRecord> | null | undefined) {
+  if (!buyer) return 0;
+
+  return [
+    buyer.expense_gas,
+    buyer.expense_hotel,
+    buyer.expense_tolls,
+    buyer.expense_misc,
+  ].reduce((sum, value) => sum + toNumberOrZero(value), 0);
+}
+
+export function resolveTotalPuppyCosts(
+  puppy: Partial<LineagePuppyRecord> | null | undefined,
+  buyer: Partial<LineageBuyerRecord> | null | undefined
+) {
+  return resolvePuppyBreederCosts(puppy) + resolveBuyerTransportCosts(buyer);
+}
+
 export function paymentCountsTowardRevenue(value: string | null | undefined) {
   const status = normalizePuppyStatus(value);
   if (!status) return true;
@@ -220,6 +274,8 @@ export function buildRevenueSnapshot<
       const buyer = getBuyer(puppy);
       const salePrice = resolveInternalSalePrice(puppy, buyer);
       const depositTotal = resolveDepositAmount(puppy, buyer);
+      const totalCosts = resolveTotalPuppyCosts(puppy, buyer);
+      const profit = salePrice - totalCosts;
       const payments = getPayments ? getPayments(puppy, buyer) : [];
       const paymentTotal = payments.reduce((sum, payment) => {
         if (!paymentCountsTowardRevenue(payment.status)) return sum;
@@ -231,10 +287,14 @@ export function buildRevenueSnapshot<
       acc.totalRevenue += salePrice;
       acc.totalDeposits += depositTotal;
       acc.totalPayments += paymentTotal;
+      acc.totalCosts += totalCosts;
+      acc.totalProfit += profit;
 
       if (isAvailableLikeStatus(status)) {
         acc.availableCount += 1;
         acc.projectedRevenue += salePrice;
+        acc.projectedCosts += totalCosts;
+        acc.projectedProfit += profit;
       }
 
       if (!isReservedLikeStatus(status) && !isCompletedLikeStatus(status)) {
@@ -244,12 +304,16 @@ export function buildRevenueSnapshot<
       if (isReservedLikeStatus(status)) {
         acc.reservedCount += 1;
         acc.reservedRevenue += salePrice;
+        acc.reservedCosts += totalCosts;
+        acc.reservedProfit += profit;
       }
 
       if (isCompletedLikeStatus(status)) {
         acc.completedCount += 1;
         acc.soldCount += 1;
         acc.realizedRevenue += salePrice;
+        acc.realizedCosts += totalCosts;
+        acc.realizedProfit += profit;
       }
 
       if (isReservedLikeStatus(status) || isCompletedLikeStatus(status)) {
@@ -273,19 +337,49 @@ export function buildRevenueSnapshot<
       totalDeposits: 0,
       totalPayments: 0,
       averageSalePrice: 0,
+      totalCosts: 0,
+      projectedCosts: 0,
+      reservedCosts: 0,
+      realizedCosts: 0,
+      totalProfit: 0,
+      projectedProfit: 0,
+      reservedProfit: 0,
+      realizedProfit: 0,
+      averageProfit: 0,
     } satisfies RevenueSnapshot
   );
 
   totals.averageSalePrice = totals.totalPuppies
     ? totals.totalRevenue / totals.totalPuppies
     : 0;
+  totals.averageProfit = totals.totalPuppies
+    ? totals.totalProfit / totals.totalPuppies
+    : 0;
 
   return totals;
 }
 
+function parseLooseNumber(value: unknown) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  const text = String(value ?? "").trim();
+  if (!text) return 0;
+
+  const direct = Number(text);
+  if (Number.isFinite(direct)) return direct;
+
+  const cleaned = text.replace(/[^0-9.-]/g, "");
+  if (!cleaned) return 0;
+
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function firstFiniteNumber(...values: unknown[]) {
   for (const value of values) {
-    const parsed = Number(value);
+    const parsed = parseLooseNumber(value);
     if (Number.isFinite(parsed)) return parsed;
   }
   return 0;
@@ -293,7 +387,7 @@ function firstFiniteNumber(...values: unknown[]) {
 
 function firstPositiveNumber(...values: unknown[]) {
   for (const value of values) {
-    const parsed = Number(value);
+    const parsed = parseLooseNumber(value);
     if (Number.isFinite(parsed) && parsed > 0) return parsed;
   }
   return 0;

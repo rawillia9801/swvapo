@@ -162,6 +162,14 @@ export type AdminLineageOverview = {
   realizedRevenue: number;
   totalDeposits: number;
   totalPayments?: number;
+  totalCosts?: number;
+  projectedCosts?: number;
+  reservedCosts?: number;
+  realizedCosts?: number;
+  totalProfit?: number;
+  projectedProfit?: number;
+  reservedProfit?: number;
+  realizedProfit?: number;
 };
 
 export type AdminOverviewStats = {
@@ -273,6 +281,15 @@ export type AdminRevenueSnapshot = {
   totalDeposits: number;
   totalPayments?: number;
   averageSalePrice: number;
+  totalCosts: number;
+  projectedCosts: number;
+  reservedCosts: number;
+  realizedCosts: number;
+  totalProfit: number;
+  projectedProfit: number;
+  reservedProfit: number;
+  realizedProfit: number;
+  averageProfit: number;
 };
 
 export type AdminLineageBuyer = {
@@ -284,6 +301,11 @@ export type AdminLineageBuyer = {
   status?: string | null;
   sale_price?: number | null;
   deposit_amount?: number | null;
+  delivery_fee?: number | null;
+  expense_gas?: number | null;
+  expense_hotel?: number | null;
+  expense_tolls?: number | null;
+  expense_misc?: string | number | null;
 };
 
 export type AdminLineageDogRef = {
@@ -353,6 +375,13 @@ export type AdminLineagePuppy = {
   owner_email?: string | null;
   dam?: string | null;
   sire?: string | null;
+  tail_dock_cost?: number | null;
+  dewclaw_cost?: number | null;
+  vaccination_cost?: number | null;
+  microchip_cost?: number | null;
+  registration_cost?: number | null;
+  other_vet_cost?: number | null;
+  total_medical_cost?: number | null;
   created_at?: string | null;
   displayName: string;
   buyer: AdminLineageBuyer | null;
@@ -365,6 +394,10 @@ export type AdminLineagePuppy = {
   publicPriceHidden: boolean;
   depositTotal: number;
   paymentTotal: number;
+  breederCostTotal: number;
+  transportCostTotal: number;
+  totalCost: number;
+  estimatedProfit: number;
 };
 
 export type AdminLineageLitter = AdminLineageLitterRef & {

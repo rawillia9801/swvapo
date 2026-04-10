@@ -9,12 +9,15 @@ import {
   normalizeLineageRole,
   resolveBreedingDogName,
   resolveBuyerName,
+  resolveBuyerTransportCosts,
   resolveDepositAmount,
   resolveInternalSalePrice,
   resolveLitterName,
+  resolvePuppyBreederCosts,
   resolvePublicPuppyPrice,
   resolvePuppyListPrice,
   resolvePuppyName,
+  resolveTotalPuppyCosts,
   shouldHidePublicPuppyPrice,
   type LineageBuyerRecord,
   type LineagePaymentRecord,
@@ -34,6 +37,10 @@ export type EnrichedLineagePuppy = LineagePuppyRecord & {
   publicPriceHidden: boolean;
   depositTotal: number;
   paymentTotal: number;
+  breederCostTotal: number;
+  transportCostTotal: number;
+  totalCost: number;
+  estimatedProfit: number;
 };
 
 export type EnrichedLitter = LitterRecord & {
@@ -94,14 +101,16 @@ async function loadLineageRows(service: SupabaseClient): Promise<LineageRows> {
       service
         .from("puppies")
         .select(
-          "id,buyer_id,litter_id,litter_name,dam_id,sire_id,call_name,puppy_name,name,sex,color,coat_type,coat,pattern,dob,status,price,list_price,deposit,balance,photo_url,image_url,description,notes,owner_email,dam,sire,created_at"
+          "id,buyer_id,litter_id,litter_name,dam_id,sire_id,call_name,puppy_name,name,sex,color,coat_type,coat,pattern,dob,status,price,list_price,deposit,balance,photo_url,image_url,description,notes,owner_email,dam,sire,tail_dock_cost,dewclaw_cost,vaccination_cost,microchip_cost,registration_cost,other_vet_cost,total_medical_cost,created_at"
         )
         .order("created_at", { ascending: false })
     ),
     safeRows<LineageBuyerRecord>(
       service
         .from("buyers")
-        .select("id,puppy_id,full_name,name,email,status,sale_price,deposit_amount")
+        .select(
+          "id,puppy_id,full_name,name,email,status,sale_price,deposit_amount,delivery_fee,expense_gas,expense_hotel,expense_tolls,expense_misc"
+        )
         .order("created_at", { ascending: false })
     ),
     safeRows<LineagePaymentRecord>(
@@ -188,6 +197,15 @@ export function buildAdminLineageWorkspace(rows: LineageRows): AdminLineageWorks
         totalDeposits: 0,
         totalPayments: 0,
         averageSalePrice: 0,
+        totalCosts: 0,
+        projectedCosts: 0,
+        reservedCosts: 0,
+        realizedCosts: 0,
+        totalProfit: 0,
+        projectedProfit: 0,
+        reservedProfit: 0,
+        realizedProfit: 0,
+        averageProfit: 0,
         totalLitters: 0,
         reserveRate: 0,
         completionRate: 0,
@@ -246,6 +264,10 @@ export function buildAdminLineageWorkspace(rows: LineageRows): AdminLineageWorks
       if (["failed", "void", "cancelled", "canceled"].includes(status)) return sum;
       return sum + Number(payment.amount || 0);
     }, 0);
+    const breederCostTotal = resolvePuppyBreederCosts(puppy);
+    const transportCostTotal = resolveBuyerTransportCosts(buyer);
+    const totalCost = resolveTotalPuppyCosts(puppy, buyer);
+    const estimatedProfit = resolveInternalSalePrice(puppy, buyer) - totalCost;
 
     return {
       ...puppy,
@@ -260,6 +282,10 @@ export function buildAdminLineageWorkspace(rows: LineageRows): AdminLineageWorks
       publicPriceHidden: shouldHidePublicPuppyPrice(puppy.status),
       depositTotal: resolveDepositAmount(puppy, buyer),
       paymentTotal,
+      breederCostTotal,
+      transportCostTotal,
+      totalCost,
+      estimatedProfit,
     };
   });
 

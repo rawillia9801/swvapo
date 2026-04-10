@@ -12,6 +12,7 @@ import {
   HeartHandshake,
   Mail,
   MessageCircle,
+  PawPrint,
   PenLine,
   ShieldCheck,
   Sparkles,
@@ -231,9 +232,9 @@ export default function PortalPage() {
 
   const latestDocumentTitle = useMemo(() => {
     const sorted = [...state.documents].sort((a, b) => {
-      const left = new Date(readFirstDate(a, ["created_at", "updated_at"]) || 0).getTime();
-      const right = new Date(readFirstDate(b, ["created_at", "updated_at"]) || 0).getTime();
-      return right - left;
+      const left = new Date(readFirstDate(b, ["created_at", "updated_at"]) || 0).getTime();
+      const right = new Date(readFirstDate(a, ["created_at", "updated_at"]) || 0).getTime();
+      return left - right;
     });
 
     return (
@@ -264,9 +265,7 @@ export default function PortalPage() {
   }, [actionSteps]);
 
   const remainingBalance =
-    state.salePrice && state.salePrice > paymentTotal
-      ? state.salePrice - paymentTotal
-      : 0;
+    state.salePrice && state.salePrice > paymentTotal ? state.salePrice - paymentTotal : 0;
 
   const activity = useMemo<ActivityItem[]>(() => {
     const items: ActivityItem[] = [];
@@ -276,7 +275,7 @@ export default function PortalPage() {
         id: "application",
         label: "Application",
         title: "Application received",
-        detail: "Your application is on file and visible inside your portal account.",
+        detail: "Your buyer application is already on file inside the portal.",
         dateText: state.applicationDate,
       });
     }
@@ -327,26 +326,26 @@ export default function PortalPage() {
         id: "transportation",
         label: "Transportation",
         title: "Pickup or delivery request on file",
-        detail: "Your transportation request has been added to your portal account.",
+        detail: "Your transportation request has been added to your account.",
         dateText: fmtDate(state.pickupRequest.request_date),
       });
     }
 
     return items.slice(0, 5);
   }, [
-    state,
     latestDocumentTitle,
     latestMessagePreview,
     latestPaymentDate,
     paymentTotal,
     remainingBalance,
+    state,
     unreadMessages,
   ]);
 
   if (sessionLoading || loading) {
     return (
-      <div className="space-y-6">
-        <div className="overflow-hidden rounded-[30px] border border-[var(--portal-border)] bg-white p-6 shadow-sm md:p-8">
+      <div className="space-y-6 pb-6">
+        <div className="overflow-hidden rounded-[32px] border border-[var(--portal-border)] bg-white p-6 shadow-sm md:p-8">
           <div className="h-12 w-80 max-w-full animate-pulse rounded-2xl bg-[var(--portal-surface-tint)]" />
           <div className="mt-4 h-5 w-[34rem] max-w-full animate-pulse rounded-full bg-[var(--portal-surface-tint)]" />
           <div className="mt-8 grid gap-3 sm:grid-cols-3">
@@ -368,9 +367,9 @@ export default function PortalPage() {
           ))}
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]">
-          <div className="h-[420px] animate-pulse rounded-[24px] border border-[var(--portal-border)] bg-white shadow-sm" />
-          <div className="h-[420px] animate-pulse rounded-[24px] border border-[var(--portal-border)] bg-white shadow-sm" />
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
+          <div className="h-[440px] animate-pulse rounded-[24px] border border-[var(--portal-border)] bg-white shadow-sm" />
+          <div className="h-[440px] animate-pulse rounded-[24px] border border-[var(--portal-border)] bg-white shadow-sm" />
         </div>
       </div>
     );
@@ -382,41 +381,41 @@ export default function PortalPage() {
 
   return (
     <div className="space-y-6 pb-6">
-      <section className="overflow-hidden rounded-[32px] border border-[var(--portal-border)] bg-[linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(246,242,236,0.98)_35%,rgba(239,246,252,0.98)_100%)] shadow-[0_22px_54px_rgba(23,35,56,0.08)]">
-        <div className="grid gap-6 px-6 py-6 md:px-8 md:py-8 xl:grid-cols-[minmax(0,1.1fr)_360px] xl:items-center">
+      <section className="overflow-hidden rounded-[32px] border border-[var(--portal-border)] bg-[linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(248,243,236,0.98)_42%,rgba(239,246,252,0.98)_100%)] shadow-[0_22px_54px_rgba(23,35,56,0.08)]">
+        <div className="grid gap-6 px-6 py-6 md:px-8 md:py-8 xl:grid-cols-[minmax(0,1.08fr)_360px] xl:items-center">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(186,154,116,0.24)] bg-white/80 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)] backdrop-blur">
               <Sparkles className="h-4 w-4 text-[var(--portal-accent-strong)]" />
-              Southwest Virginia Chihuahua
+              My Puppy Portal
             </div>
 
-            <h1 className="mt-4 text-[2.4rem] font-extrabold tracking-[-0.06em] text-[var(--portal-accent)] md:text-[3rem]">
+            <h1 className="mt-4 text-[2.45rem] font-extrabold tracking-[-0.06em] text-[var(--portal-accent)] md:text-[3rem]">
               Welcome back, {state.displayName}
             </h1>
 
             <p className="mt-3 max-w-2xl text-base leading-8 text-[var(--portal-text-soft)]">
-              Everything for your puppy journey is organized here in one place — payments, contracts,
-              breeder messages, transportation details, and progress for {state.puppyName}.
+              This is your home base for everything related to {state.puppyName} — messages,
+              payments, contracts, transportation planning, and the most important next steps.
             </p>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
               <HeroMiniCard
+                icon={<CheckCircle2 className="h-4 w-4" />}
                 label="Portal Progress"
                 value={`${completionPercent}%`}
                 detail="Buyer journey completion"
-                icon={<CheckCircle2 className="h-4 w-4" />}
               />
               <HeroMiniCard
+                icon={<Mail className="h-4 w-4" />}
                 label="Unread Messages"
                 value={unreadMessages ? String(unreadMessages) : "0"}
                 detail={unreadMessages ? "Waiting for review" : "All caught up"}
-                icon={<Mail className="h-4 w-4" />}
               />
               <HeroMiniCard
-                label="Documents"
-                value={String(state.documents.length)}
-                detail={state.documents.length ? "Contracts and records" : "Nothing posted yet"}
-                icon={<FileText className="h-4 w-4" />}
+                icon={<CalendarDays className="h-4 w-4" />}
+                label="Application Date"
+                value={state.applicationDate}
+                detail="Buyer file status"
               />
             </div>
 
@@ -424,17 +423,17 @@ export default function PortalPage() {
               <PrimaryAction href="/portal/messages" icon={<MessageCircle className="h-4 w-4" />}>
                 Open Messages
               </PrimaryAction>
+              <SecondaryAction href="/portal/my-puppy" icon={<PawPrint className="h-4 w-4" />}>
+                View My Puppy
+              </SecondaryAction>
               <SecondaryAction href="/portal/payments" icon={<CreditCard className="h-4 w-4" />}>
                 View Payments
-              </SecondaryAction>
-              <SecondaryAction href="/portal/my-puppy" icon={<HeartHandshake className="h-4 w-4" />}>
-                View My Puppy
               </SecondaryAction>
             </div>
           </div>
 
           <div className="flex justify-center xl:justify-end">
-            <div className="group relative w-full max-w-[360px] overflow-hidden rounded-[30px] border border-[rgba(255,255,255,0.78)] bg-white shadow-[0_26px_56px_rgba(25,36,58,0.14)]">
+            <div className="group relative w-full max-w-[360px] overflow-hidden rounded-[30px] border border-[rgba(255,255,255,0.76)] bg-white shadow-[0_26px_56px_rgba(25,36,58,0.14)]">
               <div className="relative aspect-[4/5] overflow-hidden">
                 <Image
                   src={state.puppyImage}
@@ -443,21 +442,21 @@ export default function PortalPage() {
                   unoptimized
                   className="object-cover transition duration-700 group-hover:scale-[1.03]"
                 />
-                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(20,28,40,0.05)_0%,rgba(20,28,40,0.70)_100%)]" />
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(20,28,40,0.06)_0%,rgba(20,28,40,0.70)_100%)]" />
 
                 <div className="absolute left-4 top-4 inline-flex items-center rounded-full border border-white/20 bg-white/14 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-white backdrop-blur-md">
-                  Real Puppy Photo
+                  Puppy Profile
                 </div>
 
                 <div className="absolute inset-x-4 bottom-4 rounded-[24px] border border-white/20 bg-white/12 p-4 text-white backdrop-blur-md">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/78">
-                    Puppy Profile
+                    Southwest Virginia Chihuahua
                   </div>
                   <div className="mt-2 text-2xl font-semibold tracking-[-0.04em]">
                     {state.puppyName}
                   </div>
                   <div className="mt-2 text-sm leading-6 text-white/86">
-                    This profile keeps the important milestones for your puppy organized in one place.
+                    Your puppy’s account details, progress, and records stay organized here.
                   </div>
 
                   <div className="mt-4 grid grid-cols-2 gap-2">
@@ -531,10 +530,9 @@ export default function PortalPage() {
                   Action Center
                 </h2>
                 <p className="mt-1 text-sm leading-7 text-[var(--portal-text-soft)]">
-                  The most common portal tasks, redesigned so families can get where they need to go faster.
+                  The tasks buyers use most, organized in a cleaner and more premium dashboard layout.
                 </p>
               </div>
-
               <div className="rounded-full border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">
                 Quick Access
               </div>
@@ -545,7 +543,7 @@ export default function PortalPage() {
                 href="/portal/payments"
                 eyebrow="Payments"
                 title="Make or Review Payments"
-                description="See payment history, check what has been recorded, and review your balance in one place."
+                description="See what has been recorded, review payment history, and stay on top of your account."
                 icon={<CreditCard className="h-5 w-5" />}
                 accentClass="from-[rgba(75,141,255,0.16)] to-[rgba(99,205,158,0.10)]"
               />
@@ -553,7 +551,7 @@ export default function PortalPage() {
                 href="/portal/documents"
                 eyebrow="Contracts"
                 title="Open Contracts & Documents"
-                description="Review agreements, signed copies, and records shared to your puppy account."
+                description="Review agreements, signed copies, and any records shared to your account."
                 icon={<FileText className="h-5 w-5" />}
                 accentClass="from-[rgba(99,205,158,0.16)] to-[rgba(231,198,154,0.10)]"
               />
@@ -561,7 +559,7 @@ export default function PortalPage() {
                 href="/portal/messages"
                 eyebrow="Messages"
                 title="Message the Breeder"
-                description="Keep communication organized inside the portal instead of chasing details through email."
+                description="Keep communication organized inside the portal instead of hunting through email threads."
                 icon={<MessageCircle className="h-5 w-5" />}
                 accentClass="from-[rgba(179,120,255,0.16)] to-[rgba(255,173,210,0.10)]"
               />
@@ -569,7 +567,7 @@ export default function PortalPage() {
                 href="/portal/application"
                 eyebrow="Application"
                 title="Review Your Application"
-                description="Open your buyer application and verify the information currently on file."
+                description="Open your buyer application and review the information currently on file."
                 icon={<PenLine className="h-5 w-5" />}
                 accentClass="from-[rgba(240,184,78,0.18)] to-[rgba(255,127,90,0.10)]"
               />
@@ -583,7 +581,7 @@ export default function PortalPage() {
                   Buyer Journey Progress
                 </h2>
                 <p className="mt-1 text-sm leading-7 text-[var(--portal-text-soft)]">
-                  A cleaner view of what is already on file and what still needs attention.
+                  A clearer view of what is complete and what still needs your attention.
                 </p>
               </div>
 
@@ -659,7 +657,7 @@ export default function PortalPage() {
                 Keep up with {state.puppyName}
               </h2>
               <p className="mt-2 text-sm leading-7 text-[var(--portal-text-soft)]">
-                Review your application date, payment total, transportation status, and latest portal details in one organized place.
+                Review the most important account details for your puppy in one organized place.
               </p>
             </div>
 
@@ -703,7 +701,11 @@ export default function PortalPage() {
               <FinanceCard
                 label="Total Paid"
                 value={state.payments.length ? fmtMoney(paymentTotal) : fmtMoney(0)}
-                detail={state.payments.length ? `${state.payments.length} payment${state.payments.length === 1 ? "" : "s"} recorded` : "No payments recorded yet"}
+                detail={
+                  state.payments.length
+                    ? `${state.payments.length} payment${state.payments.length === 1 ? "" : "s"} recorded`
+                    : "No payments recorded yet"
+                }
               />
               <FinanceCard
                 label="Remaining Balance"
@@ -711,7 +713,7 @@ export default function PortalPage() {
                 detail={
                   state.salePrice
                     ? remainingBalance > 0
-                      ? "Based on the current recorded sale price"
+                      ? "Based on the listed sale price"
                       : "Account appears paid in full"
                     : "Sale price is not currently listed"
                 }
@@ -728,6 +730,7 @@ export default function PortalPage() {
                     {Math.min(100, Math.round((paymentTotal / state.salePrice) * 100))}%
                   </div>
                 </div>
+
                 <div className="mt-3 h-3 overflow-hidden rounded-full bg-white">
                   <div
                     className="h-full rounded-full bg-[linear-gradient(90deg,rgba(101,175,236,0.95)_0%,rgba(100,204,149,0.95)_100%)]"
@@ -736,6 +739,7 @@ export default function PortalPage() {
                     }}
                   />
                 </div>
+
                 <div className="mt-3 text-sm leading-6 text-[var(--portal-text-soft)]">
                   {paymentTotal >= state.salePrice
                     ? "Payments recorded meet or exceed the listed sale price."
@@ -762,7 +766,7 @@ export default function PortalPage() {
                   Helpful Shortcuts
                 </h2>
                 <p className="mt-1 text-sm leading-7 text-[var(--portal-text-soft)]">
-                  Jump quickly to the pages buyers usually need most.
+                  Jump quickly to the pages buyers usually use most.
                 </p>
               </div>
             </div>
@@ -778,13 +782,13 @@ export default function PortalPage() {
                 href="/portal/documents"
                 icon={<FileText className="h-4 w-4" />}
                 title="Contracts & Documents"
-                detail="Open agreements, signed copies, and records."
+                detail="Open agreements, signed copies, and shared records."
               />
               <InlineShortcut
                 href="/portal/transportation"
                 icon={<Truck className="h-4 w-4" />}
                 title="Transportation"
-                detail="Check pickup or delivery details."
+                detail="Check pickup or delivery details for your puppy."
               />
             </div>
           </div>
@@ -813,7 +817,7 @@ function HeroMiniCard({
           {label}
         </span>
       </div>
-      <div className="mt-3 text-[1.1rem] font-semibold text-[var(--portal-text)]">{value}</div>
+      <div className="mt-3 text-[1.02rem] font-semibold text-[var(--portal-text)]">{value}</div>
       <div className="mt-1 text-xs text-[var(--portal-text-soft)]">{detail}</div>
     </div>
   );
@@ -927,9 +931,11 @@ function FeatureActionCard({
   return (
     <Link
       href={href}
-      className={`group rounded-[22px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(250,249,247,1)_100%)] p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(23,35,56,0.08)]`}
+      className="group rounded-[22px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(250,249,247,1)_100%)] p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(23,35,56,0.08)]"
     >
-      <div className={`inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,var(--tw-gradient-stops))] ${accentClass} text-[var(--portal-accent-strong)]`}>
+      <div
+        className={`inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,var(--tw-gradient-stops))] ${accentClass} text-[var(--portal-accent-strong)]`}
+      >
         {icon}
       </div>
       <div className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
@@ -984,9 +990,7 @@ function ChecklistItem({
           <div
             className={[
               "mt-1 text-sm font-semibold",
-              complete
-                ? "text-[var(--portal-text-soft)]"
-                : "text-[var(--portal-text)]",
+              complete ? "text-[var(--portal-text-soft)]" : "text-[var(--portal-text)]",
             ].join(" ")}
           >
             {title}
