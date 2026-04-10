@@ -398,17 +398,31 @@ export async function listZohoBillingCustomers(params: {
   query?: string | null;
   limit?: number | null;
 } = {}) {
-  const limit = clamp(Number(params.limit || 25) || 25, 1, 200);
-  const payload = await zohoBillingRequest<{ customers?: ZohoBillingCustomer[] }>("/customers", {
-    query: {
-      page: 1,
-      per_page: limit,
-    },
-  });
+  const limit = clamp(Number(params.limit || 25) || 25, 1, 1000);
+  const perPage = Math.min(limit, 200);
+  const customers: ZohoBillingCustomer[] = [];
+  let page = 1;
+
+  while (customers.length < limit) {
+    const payload = await zohoBillingRequest<{ customers?: ZohoBillingCustomer[] }>("/customers", {
+      query: {
+        page,
+        per_page: perPage,
+      },
+    });
+    const batch = payload.customers || [];
+    customers.push(...batch);
+
+    if (batch.length < perPage) {
+      break;
+    }
+
+    page += 1;
+  }
 
   const query = String(params.query || "").trim().toLowerCase();
 
-  return (payload.customers || []).filter((row) =>
+  return customers.slice(0, limit).filter((row) =>
     matchesQuery(
       [
         row.customer_id,
@@ -431,33 +445,63 @@ export async function createZohoBillingCustomer(input: ZohoBillingCustomerInput)
     throw new Error("A customer display name and email are required for Zoho Billing.");
   }
 
-  const payload = await zohoBillingRequest<{ customer?: ZohoBillingCustomer }>("/customers", {
-    method: "POST",
-    body: cleanBodyValue({
-      display_name: displayName,
-      first_name: String(input.firstName || "").trim() || undefined,
-      last_name: String(input.lastName || "").trim() || undefined,
-      email,
-      mobile: String(input.phone || "").trim() || undefined,
-      currency_code: String(input.currencyCode || "USD").trim().toUpperCase() || undefined,
-      billing_address: input.billingAddress
-        ? cleanBodyValue({
-            attention: input.billingAddress.attention || undefined,
-            street: input.billingAddress.street || undefined,
-            city: input.billingAddress.city || undefined,
-            state: input.billingAddress.state || undefined,
-            zip: input.billingAddress.zip || undefined,
-            country: input.billingAddress.country || undefined,
-          })
-        : undefined,
-    }),
-  });
+  try {
+    const payload = await zohoBillingRequest<{ customer?: ZohoBillingCustomer }>("/customers", {
+      method: "POST",
+      body: cleanBodyValue({
+        display_name: displayName,
+        first_name: String(input.firstName || "").trim() || undefined,
+        last_name: String(input.lastName || "").trim() || undefined,
+        email,
+        mobile: String(input.phone || "").trim() || undefined,
+        currency_code: String(input.currencyCode || "USD").trim().toUpperCase() || undefined,
+        billing_address: input.billingAddress
+          ? cleanBodyValue({
+              attention: input.billingAddress.attention || undefined,
+              street: input.billingAddress.street || undefined,
+              city: input.billingAddress.city || undefined,
+              state: input.billingAddress.state || undefined,
+              zip: input.billingAddress.zip || undefined,
+              country: input.billingAddress.country || undefined,
+            })
+          : undefined,
+      }),
+    });
 
-  if (!payload.customer?.customer_id) {
-    throw new Error("Zoho Billing did not return a customer id.");
+    if (!payload.customer?.customer_id) {
+      throw new Error("Zoho Billing did not return a customer id.");
+    }
+
+    return payload.customer;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error || "");
+    const normalizedMessage = message.toLowerCase();
+
+    if (normalizedMessage.includes("already exists")) {
+      const existingCustomers = await listZohoBillingCustomers({
+        query: email || displayName,
+        limit: 1000,
+      });
+      const exactEmailMatch =
+        existingCustomers.find(
+          (row) => String(row.email || "").trim().toLowerCase() === email.toLowerCase()
+        ) || null;
+
+      if (exactEmailMatch?.customer_id) {
+        return exactEmailMatch;
+      }
+
+      const displayNameMatches = existingCustomers.filter(
+        (row) => String(row.display_name || "").trim().toLowerCase() === displayName.toLowerCase()
+      );
+
+      if (displayNameMatches.length === 1 && displayNameMatches[0]?.customer_id) {
+        return displayNameMatches[0];
+      }
+    }
+
+    throw error;
   }
-
-  return payload.customer;
 }
 
 export async function retrieveZohoBillingSubscription(subscriptionId: string) {

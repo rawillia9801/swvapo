@@ -568,7 +568,7 @@ async function ensureBillingCustomer(context: BillingContext): Promise<ZohoBilli
 
   const existingCustomers = await listZohoBillingCustomers({
     query: email,
-    limit: 100,
+    limit: 1000,
   });
   const matchingCustomer =
     existingCustomers.find((row) => normalizeLower(row.email) === normalizeLower(email)) || null;
