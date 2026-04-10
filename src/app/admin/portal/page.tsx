@@ -15,7 +15,6 @@ import {
 import {
   fetchAdminLineageWorkspace,
   fetchAdminOverview,
-  type AdminLineageDog,
   type AdminLineageLitter,
   type AdminLineageWorkspace,
   type AdminOverviewStats,
@@ -51,10 +50,6 @@ function emptyStats(): AdminOverviewStats {
 
 function puppyLine(litter: AdminLineageLitter) {
   return `${litter.summary.totalPuppies} puppies`;
-}
-
-function dogLabel(dog: AdminLineageDog) {
-  return String(dog.role || "").toLowerCase() === "sire" ? "Sire" : "Dam";
 }
 
 function pct(value: number) {
@@ -775,21 +770,3 @@ function QuickJump({
     </Link>
   );
 }
-
-function MiniSnapshot({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-3 py-3">
-      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
-        {label}
-      </div>
-      <div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">{value}</div>
-    </div>
-  );
-}
-

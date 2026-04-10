@@ -220,7 +220,7 @@ export default function AdminPortalDamsSiresPage() {
     };
   }, [accessToken, isAdmin]);
 
-  const allDogs = workspace?.dogs || [];
+  const allDogs = useMemo(() => workspace?.dogs || [], [workspace]);
   const filteredDogs = useMemo(
     () =>
       allDogs.filter((dog) => {
