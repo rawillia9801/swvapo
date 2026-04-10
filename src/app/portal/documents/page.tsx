@@ -121,6 +121,33 @@ function toInputValue(value: unknown) {
   return String(value ?? "");
 }
 
+function DocumentPaper({
+  selected,
+  onClick,
+  children,
+}: {
+  selected?: boolean;
+  onClick?: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`group relative block w-full overflow-hidden rounded-[1rem] border text-left transition ${
+        selected
+          ? "border-[#cfa77f] bg-[linear-gradient(180deg,rgba(255,254,250,0.98)_0%,rgba(251,245,236,0.98)_100%)] shadow-[0_20px_34px_rgba(120,81,45,0.12)]"
+          : "border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(252,249,244,1)_100%)] shadow-sm hover:-translate-y-0.5 hover:border-[#d4b089] hover:shadow-[0_16px_28px_rgba(121,88,47,0.10)]"
+      }`}
+    >
+      <div className="absolute inset-y-0 left-0 w-1.5 bg-[linear-gradient(180deg,#d8b38e_0%,#bb8b5f_100%)]" />
+      <div className="absolute right-0 top-0 h-12 w-12 translate-x-4 -translate-y-4 rotate-45 border border-[rgba(207,167,127,0.28)] bg-[rgba(252,245,234,0.92)]" />
+      <div className="absolute left-5 right-5 top-[4.15rem] border-t border-dashed border-[rgba(182,154,120,0.28)]" />
+      <div className="relative pl-6 pr-5 py-5">{children}</div>
+    </button>
+  );
+}
+
 export default function PortalDocumentsPage() {
   const { user, loading: sessionLoading } = usePortalSession();
   const [state, setState] = useState<PageState>(emptyState);
@@ -348,7 +375,7 @@ export default function PortalDocumentsPage() {
     return (
       <PortalPageHero
         eyebrow="Documents"
-        title="Sign in to review your buyer packet."
+        title="Sign in to review your contracts and documents."
         description="Buyer forms, signatures, shared contracts, and breeder-posted documents appear here once you are signed in."
       />
     );
@@ -379,8 +406,8 @@ export default function PortalDocumentsPage() {
     <div className="space-y-6 pb-14">
       <PortalPageHero
         eyebrow="Documents"
-        title="Your buyer packet stays organized in one portal file."
-        description={`Each required form for ${state.puppyName} lives here with the saved copy, signature date, and next step so you do not have to hunt through messages or email.`}
+        title="Contracts & Documents"
+        description={`Review your agreements, signed copies, and breeder-shared records for ${state.puppyName} in one organized place. Everything stays easy to find, clearly labeled, and available whenever you need it.`}
         actions={
           <PortalHeroPrimaryAction href="/portal/messages">
             Ask The Breeder A Question
@@ -396,7 +423,7 @@ export default function PortalDocumentsPage() {
                 {state.displayName}
               </div>
               <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
-                Signed copies saved here also surface inside the breeder buyer profile.
+                Signed copies and shared records are stored here for quick access throughout your puppy journey.
               </div>
             </div>
             <div className="rounded-[1.25rem] border border-[var(--portal-border)] bg-white p-4 shadow-sm">
@@ -407,7 +434,7 @@ export default function PortalDocumentsPage() {
                 {portalPuppyName(state.puppy)}
               </div>
               <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
-                Health, placement, financing, and handoff records stay grouped here.
+                Health, placement, financing, and go-home records stay grouped together in one file.
               </div>
             </div>
           </div>
@@ -446,23 +473,18 @@ export default function PortalDocumentsPage() {
 
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
         <PortalPanel
-          title="Buyer Document Packet"
-          subtitle="Every buyer-facing document sits on its own card so you can see what is filed, what is next, and what activates later in the process."
+          title="Contracts & Documents"
+          subtitle="Each item is presented like a filed portal document so it is easier to review what is complete, what still needs attention, and what will unlock later."
         >
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="space-y-4">
             {documentCards.map((entry) => (
-              <button
+              <DocumentPaper
                 key={entry.definition.key}
-                type="button"
+                selected={selectedKey === entry.definition.key}
                 onClick={() => {
                   setSelectedKey(entry.definition.key);
                   setPanelMessage("");
                 }}
-                className={`rounded-[1.4rem] border p-5 text-left shadow-sm transition ${
-                  selectedKey === entry.definition.key
-                    ? "border-[#cfa77f] bg-[linear-gradient(180deg,rgba(255,252,246,0.98)_0%,rgba(249,242,232,0.98)_100%)] shadow-[0_18px_32px_rgba(120,81,45,0.12)]"
-                    : "border-[var(--portal-border)] bg-white hover:-translate-y-0.5 hover:border-[#d5b28a]"
-                }`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -476,32 +498,31 @@ export default function PortalDocumentsPage() {
                   <div className="shrink-0">{documentStatusLabel(entry.status)}</div>
                 </div>
 
-                <div className="mt-3 text-sm leading-6 text-[var(--portal-text-soft)]">
+                <div className="mt-6 text-sm leading-6 text-[var(--portal-text-soft)]">
                   {entry.definition.description}
                 </div>
 
-                {entry.highlights.length ? (
-                  <div className="mt-4 space-y-1.5">
-                    {entry.highlights.map((line) => (
+                <div className="mt-4 space-y-2">
+                  {entry.highlights.length ? (
+                    entry.highlights.slice(0, 3).map((line) => (
                       <div
                         key={line}
-                        className="text-xs font-medium leading-5 text-[var(--portal-text-soft)]"
+                        className="flex items-center gap-3 text-sm leading-6 text-[var(--portal-text-soft)]"
                       >
-                        {line}
+                        <span className="h-px flex-1 max-w-[2.25rem] bg-[rgba(177,150,116,0.35)]" />
+                        <span className="truncate">{line}</span>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="mt-4 text-xs font-medium leading-5 text-[var(--portal-text-muted)]">
-                    {entry.availability.enabled
-                      ? entry.status.complete
-                        ? entry.definition.completionSummary
-                        : "Open this card to review or file the signed copy."
-                      : entry.availability.reason}
-                  </div>
-                )}
+                    ))
+                  ) : (
+                    <>
+                      <div className="h-px w-full bg-[rgba(177,150,116,0.18)]" />
+                      <div className="h-px w-[88%] bg-[rgba(177,150,116,0.14)]" />
+                      <div className="h-px w-[72%] bg-[rgba(177,150,116,0.1)]" />
+                    </>
+                  )}
+                </div>
 
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[rgba(177,150,116,0.16)] pt-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">
                   <span>
                     {entry.submission
                       ? `Updated ${displayDocDate(
@@ -510,12 +531,18 @@ export default function PortalDocumentsPage() {
                             entry.submission.created_at
                         )}`
                       : entry.availability.enabled
-                        ? "Ready to file"
-                        : "Activates later"}
+                        ? "Ready to review"
+                        : "Available later"}
                   </span>
-                  <span>{selectedKey === entry.definition.key ? "Open" : "View"}</span>
+                  <span>
+                    {entry.availability.enabled
+                      ? selectedKey === entry.definition.key
+                        ? "Open Document"
+                        : "View Document"
+                      : "Pending Activation"}
+                  </span>
                 </div>
-              </button>
+              </DocumentPaper>
             ))}
           </div>
         </PortalPanel>
@@ -798,33 +825,44 @@ export default function PortalDocumentsPage() {
 
           <PortalPanel
             title="Breeder Shared Records"
-            subtitle="Files posted by the breeder stay separate from the forms you sign yourself."
+            subtitle="Files shared to your account are displayed here in a simple document view for quick reference."
           >
             {state.documents.length ? (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {state.documents.map((document) => (
                   <div
                     key={document.id}
-                    className="rounded-[1.15rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4"
+                    className="relative overflow-hidden rounded-[1rem] border border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(252,249,244,1)_100%)] shadow-sm"
                   >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
-                          {firstFilled(document.category, document.status, "Document")}
+                    <div className="absolute inset-y-0 left-0 w-1.5 bg-[linear-gradient(180deg,#d8b38e_0%,#bb8b5f_100%)]" />
+                    <div className="absolute right-0 top-0 h-12 w-12 translate-x-4 -translate-y-4 rotate-45 border border-[rgba(207,167,127,0.28)] bg-[rgba(252,245,234,0.92)]" />
+                    <div className="relative pl-6 pr-5 py-5">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                            {firstFilled(document.category, document.status, "Document")}
+                          </div>
+                          <div className="mt-2 text-base font-semibold text-[var(--portal-text)]">
+                            {firstFilled(document.title, document.file_name, `Document ${document.id}`)}
+                          </div>
                         </div>
-                        <div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">
-                          {firstFilled(document.title, document.file_name, `Document ${document.id}`)}
-                        </div>
-                        <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
-                          {firstFilled(
-                            document.description,
-                            document.file_name,
-                            "A breeder-posted record is on file for this account."
-                          )}
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">
+                          {displayDocDate(document.created_at)}
                         </div>
                       </div>
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">
-                        {displayDocDate(document.created_at)}
+
+                      <div className="mt-5 border-t border-dashed border-[rgba(182,154,120,0.28)] pt-4 text-sm leading-6 text-[var(--portal-text-soft)]">
+                        {firstFilled(
+                          document.description,
+                          document.file_name,
+                          "A breeder-posted record is on file for this account."
+                        )}
+                      </div>
+
+                      <div className="mt-4 space-y-2">
+                        <div className="h-px w-full bg-[rgba(177,150,116,0.18)]" />
+                        <div className="h-px w-[90%] bg-[rgba(177,150,116,0.14)]" />
+                        <div className="h-px w-[68%] bg-[rgba(177,150,116,0.1)]" />
                       </div>
                     </div>
                   </div>
