@@ -1,6 +1,17 @@
 ﻿"use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import {
+  AlertCircle,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  MapPin,
+  Route,
+  ShieldCheck,
+  Sparkles,
+  Truck,
+} from "lucide-react";
 import { fmtDate, sb } from "@/lib/utils";
 import {
   findBlockedPickupDatesForMonth,
@@ -42,27 +53,71 @@ function isoFromParts(year: number, month1: number, day: number) {
 }
 
 function todayIso() {
-  return isoFromParts(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate());
+  return isoFromParts(
+    new Date().getFullYear(),
+    new Date().getMonth() + 1,
+    new Date().getDate()
+  );
 }
 
-function formatRequestType(value: string | null | undefined) {
+function humanizeLabel(value: string | null | undefined, fallback = "Not listed") {
   const normalized = String(value || "").trim().toLowerCase();
-  if (!normalized) return "Not selected";
+  if (!normalized) return fallback;
+
   if (normalized === "dropoff") return "Drop-off";
   if (normalized === "pickup") return "Pickup";
   if (normalized === "meet") return "Meet-up";
   if (normalized === "transportation") return "Transportation";
-  return normalized.replace(/\b\w/g, (match) => match.toUpperCase());
-}
-
-function formatRequestStatus(value: string | null | undefined) {
-  const normalized = String(value || "").trim().toLowerCase();
-  if (!normalized) return "Pending";
   if (normalized === "approved") return "Approved";
   if (normalized === "declined") return "Declined";
   if (normalized === "cancelled") return "Cancelled";
   if (normalized === "completed") return "Completed";
+  if (normalized === "pending") return "Pending";
+  if (normalized === "reserved") return "Reserved";
+  if (normalized === "delivered") return "Delivered";
+  if (normalized === "picked up") return "Picked Up";
+
   return normalized.replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
+function formatRequestType(value: string | null | undefined) {
+  return humanizeLabel(value, "Not selected");
+}
+
+function formatRequestStatus(value: string | null | undefined) {
+  return humanizeLabel(value, "Pending");
+}
+
+function requestTypeDescription(value: PickupRequestType) {
+  if (value === "pickup") {
+    return "You pick up your puppy at our location.";
+  }
+  if (value === "meet") {
+    return "We meet at an agreed public location.";
+  }
+  if (value === "dropoff") {
+    return "We travel toward your area for drop-off.";
+  }
+  if (value === "transportation") {
+    return "Flight nanny, courier, or custom transportation planning.";
+  }
+  return "Choose the transportation option that best fits your homecoming plan.";
+}
+
+function requestTypeTitle(value: PickupRequestType) {
+  if (value === "pickup") return "Pickup at our location";
+  if (value === "meet") return "Meet-up";
+  if (value === "dropoff") return "Drop-off";
+  if (value === "transportation") return "Transportation";
+  return "Choose request type";
+}
+
+function requestTypeIcon(value: PickupRequestType) {
+  if (value === "pickup") return <CalendarDays className="h-5 w-5" />;
+  if (value === "meet") return <MapPin className="h-5 w-5" />;
+  if (value === "dropoff") return <Truck className="h-5 w-5" />;
+  if (value === "transportation") return <Route className="h-5 w-5" />;
+  return <Sparkles className="h-5 w-5" />;
 }
 
 function CalendarInfoCard({
@@ -81,6 +136,119 @@ function CalendarInfoCard({
       </div>
       <div className="mt-2 text-lg font-semibold text-[var(--portal-text)]">{value}</div>
       <div className="mt-1 text-[12px] leading-5 text-[var(--portal-text-soft)]">{detail}</div>
+    </div>
+  );
+}
+
+function RequestTypeCard({
+  active,
+  title,
+  description,
+  icon,
+  onClick,
+}: {
+  active: boolean;
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "rounded-[24px] border p-4 text-left transition",
+        active
+          ? "border-[#c79a6a] bg-[linear-gradient(180deg,rgba(255,252,247,0.98)_0%,rgba(247,240,232,0.98)_100%)] shadow-[0_18px_32px_rgba(120,81,45,0.12)]"
+          : "border-[var(--portal-border)] bg-white shadow-sm hover:-translate-y-0.5 hover:border-[var(--portal-border-strong)]",
+      ].join(" ")}
+    >
+      <div
+        className={[
+          "inline-flex h-11 w-11 items-center justify-center rounded-2xl",
+          active
+            ? "bg-[linear-gradient(135deg,rgba(212,174,127,0.28)_0%,rgba(126,164,208,0.22)_100%)] text-[var(--portal-accent-strong)]"
+            : "bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]",
+        ].join(" ")}
+      >
+        {icon}
+      </div>
+
+      <div className="mt-4 text-sm font-semibold text-[var(--portal-text)]">{title}</div>
+      <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">{description}</div>
+    </button>
+  );
+}
+
+function LegendPill({
+  tone,
+  label,
+}: {
+  tone: "available" | "blocked" | "past" | "selected";
+  label: string;
+}) {
+  const styles =
+    tone === "available"
+      ? "border-[var(--portal-border)] bg-white text-[var(--portal-text)]"
+      : tone === "blocked"
+        ? "border-[var(--portal-border)] bg-[var(--portal-surface-muted)] text-[var(--portal-text-muted)]"
+        : tone === "past"
+          ? "border-[var(--portal-border)] bg-[rgba(255,255,255,0.56)] text-[var(--portal-text-muted)]"
+          : "border-[var(--portal-accent)] bg-[linear-gradient(135deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] text-white";
+
+  return (
+    <div
+      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] ${styles}`}
+    >
+      {label}
+    </div>
+  );
+}
+
+function MiniPolicyCard({
+  icon,
+  title,
+  detail,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-[22px] border border-[var(--portal-border)] bg-white p-4 shadow-sm">
+      <div className="flex items-center gap-3">
+        <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
+          {icon}
+        </div>
+        <div>
+          <div className="text-sm font-semibold text-[var(--portal-text)]">{title}</div>
+          <div className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatusBadge({
+  value,
+  tone,
+}: {
+  value: string;
+  tone: "neutral" | "success" | "warning";
+}) {
+  const toneClass =
+    tone === "success"
+      ? "border-[rgba(47,143,103,0.18)] bg-[rgba(245,252,248,0.94)] text-[#2f7657]"
+      : tone === "warning"
+        ? "border-[rgba(194,84,114,0.16)] bg-[rgba(255,245,247,0.94)] text-[#aa4f68]"
+        : "border-[var(--portal-border)] bg-[var(--portal-surface-muted)] text-[var(--portal-text-soft)]";
+
+  return (
+    <div
+      className={`inline-flex items-center rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] ${toneClass}`}
+    >
+      {value}
     </div>
   );
 }
@@ -147,6 +315,7 @@ export default function PortalTransportationPage() {
     () => calculateTransportEstimate(requestType, miles),
     [miles, requestType]
   );
+
   const currentEstimate = useMemo(
     () =>
       latestRequest
@@ -157,6 +326,23 @@ export default function PortalTransportationPage() {
         : null,
     [latestRequest]
   );
+
+  const monthLabel = useMemo(
+    () =>
+      month.toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric",
+      }),
+    [month]
+  );
+
+  const monthBlockedCount = blockedDates.size;
+  const today = todayIso();
+  const currentMonthStart = firstOfMonth(new Date());
+  const canGoPrev =
+    month.getFullYear() > currentMonthStart.getFullYear() ||
+    (month.getFullYear() === currentMonthStart.getFullYear() &&
+      month.getMonth() > currentMonthStart.getMonth());
 
   if (sessionLoading || loading) {
     return <PortalLoadingState label="Loading transportation..." />;
@@ -180,7 +366,7 @@ export default function PortalTransportationPage() {
   const puppyMetaLine = [
     puppy?.sex,
     puppy?.dob ? `DOB ${fmtDate(puppy.dob)}` : null,
-    puppy?.status ? formatRequestStatus(puppy.status) : null,
+    puppy?.status ? humanizeLabel(puppy.status) : null,
   ]
     .filter(Boolean)
     .join(" • ");
@@ -206,7 +392,7 @@ export default function PortalTransportationPage() {
   const first = new Date(month.getFullYear(), month.getMonth(), 1);
   const firstDayOfWeek = first.getDay();
   const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
-  const today = todayIso();
+
   const calendarDays: Array<
     | { type: "blank"; key: string }
     | {
@@ -344,8 +530,8 @@ export default function PortalTransportationPage() {
     <div className="space-y-6 pb-14">
       <PortalPageHero
         eyebrow="Transportation"
-        title="Plan pickup, meet-up, delivery, or transportation with less confusion."
-        description="Use one page to review your latest request, understand pricing, choose an available date, and submit the next transportation step for your puppy."
+        title="Transportation Planning"
+        description="Choose an available date, compare request types, review the estimate, and submit a clean transportation plan for your puppy from one organized page."
         aside={
           <div className="grid gap-4">
             <PortalInfoTile
@@ -356,7 +542,11 @@ export default function PortalTransportationPage() {
             <PortalInfoTile
               label="Current Request"
               value={latestRequest ? formatRequestStatus(latestRequest.status) : "Not scheduled"}
-              detail={latestRequest ? formatRequestType(latestRequest.request_type) : "No transportation request on file yet."}
+              detail={
+                latestRequest
+                  ? formatRequestType(latestRequest.request_type)
+                  : "No transportation request on file yet."
+              }
               tone={latestRequest ? "success" : "neutral"}
             />
           </div>
@@ -379,49 +569,140 @@ export default function PortalTransportationPage() {
         <PortalMetricCard
           label="Current Request"
           value={latestRequest ? formatRequestStatus(latestRequest.status) : "Not scheduled"}
-          detail={latestRequest ? formatRequestType(latestRequest.request_type) : "No transportation request on file."}
+          detail={
+            latestRequest
+              ? formatRequestType(latestRequest.request_type)
+              : "No transportation request on file."
+          }
         />
         <PortalMetricCard
           label="Estimated Fee"
-          value={latestRequest && currentEstimate ? currentEstimate.label : "Pending"}
-          detail={latestRequest && currentEstimate ? currentEstimate.detail : "Pricing depends on request type and mileage."}
+          value={latestRequest && currentEstimate ? currentEstimate.label : requestEstimate.label}
+          detail={
+            latestRequest && currentEstimate
+              ? currentEstimate.detail
+              : requestEstimate.detail
+          }
           accent="from-[rgba(93,121,255,0.16)] via-transparent to-[rgba(159,175,198,0.14)]"
         />
         <PortalMetricCard
-          label="Free Mileage"
-          value="50 miles"
-          detail="Included one-way for meet-up and drop-off requests."
+          label="Blocked Dates"
+          value={String(monthBlockedCount)}
+          detail={`Unavailable request dates in ${monthLabel}.`}
           accent="from-[rgba(110,166,218,0.16)] via-transparent to-[rgba(159,175,198,0.14)]"
         />
         <PortalMetricCard
-          label="Local Range"
-          value="200 miles"
+          label="Planning Range"
+          value="Up to 200 miles"
           detail="Longer distances may require breeder approval."
           accent="from-[rgba(113,198,164,0.16)] via-transparent to-[rgba(159,175,198,0.14)]"
         />
       </PortalMetricGrid>
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.15fr)_420px]">
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.1fr)_430px]">
         <div className="space-y-6">
+          <PortalPanel
+            title="Choose Your Request Type"
+            subtitle="Pick the transportation path first so the form and estimate adapt to the kind of homecoming you want."
+          >
+            <div className="grid gap-4 md:grid-cols-2">
+              <RequestTypeCard
+                active={requestType === "pickup"}
+                title="Pickup"
+                description="You pick up your puppy at our location."
+                icon={<CalendarDays className="h-5 w-5" />}
+                onClick={() => setRequestType("pickup")}
+              />
+              <RequestTypeCard
+                active={requestType === "meet"}
+                title="Meet-up"
+                description="We meet at an agreed public location."
+                icon={<MapPin className="h-5 w-5" />}
+                onClick={() => setRequestType("meet")}
+              />
+              <RequestTypeCard
+                active={requestType === "dropoff"}
+                title="Drop-off"
+                description="We travel toward your area for delivery."
+                icon={<Truck className="h-5 w-5" />}
+                onClick={() => setRequestType("dropoff")}
+              />
+              <RequestTypeCard
+                active={requestType === "transportation"}
+                title="Transportation"
+                description="Flight nanny, courier, or custom transportation coordination."
+                icon={<Route className="h-5 w-5" />}
+                onClick={() => setRequestType("transportation")}
+              />
+            </div>
+
+            {!requestType ? (
+              <div className="mt-5 rounded-[22px] border border-dashed border-[var(--portal-border-strong)] bg-[var(--portal-surface-muted)] px-4 py-4 text-sm leading-7 text-[var(--portal-text-soft)]">
+                Choose a request type above to unlock a more focused planning flow.
+              </div>
+            ) : (
+              <div className="mt-5 rounded-[24px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(243,248,253,0.95)_100%)] p-5 shadow-[0_10px_22px_rgba(23,35,56,0.05)]">
+                <div className="flex items-start gap-3">
+                  <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--portal-surface-muted)] text-[var(--portal-accent-strong)]">
+                    {requestTypeIcon(requestType)}
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+                      Selected Request Type
+                    </div>
+                    <div className="mt-2 text-lg font-semibold text-[var(--portal-text)]">
+                      {requestTypeTitle(requestType)}
+                    </div>
+                    <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
+                      {requestTypeDescription(requestType)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </PortalPanel>
+
           <PortalPanel
             title="Choose a Date"
             subtitle="Only open dates can be requested. Pending and approved requests block the day for other clients."
             action={
               <div className="flex items-center gap-2">
-                <PortalSecondaryButton onClick={() => setMonth(firstOfMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1)))}>
+                <PortalSecondaryButton
+                  onClick={() =>
+                    canGoPrev
+                      ? setMonth(
+                          firstOfMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))
+                        )
+                      : undefined
+                  }
+                  disabled={!canGoPrev}
+                >
                   Prev
                 </PortalSecondaryButton>
-                <PortalSecondaryButton onClick={() => setMonth(firstOfMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1)))}>
+                <PortalSecondaryButton
+                  onClick={() =>
+                    setMonth(firstOfMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1)))
+                  }
+                >
                   Next
                 </PortalSecondaryButton>
               </div>
             }
           >
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="text-lg font-semibold tracking-[-0.03em] text-[var(--portal-text)]">
-                {month.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                {monthLabel}
               </div>
-              <div className="text-sm text-[var(--portal-text-soft)]">Today: {fmtDate(today)}</div>
+              <div className="text-sm text-[var(--portal-text-soft)]">
+                Today: {fmtDate(today)}
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-wrap gap-2">
+              <LegendPill tone="available" label="Available" />
+              <LegendPill tone="selected" label="Selected" />
+              <LegendPill tone="blocked" label="Blocked" />
+              <LegendPill tone="past" label="Past" />
             </div>
 
             <div className="mt-5 grid grid-cols-7 gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
@@ -435,10 +716,11 @@ export default function PortalTransportationPage() {
             <div className="mt-3 grid grid-cols-7 gap-2">
               {calendarDays.map((entry) => {
                 if (entry.type === "blank") {
-                  return <div key={entry.key} className="h-12 rounded-[18px]" />;
+                  return <div key={entry.key} className="h-[64px] rounded-[18px]" />;
                 }
 
                 const disabled = entry.past || entry.blocked;
+
                 return (
                   <button
                     key={entry.key}
@@ -446,17 +728,29 @@ export default function PortalTransportationPage() {
                     onClick={() => void handleDaySelect(entry.iso)}
                     disabled={disabled}
                     className={[
-                      "h-12 rounded-[18px] border text-sm font-semibold transition",
+                      "relative h-[64px] rounded-[18px] border text-sm font-semibold transition",
                       entry.selected
                         ? "border-[var(--portal-accent)] bg-[linear-gradient(135deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] text-white shadow-[0_14px_26px_rgba(47,88,227,0.2)]"
                         : entry.blocked
-                          ? "border-[var(--portal-border)] bg-[var(--portal-surface-muted)] text-[var(--portal-text-muted)] opacity-65"
+                          ? "border-[var(--portal-border)] bg-[var(--portal-surface-muted)] text-[var(--portal-text-muted)] opacity-70"
                           : entry.past
                             ? "border-[var(--portal-border)] bg-[rgba(255,255,255,0.52)] text-[var(--portal-text-muted)] opacity-55"
                             : "border-[var(--portal-border)] bg-white text-[var(--portal-text)] hover:-translate-y-0.5 hover:border-[var(--portal-border-strong)]",
                     ].join(" ")}
                   >
-                    {entry.day}
+                    <span>{entry.day}</span>
+                    <span
+                      className={[
+                        "absolute bottom-2 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full",
+                        entry.selected
+                          ? "bg-white"
+                          : entry.blocked
+                            ? "bg-[rgba(170,79,104,0.76)]"
+                            : entry.past
+                              ? "bg-transparent"
+                              : "bg-[rgba(76,141,216,0.72)]",
+                      ].join(" ")}
+                    />
                   </button>
                 );
               })}
@@ -471,7 +765,11 @@ export default function PortalTransportationPage() {
               <CalendarInfoCard
                 label="Selected Date"
                 value={selectedDate ? fmtDate(selectedDate) : "Not selected"}
-                detail={selectedDate ? "This date will be reserved when you submit." : "Pick a date from the calendar."}
+                detail={
+                  selectedDate
+                    ? "This date will be reserved when you submit."
+                    : "Pick a date from the calendar."
+                }
               />
               <CalendarInfoCard
                 label="Availability"
@@ -483,30 +781,73 @@ export default function PortalTransportationPage() {
 
           <PortalPanel
             title="Your Latest Request"
-            subtitle="The most recent request saved under this portal account."
+            subtitle="The most recent transportation request saved under this portal account."
           >
             {latestRequest ? (
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <CalendarInfoCard
-                  label="Request Date"
-                  value={latestRequest.request_date ? fmtDate(latestRequest.request_date) : "Not listed"}
-                  detail="Most recent request date."
-                />
-                <CalendarInfoCard
-                  label="Type"
-                  value={formatRequestType(latestRequest.request_type)}
-                  detail="Request type currently on file."
-                />
-                <CalendarInfoCard
-                  label="Status"
-                  value={formatRequestStatus(latestRequest.status)}
-                  detail="Current review status."
-                />
-                <CalendarInfoCard
-                  label="Estimated Fee"
-                  value={currentEstimate?.label || "Pending"}
-                  detail={currentEstimate?.detail || "Pricing is based on request type and mileage."}
-                />
+              <div className="space-y-5">
+                <div className="flex flex-wrap items-center gap-3">
+                  <StatusBadge
+                    value={formatRequestStatus(latestRequest.status)}
+                    tone={
+                      String(latestRequest.status || "").toLowerCase() === "approved"
+                        ? "success"
+                        : String(latestRequest.status || "").toLowerCase() === "declined"
+                          ? "warning"
+                          : "neutral"
+                    }
+                  />
+                  <StatusBadge
+                    value={formatRequestType(latestRequest.request_type)}
+                    tone="neutral"
+                  />
+                  {latestRequest.request_date ? (
+                    <StatusBadge
+                      value={`Request Date ${fmtDate(latestRequest.request_date)}`}
+                      tone="neutral"
+                    />
+                  ) : null}
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <CalendarInfoCard
+                    label="Request Date"
+                    value={
+                      latestRequest.request_date
+                        ? fmtDate(latestRequest.request_date)
+                        : "Not listed"
+                    }
+                    detail="Most recent request date."
+                  />
+                  <CalendarInfoCard
+                    label="Type"
+                    value={formatRequestType(latestRequest.request_type)}
+                    detail="Request type currently on file."
+                  />
+                  <CalendarInfoCard
+                    label="Status"
+                    value={formatRequestStatus(latestRequest.status)}
+                    detail="Current review status."
+                  />
+                  <CalendarInfoCard
+                    label="Estimated Fee"
+                    value={currentEstimate?.label || "Pending"}
+                    detail={
+                      currentEstimate?.detail ||
+                      "Pricing is based on request type and mileage."
+                    }
+                  />
+                </div>
+
+                {latestRequest.notes ? (
+                  <div className="rounded-[22px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+                      Notes on File
+                    </div>
+                    <div className="mt-2 text-sm leading-7 text-[var(--portal-text-soft)]">
+                      {latestRequest.notes}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : (
               <PortalEmptyState
@@ -520,9 +861,32 @@ export default function PortalTransportationPage() {
         <div className="space-y-6">
           <PortalPanel
             title="Submit a Request"
-            subtitle="Choose the request type, add any mileage or location details, and submit for review."
+            subtitle="Complete the details below and submit your transportation request for review."
           >
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="rounded-[24px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(243,248,253,0.95)_100%)] p-4 shadow-[0_10px_22px_rgba(23,35,56,0.05)]">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+                  Request Summary
+                </div>
+                <div className="mt-3 space-y-3">
+                  <SummaryRow
+                    label="Request Type"
+                    value={requestType ? requestTypeTitle(requestType) : "Not selected"}
+                  />
+                  <SummaryRow
+                    label="Date"
+                    value={selectedDate ? fmtDate(selectedDate) : "Not selected"}
+                  />
+                  <SummaryRow
+                    label="Estimated Fee"
+                    value={requestEstimate.label}
+                  />
+                </div>
+                <div className="mt-3 text-sm leading-6 text-[var(--portal-text-soft)]">
+                  {requestEstimate.detail}
+                </div>
+              </div>
+
               <PortalField label="Request Type">
                 <PortalSelect
                   value={requestType}
@@ -538,7 +902,11 @@ export default function PortalTransportationPage() {
               </PortalField>
 
               <PortalField label="Selected Date">
-                <PortalInput value={selectedDate} readOnly placeholder="Pick a date from the calendar" />
+                <PortalInput
+                  value={selectedDate}
+                  readOnly
+                  placeholder="Pick a date from the calendar"
+                />
               </PortalField>
 
               {showMeetDropFields ? (
@@ -553,6 +921,7 @@ export default function PortalTransportationPage() {
                       placeholder="e.g. 25"
                     />
                   </PortalField>
+
                   <PortalField label="Proposed Meet / Drop Location">
                     <PortalInput
                       value={locationText}
@@ -560,6 +929,7 @@ export default function PortalTransportationPage() {
                       placeholder="Exit 17 Park & Ride, Bristol"
                     />
                   </PortalField>
+
                   <PortalField label="Address (optional)">
                     <PortalInput
                       value={addressText}
@@ -571,22 +941,10 @@ export default function PortalTransportationPage() {
               ) : null}
 
               {showTransportationFields ? (
-                <div className="rounded-[22px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4 text-sm leading-7 text-[var(--portal-text-soft)]">
-                  For transportation requests, use the notes field for airport, nearest major city, preferred carrier, or timing requirements. Transportation pricing is arranged separately and must be approved before scheduling.
+                <div className="rounded-[22px] border border-[rgba(186,154,116,0.18)] bg-[linear-gradient(180deg,rgba(255,252,247,0.98)_0%,rgba(248,244,238,0.98)_100%)] px-4 py-4 text-sm leading-7 text-[var(--portal-text-soft)]">
+                  For transportation requests, use the notes field for airport details, nearest major city, preferred carrier, timing requirements, or any special coordination needs. Transportation pricing is arranged separately and must be approved before scheduling.
                 </div>
               ) : null}
-
-              <div className="rounded-[24px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(243,248,253,0.95)_100%)] p-4 shadow-[0_10px_22px_rgba(23,35,56,0.05)]">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
-                  Estimated Transportation Fee
-                </div>
-                <div className="mt-2 text-[1.9rem] font-semibold tracking-[-0.04em] text-[var(--portal-text)]">
-                  {requestEstimate.label}
-                </div>
-                <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
-                  {requestEstimate.detail}
-                </div>
-              </div>
 
               <PortalField label="Notes">
                 <PortalTextarea
@@ -604,18 +962,69 @@ export default function PortalTransportationPage() {
           </PortalPanel>
 
           <PortalPanel
-            title="Pricing Policy"
-            subtitle="Transportation pricing is surfaced here so the request form stays easier to understand."
+            title="Pricing & Planning"
+            subtitle="The most important transportation details are surfaced here so everything is easier to understand."
           >
-            <div className="grid gap-4 sm:grid-cols-2">
-              <PortalInfoTile label="Free Mileage" value="First 50 miles" detail="One-way from Marion, Virginia." />
-              <PortalInfoTile label="After 50 Miles" value="$1.25 / mile" detail="One-way rate for meet-up and drop-off." />
-              <PortalInfoTile label="Minimum Fee" value="$75" detail="Applies beyond the free-mile zone." />
-              <PortalInfoTile label="Local Range" value="200 miles" detail="Longer trips may require breeder approval." />
+            <div className="grid gap-4">
+              <MiniPolicyCard
+                icon={<Route className="h-4 w-4" />}
+                title="Free Mileage"
+                detail="The first 50 one-way miles are included for meet-up and drop-off requests."
+              />
+              <MiniPolicyCard
+                icon={<Truck className="h-4 w-4" />}
+                title="After 50 Miles"
+                detail="$1.25 per mile one-way applies outside the free-mile zone."
+              />
+              <MiniPolicyCard
+                icon={<Clock3 className="h-4 w-4" />}
+                title="Minimum Transportation Fee"
+                detail="$75 minimum applies when mileage pricing is triggered."
+              />
+              <MiniPolicyCard
+                icon={<ShieldCheck className="h-4 w-4" />}
+                title="Longer Distance Approval"
+                detail="Trips beyond the local range may require breeder approval before confirmation."
+              />
+            </div>
+
+            <div className="mt-5 rounded-[24px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] p-4">
+              <div className="flex items-start gap-3">
+                <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-[var(--portal-accent-strong)] shadow-sm">
+                  <AlertCircle className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="text-sm font-semibold text-[var(--portal-text)]">
+                    Helpful planning note
+                  </div>
+                  <div className="mt-1 text-sm leading-7 text-[var(--portal-text-soft)]">
+                    Choose the request type first, then select an open date, and finally add any
+                    location or logistics details needed for review. This makes it much easier for
+                    your request to be reviewed accurately the first time.
+                  </div>
+                </div>
+              </div>
             </div>
           </PortalPanel>
         </div>
       </section>
+    </div>
+  );
+}
+
+function SummaryRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-[18px] border border-[var(--portal-border)] bg-white px-4 py-3">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">
+        {label}
+      </div>
+      <div className="text-sm font-semibold text-[var(--portal-text)]">{value}</div>
     </div>
   );
 }

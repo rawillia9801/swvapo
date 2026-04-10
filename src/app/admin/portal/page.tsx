@@ -150,6 +150,7 @@ export default function AdminPortalPage() {
 
   const topDogs = (workspace?.dogs || [])
     .slice()
+    .filter((dog) => String(dog.role || "").toLowerCase() !== "sire")
     .sort((left, right) => right.summary.realizedRevenue - left.summary.realizedRevenue)
     .slice(0, 6);
 
@@ -567,44 +568,49 @@ export default function AdminPortalPage() {
               </AdminPanel>
 
               <AdminPanel
-                title="Dam and Sire Performance"
-                subtitle="A sharper read on breeding output, reserve rate, and realized revenue."
+                title="Female Sales Leaders"
+                subtitle="Sales attribution now follows the dams only, with profit included alongside completed output."
               >
                 {topDogs.length ? (
-                  <div className="space-y-3">
-                    {topDogs.map((dog) => (
-                      <div
-                        key={`${dog.role}-${dog.id}`}
-                        className="rounded-[22px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="text-sm font-semibold text-[var(--portal-text)]">
-                              {dog.displayName}
-                            </div>
-                            <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
-                              {dogLabel(dog)} / {dog.summary.totalLitters} litters /{" "}
-                              {dog.summary.totalPuppies} puppies
-                            </div>
-                          </div>
-                          <span
-                            className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(dog.status || "active")}`}
-                          >
-                            {dog.status || dogLabel(dog)}
-                          </span>
-                        </div>
-                        <div className="mt-3 grid grid-cols-3 gap-2">
-                          <MiniSnapshot label="Revenue" value={fmtMoney(dog.summary.realizedRevenue)} />
-                          <MiniSnapshot label="Complete" value={pct(dog.summary.completionRate)} />
-                          <MiniSnapshot label="Reserved" value={pct(dog.summary.reserveRate)} />
-                        </div>
-                      </div>
-                    ))}
+                  <div className="overflow-hidden rounded-[24px] border border-[var(--portal-border)]">
+                    <table className="min-w-full divide-y divide-[#eee1d2] text-sm">
+                      <thead className="bg-[var(--portal-surface-muted)] text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+                        <tr>
+                          <th className="px-4 py-3">Female</th>
+                          <th className="px-4 py-3">Output</th>
+                          <th className="px-4 py-3">Sales</th>
+                          <th className="px-4 py-3">Net</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#f1e6da] bg-white">
+                        {topDogs.map((dog) => (
+                          <tr key={`${dog.role}-${dog.id}`} className="hover:bg-[var(--portal-surface-muted)]">
+                            <td className="px-4 py-3">
+                              <div className="font-semibold text-[var(--portal-text)]">
+                                {dog.displayName}
+                              </div>
+                              <div className="mt-1 text-xs text-[var(--portal-text-soft)]">
+                                {dog.status || "active"}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-[var(--portal-text-soft)]">
+                              {dog.summary.totalLitters} litters / {dog.summary.totalPuppies} puppies / {pct(dog.summary.completionRate)} complete
+                            </td>
+                            <td className="px-4 py-3 text-[var(--portal-text)]">
+                              {fmtMoney(dog.summary.realizedRevenue)}
+                            </td>
+                            <td className="px-4 py-3 font-semibold text-[var(--portal-text)]">
+                              {fmtMoney(dog.summary.realizedProfit)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 ) : (
                   <AdminEmptyState
-                    title="No breeding dogs tracked yet"
-                    description="Add dams and sires so the admin can track litter output and lifetime lineage revenue."
+                    title="No female breeding profiles tracked yet"
+                    description="Add dam records so the admin can track female-side sales, costs, and profit."
                   />
                 )}
               </AdminPanel>

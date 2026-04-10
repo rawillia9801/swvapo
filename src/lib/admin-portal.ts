@@ -273,11 +273,13 @@ export type AdminRevenueSnapshot = {
   availableCount: number;
   reservedCount: number;
   completedCount: number;
+  soldCount: number;
   unsoldCount: number;
   totalRevenue: number;
   contractedRevenue: number;
   projectedRevenue: number;
   realizedRevenue: number;
+  reservedRevenue: number;
   totalDeposits: number;
   totalPayments?: number;
   averageSalePrice: number;
