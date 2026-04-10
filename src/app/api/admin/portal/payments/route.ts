@@ -266,6 +266,7 @@ export async function GET(req: Request) {
           linkedPuppies,
           payments: paymentGroup,
           adjustments: adjustmentGroup,
+          billing_subscriptions: billingGroup,
           billing_subscription: matchedBilling,
           totalPaid,
           lastPaymentAt: paymentGroup[0]?.payment_date || paymentGroup[0]?.created_at || null,

@@ -109,6 +109,7 @@ type BuyerAccount = {
   linkedPuppies?: PuppyRow[];
   payments: BuyerPayment[];
   adjustments: BuyerAdjustment[];
+  billing_subscriptions?: BillingSubscription[];
   billing_subscription?: BillingSubscription | null;
 };
 
@@ -317,6 +318,13 @@ function adjustmentBelongsToPuppy(account: PuppyPaymentAccount, adjustment: Buye
 function flattenPuppyAccounts(accounts: BuyerAccount[]) {
   return accounts.flatMap((account) => {
     const linkedPuppies = account.linkedPuppies || (account.puppy ? [account.puppy] : []);
+    const billingSubscriptions =
+      account.billing_subscriptions && account.billing_subscriptions.length
+        ? account.billing_subscriptions
+        : account.billing_subscription
+          ? [account.billing_subscription]
+          : [];
+
     return linkedPuppies.map((puppy) => ({
       key: `${account.buyer.id}-${puppy.id}`,
       buyer: account.buyer,
@@ -335,11 +343,11 @@ function flattenPuppyAccounts(accounts: BuyerAccount[]) {
         )
       ),
       billing_subscription:
-        Number(account.billing_subscription?.puppy_id || 0) === Number(puppy.id)
-          ? account.billing_subscription
-          : !account.billing_subscription?.puppy_id
-            ? account.billing_subscription
-            : null,
+        billingSubscriptions.find(
+          (subscription) => Number(subscription.puppy_id || 0) === Number(puppy.id)
+        ) ||
+        billingSubscriptions.find((subscription) => !subscription.puppy_id) ||
+        null,
     }));
   });
 }
@@ -1070,6 +1078,98 @@ export default function AdminPortalPuppyPaymentsPage() {
                         className="rounded-2xl bg-[linear-gradient(135deg,#d3a056_0%,#b5752f_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(181,117,47,0.26)] transition hover:brightness-105 disabled:opacity-60"
                       >
                         {loggingEntry ? "Saving..." : "Record Puppy Entry"}
+                      </button>
+                    </div>
+                  </AdminPanel>
+
+                  <AdminPanel
+                    title="Zoho Billing Subscription"
+                    subtitle="Launch the recurring puppy payment-plan checkout, refresh the remote subscription state, and send the buyer to update the saved card when needed."
+                  >
+                    {billingStatusText ? (
+                      <div className="mb-4 rounded-[18px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm font-semibold text-[var(--portal-text-soft)]">
+                        {billingStatusText}
+                      </div>
+                    ) : null}
+
+                    <div className="grid gap-4">
+                      <AdminInfoTile
+                        label="Subscription Status"
+                        value={subscriptionStatusLabel(selectedAccount.billing_subscription)}
+                        detail={subscriptionStatusDetail(selectedAccount.billing_subscription)}
+                      />
+                      <AdminInfoTile
+                        label="Plan"
+                        value={
+                          selectedAccount.billing_subscription?.plan_name ||
+                          selectedAccount.billing_subscription?.plan_code ||
+                          "Zoho plan code not synced yet"
+                        }
+                        detail={
+                          selectedAccount.billing_subscription?.recurring_price
+                            ? `${fmtMoney(selectedAccount.billing_subscription.recurring_price)} recurring charge saved in Zoho Billing.`
+                            : "Zoho Billing will use the monthly amount saved on this puppy plan."
+                        }
+                      />
+                      <AdminInfoTile
+                        label="Next Billing"
+                        value={formatShortDate(selectedAccount.billing_subscription?.next_billing_at)}
+                        detail={
+                          selectedAccount.billing_subscription?.last_payment_at
+                            ? `Last successful billing payment posted ${formatShortDate(
+                                selectedAccount.billing_subscription.last_payment_at
+                              )}.`
+                            : "No subscription payment has been synced yet."
+                        }
+                      />
+                      <AdminInfoTile
+                        label="Saved Card"
+                        value={
+                          selectedAccount.billing_subscription?.card_last_four
+                            ? `•••• ${selectedAccount.billing_subscription.card_last_four}`
+                            : "No card synced yet"
+                        }
+                        detail={
+                          selectedAccount.billing_subscription?.card_expiry_month &&
+                          selectedAccount.billing_subscription?.card_expiry_year
+                            ? `Expires ${String(
+                                selectedAccount.billing_subscription.card_expiry_month
+                              ).padStart(2, "0")}/${selectedAccount.billing_subscription.card_expiry_year}.`
+                            : "Card details appear here once Zoho Billing confirms the payment method."
+                        }
+                      />
+                    </div>
+
+                    <div className="mt-5 flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() => void runBillingAction("start_checkout")}
+                        disabled={billingBusy || subscriptionIsActive(selectedAccount.billing_subscription)}
+                        className="rounded-2xl bg-[linear-gradient(135deg,#d3a056_0%,#b5752f_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(181,117,47,0.26)] transition hover:brightness-105 disabled:opacity-60"
+                      >
+                        {billingBusy
+                          ? "Working..."
+                          : subscriptionIsActive(selectedAccount.billing_subscription)
+                            ? "Subscription Live"
+                            : "Start Zoho Checkout"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void runBillingAction("update_card")}
+                        disabled={
+                          billingBusy || !selectedAccount.billing_subscription?.subscription_id
+                        }
+                        className="rounded-2xl border border-[var(--portal-border)] bg-[#fffdfb] px-5 py-3 text-sm font-semibold text-[var(--portal-text)] shadow-[0_12px_30px_rgba(106,76,45,0.08)] transition hover:border-[#d8b48b] hover:bg-white disabled:opacity-60"
+                      >
+                        Update Saved Card
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void runBillingAction("refresh")}
+                        disabled={billingBusy}
+                        className="rounded-2xl border border-[var(--portal-border)] bg-[#fffdfb] px-5 py-3 text-sm font-semibold text-[var(--portal-text)] shadow-[0_12px_30px_rgba(106,76,45,0.08)] transition hover:border-[#d8b48b] hover:bg-white disabled:opacity-60"
+                      >
+                        Refresh Zoho Status
                       </button>
                     </div>
                   </AdminPanel>

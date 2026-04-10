@@ -84,6 +84,31 @@ type FinanceSummary = {
   totalCredits: number;
 };
 
+type PortalBillingSubscription = {
+  id: number;
+  reference_id: string;
+  subscription_id?: string | null;
+  subscription_status?: string | null;
+  hostedpage_url?: string | null;
+  hostedpage_expires_at?: string | null;
+  plan_code?: string | null;
+  plan_name?: string | null;
+  recurring_price?: number | null;
+  currency_code?: string | null;
+  interval_count?: number | null;
+  interval_unit?: string | null;
+  billing_cycles?: number | null;
+  current_term_ends_at?: string | null;
+  next_billing_at?: string | null;
+  started_at?: string | null;
+  last_payment_at?: string | null;
+  last_payment_amount?: number | null;
+  card_last_four?: string | null;
+  card_expiry_month?: number | null;
+  card_expiry_year?: number | null;
+  customer_email?: string | null;
+};
+
 function emptyState(): PaymentPageState {
   return {
     buyer: null,
@@ -196,6 +221,26 @@ function defaultCustomAmount(snapshot: ReturnType<typeof buildPortalPaymentCharg
       snapshot.installmentDue ||
       snapshot.transportationDue ||
       Math.min(snapshot.currentBalance, 25)
+  );
+}
+
+function billingStatusLabel(subscription: PortalBillingSubscription | null) {
+  const status = String(subscription?.subscription_status || "").trim().toLowerCase();
+  if (!status && subscription?.hostedpage_url) return "checkout pending";
+  return status || "not connected";
+}
+
+function billingStatusTone(subscription: PortalBillingSubscription | null) {
+  const status = String(subscription?.subscription_status || "").trim().toLowerCase();
+  if (["trial", "future", "live", "active", "non_renewing"].includes(status)) return "success" as const;
+  if (["unpaid", "cancelled", "expired"].includes(status)) return "warning" as const;
+  if (["failed", "declined"].includes(status)) return "danger" as const;
+  return "neutral" as const;
+}
+
+function billingSubscriptionActive(subscription: PortalBillingSubscription | null) {
+  return ["trial", "future", "live", "active", "non_renewing"].includes(
+    String(subscription?.subscription_status || "").trim().toLowerCase()
   );
 }
 
@@ -587,10 +632,14 @@ function LedgerRow({ entry }: { entry: LedgerEntry }) {
 export default function PortalPaymentsPage() {
   const { user, loading: sessionLoading } = usePortalSession();
   const [data, setData] = useState<PaymentPageState>(emptyState);
+  const [billingSubscription, setBillingSubscription] = useState<PortalBillingSubscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorText, setErrorText] = useState("");
   const [paymentStatusText, setPaymentStatusText] = useState("");
   const [paymentErrorText, setPaymentErrorText] = useState("");
+  const [billingStatusText, setBillingStatusText] = useState("");
+  const [billingErrorText, setBillingErrorText] = useState("");
+  const [billingBusy, setBillingBusy] = useState(false);
   const [payingKind, setPayingKind] = useState<PortalChargeKind | "">("");
   const [customAmount, setCustomAmount] = useState("");
 
@@ -600,19 +649,32 @@ export default function PortalPaymentsPage() {
     async function loadPage() {
       if (!user) {
         setData(emptyState());
+        setBillingSubscription(null);
         setLoading(false);
         return;
       }
 
       setLoading(true);
       setErrorText("");
+      setBillingErrorText("");
 
       try {
+        const {
+          data: { session },
+        } = await sb.auth.getSession();
+        const accessToken = session?.access_token || "";
         const context = await loadPortalContext(user);
-        const [payments, adjustments, pickupRequest] = await Promise.all([
+        const [payments, adjustments, pickupRequest, billingResponse] = await Promise.all([
           findBuyerPayments(context.buyer?.id),
           findBuyerFeeCreditRecords(context.buyer?.id),
           findLatestPickupRequestForUser(user),
+          accessToken
+            ? fetch("/api/portal/payments/billing", {
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                },
+              })
+            : Promise.resolve(null),
         ]);
 
         if (!active) return;
@@ -623,6 +685,26 @@ export default function PortalPaymentsPage() {
           adjustments,
           pickupRequest,
         });
+
+        if (billingResponse) {
+          const billingJson = (await billingResponse.json()) as {
+            ok?: boolean;
+            message?: string;
+            subscription?: PortalBillingSubscription | null;
+          };
+          if (!active) return;
+
+          if (billingResponse.ok && billingJson.ok !== false) {
+            setBillingSubscription(billingJson.subscription || null);
+          } else {
+            setBillingSubscription(null);
+            setBillingErrorText(
+              billingJson.message || "We could not load the automatic puppy payment-plan details."
+            );
+          }
+        } else {
+          setBillingSubscription(null);
+        }
       } catch (error) {
         console.error("Could not load payments page:", error);
         if (!active) return;
@@ -786,6 +868,54 @@ export default function PortalPaymentsPage() {
       );
     } finally {
       setPayingKind("");
+    }
+  }
+
+  async function updateBillingCard() {
+    setBillingStatusText("");
+    setBillingErrorText("");
+    setBillingBusy(true);
+
+    try {
+      const {
+        data: { session },
+      } = await sb.auth.getSession();
+      const accessToken = session?.access_token || "";
+
+      if (!accessToken) {
+        throw new Error("Please sign in again before updating the saved payment method.");
+      }
+
+      const response = await fetch("/api/portal/payments/billing", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        message?: string;
+        url?: string;
+        subscription?: PortalBillingSubscription | null;
+      };
+
+      if (!response.ok || !payload.ok || !payload.url) {
+        throw new Error(payload.message || "Could not open the secure payment-method update page.");
+      }
+
+      setBillingSubscription(payload.subscription || billingSubscription);
+      setBillingStatusText("The secure Zoho Billing payment-method page opened in a new tab.");
+      window.open(payload.url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      console.error(error);
+      setBillingErrorText(
+        error instanceof Error
+          ? error.message
+          : "Could not open the secure payment-method update page."
+      );
+    } finally {
+      setBillingBusy(false);
     }
   }
 
@@ -1107,6 +1237,93 @@ export default function PortalPaymentsPage() {
             title="Financing Breakdown"
             subtitle="A clearer breakdown of the financed total, monthly terms, and how the remaining balance is being calculated."
           >
+            {summary.financeEnabled ? (
+              <div className="mb-6 space-y-4">
+                <PortalInfoTile
+                  label="Automatic Payment Plan"
+                  value={billingStatusLabel(billingSubscription)}
+                  detail={
+                    billingSubscription
+                      ? billingSubscriptionActive(billingSubscription)
+                        ? billingSubscription.next_billing_at
+                          ? `Your recurring puppy payment plan is active. The next scheduled renewal is ${fmtDate(
+                              billingSubscription.next_billing_at
+                            )}.`
+                          : "Your recurring puppy payment plan is active in Zoho Billing."
+                        : billingSubscription.hostedpage_url
+                          ? "Your breeder has already opened a secure Zoho Billing checkout. Complete it to activate recurring billing."
+                          : "Your financing terms are on file, but recurring billing has not been activated in Zoho Billing yet."
+                      : "Recurring billing will appear here once your breeder starts the Zoho Billing subscription."
+                  }
+                  tone={billingStatusTone(billingSubscription)}
+                />
+
+                {billingStatusText ? (
+                  <div className="rounded-[20px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm font-semibold text-[var(--portal-text-soft)]">
+                    {billingStatusText}
+                  </div>
+                ) : null}
+
+                {billingErrorText ? (
+                  <div className="rounded-[20px] border border-[rgba(194,84,114,0.16)] bg-[linear-gradient(180deg,rgba(255,249,251,0.98)_0%,rgba(255,242,246,0.94)_100%)] px-4 py-3 text-sm font-semibold text-[#aa4f68]">
+                    {billingErrorText}
+                  </div>
+                ) : null}
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <PortalInfoTile
+                    label="Plan"
+                    value={
+                      billingSubscription?.plan_name ||
+                      billingSubscription?.plan_code ||
+                      "Waiting for breeder setup"
+                    }
+                    detail={
+                      billingSubscription?.recurring_price
+                        ? `${toMoney(billingSubscription.recurring_price)} recurring amount in Zoho Billing.`
+                        : "Zoho Billing amount will appear here once the subscription is activated."
+                    }
+                  />
+                  <PortalInfoTile
+                    label="Saved Card"
+                    value={
+                      billingSubscription?.card_last_four
+                        ? `•••• ${billingSubscription.card_last_four}`
+                        : "No card synced yet"
+                    }
+                    detail={
+                      billingSubscription?.card_expiry_month &&
+                      billingSubscription?.card_expiry_year
+                        ? `Expires ${String(billingSubscription.card_expiry_month).padStart(2, "0")}/${billingSubscription.card_expiry_year}.`
+                        : "Card details appear after Zoho Billing confirms the payment method."
+                    }
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  {billingSubscription?.hostedpage_url && !billingSubscription?.subscription_id ? (
+                    <a
+                      href={billingSubscription.hostedpage_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center gap-2 rounded-[18px] bg-[linear-gradient(135deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_34px_rgba(47,88,227,0.22)]"
+                    >
+                      Continue Subscription Setup
+                    </a>
+                  ) : null}
+
+                  {billingSubscription?.subscription_id ? (
+                    <PortalSecondaryButton
+                      onClick={() => void updateBillingCard()}
+                      disabled={billingBusy}
+                    >
+                      {billingBusy ? "Opening..." : "Update Saved Card"}
+                    </PortalSecondaryButton>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+
             {summary.financeEnabled ? (
               <div className="grid gap-4">
                 <PortalInfoTile

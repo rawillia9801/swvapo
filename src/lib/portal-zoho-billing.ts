@@ -1,4 +1,5 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   createZohoBillingCustomer,
@@ -532,10 +533,7 @@ function buildCustomerAddress(buyer: BillingBuyer) {
   };
 }
 
-async function ensureBillingCustomer(
-  context: BillingContext,
-  admin: SupabaseClient
-): Promise<ZohoBillingCustomer> {
+async function ensureBillingCustomer(context: BillingContext): Promise<ZohoBillingCustomer> {
   if (context.record?.customer_id) {
     return {
       customer_id: context.record.customer_id,
@@ -923,7 +921,7 @@ async function recordBillingPayment(
         ? `${input.subscription.subscription_id}:${input.eventType}:${toIsoDate(input.paymentDate) || todayIso()}`
         : "",
       `${input.context.buyer.id}:${input.eventType}:${toIsoDate(input.paymentDate) || todayIso()}`
-    ) || crypto.randomUUID();
+    ) || randomUUID();
 
   const paymentDate = toIsoDate(input.paymentDate || input.eventTime || "") || todayIso();
   const existing = await admin
@@ -1042,7 +1040,7 @@ export async function createBuyerBillingSubscriptionCheckout(input: {
     } satisfies HostedCheckoutResult;
   }
 
-  const customer = await ensureBillingCustomer(context, input.admin);
+  const customer = await ensureBillingCustomer(context);
   const redirectUrl = new URL("/portal/payments", input.requestUrl).toString();
   const referenceId =
     context.record?.reference_id ||
