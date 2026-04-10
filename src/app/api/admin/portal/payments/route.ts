@@ -61,6 +61,40 @@ type BuyerAdjustment = {
   reference_number: string | null;
 };
 
+type BuyerBillingSubscription = {
+  id: number;
+  buyer_id: number;
+  puppy_id?: number | null;
+  provider: string;
+  reference_id: string;
+  customer_id?: string | null;
+  customer_email?: string | null;
+  customer_name?: string | null;
+  subscription_id?: string | null;
+  subscription_status?: string | null;
+  hostedpage_id?: string | null;
+  hostedpage_url?: string | null;
+  hostedpage_expires_at?: string | null;
+  plan_code?: string | null;
+  plan_name?: string | null;
+  recurring_price?: number | null;
+  currency_code?: string | null;
+  interval_count?: number | null;
+  interval_unit?: string | null;
+  billing_cycles?: number | null;
+  current_term_ends_at?: string | null;
+  next_billing_at?: string | null;
+  started_at?: string | null;
+  last_payment_at?: string | null;
+  last_payment_amount?: number | null;
+  card_last_four?: string | null;
+  card_expiry_month?: number | null;
+  card_expiry_year?: number | null;
+  last_event_id?: string | null;
+  last_event_type?: string | null;
+  last_event_at?: string | null;
+};
+
 function paymentCountsTowardBalance(status: string | null | undefined) {
   const normalized = String(status || "").toLowerCase();
   if (!normalized) return true;
@@ -100,7 +134,7 @@ export async function GET(req: Request) {
     }
 
     const service = createServiceSupabase();
-    const [buyersRes, puppiesRes, paymentsRes, adjustmentsRes] = await Promise.all([
+    const [buyersRes, puppiesRes, paymentsRes, adjustmentsRes, billingRes] = await Promise.all([
       service
         .from("buyers")
         .select(
@@ -125,6 +159,13 @@ export async function GET(req: Request) {
         )
         .order("entry_date", { ascending: false })
         .order("created_at", { ascending: false }),
+      service
+        .from("buyer_billing_subscriptions")
+        .select(
+          "id,buyer_id,puppy_id,provider,reference_id,customer_id,customer_email,customer_name,subscription_id,subscription_status,hostedpage_id,hostedpage_url,hostedpage_expires_at,plan_code,plan_name,recurring_price,currency_code,interval_count,interval_unit,billing_cycles,current_term_ends_at,next_billing_at,started_at,last_payment_at,last_payment_amount,card_last_four,card_expiry_month,card_expiry_year,last_event_id,last_event_type,last_event_at"
+        )
+        .eq("provider", "zoho_billing")
+        .order("updated_at", { ascending: false }),
     ]);
 
     if (buyersRes.error) throw buyersRes.error;
@@ -142,6 +183,14 @@ export async function GET(req: Request) {
               throw adjustmentsRes.error;
             })()
           : ((adjustmentsRes.data || []) as BuyerAdjustment[]);
+    const billingSubscriptions =
+      billingRes.error && isMissingTableError(billingRes.error)
+        ? []
+        : billingRes.error
+          ? (() => {
+              throw billingRes.error;
+            })()
+          : ((billingRes.data || []) as BuyerBillingSubscription[]);
 
     const puppiesByBuyerId = new Map<number, PuppyRow[]>();
     puppies.forEach((puppy) => {
@@ -181,10 +230,31 @@ export async function GET(req: Request) {
       adjustmentsByBuyerId.set(buyerId, group);
     });
 
+    const billingByBuyerId = new Map<number, BuyerBillingSubscription[]>();
+    billingSubscriptions.forEach((subscription) => {
+      const buyerId = Number(subscription.buyer_id || 0);
+      if (!buyerId) return;
+      const group = billingByBuyerId.get(buyerId) || [];
+      group.push(subscription);
+      billingByBuyerId.set(buyerId, group);
+    });
+
     const accounts = buyers
       .map((buyer) => {
         const paymentGroup = paymentsByBuyerId.get(buyer.id) || [];
         const adjustmentGroup = adjustmentsByBuyerId.get(buyer.id) || [];
+        const linkedPuppies = puppiesByBuyerId.get(buyer.id) || [];
+        const billingGroup = billingByBuyerId.get(buyer.id) || [];
+        const primaryPuppy = linkedPuppies[0] || null;
+        const matchedBilling =
+          billingGroup.find(
+            (subscription) =>
+              Number(subscription.puppy_id || 0) &&
+              primaryPuppy &&
+              Number(subscription.puppy_id || 0) === Number(primaryPuppy.id)
+          ) ||
+          billingGroup.find((subscription) => !subscription.puppy_id) ||
+          null;
         const totalPaid = paymentGroup
           .filter((payment) => paymentCountsTowardBalance(payment.status))
           .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
@@ -192,10 +262,11 @@ export async function GET(req: Request) {
         return {
           key: String(buyer.id),
           buyer,
-          puppy: (puppiesByBuyerId.get(buyer.id) || [])[0] || null,
-          linkedPuppies: puppiesByBuyerId.get(buyer.id) || [],
+          puppy: primaryPuppy,
+          linkedPuppies,
           payments: paymentGroup,
           adjustments: adjustmentGroup,
+          billing_subscription: matchedBilling,
           totalPaid,
           lastPaymentAt: paymentGroup[0]?.payment_date || paymentGroup[0]?.created_at || null,
         };

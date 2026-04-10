@@ -70,6 +70,38 @@ type BuyerAdjustment = {
   reference_number: string | null;
 };
 
+type BillingSubscription = {
+  id: number;
+  buyer_id: number;
+  puppy_id?: number | null;
+  reference_id: string;
+  customer_email?: string | null;
+  customer_name?: string | null;
+  subscription_id?: string | null;
+  subscription_status?: string | null;
+  hostedpage_id?: string | null;
+  hostedpage_url?: string | null;
+  hostedpage_expires_at?: string | null;
+  plan_code?: string | null;
+  plan_name?: string | null;
+  recurring_price?: number | null;
+  currency_code?: string | null;
+  interval_count?: number | null;
+  interval_unit?: string | null;
+  billing_cycles?: number | null;
+  current_term_ends_at?: string | null;
+  next_billing_at?: string | null;
+  started_at?: string | null;
+  last_payment_at?: string | null;
+  last_payment_amount?: number | null;
+  card_last_four?: string | null;
+  card_expiry_month?: number | null;
+  card_expiry_year?: number | null;
+  last_event_id?: string | null;
+  last_event_type?: string | null;
+  last_event_at?: string | null;
+};
+
 type BuyerAccount = {
   key: string;
   buyer: BuyerRow;
@@ -77,6 +109,7 @@ type BuyerAccount = {
   linkedPuppies?: PuppyRow[];
   payments: BuyerPayment[];
   adjustments: BuyerAdjustment[];
+  billing_subscription?: BillingSubscription | null;
 };
 
 type PuppyPaymentAccount = {
@@ -86,6 +119,7 @@ type PuppyPaymentAccount = {
   linkedPuppies: PuppyRow[];
   payments: BuyerPayment[];
   adjustments: BuyerAdjustment[];
+  billing_subscription?: BillingSubscription | null;
 };
 
 type EditForm = {
@@ -238,6 +272,38 @@ function entryFormForMode(mode: EntryMode): EntryForm {
   };
 }
 
+function subscriptionStatusLabel(subscription: BillingSubscription | null | undefined) {
+  const status = String(subscription?.subscription_status || "").trim().toLowerCase();
+  if (!status && subscription?.hostedpage_url) return "checkout pending";
+  return status || "not connected";
+}
+
+function subscriptionStatusDetail(subscription: BillingSubscription | null | undefined) {
+  if (!subscription) {
+    return "No Zoho Billing subscription has been connected to this puppy payment plan yet.";
+  }
+
+  if (!subscription.subscription_id && subscription.hostedpage_url) {
+    return "Checkout link created. Complete the secure Zoho Billing checkout to start the recurring puppy payment plan.";
+  }
+
+  if (subscription.next_billing_at) {
+    return `Next renewal is scheduled for ${formatShortDate(subscription.next_billing_at)}.`;
+  }
+
+  if (subscription.current_term_ends_at) {
+    return `Current term ends ${formatShortDate(subscription.current_term_ends_at)}.`;
+  }
+
+  return "Zoho Billing is linked to this puppy payment plan.";
+}
+
+function subscriptionIsActive(subscription: BillingSubscription | null | undefined) {
+  return ["trial", "future", "live", "active", "non_renewing"].includes(
+    String(subscription?.subscription_status || "").trim().toLowerCase()
+  );
+}
+
 function paymentBelongsToPuppy(account: PuppyPaymentAccount, payment: BuyerPayment) {
   if (payment.puppy_id) return Number(payment.puppy_id) === account.puppy.id;
   return account.linkedPuppies.length <= 1;
@@ -268,6 +334,12 @@ function flattenPuppyAccounts(accounts: BuyerAccount[]) {
           adjustment
         )
       ),
+      billing_subscription:
+        Number(account.billing_subscription?.puppy_id || 0) === Number(puppy.id)
+          ? account.billing_subscription
+          : !account.billing_subscription?.puppy_id
+            ? account.billing_subscription
+            : null,
     }));
   });
 }
@@ -352,8 +424,10 @@ export default function AdminPortalPuppyPaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loggingEntry, setLoggingEntry] = useState(false);
+  const [billingBusy, setBillingBusy] = useState(false);
   const [statusText, setStatusText] = useState("");
   const [entryStatusText, setEntryStatusText] = useState("");
+  const [billingStatusText, setBillingStatusText] = useState("");
   const [search, setSearch] = useState("");
   const [accounts, setAccounts] = useState<PuppyPaymentAccount[]>([]);
   const [selectedKey, setSelectedKey] = useState("");
@@ -530,6 +604,7 @@ export default function AdminPortalPuppyPaymentsPage() {
     setEntryForm(entryFormForMode("payment"));
     setStatusText("");
     setEntryStatusText("");
+    setBillingStatusText("");
   }, [selectedAccount]);
 
   const balanceSummary = useMemo(
@@ -550,6 +625,10 @@ export default function AdminPortalPuppyPaymentsPage() {
     () => accounts.filter((account) => !account.buyer.finance_next_due_date).length,
     [accounts]
   );
+  const zohoLiveCount = useMemo(
+    () => accounts.filter((account) => subscriptionIsActive(account.billing_subscription)).length,
+    [accounts]
+  );
 
   async function refreshAccounts(nextSelectedKey?: string) {
     const nextAccounts = financedPuppyAccounts(await fetchBuyerPaymentAccounts(accessToken));
@@ -557,6 +636,64 @@ export default function AdminPortalPuppyPaymentsPage() {
     setSelectedKey(
       nextSelectedKey || nextAccounts.find((account) => account.key === selectedKey)?.key || nextAccounts[0]?.key || ""
     );
+  }
+
+  async function runBillingAction(action: "start_checkout" | "update_card" | "refresh") {
+    if (!selectedAccount) return;
+
+    setBillingBusy(true);
+    setBillingStatusText("");
+
+    try {
+      const response = await fetch("/api/admin/portal/billing-subscriptions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          action,
+          buyer_id: selectedAccount.buyer.id,
+          puppy_id: selectedAccount.puppy.id,
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+        url?: string;
+        reusedExisting?: boolean;
+      };
+
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || "Could not complete the Zoho Billing action.");
+      }
+
+      await refreshAccounts(selectedAccount.key);
+
+      if (payload.url) {
+        window.open(payload.url, "_blank", "noopener,noreferrer");
+      }
+
+      if (action === "start_checkout") {
+        setBillingStatusText(
+          payload.reusedExisting
+            ? "The existing Zoho Billing checkout link was reopened in a new tab."
+            : "Zoho Billing checkout opened in a new tab."
+        );
+      } else if (action === "update_card") {
+        setBillingStatusText("Zoho Billing card-update page opened in a new tab.");
+      } else {
+        setBillingStatusText("Zoho Billing status refreshed.");
+      }
+    } catch (error) {
+      console.error(error);
+      setBillingStatusText(
+        error instanceof Error ? error.message : "Could not complete the Zoho Billing action."
+      );
+    } finally {
+      setBillingBusy(false);
+    }
   }
 
   function setEntryModeAndReset(mode: EntryMode) {
@@ -722,7 +859,7 @@ export default function AdminPortalPuppyPaymentsPage() {
                 detail={
                   missingDueDateCount > 0
                     ? `${missingDueDateCount} financed account${missingDueDateCount === 1 ? "" : "s"} still need a next due date.`
-                    : "All financed puppy plans have a recorded next due date."
+                    : `${zohoLiveCount} financed account${zohoLiveCount === 1 ? "" : "s"} already have Zoho Billing running.`
                 }
               />
             </div>
@@ -756,6 +893,7 @@ export default function AdminPortalPuppyPaymentsPage() {
                       account.buyer.finance_monthly_amount
                         ? `${fmtMoney(account.buyer.finance_monthly_amount)} / month`
                         : "Monthly amount not set",
+                      `Zoho ${subscriptionStatusLabel(account.billing_subscription)}`,
                       `Due ${formatShortDate(account.buyer.finance_next_due_date)}`,
                     ].join(" - ")}
                     badge={
