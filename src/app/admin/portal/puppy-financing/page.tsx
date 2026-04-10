@@ -159,6 +159,45 @@ type AccountActivity = {
   sourceLabel: string;
 };
 
+type PaymentNoticeSettings = {
+  enabled: boolean;
+  receipt_enabled: boolean;
+  due_reminder_enabled: boolean;
+  due_reminder_days_before: number;
+  late_notice_enabled: boolean;
+  late_notice_days_after: number;
+  default_notice_enabled: boolean;
+  default_notice_days_after: number;
+  recipient_email?: string | null;
+  cc_emails?: string[] | null;
+  internal_note?: string | null;
+};
+
+type PaymentNoticeLog = {
+  id: number;
+  created_at: string;
+  notice_kind: string;
+  notice_date?: string | null;
+  due_date?: string | null;
+  recipient_email: string;
+  subject: string;
+  status: string;
+};
+
+type NoticeSettingsForm = {
+  enabled: string;
+  receipt_enabled: string;
+  due_reminder_enabled: string;
+  due_reminder_days_before: string;
+  late_notice_enabled: string;
+  late_notice_days_after: string;
+  default_notice_enabled: string;
+  default_notice_days_after: string;
+  recipient_email: string;
+  cc_emails: string;
+  internal_note: string;
+};
+
 function firstValue(...values: Array<string | null | undefined>) {
   for (const value of values) {
     const trimmed = String(value || "").trim();
@@ -169,6 +208,22 @@ function firstValue(...values: Array<string | null | undefined>) {
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function emptyNoticeSettingsForm(): NoticeSettingsForm {
+  return {
+    enabled: "yes",
+    receipt_enabled: "yes",
+    due_reminder_enabled: "yes",
+    due_reminder_days_before: "5",
+    late_notice_enabled: "yes",
+    late_notice_days_after: "3",
+    default_notice_enabled: "yes",
+    default_notice_days_after: "14",
+    recipient_email: "",
+    cc_emails: "",
+    internal_note: "",
+  };
 }
 
 function toNumberOrNull(value: string | number | null | undefined) {
@@ -191,6 +246,15 @@ function formatShortDate(value: string | null | undefined) {
     day: "numeric",
     year: "numeric",
   });
+}
+
+function formatNoticeKindLabel(value: string | null | undefined) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "due_reminder") return "Due Reminder";
+  if (normalized === "late_notice") return "Late Notice";
+  if (normalized === "default_notice") return "Default Notice";
+  if (normalized === "receipt") return "Receipt";
+  return normalized ? normalized.replace(/_/g, " ") : "Notice";
 }
 
 function buyerName(buyer: BuyerRow) {
@@ -468,6 +532,12 @@ export default function AdminPortalPuppyFinancingPage() {
     status: "recorded",
     reference_number: "",
   });
+  const [noticeLoading, setNoticeLoading] = useState(false);
+  const [noticeSaving, setNoticeSaving] = useState(false);
+  const [noticeSending, setNoticeSending] = useState(false);
+  const [noticeStatusText, setNoticeStatusText] = useState("");
+  const [noticeLogs, setNoticeLogs] = useState<PaymentNoticeLog[]>([]);
+  const [noticeForm, setNoticeForm] = useState<NoticeSettingsForm>(emptyNoticeSettingsForm());
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -638,6 +708,70 @@ export default function AdminPortalPuppyFinancingPage() {
     setAdjustmentStatusText("");
   }, [selectedAccount]);
 
+  useEffect(() => {
+    if (!selectedAccount || !accessToken) {
+      setNoticeLogs([]);
+      setNoticeForm(emptyNoticeSettingsForm());
+      return;
+    }
+
+    let cancelled = false;
+    setNoticeLoading(true);
+    setNoticeStatusText("");
+
+    void fetch(`/api/admin/portal/payment-notices?buyer_id=${selectedAccount.buyer.id}`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+      .then(async (response) => {
+        const payload = (await response.json()) as {
+          ok?: boolean;
+          error?: string;
+          settings?: PaymentNoticeSettings;
+          logs?: PaymentNoticeLog[];
+        };
+
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.error || "Could not load email notice settings.");
+        }
+
+        if (cancelled) return;
+        const settings = payload.settings;
+        setNoticeForm({
+          enabled: settings?.enabled === false ? "no" : "yes",
+          receipt_enabled: settings?.receipt_enabled === false ? "no" : "yes",
+          due_reminder_enabled: settings?.due_reminder_enabled === false ? "no" : "yes",
+          due_reminder_days_before: String(settings?.due_reminder_days_before ?? 5),
+          late_notice_enabled: settings?.late_notice_enabled === false ? "no" : "yes",
+          late_notice_days_after: String(settings?.late_notice_days_after ?? 3),
+          default_notice_enabled: settings?.default_notice_enabled === false ? "no" : "yes",
+          default_notice_days_after: String(settings?.default_notice_days_after ?? 14),
+          recipient_email: settings?.recipient_email || selectedAccount.buyer.email || "",
+          cc_emails: Array.isArray(settings?.cc_emails) ? settings.cc_emails.join(", ") : "",
+          internal_note: settings?.internal_note || "",
+        });
+        setNoticeLogs(Array.isArray(payload.logs) ? payload.logs : []);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error(error);
+        setNoticeStatusText(
+          error instanceof Error ? error.message : "Could not load email notice settings."
+        );
+        setNoticeLogs([]);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setNoticeLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, selectedAccount]);
+
   const balanceSummary = useMemo(
     () => (selectedAccount ? calculateBalanceSummary(selectedAccount, form) : null),
     [form, selectedAccount]
@@ -778,6 +912,110 @@ export default function AdminPortalPuppyFinancingPage() {
       );
     } finally {
       setLoggingAdjustment(false);
+    }
+  }
+
+  async function saveNoticeSettings() {
+    if (!selectedAccount) return;
+
+    setNoticeSaving(true);
+    setNoticeStatusText("");
+
+    try {
+      const response = await fetch("/api/admin/portal/payment-notices", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          buyer_id: selectedAccount.buyer.id,
+          enabled: noticeForm.enabled === "yes",
+          receipt_enabled: noticeForm.receipt_enabled === "yes",
+          due_reminder_enabled: noticeForm.due_reminder_enabled === "yes",
+          due_reminder_days_before: noticeForm.due_reminder_days_before,
+          late_notice_enabled: noticeForm.late_notice_enabled === "yes",
+          late_notice_days_after: noticeForm.late_notice_days_after,
+          default_notice_enabled: noticeForm.default_notice_enabled === "yes",
+          default_notice_days_after: noticeForm.default_notice_days_after,
+          recipient_email: noticeForm.recipient_email,
+          cc_emails: noticeForm.cc_emails,
+          internal_note: noticeForm.internal_note,
+        }),
+      });
+
+      const payload = (await response.json()) as { ok?: boolean; error?: string };
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || "Could not save the email notice settings.");
+      }
+
+      setNoticeStatusText("Email notice settings updated.");
+    } catch (error) {
+      console.error(error);
+      setNoticeStatusText(
+        error instanceof Error ? error.message : "Could not save the email notice settings."
+      );
+    } finally {
+      setNoticeSaving(false);
+    }
+  }
+
+  async function sendNoticeNow(kind: "due_reminder" | "late_notice" | "default_notice") {
+    if (!selectedAccount) return;
+
+    setNoticeSending(true);
+    setNoticeStatusText("");
+
+    try {
+      const response = await fetch("/api/admin/portal/payment-notices", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          buyer_id: selectedAccount.buyer.id,
+          kind,
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+        result?: { sent?: boolean; skippedReason?: string };
+      };
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || "Could not send the payment notice.");
+      }
+
+      setNoticeStatusText(
+        payload.result?.sent
+          ? `${formatNoticeKindLabel(kind)} emailed.`
+          : payload.result?.skippedReason || `${formatNoticeKindLabel(kind)} skipped.`
+      );
+
+      const refreshResponse = await fetch(
+        `/api/admin/portal/payment-notices?buyer_id=${selectedAccount.buyer.id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+      const refreshPayload = (await refreshResponse.json()) as {
+        ok?: boolean;
+        logs?: PaymentNoticeLog[];
+      };
+      if (refreshResponse.ok && refreshPayload.ok) {
+        setNoticeLogs(Array.isArray(refreshPayload.logs) ? refreshPayload.logs : []);
+      }
+    } catch (error) {
+      console.error(error);
+      setNoticeStatusText(
+        error instanceof Error ? error.message : "Could not send the payment notice."
+      );
+    } finally {
+      setNoticeSending(false);
     }
   }
 
@@ -1105,6 +1343,205 @@ export default function AdminPortalPuppyFinancingPage() {
                       >
                         {loggingAdjustment ? "Saving..." : "Record Adjustment"}
                       </button>
+                    </div>
+                  </AdminPanel>
+
+                  <AdminPanel
+                    title="Email Notice Settings"
+                    subtitle="Control payment receipts, due reminders, late notices, and default notices for this buyer plan."
+                  >
+                    {noticeStatusText ? (
+                      <div className="mb-4 rounded-[18px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm font-semibold text-[var(--portal-text-soft)]">
+                        {noticeStatusText}
+                      </div>
+                    ) : null}
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <PlannerSelect
+                        label="Email Notices Enabled"
+                        value={noticeForm.enabled}
+                        onChange={(value) => setNoticeForm((previous) => ({ ...previous, enabled: value }))}
+                      />
+                      <PlannerSelect
+                        label="Payment Receipts"
+                        value={noticeForm.receipt_enabled}
+                        onChange={(value) =>
+                          setNoticeForm((previous) => ({ ...previous, receipt_enabled: value }))
+                        }
+                      />
+                      <PlannerSelect
+                        label="Due Reminder"
+                        value={noticeForm.due_reminder_enabled}
+                        onChange={(value) =>
+                          setNoticeForm((previous) => ({ ...previous, due_reminder_enabled: value }))
+                        }
+                      />
+                      <PlannerField
+                        label="Days Before Due"
+                        value={noticeForm.due_reminder_days_before}
+                        onChange={(value) =>
+                          setNoticeForm((previous) => ({
+                            ...previous,
+                            due_reminder_days_before: value,
+                          }))
+                        }
+                      />
+                      <PlannerSelect
+                        label="Late Notice"
+                        value={noticeForm.late_notice_enabled}
+                        onChange={(value) =>
+                          setNoticeForm((previous) => ({ ...previous, late_notice_enabled: value }))
+                        }
+                      />
+                      <PlannerField
+                        label="Days After Due"
+                        value={noticeForm.late_notice_days_after}
+                        onChange={(value) =>
+                          setNoticeForm((previous) => ({
+                            ...previous,
+                            late_notice_days_after: value,
+                          }))
+                        }
+                      />
+                      <PlannerSelect
+                        label="Default Notice"
+                        value={noticeForm.default_notice_enabled}
+                        onChange={(value) =>
+                          setNoticeForm((previous) => ({ ...previous, default_notice_enabled: value }))
+                        }
+                      />
+                      <PlannerField
+                        label="Default After Days"
+                        value={noticeForm.default_notice_days_after}
+                        onChange={(value) =>
+                          setNoticeForm((previous) => ({
+                            ...previous,
+                            default_notice_days_after: value,
+                          }))
+                        }
+                      />
+                      <PlannerField
+                        label="Recipient Email"
+                        value={noticeForm.recipient_email}
+                        onChange={(value) =>
+                          setNoticeForm((previous) => ({ ...previous, recipient_email: value }))
+                        }
+                      />
+                      <PlannerField
+                        label="CC Emails"
+                        value={noticeForm.cc_emails}
+                        onChange={(value) =>
+                          setNoticeForm((previous) => ({ ...previous, cc_emails: value }))
+                        }
+                      />
+                    </div>
+
+                    <label className="mt-4 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                      Internal Note
+                      <textarea
+                        value={noticeForm.internal_note}
+                        onChange={(event) =>
+                          setNoticeForm((previous) => ({
+                            ...previous,
+                            internal_note: event.target.value,
+                          }))
+                        }
+                        rows={4}
+                        className="mt-2 w-full rounded-[18px] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3.5 text-sm text-[var(--portal-text)] outline-none focus:border-[#c8a884]"
+                      />
+                    </label>
+
+                    <div className="mt-5 flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() => void saveNoticeSettings()}
+                        disabled={noticeSaving || noticeLoading}
+                        className="rounded-2xl bg-[linear-gradient(135deg,#d3a056_0%,#b5752f_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(181,117,47,0.26)] transition hover:brightness-105 disabled:opacity-60"
+                      >
+                        {noticeSaving ? "Saving..." : "Save Email Settings"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void sendNoticeNow("due_reminder")}
+                        disabled={noticeSending || noticeLoading}
+                        className="rounded-2xl border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3 text-sm font-semibold text-[var(--portal-text)] shadow-[0_12px_30px_rgba(106,76,45,0.08)] transition hover:border-[#d8b48b] hover:bg-white disabled:opacity-60"
+                      >
+                        Send Due Reminder
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void sendNoticeNow("late_notice")}
+                        disabled={noticeSending || noticeLoading}
+                        className="rounded-2xl border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3 text-sm font-semibold text-[var(--portal-text)] shadow-[0_12px_30px_rgba(106,76,45,0.08)] transition hover:border-[#d8b48b] hover:bg-white disabled:opacity-60"
+                      >
+                        Send Late Notice
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void sendNoticeNow("default_notice")}
+                        disabled={noticeSending || noticeLoading}
+                        className="rounded-2xl border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3 text-sm font-semibold text-[var(--portal-text)] shadow-[0_12px_30px_rgba(106,76,45,0.08)] transition hover:border-[#d8b48b] hover:bg-white disabled:opacity-60"
+                      >
+                        Send Default Notice
+                      </button>
+                    </div>
+
+                    <div className="mt-5 grid gap-3">
+                      <AdminInfoTile
+                        label="Buyer Email"
+                        value={noticeForm.recipient_email || selectedAccount.buyer.email || "Not set"}
+                        detail="Receipts send immediately when a payment posts. Scheduled notices run daily from the cron route."
+                      />
+                    </div>
+
+                    <div className="mt-5">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                        Recent Email Activity
+                      </div>
+                      <div className="mt-3 space-y-3">
+                        {noticeLogs.length ? (
+                          noticeLogs.map((log) => (
+                            <div
+                              key={log.id}
+                              className="rounded-[18px] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-4 shadow-[0_12px_30px_rgba(106,76,45,0.07)]"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <div className="text-sm font-semibold text-[var(--portal-text)]">
+                                    {formatNoticeKindLabel(log.notice_kind)}
+                                  </div>
+                                  <div className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                                    {formatShortDate(log.notice_date || log.created_at)}
+                                    {log.due_date ? ` - due ${formatShortDate(log.due_date)}` : ""}
+                                  </div>
+                                </div>
+                                <span
+                                  className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${adminStatusBadge(
+                                    log.status
+                                  )}`}
+                                >
+                                  {log.status || "sent"}
+                                </span>
+                              </div>
+                              <div className="mt-3 text-sm leading-6 text-[var(--portal-text-soft)]">
+                                {log.subject}
+                              </div>
+                              <div className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                                {log.recipient_email}
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <AdminEmptyState
+                            title={noticeLoading ? "Loading email history" : "No email activity yet"}
+                            description={
+                              noticeLoading
+                                ? "Pulling the recent receipt and notice history for this buyer plan."
+                                : "Payment receipts, reminders, late notices, and default notices will appear here after they are sent."
+                            }
+                          />
+                        )}
+                      </div>
                     </div>
                   </AdminPanel>
 

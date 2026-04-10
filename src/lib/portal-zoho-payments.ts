@@ -15,6 +15,7 @@ import type {
   PortalPickupRequest,
   PortalPuppy,
 } from "@/lib/portal-data";
+import { sendBuyerPaymentReceiptEmail } from "@/lib/payment-email";
 import { createZohoPaymentLink } from "@/lib/zoho-payments";
 
 export type PortalZohoPaymentState = {
@@ -509,6 +510,7 @@ export async function syncPortalZohoPayment(input: SyncPortalZohoPaymentInput) {
   }
 
   let recorded = false;
+  let recordedPaymentId: string | null = existingPayment.data?.id || null;
 
   if (normalizeSuccessStatus(input.status)) {
     const paymentPayload = {
@@ -534,10 +536,15 @@ export async function syncPortalZohoPayment(input: SyncPortalZohoPaymentInput) {
         throw new Error(updateResult.error.message);
       }
     } else {
-      const insertResult = await input.admin.from("buyer_payments").insert(paymentPayload);
+      const insertResult = await input.admin
+        .from("buyer_payments")
+        .insert(paymentPayload)
+        .select("id")
+        .single<{ id: string }>();
       if (insertResult.error) {
         throw new Error(insertResult.error.message);
       }
+      recordedPaymentId = insertResult.data.id;
     }
 
     if (parsedReference.chargeKind === "deposit") {
@@ -604,6 +611,14 @@ export async function syncPortalZohoPayment(input: SyncPortalZohoPaymentInput) {
     }
 
     recorded = true;
+
+    if (recordedPaymentId) {
+      try {
+        await sendBuyerPaymentReceiptEmail(input.admin, { paymentId: recordedPaymentId });
+      } catch (receiptError) {
+        console.error("Zoho payment receipt email error:", receiptError);
+      }
+    }
   }
 
   if (input.emitAlert) {

@@ -26,6 +26,9 @@ alter table public.buyer_fee_credit_records enable row level security;
 
 grant select on public.buyer_fee_credit_records to authenticated;
 
+drop policy if exists "buyer_fee_credit_records_select_own_account"
+  on public.buyer_fee_credit_records;
+
 create policy "buyer_fee_credit_records_select_own_account"
   on public.buyer_fee_credit_records
   for select

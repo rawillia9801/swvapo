@@ -16,6 +16,7 @@ import {
   type ZohoBillingHostedPageDetails,
   type ZohoBillingSubscription,
 } from "@/lib/zoho-billing";
+import { sendBuyerPaymentReceiptEmail } from "@/lib/payment-email";
 
 export type BuyerBillingSubscriptionRecord = {
   id: number;
@@ -975,6 +976,8 @@ async function recordBillingPayment(
     reference_number: paymentReference,
   };
 
+  let recordedPaymentId: string | null = existing.data?.id || null;
+
   if (existing.data?.id) {
     const update = await admin
       .from("buyer_payments")
@@ -985,10 +988,15 @@ async function recordBillingPayment(
       throw new Error(update.error.message);
     }
   } else {
-    const insert = await admin.from("buyer_payments").insert(paymentPayload);
+    const insert = await admin
+      .from("buyer_payments")
+      .insert(paymentPayload)
+      .select("id")
+      .single<{ id: string }>();
     if (insert.error) {
       throw new Error(insert.error.message);
     }
+    recordedPaymentId = insert.data.id;
   }
 
   const buyerUpdate: Record<string, unknown> = {
@@ -1007,6 +1015,14 @@ async function recordBillingPayment(
 
   if (buyerResult.error) {
     throw new Error(buyerResult.error.message);
+  }
+
+  if (recordedPaymentId) {
+    try {
+      await sendBuyerPaymentReceiptEmail(admin, { paymentId: recordedPaymentId });
+    } catch (receiptError) {
+      console.error("Zoho Billing receipt email error:", receiptError);
+    }
   }
 
   return {

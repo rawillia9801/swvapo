@@ -74,6 +74,9 @@ alter table public.buyer_billing_subscriptions enable row level security;
 
 grant select on public.buyer_billing_subscriptions to authenticated;
 
+drop policy if exists "buyer_billing_subscriptions_select_own_account"
+  on public.buyer_billing_subscriptions;
+
 create policy "buyer_billing_subscriptions_select_own_account"
   on public.buyer_billing_subscriptions
   for select

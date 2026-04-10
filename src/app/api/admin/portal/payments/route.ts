@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceSupabase, firstValue, verifyOwner } from "@/lib/admin-api";
+import { sendBuyerPaymentReceiptEmail } from "@/lib/payment-email";
 
 type BuyerRow = {
   id: number;
@@ -95,6 +96,40 @@ type BuyerBillingSubscription = {
   last_event_at?: string | null;
 };
 
+type BuyerPaymentNoticeSettings = {
+  id?: number;
+  buyer_id: number;
+  enabled: boolean;
+  receipt_enabled: boolean;
+  due_reminder_enabled: boolean;
+  due_reminder_days_before: number;
+  late_notice_enabled: boolean;
+  late_notice_days_after: number;
+  default_notice_enabled: boolean;
+  default_notice_days_after: number;
+  recipient_email?: string | null;
+  cc_emails?: string[] | null;
+  internal_note?: string | null;
+};
+
+type BuyerPaymentNoticeLog = {
+  id: number;
+  created_at: string;
+  buyer_id: number;
+  puppy_id?: number | null;
+  payment_id?: string | null;
+  notice_kind: string;
+  notice_key: string;
+  notice_date?: string | null;
+  due_date?: string | null;
+  status: string;
+  recipient_email: string;
+  subject: string;
+  provider: string;
+  provider_message_id?: string | null;
+  meta?: Record<string, unknown> | null;
+};
+
 function paymentCountsTowardBalance(status: string | null | undefined) {
   const normalized = String(status || "").toLowerCase();
   if (!normalized) return true;
@@ -134,7 +169,8 @@ export async function GET(req: Request) {
     }
 
     const service = createServiceSupabase();
-    const [buyersRes, puppiesRes, paymentsRes, adjustmentsRes, billingRes] = await Promise.all([
+    const [buyersRes, puppiesRes, paymentsRes, adjustmentsRes, billingRes, noticeSettingsRes, noticeLogsRes] =
+      await Promise.all([
       service
         .from("buyers")
         .select(
@@ -166,6 +202,18 @@ export async function GET(req: Request) {
         )
         .eq("provider", "zoho_billing")
         .order("updated_at", { ascending: false }),
+      service
+        .from("buyer_payment_notice_settings")
+        .select(
+          "id,buyer_id,enabled,receipt_enabled,due_reminder_enabled,due_reminder_days_before,late_notice_enabled,late_notice_days_after,default_notice_enabled,default_notice_days_after,recipient_email,cc_emails,internal_note"
+        ),
+      service
+        .from("buyer_payment_notice_logs")
+        .select(
+          "id,created_at,buyer_id,puppy_id,payment_id,notice_kind,notice_key,notice_date,due_date,status,recipient_email,subject,provider,provider_message_id,meta"
+        )
+        .order("created_at", { ascending: false })
+        .limit(300),
     ]);
 
     if (buyersRes.error) throw buyersRes.error;
@@ -191,6 +239,22 @@ export async function GET(req: Request) {
               throw billingRes.error;
             })()
           : ((billingRes.data || []) as BuyerBillingSubscription[]);
+    const noticeSettings =
+      noticeSettingsRes.error && isMissingTableError(noticeSettingsRes.error)
+        ? []
+        : noticeSettingsRes.error
+          ? (() => {
+              throw noticeSettingsRes.error;
+            })()
+          : ((noticeSettingsRes.data || []) as BuyerPaymentNoticeSettings[]);
+    const noticeLogs =
+      noticeLogsRes.error && isMissingTableError(noticeLogsRes.error)
+        ? []
+        : noticeLogsRes.error
+          ? (() => {
+              throw noticeLogsRes.error;
+            })()
+          : ((noticeLogsRes.data || []) as BuyerPaymentNoticeLog[]);
 
     const puppiesByBuyerId = new Map<number, PuppyRow[]>();
     puppies.forEach((puppy) => {
@@ -239,12 +303,32 @@ export async function GET(req: Request) {
       billingByBuyerId.set(buyerId, group);
     });
 
+    const noticeSettingsByBuyerId = new Map<number, BuyerPaymentNoticeSettings>();
+    noticeSettings.forEach((settings) => {
+      const buyerId = Number(settings.buyer_id || 0);
+      if (!buyerId || noticeSettingsByBuyerId.has(buyerId)) return;
+      noticeSettingsByBuyerId.set(buyerId, settings);
+    });
+
+    const noticeLogsByBuyerId = new Map<number, BuyerPaymentNoticeLog[]>();
+    noticeLogs.forEach((log) => {
+      const buyerId = Number(log.buyer_id || 0);
+      if (!buyerId) return;
+      const group = noticeLogsByBuyerId.get(buyerId) || [];
+      if (group.length < 8) {
+        group.push(log);
+        noticeLogsByBuyerId.set(buyerId, group);
+      }
+    });
+
     const accounts = buyers
       .map((buyer) => {
         const paymentGroup = paymentsByBuyerId.get(buyer.id) || [];
         const adjustmentGroup = adjustmentsByBuyerId.get(buyer.id) || [];
         const linkedPuppies = puppiesByBuyerId.get(buyer.id) || [];
         const billingGroup = billingByBuyerId.get(buyer.id) || [];
+        const noticeSetting = noticeSettingsByBuyerId.get(buyer.id) || null;
+        const noticeLogGroup = noticeLogsByBuyerId.get(buyer.id) || [];
         const primaryPuppy = linkedPuppies[0] || null;
         const matchedBilling =
           billingGroup.find(
@@ -268,6 +352,8 @@ export async function GET(req: Request) {
           adjustments: adjustmentGroup,
           billing_subscriptions: billingGroup,
           billing_subscription: matchedBilling,
+          payment_notice_settings: noticeSetting,
+          payment_notice_logs: noticeLogGroup,
           totalPaid,
           lastPaymentAt: paymentGroup[0]?.payment_date || paymentGroup[0]?.created_at || null,
         };
@@ -394,10 +480,22 @@ export async function POST(req: Request) {
 
     if (error) throw error;
 
+    let emailStatus: string | null = null;
+    try {
+      const receiptResult = await sendBuyerPaymentReceiptEmail(service, { paymentId: data.id });
+      emailStatus = receiptResult.sent
+        ? "receipt_sent"
+        : receiptResult.skippedReason || "receipt_skipped";
+    } catch (receiptError) {
+      console.error("Manual payment receipt email error:", receiptError);
+      emailStatus = "receipt_failed";
+    }
+
     return NextResponse.json({
       ok: true,
       entryKind: "payment",
       paymentId: data.id,
+      emailStatus,
       ownerEmail: owner.email || null,
     });
   } catch (error) {

@@ -22,17 +22,39 @@ create unique index if not exists buyer_payment_notice_settings_buyer_uidx
 create index if not exists buyer_payment_notice_settings_enabled_idx
   on public.buyer_payment_notice_settings (enabled, updated_at desc);
 
-alter table public.buyer_payment_notice_settings
-  add constraint buyer_payment_notice_settings_due_days_chk
-  check (due_reminder_days_before between 0 and 30);
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'buyer_payment_notice_settings_due_days_chk'
+  ) then
+    alter table public.buyer_payment_notice_settings
+      add constraint buyer_payment_notice_settings_due_days_chk
+      check (due_reminder_days_before between 0 and 30);
+  end if;
 
-alter table public.buyer_payment_notice_settings
-  add constraint buyer_payment_notice_settings_late_days_chk
-  check (late_notice_days_after between 1 and 60);
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'buyer_payment_notice_settings_late_days_chk'
+  ) then
+    alter table public.buyer_payment_notice_settings
+      add constraint buyer_payment_notice_settings_late_days_chk
+      check (late_notice_days_after between 1 and 60);
+  end if;
 
-alter table public.buyer_payment_notice_settings
-  add constraint buyer_payment_notice_settings_default_days_chk
-  check (default_notice_days_after between 1 and 120);
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'buyer_payment_notice_settings_default_days_chk'
+  ) then
+    alter table public.buyer_payment_notice_settings
+      add constraint buyer_payment_notice_settings_default_days_chk
+      check (default_notice_days_after between 1 and 120);
+  end if;
+end;
+$$;
 
 create or replace function public.set_buyer_payment_notice_settings_updated_at()
 returns trigger
@@ -55,6 +77,9 @@ execute function public.set_buyer_payment_notice_settings_updated_at();
 alter table public.buyer_payment_notice_settings enable row level security;
 
 grant select on public.buyer_payment_notice_settings to authenticated;
+
+drop policy if exists "buyer_payment_notice_settings_select_own_account"
+  on public.buyer_payment_notice_settings;
 
 create policy "buyer_payment_notice_settings_select_own_account"
   on public.buyer_payment_notice_settings
@@ -102,13 +127,26 @@ create index if not exists buyer_payment_notice_logs_notice_kind_idx
 create index if not exists buyer_payment_notice_logs_due_date_idx
   on public.buyer_payment_notice_logs (due_date desc nulls last);
 
-alter table public.buyer_payment_notice_logs
-  add constraint buyer_payment_notice_logs_notice_kind_chk
-  check (notice_kind in ('receipt', 'due_reminder', 'late_notice', 'default_notice', 'manual_notice'));
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'buyer_payment_notice_logs_notice_kind_chk'
+  ) then
+    alter table public.buyer_payment_notice_logs
+      add constraint buyer_payment_notice_logs_notice_kind_chk
+      check (notice_kind in ('receipt', 'due_reminder', 'late_notice', 'default_notice', 'manual_notice'));
+  end if;
+end;
+$$;
 
 alter table public.buyer_payment_notice_logs enable row level security;
 
 grant select on public.buyer_payment_notice_logs to authenticated;
+
+drop policy if exists "buyer_payment_notice_logs_select_own_account"
+  on public.buyer_payment_notice_logs;
 
 create policy "buyer_payment_notice_logs_select_own_account"
   on public.buyer_payment_notice_logs
