@@ -150,6 +150,14 @@ type AccountActivity = {
   isPortalLinked: boolean;
 };
 
+type IntegrationStatusGroup = {
+  id: string;
+  label: string;
+  ready: boolean;
+  summary: string;
+  missing: string[];
+};
+
 function firstValue(...values: Array<string | null | undefined>) {
   for (const value of values) {
     const trimmed = String(value || "").trim();
@@ -396,6 +404,23 @@ async function fetchPaymentAccounts(accessToken: string) {
   return Array.isArray(payload.accounts) ? payload.accounts : [];
 }
 
+async function fetchIntegrationStatus(accessToken: string) {
+  if (!accessToken) return [] as IntegrationStatusGroup[];
+
+  const response = await fetch("/api/admin/portal/integration-status", {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    return [] as IntegrationStatusGroup[];
+  }
+
+  const payload = (await response.json()) as { groups?: IntegrationStatusGroup[] };
+  return Array.isArray(payload.groups) ? payload.groups : [];
+}
+
 export default function AdminPortalPaymentsPage() {
   const [user, setUser] = useState<User | null>(null);
   const [accessToken, setAccessToken] = useState("");
@@ -404,6 +429,9 @@ export default function AdminPortalPaymentsPage() {
   const [loggingEntry, setLoggingEntry] = useState(false);
   const [statusText, setStatusText] = useState("");
   const [entryStatusText, setEntryStatusText] = useState("");
+  const [integrationLoading, setIntegrationLoading] = useState(false);
+  const [integrationStatusText, setIntegrationStatusText] = useState("");
+  const [integrationGroups, setIntegrationGroups] = useState<IntegrationStatusGroup[]>([]);
   const [search, setSearch] = useState("");
   const [accounts, setAccounts] = useState<BuyerAccount[]>([]);
   const [selectedKey, setSelectedKey] = useState("");
@@ -446,9 +474,13 @@ export default function AdminPortalPaymentsPage() {
         setAccessToken(token);
 
         if (currentUser && isPortalAdminEmail(currentUser.email)) {
-          const nextAccounts = await fetchPaymentAccounts(token);
+          const [nextAccounts, nextGroups] = await Promise.all([
+            fetchPaymentAccounts(token),
+            fetchIntegrationStatus(token),
+          ]);
           if (!mounted) return;
           setAccounts(nextAccounts);
+          setIntegrationGroups(nextGroups);
           setSelectedKey(nextAccounts[0]?.key || "");
         }
       } finally {
@@ -467,14 +499,19 @@ export default function AdminPortalPaymentsPage() {
       setAccessToken(token);
 
       if (currentUser && isPortalAdminEmail(currentUser.email)) {
-        const nextAccounts = await fetchPaymentAccounts(token);
+        const [nextAccounts, nextGroups] = await Promise.all([
+          fetchPaymentAccounts(token),
+          fetchIntegrationStatus(token),
+        ]);
         if (!mounted) return;
         setAccounts(nextAccounts);
+        setIntegrationGroups(nextGroups);
         setSelectedKey(
           (prev) => nextAccounts.find((account) => account.key === prev)?.key || nextAccounts[0]?.key || ""
         );
       } else {
         setAccounts([]);
+        setIntegrationGroups([]);
         setSelectedKey("");
       }
 
@@ -586,6 +623,22 @@ export default function AdminPortalPaymentsPage() {
     setSelectedKey(
       nextSelectedKey || nextAccounts.find((account) => account.key === selectedKey)?.key || nextAccounts[0]?.key || ""
     );
+  }
+
+  async function refreshIntegrationGroups() {
+    setIntegrationLoading(true);
+    setIntegrationStatusText("");
+
+    try {
+      const nextGroups = await fetchIntegrationStatus(accessToken);
+      setIntegrationGroups(nextGroups);
+      setIntegrationStatusText("Integration status refreshed.");
+    } catch (error) {
+      console.error(error);
+      setIntegrationStatusText("Could not refresh integration status.");
+    } finally {
+      setIntegrationLoading(false);
+    }
   }
 
   function setEntryModeAndReset(mode: EntryMode) {
@@ -753,6 +806,51 @@ export default function AdminPortalPaymentsPage() {
             </div>
           }
         />
+
+        <AdminPanel
+          title="Integration Status"
+          subtitle="This checks runtime configuration only. It confirms whether the payment-link, subscription, email, and reminder-cron env groups are present without exposing any secret values."
+          action={
+            <button
+              type="button"
+              onClick={() => void refreshIntegrationGroups()}
+              disabled={integrationLoading}
+              className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-text)] shadow-[0_12px_28px_rgba(106,76,45,0.08)] transition hover:border-[var(--portal-border-strong)] disabled:opacity-60"
+            >
+              {integrationLoading ? "Refreshing..." : "Refresh Status"}
+            </button>
+          }
+        >
+          {integrationStatusText ? (
+            <div className="mb-4 rounded-[18px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm font-semibold text-[var(--portal-text-soft)]">
+              {integrationStatusText}
+            </div>
+          ) : null}
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {integrationGroups.length ? (
+              integrationGroups.map((group) => (
+                <AdminInfoTile
+                  key={group.id}
+                  label={group.label}
+                  value={group.ready ? "Ready" : "Needs Setup"}
+                  detail={
+                    group.ready
+                      ? group.summary
+                      : `${group.summary} Missing: ${group.missing.join(", ")}.`
+                  }
+                />
+              ))
+            ) : (
+              <div className="md:col-span-2 xl:col-span-4">
+                <AdminEmptyState
+                  title="Integration status unavailable"
+                  description="Refresh the panel to check which payment and notice integrations are configured in the current environment."
+                />
+              </div>
+            )}
+          </div>
+        </AdminPanel>
 
         <AdminPanel
           title="Finance Bench"
