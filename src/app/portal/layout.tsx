@@ -5,6 +5,7 @@ import Link from "next/link";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
+import { Analytics } from "@vercel/analytics/next"
 import {
   BookOpen,
   ClipboardList,
