@@ -269,7 +269,7 @@ export function buildAdminLineageWorkspace(rows: LineageRows): AdminLineageWorks
     const totalCost = resolveTotalPuppyCosts(puppy, buyer);
     const estimatedProfit = resolveInternalSalePrice(puppy, buyer) - totalCost;
 
-    return {
+    const enrichedPuppy: EnrichedLineagePuppy = {
       ...puppy,
       displayName: resolvePuppyName(puppy),
       buyer,
@@ -282,11 +282,13 @@ export function buildAdminLineageWorkspace(rows: LineageRows): AdminLineageWorks
       publicPriceHidden: shouldHidePublicPuppyPrice(puppy.status),
       depositTotal: resolveDepositAmount(puppy, buyer),
       paymentTotal,
-      breederCostTotal,
-      transportCostTotal,
-      totalCost,
-      estimatedProfit,
+      breederCostTotal: Number(breederCostTotal || 0),
+      transportCostTotal: Number(transportCostTotal || 0),
+      totalCost: Number(totalCost || 0),
+      estimatedProfit: Number(estimatedProfit || 0),
     };
+
+    return enrichedPuppy;
   });
 
   const litters: EnrichedLitter[] = rows.litters

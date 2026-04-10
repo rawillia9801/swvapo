@@ -234,7 +234,7 @@ export function resolvePuppyBreederCosts(puppy: Partial<LineagePuppyRecord> | nu
     puppy.microchip_cost,
     puppy.registration_cost,
     puppy.other_vet_cost,
-  ].reduce((sum, value) => sum + toNumberOrZero(value), 0);
+  ].reduce<number>((sum, value) => sum + toNumberOrZero(value), 0);
 }
 
 export function resolveBuyerTransportCosts(buyer: Partial<LineageBuyerRecord> | null | undefined) {
@@ -245,7 +245,7 @@ export function resolveBuyerTransportCosts(buyer: Partial<LineageBuyerRecord> | 
     buyer.expense_hotel,
     buyer.expense_tolls,
     buyer.expense_misc,
-  ].reduce((sum, value) => sum + toNumberOrZero(value), 0);
+  ].reduce<number>((sum, value) => sum + toNumberOrZero(value), 0);
 }
 
 export function resolveTotalPuppyCosts(
