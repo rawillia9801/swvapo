@@ -135,6 +135,13 @@ async function getPuppy(
   return data || null;
 }
 
+function normalizeWeightRow(row: PuppyWeightRow) {
+  return {
+    ...row,
+    weight_date: row.weight_date || row.weigh_date || null,
+  };
+}
+
 export async function GET(req: Request) {
   try {
     const owner = await verifyOwner(req);
@@ -172,10 +179,9 @@ export async function GET(req: Request) {
         .limit(12),
       service
         .from("puppy_weights")
-        .select("id,puppy_id,weigh_date,weight_date,age_weeks,weight_oz,weight_g,notes,source")
+        .select("id,puppy_id,weigh_date,age_weeks,weight_oz,weight_g,notes,source")
         .eq("puppy_id", puppyId)
         .order("weigh_date", { ascending: false, nullsFirst: false })
-        .order("weight_date", { ascending: false, nullsFirst: false })
         .order("id", { ascending: false })
         .limit(20),
     ]);
@@ -189,7 +195,7 @@ export async function GET(req: Request) {
         ok: true,
         events: (eventsResult.data || []) as PuppyEventRow[],
         healthRecords: (healthResult.data || []) as PuppyHealthRow[],
-        weights: (weightsResult.data || []) as PuppyWeightRow[],
+        weights: ((weightsResult.data || []) as PuppyWeightRow[]).map(normalizeWeightRow),
         ownerEmail: owner.email || null,
       },
       { headers: NO_STORE_HEADERS }
@@ -247,14 +253,13 @@ export async function POST(req: Request) {
         .insert({
           puppy_id: puppyId,
           weigh_date: weighDate,
-          weight_date: weighDate,
           age_weeks: ageWeeks,
           weight_oz: weightOz,
           weight_g: weightG,
           notes,
           source,
         })
-        .select("id,puppy_id,weigh_date,weight_date,age_weeks,weight_oz,weight_g,notes,source")
+        .select("id,puppy_id,weigh_date,age_weeks,weight_oz,weight_g,notes,source")
         .single<PuppyWeightRow>();
 
       if (insertResult.error) throw insertResult.error;
@@ -279,7 +284,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         ok: true,
         action: "log_weight",
-        weight: insertResult.data,
+        weight: normalizeWeightRow(insertResult.data),
         puppyId,
         puppyName: firstValue(puppy.call_name, puppy.puppy_name, puppy.name, `Puppy #${puppyId}`),
         ownerEmail: owner.email || null,
