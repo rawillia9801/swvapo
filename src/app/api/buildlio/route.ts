@@ -7,8 +7,23 @@ import {
   loadChiChiMemories,
   upsertChiChiMemory,
 } from "@/lib/chichi-memory";
+import {
+  buildCapabilityProposalText,
+  executeRegisteredCapability,
+  isCapabilityAllowed,
+  type ChiChiCapabilityDefinition,
+  type ChiChiCapabilityResult,
+} from "@/lib/chichi-orchestration";
 import { buildPortalChiChiSystemPrompt } from "@/lib/chichi-portal-agent";
 import { isPortalAdminEmail } from "@/lib/portal-admin";
+import {
+  inferChiChiDocumentPackageKey,
+  listChiChiDocumentPackages,
+  lookupChiChiDocumentStatus,
+  prepareChiChiDocumentPackage,
+  syncChiChiDocumentPackage,
+  type ChiChiDocumentPackageKey,
+} from "@/lib/chichi-document-orchestration";
 import {
   createZohoPaymentLink,
   isZohoPaymentsConfigured,
@@ -601,6 +616,38 @@ type ActionIntent =
       expires_at?: string | null;
       send_email?: boolean | null;
       payment_methods?: string[] | null;
+    }
+  | {
+      action: "list_document_packages";
+      confidence?: string;
+      buyer_id?: number | null;
+      buyer_name?: string | null;
+      buyer_email?: string | null;
+      package_key?: ChiChiDocumentPackageKey | null;
+    }
+  | {
+      action: "prepare_document_package";
+      confidence?: string;
+      buyer_id?: number | null;
+      buyer_name?: string | null;
+      buyer_email?: string | null;
+      package_key?: ChiChiDocumentPackageKey | null;
+    }
+  | {
+      action: "lookup_document_status";
+      confidence?: string;
+      buyer_id?: number | null;
+      buyer_name?: string | null;
+      buyer_email?: string | null;
+      package_key?: ChiChiDocumentPackageKey | null;
+    }
+  | {
+      action: "sync_document_package";
+      confidence?: string;
+      buyer_id?: number | null;
+      buyer_name?: string | null;
+      buyer_email?: string | null;
+      package_key?: ChiChiDocumentPackageKey | null;
     };
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
@@ -1475,6 +1522,10 @@ Allowed actions:
 - "update_puppy_weight"
 - "delete_puppy_weight"
 - "create_zoho_payment_link"
+- "list_document_packages"
+- "prepare_document_package"
+- "lookup_document_status"
+- "sync_document_package"
 
 Use "answer_only" if the message is mostly a question, lookup, explanation, or lacks enough intent to act.
 Requests to show website activity, admin digests, public threads/messages, CRM leads/follow-ups, or Zoho data should usually be "list_records".
@@ -1561,6 +1612,26 @@ weight_id, puppy_name, puppy_id, weight_date, weight_oz, weight_g
 For "create_zoho_payment_link", try to extract:
 buyer_name, buyer_email, customer_email, customer_phone, amount, currency, description, charge_kind, reference_id, expires_at, send_email, payment_methods
 
+For "list_document_packages", try to extract:
+buyer_id, buyer_name, buyer_email, package_key
+
+For "prepare_document_package", try to extract:
+buyer_id, buyer_name, buyer_email, package_key
+
+For "lookup_document_status", try to extract:
+buyer_id, buyer_name, buyer_email, package_key
+
+For "sync_document_package", try to extract:
+buyer_id, buyer_name, buyer_email, package_key
+
+Valid values for package_key:
+- deposit-agreement
+- bill-of-sale
+- health-guarantee
+- hypoglycemia-awareness
+- payment-plan-agreement
+- pickup-delivery-confirmation
+
 Use null for missing fields.
 Use arrays when the user clearly listed multiple buyers or puppies to delete.
 Use ISO date format YYYY-MM-DD when possible.
@@ -1579,6 +1650,35 @@ function parseMultiNameList(raw: string): string[] {
     .split(/\band\b|,|&/i)
     .map((value) => value.replace(/\bpupp(y|ies)\b/gi, "").trim())
     .filter(Boolean);
+}
+
+function extractBuyerReferenceFromMessage(text: string) {
+  const buyerIdMatch = text.match(/\bbuyer(?:\s+id)?[:\s#-]*(\d+)\b/i);
+  const emailMatch = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  const scrubbed = text.replace(
+    /\bbill of sale\b|\bhealth guarantee\b|\bdeposit agreement\b|\bhypoglycemia(?: awareness)?\b|\bpayment plan(?: agreement)?\b|\bpickup(?:\s*\/\s*delivery)? confirmation\b|\bdelivery confirmation\b|\btransportation confirmation\b/gi,
+    "document package"
+  );
+
+  const namePatterns = [
+    /\bfor\s+([a-z][a-z .'-]{2,80}?)(?=\s*(?:$|please|now|today|document|portal|account|buyer\b))/i,
+    /\bbuyer\s+([a-z][a-z .'-]{2,80}?)(?=\s*(?:$|please|now|today|document|portal|account))/i,
+  ];
+
+  let buyerName: string | null = null;
+  for (const pattern of namePatterns) {
+    const match = scrubbed.match(pattern)?.[1]?.trim();
+    if (match) {
+      buyerName = match.replace(/[,.]+$/g, "").trim();
+      break;
+    }
+  }
+
+  return {
+    buyer_id: buyerIdMatch?.[1] ? Number(buyerIdMatch[1]) : null,
+    buyer_email: emailMatch?.[0]?.toLowerCase() || null,
+    buyer_name: buyerName,
+  };
 }
 
 const MONTH_NAME_TO_NUMBER: Record<string, number> = {
@@ -2135,6 +2235,64 @@ function parseDirectActionIntent(userMessage: string): ActionIntent | null {
       expires_at: expiresAt,
       send_email: /\b(send|email|notify)\b/i.test(text) || !!emailMatch?.[0],
       payment_methods: paymentMethods.length ? paymentMethods : null,
+    };
+  }
+
+  const packageKey = inferChiChiDocumentPackageKey(text);
+  const buyerRef = extractBuyerReferenceFromMessage(text);
+
+  if (
+    /\b(?:document packages?|document packet|buyer packet|document workflow|document status board)\b/i.test(
+      text
+    ) &&
+    !/\bprepare\b|\blaunch\b|\bopen\b|\bstart\b|\bsync\b|\bstatus\b|\btrack\b|\bwhere\b/i.test(text)
+  ) {
+    return {
+      action: "list_document_packages",
+      buyer_id: buyerRef.buyer_id,
+      buyer_name: buyerRef.buyer_name,
+      buyer_email: buyerRef.buyer_email,
+      package_key: packageKey,
+    };
+  }
+
+  if (
+    /\b(?:prepare|launch|open|start|orchestrate|prefill)\b/i.test(text) &&
+    (packageKey || /\bdocument package\b|\bdocument packet\b|\bbuyer packet\b/i.test(text))
+  ) {
+    return {
+      action: "prepare_document_package",
+      buyer_id: buyerRef.buyer_id,
+      buyer_name: buyerRef.buyer_name,
+      buyer_email: buyerRef.buyer_email,
+      package_key: packageKey,
+    };
+  }
+
+  if (
+    /\b(?:status|track|where(?:'s| is)|check)\b/i.test(text) &&
+    (packageKey || /\bdocument package\b|\bdocument packet\b|\bbuyer packet\b/i.test(text))
+  ) {
+    return {
+      action: "lookup_document_status",
+      buyer_id: buyerRef.buyer_id,
+      buyer_name: buyerRef.buyer_name,
+      buyer_email: buyerRef.buyer_email,
+      package_key: packageKey,
+    };
+  }
+
+  if (
+    /\b(?:sync|refresh|mirror|pull back|pull|file)\b/i.test(text) &&
+    (packageKey ||
+      /\bsigned copy\b|\bdocument package\b|\bdocument packet\b|\bbuyer packet\b/i.test(text))
+  ) {
+    return {
+      action: "sync_document_package",
+      buyer_id: buyerRef.buyer_id,
+      buyer_name: buyerRef.buyer_name,
+      buyer_email: buyerRef.buyer_email,
+      package_key: packageKey,
     };
   }
 
@@ -2801,6 +2959,15 @@ function missingFieldsForAction(intent: ActionIntent): string[] {
       missing.push("description");
     }
     return missing;
+  }
+
+  if (
+    intent.action === "list_document_packages" ||
+    intent.action === "prepare_document_package" ||
+    intent.action === "lookup_document_status" ||
+    intent.action === "sync_document_package"
+  ) {
+    return [];
   }
 
   return [];
@@ -3856,7 +4023,7 @@ async function executeListRecords(
         .limit(limit || 250),
       admin
         .from("portal_documents")
-        .select("id,title,category,status,email,created_at,file_name")
+        .select("id,title,category,status,user_id,buyer_id,created_at,file_name")
         .order("created_at", { ascending: false })
         .limit(limit || 250),
     ]);
@@ -3874,7 +4041,7 @@ async function executeListRecords(
       })),
       ...(docRes.data || []).map((row) => ({
         title: row.title || row.file_name || `Document ${row.id}`,
-        email: row.email || null,
+        email: row.user_id ? `user ${row.user_id}` : row.buyer_id ? `buyer ${row.buyer_id}` : null,
         status: row.status || row.category || "document",
         kind: "document",
         created_at: row.created_at || null,
@@ -5780,6 +5947,313 @@ function mergeConversationHistory(...sources: ChatMessage[][]): ChatMessage[] {
   return merged.slice(-40);
 }
 
+type ChiChiActionCapability = ChiChiCapabilityDefinition<ActionIntent>;
+
+function describeIntentMatches(intent: ActionIntent) {
+  const matches: string[] = [];
+
+  if ("buyer_id" in intent && intent.buyer_id) {
+    matches.push(`Buyer id: ${intent.buyer_id}`);
+  }
+  if ("buyer_name" in intent && intent.buyer_name) {
+    matches.push(`Buyer: ${intent.buyer_name}`);
+  }
+  if ("buyer_email" in intent && intent.buyer_email) {
+    matches.push(`Buyer email: ${intent.buyer_email}`);
+  }
+  if ("puppy_id" in intent && intent.puppy_id) {
+    matches.push(`Puppy id: ${intent.puppy_id}`);
+  }
+  if ("puppy_name" in intent && intent.puppy_name) {
+    matches.push(`Puppy: ${intent.puppy_name}`);
+  }
+  if ("payment_id" in intent && intent.payment_id) {
+    matches.push(`Payment id: ${intent.payment_id}`);
+  }
+  if ("reference_number" in intent && intent.reference_number) {
+    matches.push(`Reference: ${intent.reference_number}`);
+  }
+  if ("package_key" in intent && intent.package_key) {
+    matches.push(`Package: ${intent.package_key}`);
+  }
+
+  return matches;
+}
+
+function buildChiChiCapabilityRegistry(): Partial<
+  Record<ActionIntent["action"], ChiChiActionCapability>
+> {
+  return {
+    list_records: {
+      action: "list_records",
+      label: "list records",
+      description: "Load live admin records and summaries.",
+      kind: "read",
+      permission: "admin",
+      getMissingFields: (intent) => missingFieldsForAction(intent),
+      execute: async ({ admin }, intent) =>
+        executeListRecords(admin, intent as Extract<ActionIntent, { action: "list_records" }>),
+    },
+    add_litters: {
+      action: "add_litters",
+      label: "add planned litters",
+      description: "Create planned litter records from breeding dogs.",
+      kind: "workflow",
+      permission: "admin",
+      getMissingFields: (intent) => missingFieldsForAction(intent),
+      execute: async ({ admin }, intent) =>
+        executeAddLitters(admin, intent as Extract<ActionIntent, { action: "add_litters" }>),
+    },
+    add_buyer: {
+      action: "add_buyer",
+      label: "add a buyer",
+      description: "Create a buyer record.",
+      kind: "write",
+      permission: "admin",
+      getMissingFields: (intent) => missingFieldsForAction(intent),
+      execute: async ({ admin }, intent) =>
+        executeAddBuyer(admin, intent as Extract<ActionIntent, { action: "add_buyer" }>),
+    },
+    update_buyer: {
+      action: "update_buyer",
+      label: "update a buyer",
+      description: "Update an existing buyer record.",
+      kind: "write",
+      permission: "admin",
+      getMissingFields: (intent) => missingFieldsForAction(intent),
+      execute: async ({ admin }, intent) =>
+        executeUpdateBuyer(admin, intent as Extract<ActionIntent, { action: "update_buyer" }>),
+    },
+    delete_buyer: {
+      action: "delete_buyer",
+      label: "delete a buyer",
+      description: "Delete one or more buyer records.",
+      kind: "write",
+      permission: "admin",
+      getMissingFields: (intent) => missingFieldsForAction(intent),
+      execute: async ({ admin }, intent) =>
+        executeDeleteBuyer(admin, intent as Extract<ActionIntent, { action: "delete_buyer" }>),
+    },
+    add_puppy: {
+      action: "add_puppy",
+      label: "add a puppy",
+      description: "Create a puppy record.",
+      kind: "write",
+      permission: "admin",
+      getMissingFields: (intent) => missingFieldsForAction(intent),
+      execute: async ({ admin }, intent) =>
+        executeAddPuppy(admin, intent as Extract<ActionIntent, { action: "add_puppy" }>),
+    },
+    update_puppy: {
+      action: "update_puppy",
+      label: "update a puppy",
+      description: "Update an existing puppy record.",
+      kind: "write",
+      permission: "admin",
+      getMissingFields: (intent) => missingFieldsForAction(intent),
+      execute: async ({ admin }, intent) =>
+        executeUpdatePuppy(admin, intent as Extract<ActionIntent, { action: "update_puppy" }>),
+    },
+    delete_puppy: {
+      action: "delete_puppy",
+      label: "delete a puppy",
+      description: "Delete one or more puppy records.",
+      kind: "write",
+      permission: "admin",
+      getMissingFields: (intent) => missingFieldsForAction(intent),
+      execute: async ({ admin }, intent) =>
+        executeDeletePuppy(admin, intent as Extract<ActionIntent, { action: "delete_puppy" }>),
+    },
+    add_puppy_event: {
+      action: "add_puppy_event",
+      label: "add a puppy event",
+      description: "Create a buyer-visible puppy event.",
+      kind: "write",
+      permission: "admin",
+      getMissingFields: (intent) => missingFieldsForAction(intent),
+      execute: async ({ admin }, intent) =>
+        executeAddPuppyEvent(admin, intent as Extract<ActionIntent, { action: "add_puppy_event" }>),
+    },
+    update_puppy_event: {
+      action: "update_puppy_event",
+      label: "update a puppy event",
+      description: "Update a puppy event.",
+      kind: "write",
+      permission: "admin",
+      getMissingFields: (intent) => missingFieldsForAction(intent),
+      execute: async ({ admin }, intent) =>
+        executeUpdatePuppyEvent(admin, intent as Extract<ActionIntent, { action: "update_puppy_event" }>),
+    },
+    delete_puppy_event: {
+      action: "delete_puppy_event",
+      label: "delete a puppy event",
+      description: "Delete a puppy event.",
+      kind: "write",
+      permission: "admin",
+      getMissingFields: (intent) => missingFieldsForAction(intent),
+      execute: async ({ admin }, intent) =>
+        executeDeletePuppyEvent(admin, intent as Extract<ActionIntent, { action: "delete_puppy_event" }>),
+    },
+    log_payment: {
+      action: "log_payment",
+      label: "log a payment",
+      description: "Create a buyer payment record.",
+      kind: "write",
+      permission: "admin",
+      getMissingFields: (intent) => missingFieldsForAction(intent),
+      execute: async ({ admin }, intent) =>
+        executeLogPayment(admin, intent as Extract<ActionIntent, { action: "log_payment" }>),
+    },
+    update_payment: {
+      action: "update_payment",
+      label: "update a payment",
+      description: "Update a payment record.",
+      kind: "write",
+      permission: "admin",
+      getMissingFields: (intent) => missingFieldsForAction(intent),
+      execute: async ({ admin }, intent) =>
+        executeUpdatePayment(admin, intent as Extract<ActionIntent, { action: "update_payment" }>),
+    },
+    delete_payment: {
+      action: "delete_payment",
+      label: "delete a payment",
+      description: "Delete a payment record.",
+      kind: "write",
+      permission: "admin",
+      getMissingFields: (intent) => missingFieldsForAction(intent),
+      execute: async ({ admin }, intent) =>
+        executeDeletePayment(admin, intent as Extract<ActionIntent, { action: "delete_payment" }>),
+    },
+    add_puppy_weight: {
+      action: "add_puppy_weight",
+      label: "add a puppy weight",
+      description: "Create a puppy weight record.",
+      kind: "write",
+      permission: "admin",
+      getMissingFields: (intent) => missingFieldsForAction(intent),
+      execute: async ({ admin }, intent) =>
+        executeAddPuppyWeight(admin, intent as Extract<ActionIntent, { action: "add_puppy_weight" }>),
+    },
+    update_puppy_weight: {
+      action: "update_puppy_weight",
+      label: "update a puppy weight",
+      description: "Update a puppy weight record.",
+      kind: "write",
+      permission: "admin",
+      getMissingFields: (intent) => missingFieldsForAction(intent),
+      execute: async ({ admin }, intent) =>
+        executeUpdatePuppyWeight(admin, intent as Extract<ActionIntent, { action: "update_puppy_weight" }>),
+    },
+    delete_puppy_weight: {
+      action: "delete_puppy_weight",
+      label: "delete a puppy weight",
+      description: "Delete a puppy weight record.",
+      kind: "write",
+      permission: "admin",
+      getMissingFields: (intent) => missingFieldsForAction(intent),
+      execute: async ({ admin }, intent) =>
+        executeDeletePuppyWeight(admin, intent as Extract<ActionIntent, { action: "delete_puppy_weight" }>),
+    },
+    create_zoho_payment_link: {
+      action: "create_zoho_payment_link",
+      label: "create a Zoho payment link",
+      description: "Create a Zoho-hosted payment link.",
+      kind: "workflow",
+      permission: "admin",
+      getMissingFields: (intent) => missingFieldsForAction(intent),
+      execute: async ({ req, admin }, intent) =>
+        executeCreateZohoPaymentLink(
+          req,
+          admin,
+          intent as Extract<ActionIntent, { action: "create_zoho_payment_link" }>
+        ),
+    },
+    list_document_packages: {
+      action: "list_document_packages",
+      label: "list ChiChi document packages",
+      description: "Inspect buyer-facing document package readiness and status.",
+      kind: "read",
+      permission: "portal_or_admin",
+      execute: async ({ admin, user, canWriteCore }, intent) =>
+        listChiChiDocumentPackages(admin, {
+          user,
+          canManageAnyBuyer: canWriteCore,
+          buyerId: (intent as Extract<ActionIntent, { action: "list_document_packages" }>).buyer_id ?? null,
+          buyerName:
+            (intent as Extract<ActionIntent, { action: "list_document_packages" }>).buyer_name ?? null,
+          buyerEmail:
+            (intent as Extract<ActionIntent, { action: "list_document_packages" }>).buyer_email ?? null,
+        }),
+    },
+    prepare_document_package: {
+      action: "prepare_document_package",
+      label: "prepare a document package",
+      description: "Compile a buyer document workflow and launch path.",
+      kind: "workflow",
+      permission: "portal_or_admin",
+      execute: async ({ req, admin, user, canWriteCore, lastUserMessage }, intent) =>
+        prepareChiChiDocumentPackage(admin, {
+          user,
+          canManageAnyBuyer: canWriteCore,
+          buyerId:
+            (intent as Extract<ActionIntent, { action: "prepare_document_package" }>).buyer_id ?? null,
+          buyerName:
+            (intent as Extract<ActionIntent, { action: "prepare_document_package" }>).buyer_name ?? null,
+          buyerEmail:
+            (intent as Extract<ActionIntent, { action: "prepare_document_package" }>).buyer_email ?? null,
+          packageKey:
+            (intent as Extract<ActionIntent, { action: "prepare_document_package" }>).package_key ?? null,
+          rawMessage: lastUserMessage,
+          origin: new URL(req.url).origin,
+        }),
+    },
+    lookup_document_status: {
+      action: "lookup_document_status",
+      label: "look up document status",
+      description: "Inspect the current state of a document package.",
+      kind: "read",
+      permission: "portal_or_admin",
+      execute: async ({ req, admin, user, canWriteCore, lastUserMessage }, intent) =>
+        lookupChiChiDocumentStatus(admin, {
+          user,
+          canManageAnyBuyer: canWriteCore,
+          buyerId:
+            (intent as Extract<ActionIntent, { action: "lookup_document_status" }>).buyer_id ?? null,
+          buyerName:
+            (intent as Extract<ActionIntent, { action: "lookup_document_status" }>).buyer_name ?? null,
+          buyerEmail:
+            (intent as Extract<ActionIntent, { action: "lookup_document_status" }>).buyer_email ?? null,
+          packageKey:
+            (intent as Extract<ActionIntent, { action: "lookup_document_status" }>).package_key ?? null,
+          rawMessage: lastUserMessage,
+          origin: new URL(req.url).origin,
+        }),
+    },
+    sync_document_package: {
+      action: "sync_document_package",
+      label: "sync a document package",
+      description: "Check the signed-copy sync state for a document package.",
+      kind: "workflow",
+      permission: "portal_or_admin",
+      execute: async ({ req, admin, user, canWriteCore, lastUserMessage }, intent) =>
+        syncChiChiDocumentPackage(admin, {
+          user,
+          canManageAnyBuyer: canWriteCore,
+          buyerId:
+            (intent as Extract<ActionIntent, { action: "sync_document_package" }>).buyer_id ?? null,
+          buyerName:
+            (intent as Extract<ActionIntent, { action: "sync_document_package" }>).buyer_name ?? null,
+          buyerEmail:
+            (intent as Extract<ActionIntent, { action: "sync_document_package" }>).buyer_email ?? null,
+          packageKey:
+            (intent as Extract<ActionIntent, { action: "sync_document_package" }>).package_key ?? null,
+          rawMessage: lastUserMessage,
+          origin: new URL(req.url).origin,
+        }),
+    },
+  };
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as RequestBody;
@@ -5863,6 +6337,13 @@ export async function POST(req: Request) {
               "zoho_payments",
             ],
             zoho_payments_configured: await isZohoPaymentsConfigured(),
+            orchestration_workflows: [
+              "list_document_packages",
+              "prepare_document_package",
+              "lookup_document_status",
+              "sync_document_package",
+              "create_zoho_payment_link",
+            ],
           },
         }
       : {
@@ -5888,9 +6369,11 @@ export async function POST(req: Request) {
       .slice(-6)
       .map((message) => message.content);
     const portalPaymentRequest = !canWriteCore ? extractPortalPaymentRequest(lastUserMessage) : null;
+    const capabilityRegistry = buildChiChiCapabilityRegistry();
 
     let text = "";
     let intent: ActionIntent = { action: "answer_only" };
+    let capabilityProposal: ChiChiCapabilityResult["proposal"] | null = null;
 
     if (memoryCommand) {
       if (memoryCommand.action === "list") {
@@ -5948,53 +6431,47 @@ export async function POST(req: Request) {
     }
 
     if (!text && intent.action !== "answer_only") {
-      if (!canWriteCore) {
-        text =
-          "You’re signed in, but Core write actions are limited to authorized admin accounts. I can still answer questions about the account and portal.";
-      } else {
-        const missing = missingFieldsForAction(intent);
-        if (missing.length) {
-          text = `I can do that, but I still need: ${missing.join(", ")}.`;
-        } else if (intent.action === "list_records") {
-          text = await executeListRecords(admin, intent);
-        } else if (intent.action === "add_litters") {
-          text = await executeAddLitters(admin, intent);
-        } else if (intent.action === "add_buyer") {
-          text = await executeAddBuyer(admin, intent);
-        } else if (intent.action === "update_buyer") {
-          text = await executeUpdateBuyer(admin, intent);
-        } else if (intent.action === "delete_buyer") {
-          text = await executeDeleteBuyer(admin, intent);
-        } else if (intent.action === "add_puppy") {
-          text = await executeAddPuppy(admin, intent);
-        } else if (intent.action === "update_puppy") {
-          text = await executeUpdatePuppy(admin, intent);
-        } else if (intent.action === "delete_puppy") {
-          text = await executeDeletePuppy(admin, intent);
-        } else if (intent.action === "add_puppy_event") {
-          text = await executeAddPuppyEvent(admin, intent);
-        } else if (intent.action === "update_puppy_event") {
-          text = await executeUpdatePuppyEvent(admin, intent);
-        } else if (intent.action === "delete_puppy_event") {
-          text = await executeDeletePuppyEvent(admin, intent);
-        } else if (intent.action === "log_payment") {
-          text = await executeLogPayment(admin, intent);
-        } else if (intent.action === "update_payment") {
-          text = await executeUpdatePayment(admin, intent);
-        } else if (intent.action === "delete_payment") {
-          text = await executeDeletePayment(admin, intent);
-        } else if (intent.action === "add_puppy_weight") {
-          text = await executeAddPuppyWeight(admin, intent);
-        } else if (intent.action === "update_puppy_weight") {
-          text = await executeUpdatePuppyWeight(admin, intent);
-        } else if (intent.action === "delete_puppy_weight") {
-          text = await executeDeletePuppyWeight(admin, intent);
-        } else if (intent.action === "create_zoho_payment_link") {
-          text = await executeCreateZohoPaymentLink(req, admin, intent);
+      const capability = capabilityRegistry[intent.action];
+
+      if (capability) {
+        if (!isCapabilityAllowed(capability, canWriteCore)) {
+          text =
+            "I can inspect your account and orchestrate document workflows from here, but that specific write action still needs an authorized admin account.";
+        } else {
+          const missing = capability.getMissingFields?.(intent) || [];
+          if (missing.length) {
+            text = buildCapabilityProposalText({
+              capabilityLabel: capability.label,
+              missing,
+              matched: describeIntentMatches(intent),
+              nextAction: "Give me the missing detail and I can keep the workflow moving.",
+            });
+          } else {
+            const execution = await executeRegisteredCapability(
+              capabilityRegistry as Record<string, ChiChiCapabilityDefinition<ActionIntent>>,
+              {
+                req,
+                admin,
+                user,
+                canWriteCore,
+                lastUserMessage,
+                recentUserMessages,
+                buyer,
+                puppy,
+                summary,
+                intent,
+              },
+              intent
+            );
+
+            if (execution) {
+              text = execution.result.text;
+              capabilityProposal = execution.result.proposal || null;
+            }
+          }
         }
       }
     }
-
     if (!text) {
       const system = buildSystemPrompt(summary, {
         isAdmin: canWriteCore,
@@ -6085,6 +6562,7 @@ export async function POST(req: Request) {
       assistant: "ChiChi",
       threadId: savedThreadId,
       adminAuth,
+      proposal: capabilityProposal,
       context: {
         buyerName: buyer?.full_name || buyer?.name || null,
         puppyName: coalesceName(buyer, puppy),

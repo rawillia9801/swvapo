@@ -472,7 +472,7 @@ export default function PortalPage() {
   const chapter = useMemo<ChapterSummary>(() => {
     if (!applicationComplete) {
       return {
-        eyebrow: "Begin the journey",
+        eyebrow: "Welcome in",
         title: "Your first step is getting your buyer file on record.",
         description:
           "Complete your application so Southwest Virginia Chihuahua can review your family, preferences, and placement needs.",
@@ -482,7 +482,7 @@ export default function PortalPage() {
 
     if (!puppyLinked) {
       return {
-        eyebrow: "Awaiting your puppy match",
+        eyebrow: "Waiting for your puppy match",
         title: "Your buyer file is open and ready for the next chapter.",
         description:
           "As soon as your puppy is linked to this portal, your profile, updates, and go-home planning will begin to fill in around it.",
@@ -492,7 +492,7 @@ export default function PortalPage() {
 
     if (!documentsComplete) {
       return {
-        eyebrow: "Paperwork chapter",
+        eyebrow: "Keeping the details in place",
         title: "Your documents are the clearest next step right now.",
         description:
           "Contracts, records, and portal paperwork are where your journey is currently centered. Keeping those reviewed makes the rest of the process smoother.",
@@ -502,7 +502,7 @@ export default function PortalPage() {
 
     if (!paymentsComplete) {
       return {
-        eyebrow: "Account clarity",
+        eyebrow: "Balancing the account",
         title: "Your payment journey is the active chapter right now.",
         description:
           "You can review posted payments, financing progress, and any remaining balance in one calm place before homecoming planning picks up.",
@@ -512,7 +512,7 @@ export default function PortalPage() {
 
     if (!transportationSet) {
       return {
-        eyebrow: "Planning the handoff",
+        eyebrow: "Preparing the handoff",
         title: "Transportation is the next piece to confirm.",
         description:
           "Pickup or delivery details keep the portal aligned with where, when, and how your puppy will come home.",
@@ -521,7 +521,7 @@ export default function PortalPage() {
     }
 
     return {
-      eyebrow: "Homecoming preparation",
+      eyebrow: "Nearly home",
       title: "You are moving through the final stretch of the journey.",
       description:
         "This is the point where updates, records, transportation, and support all come together around your puppy's transition home.",
@@ -782,6 +782,79 @@ export default function PortalPage() {
     state.puppyName,
   ]);
 
+  const breederNote = useMemo(() => {
+    if (latestAdminMessage) {
+      return {
+        eyebrow: "A note from Southwest Virginia Chihuahua",
+        title:
+          readFirstText(latestAdminMessage, ["subject", "title"]) ||
+          "You have a recent breeder message",
+        detail:
+          previewText(readFirstText(latestAdminMessage, ["message", "body", "content"]), 220) ||
+          "Open Messages to read the latest note from the breeder.",
+        href: "/portal/messages",
+        action: "Read the full message",
+      };
+    }
+
+    if (latestEvent) {
+      return {
+        eyebrow: "Latest pupdate",
+        title: latestEvent.title || latestEvent.label || "A new update has been posted",
+        detail:
+          previewText(latestEvent.summary || latestEvent.details, 220) ||
+          "A new puppy update is waiting in your portal.",
+        href: "/portal/updates",
+        action: "Open puppy updates",
+      };
+    }
+
+    if (latestHealth) {
+      return {
+        eyebrow: "Wellness update",
+        title: latestHealth.title || formatStatusLabel(latestHealth.record_type),
+        detail:
+          previewText(latestHealth.description, 220) ||
+          "A wellness record has been posted for your puppy.",
+        href: "/portal/resources",
+        action: "View wellness records",
+      };
+    }
+
+    return {
+      eyebrow: "Support is here",
+      title: "This portal stays close to your journey from first step to homecoming.",
+      detail:
+        "As messages, updates, records, and planning details are shared, they will gather here in one calm, trustworthy place for your family.",
+      href: "/portal/messages",
+      action: "Open support",
+    };
+  }, [latestAdminMessage, latestEvent, latestHealth]);
+
+  const homecomingText = useMemo(() => {
+    if (homecomingComplete) {
+      return "Your go-home details are in motion, and this portal remains your support space even after your puppy is home.";
+    }
+
+    if (transportationSet) {
+      return `Transportation is already on file for ${latestDateText(
+        state.pickupRequest?.request_date,
+        "your requested date"
+      )}, so the focus now is staying connected and prepared.`;
+    }
+
+    if (paymentsComplete) {
+      return "Your account looks ready to shift into pickup or delivery planning, which is usually the clearest next move toward homecoming.";
+    }
+
+    return "Each step you complete here moves your family closer to go-home day, while keeping the breeder relationship clear and organized.";
+  }, [
+    homecomingComplete,
+    paymentsComplete,
+    state.pickupRequest?.request_date,
+    transportationSet,
+  ]);
+
   const puppyStoryText = useMemo(() => {
     if (latestEvent) {
       return (
@@ -951,289 +1024,230 @@ export default function PortalPage() {
 
   return (
     <div className="space-y-5 pb-8">
-      <section className="relative overflow-hidden rounded-[2.4rem] border border-[rgba(190,164,132,0.28)] bg-[linear-gradient(135deg,rgba(255,251,245,0.98)_0%,rgba(248,238,225,0.96)_42%,rgba(247,249,252,0.98)_100%)] shadow-[0_28px_72px_rgba(88,67,44,0.10)]">
+      <section className="relative overflow-hidden rounded-[2.8rem] border border-[rgba(190,164,132,0.28)] bg-[linear-gradient(140deg,rgba(255,250,244,0.98)_0%,rgba(248,235,217,0.97)_38%,rgba(244,247,252,0.98)_100%)] shadow-[0_32px_86px_rgba(88,67,44,0.12)]">
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -left-10 top-0 h-56 w-56 rounded-full bg-[rgba(214,179,141,0.22)] blur-3xl" />
-          <div className="absolute right-0 top-0 h-60 w-60 rounded-full bg-[rgba(182,201,228,0.18)] blur-3xl" />
-          <div className="absolute bottom-0 left-1/3 h-40 w-40 rounded-full bg-[rgba(233,214,189,0.24)] blur-3xl" />
+          <div className="absolute -left-16 top-0 h-72 w-72 rounded-full bg-[rgba(214,179,141,0.24)] blur-3xl" />
+          <div className="absolute right-0 top-0 h-72 w-72 rounded-full bg-[rgba(177,196,226,0.20)] blur-3xl" />
+          <div className="absolute bottom-0 left-1/3 h-48 w-48 rounded-full bg-[rgba(230,208,182,0.24)] blur-3xl" />
+          <div className="absolute inset-x-0 bottom-0 h-24 bg-[linear-gradient(180deg,rgba(255,255,255,0)_0%,rgba(255,255,255,0.28)_100%)]" />
         </div>
 
-        <div className="relative grid gap-8 px-6 py-7 md:px-8 md:py-8 xl:grid-cols-[minmax(0,1.05fr)_400px] xl:items-center">
-          <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(186,154,116,0.22)] bg-white/82 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)] shadow-sm backdrop-blur">
-              <Sparkles className="h-4 w-4 text-[#b67744]" />
-              Southwest Virginia Chihuahua portal
-            </div>
-
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              <HeroBadge label={buyerStatusText} tone={buyerStatusTone} />
-              <HeroBadge label={`${journeyProgress}% through your journey`} tone="neutral" />
-              <HeroBadge label={currentStage.label} tone="warm" />
-            </div>
-
-            <h1 className="mt-5 text-[2.6rem] font-extrabold tracking-[-0.06em] text-[var(--portal-accent)] md:text-[3.25rem]">
-              Welcome back, {state.displayName}
-            </h1>
-
-            <p className="mt-4 max-w-2xl text-[1.02rem] leading-8 text-[var(--portal-text-soft)]">
-              This is your guided home base for everything connected to {state.puppyName}. You can see where your family is in the process, what needs attention next, and how your puppy&apos;s story is unfolding along the way.
-            </p>
-
-            <div className="mt-7 flex flex-wrap gap-3">
-              {heroPrimaryAction ? (
-                <PrimaryJourneyLink href={heroPrimaryAction.href}>
-                  {heroPrimaryAction.action}
-                </PrimaryJourneyLink>
-              ) : null}
-              <SecondaryJourneyLink href="/portal/mypuppy">
-                Visit puppy profile
-              </SecondaryJourneyLink>
-              <SecondaryJourneyLink href="/portal/messages">
-                Open messages
-              </SecondaryJourneyLink>
-            </div>
-
-            <div className="mt-7 grid gap-3 md:grid-cols-3">
-              <HeroStat
-                label="Current chapter"
-                value={currentStage.label}
-                detail={chapter.eyebrow}
-                icon={<HeartHandshake className="h-4 w-4" />}
-              />
-              <HeroStat
-                label={nextImportantDate.label}
-                value={nextImportantDate.value}
-                detail="The next dated milestone on your account"
-                icon={<CalendarDays className="h-4 w-4" />}
-              />
-              <HeroStat
-                label="Breeder messages"
-                value={unreadMessages ? `${unreadMessages} unread` : "All caught up"}
-                detail={unreadMessages ? "A response is waiting for you" : "No unread replies right now"}
-                icon={<Mail className="h-4 w-4" />}
-              />
-            </div>
-          </div>
-
-          <div className="mx-auto w-full max-w-[400px] xl:mx-0 xl:justify-self-end">
-            <div className="overflow-hidden rounded-[2rem] border border-white/70 bg-white/92 shadow-[0_24px_60px_rgba(88,67,44,0.16)]">
-              <div className="relative aspect-[4/5] overflow-hidden">
-                <Image
-                  src={state.puppyImage}
-                  alt={state.puppyName}
-                  fill
-                  unoptimized
-                  className="object-cover"
-                />
-                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(40,30,22,0.06)_0%,rgba(40,30,22,0.74)_100%)]" />
-
-                <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border border-white/24 bg-white/14 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-white backdrop-blur-md">
-                  <PawPrint className="h-4 w-4" />
-                  {state.puppy ? "Your puppy profile" : "Your future puppy space"}
-                </div>
-
-                <div className="absolute inset-x-4 bottom-4 rounded-[1.5rem] border border-white/18 bg-white/14 p-4 text-white backdrop-blur-md">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/78">
-                    {currentStage.label}
-                  </div>
-                  <div className="mt-2 text-[1.9rem] font-semibold tracking-[-0.04em]">
-                    {state.puppyName}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-white/84">
-                    {state.puppy
-                      ? "Photos, milestones, wellness notes, and account details stay centered here for your family."
-                      : "Once your puppy is officially linked, this space becomes your family's profile hub."}
-                  </div>
-
-                  <div className="mt-4 grid grid-cols-2 gap-2">
-                    <HeroGlassMetric
-                      label="Documents"
-                      value={
-                        state.documents.length
-                          ? `${state.documents.length} on file`
-                          : "Waiting to post"
-                      }
-                    />
-                    <HeroGlassMetric
-                      label="Transportation"
-                      value={transportationSet ? "Planned" : "Not scheduled"}
-                    />
-                  </div>
-                </div>
+        <div className="relative px-6 py-7 md:px-10 md:py-10 xl:px-12 xl:py-12">
+          <div className="grid gap-8 xl:grid-cols-[minmax(0,1.04fr)_440px] xl:items-end">
+            <div className="max-w-3xl">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(186,154,116,0.22)] bg-white/82 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)] shadow-sm backdrop-blur">
+                <Sparkles className="h-4 w-4 text-[#b67744]" />
+                Southwest Virginia Chihuahua homecoming journey
               </div>
-            </div>
-          </div>
-        </div>
-      </section>
 
-      <section className={`${surfaceClass} overflow-hidden p-5 md:p-6`}>
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
-              Journey tracker
-            </div>
-            <h2 className="mt-2 text-[1.9rem] font-bold tracking-[-0.05em] text-[var(--portal-accent)]">
-              Follow your Southwest Virginia Chihuahua journey
-            </h2>
-            <p className="mt-2 max-w-3xl text-sm leading-7 text-[var(--portal-text-soft)]">
-              Each step below reflects the real records already tied to your portal account, so you can see what is complete, what is active, and what comes next.
-            </p>
-          </div>
-
-          <div className="rounded-full border border-[rgba(188,162,133,0.24)] bg-[rgba(249,244,237,0.9)] px-4 py-2 text-sm font-semibold text-[var(--portal-text)]">
-            {journeyProgress}% complete
-          </div>
-        </div>
-
-        <div className="mt-5 overflow-x-auto pb-1">
-          <div className="flex min-w-max gap-3">
-            {journeyStages.map((stage, index) => (
-              <JourneyStageCard
-                key={stage.key}
-                index={index + 1}
-                label={stage.label}
-                detail={stage.detail}
-                href={stage.href}
-                tone={stage.tone}
-              />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1.12fr)_380px]">
-        <div className={`${surfaceClass} p-6 md:p-7`}>
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
-                {chapter.eyebrow}
+              <div className="mt-5 flex flex-wrap items-center gap-2">
+                <HeroBadge label={buyerStatusText} tone={buyerStatusTone} />
+                <HeroBadge label={currentStage.label} tone="warm" />
+                <HeroBadge label={`${journeyProgress}% toward homecoming`} tone="neutral" />
               </div>
-              <h2 className="mt-2 text-[2rem] font-bold tracking-[-0.05em] text-[var(--portal-accent)]">
-                {chapter.title}
-              </h2>
-              <p className="mt-3 max-w-2xl text-sm leading-8 text-[var(--portal-text-soft)]">
-                {chapter.description}
+
+              <h1 className="mt-6 max-w-3xl text-[2.85rem] font-extrabold tracking-[-0.07em] text-[var(--portal-accent)] md:text-[3.6rem]">
+                Your journey with {state.puppyName}
+              </h1>
+
+              <p className="mt-4 max-w-2xl text-[1.04rem] leading-8 text-[var(--portal-text-soft)]">
+                This portal is designed to feel less like an account dashboard and more like the place your family returns to while preparing to bring a puppy home. It keeps your next step, your puppy&apos;s story, and the breeder relationship all in one warm, trustworthy space.
               </p>
 
-              <div className="mt-5 rounded-[1.5rem] border border-[rgba(188,162,133,0.18)] bg-[linear-gradient(135deg,rgba(252,247,241,0.96)_0%,rgba(246,248,252,0.92)_100%)] p-5">
-                <div className="flex items-start gap-3">
-                  <span className="mt-0.5 inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-[rgba(214,179,141,0.22)] text-[#b67744]">
-                    <ShieldCheck className="h-4 w-4" />
-                  </span>
+              <div className="mt-6 rounded-[1.8rem] border border-[rgba(188,162,133,0.18)] bg-white/74 p-5 shadow-[0_18px_40px_rgba(88,67,44,0.06)] backdrop-blur">
+                <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_250px] lg:items-start">
                   <div>
-                    <div className="text-sm font-semibold text-[var(--portal-text)]">
-                      What happens next
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                      {chapter.eyebrow}
                     </div>
-                    <div className="mt-2 text-sm leading-7 text-[var(--portal-text-soft)]">
+                    <div className="mt-2 text-[1.7rem] font-bold tracking-[-0.05em] text-[var(--portal-accent)]">
+                      {chapter.title}
+                    </div>
+                    <p className="mt-3 text-sm leading-7 text-[var(--portal-text-soft)]">
+                      {chapter.description}
+                    </p>
+                    <p className="mt-3 text-sm leading-7 text-[var(--portal-text)]">
                       {chapter.nextLine}
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3">
+                    <HeroStat
+                      label="Current chapter"
+                      value={currentStage.label}
+                      detail="The stage your account is actively moving through"
+                      icon={<HeartHandshake className="h-4 w-4" />}
+                    />
+                    <HeroStat
+                      label={nextImportantDate.label}
+                      value={nextImportantDate.value}
+                      detail="The clearest date on your account right now"
+                      icon={<CalendarDays className="h-4 w-4" />}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                {heroPrimaryAction ? (
+                  <PrimaryJourneyLink href={heroPrimaryAction.href}>
+                    {heroPrimaryAction.action}
+                  </PrimaryJourneyLink>
+                ) : null}
+                <SecondaryJourneyLink href="/portal/mypuppy">
+                  Visit puppy profile
+                </SecondaryJourneyLink>
+                <SecondaryJourneyLink href="/portal/messages">
+                  Open messages
+                </SecondaryJourneyLink>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-x-6 gap-y-3 text-sm text-[var(--portal-text-soft)]">
+                <span className="inline-flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-[#b67744]" />
+                  {unreadMessages ? `${unreadMessages} unread breeder message${unreadMessages === 1 ? "" : "s"}` : "No unread breeder replies"}
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-[#b67744]" />
+                  {state.documents.length ? `${state.documents.length} document${state.documents.length === 1 ? "" : "s"} on file` : "Documents will collect here as they post"}
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-[#b67744]" />
+                  {state.salePrice != null ? `${fmtMoney(remainingBalance)} remaining` : "Pricing will appear when finalized"}
+                </span>
+              </div>
+            </div>
+
+            <div className="mx-auto w-full max-w-[440px] xl:mx-0 xl:justify-self-end">
+              <div className="relative">
+                <div className="absolute inset-0 rounded-[2.5rem] bg-[linear-gradient(135deg,rgba(198,146,90,0.22)_0%,rgba(125,163,204,0.18)_100%)] blur-2xl" />
+                <div className="relative overflow-hidden rounded-[2.4rem] border border-white/70 bg-white/92 shadow-[0_28px_70px_rgba(88,67,44,0.18)]">
+                  <div className="relative aspect-[4/5] overflow-hidden">
+                    <Image
+                      src={state.puppyImage}
+                      alt={state.puppyName}
+                      fill
+                      unoptimized
+                      className="object-cover"
+                    />
+                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(33,24,17,0.02)_0%,rgba(33,24,17,0.74)_100%)]" />
+
+                    <div className="absolute left-5 top-5 inline-flex items-center gap-2 rounded-full border border-white/24 bg-white/14 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-white backdrop-blur-md">
+                      <PawPrint className="h-4 w-4" />
+                      {state.puppy ? "Your puppy profile" : "Your future puppy space"}
+                    </div>
+
+                    <div className="absolute inset-x-5 bottom-5 rounded-[1.7rem] border border-white/18 bg-white/14 p-5 text-white backdrop-blur-md">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/78">
+                        Southwest Virginia Chihuahua
+                      </div>
+                      <div className="mt-2 text-[2rem] font-semibold tracking-[-0.05em]">
+                        {state.puppyName}
+                      </div>
+                      <div className="mt-2 text-sm leading-6 text-white/84">
+                        {state.puppy
+                          ? "This is your family&apos;s featured space for updates, milestones, wellness notes, and the story of getting ready for home."
+                          : "As soon as your puppy is linked, this becomes the heart of your portal experience."}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
-                What needs your attention now
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <FloatingCallout
+                  label="Breeder messages"
+                  value={unreadMessages ? `${unreadMessages} waiting` : "All caught up"}
+                  detail="Your conversation stays close by as the journey moves forward."
+                />
+                <FloatingCallout
+                  label="Homecoming"
+                  value={transportationSet ? "Planning underway" : "Still ahead"}
+                  detail={homecomingText}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className={`${surfaceClass} overflow-hidden p-6 md:p-7`}>
+        <div className="grid gap-8 xl:grid-cols-[minmax(0,1.04fr)_340px]">
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+              The road to homecoming
+            </div>
+            <h2 className="mt-2 text-[2rem] font-bold tracking-[-0.05em] text-[var(--portal-accent)]">
+              Where you are right now
+            </h2>
+            <p className="mt-3 max-w-3xl text-sm leading-8 text-[var(--portal-text-soft)]">
+              This is the movement of your journey rather than a checklist. You can see what has already settled into place, which stage is active now, and what still sits ahead.
+            </p>
+
+            <div className="mt-7">
+              <div className="relative">
+                <div className="absolute bottom-0 left-[19px] top-3 w-px bg-[linear-gradient(180deg,rgba(198,146,90,0.36)_0%,rgba(198,146,90,0.10)_100%)]" />
+                <div className="space-y-4">
+                  {journeyStages.map((stage, index) => (
+                    <JourneyPathItem
+                      key={stage.key}
+                      index={index + 1}
+                      stage={stage}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-[1.8rem] border border-[rgba(188,162,133,0.18)] bg-[linear-gradient(140deg,rgba(252,245,236,0.98)_0%,rgba(247,250,253,0.96)_100%)] p-5">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                Next for your family
               </div>
               <div className="mt-3 space-y-3">
                 {attentionItems.map((item) => (
-                  <AttentionActionCard key={item.key} item={item} />
+                  <NextStepRow key={item.key} item={item} />
                 ))}
+              </div>
+            </div>
+
+            <div className="rounded-[1.8rem] border border-[rgba(188,162,133,0.18)] bg-white p-5">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                Getting closer to go-home
+              </div>
+              <div className="mt-2 text-[1.5rem] font-bold tracking-[-0.05em] text-[var(--portal-accent)]">
+                {journeyProgress}% of the way there
+              </div>
+              <p className="mt-3 text-sm leading-7 text-[var(--portal-text-soft)]">
+                {homecomingText}
+              </p>
+              <div className="mt-4 h-3 overflow-hidden rounded-full bg-[rgba(214,179,141,0.14)]">
+                <div
+                  className="h-full rounded-full bg-[linear-gradient(90deg,rgba(198,146,90,0.95)_0%,rgba(125,163,204,0.92)_100%)]"
+                  style={{ width: `${journeyProgress}%` }}
+                />
               </div>
             </div>
           </div>
         </div>
-
-        <aside className={`${surfaceClass} p-5 md:p-6`}>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
-            Southwest Virginia Chihuahua briefing
-          </div>
-          <h2 className="mt-2 text-[1.55rem] font-bold tracking-[-0.04em] text-[var(--portal-accent)]">
-            The latest from your portal
-          </h2>
-          <p className="mt-2 text-sm leading-7 text-[var(--portal-text-soft)]">
-            A calm digest of the newest breeder update, recent account movement, and the places buyers return to most.
-          </p>
-
-          <div className="mt-5 space-y-3">
-            {briefingItems.length ? (
-              briefingItems.map((item) => <BriefingCard key={item.key} item={item} />)
-            ) : (
-              <CalmEmptyState
-                title="No fresh updates yet"
-                description="As messages, puppy notes, and records are posted to your account, the newest items will collect here."
-              />
-            )}
-          </div>
-
-          <div className="mt-6 border-t border-[rgba(188,162,133,0.16)] pt-5">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
-              Quiet shortcuts
-            </div>
-            <div className="mt-3 space-y-2">
-              <QuietJumpLink
-                href="/portal/documents"
-                icon={<FileText className="h-4 w-4" />}
-                title="Document center"
-                detail="Forms, contracts, and breeder-shared files"
-              />
-              <QuietJumpLink
-                href="/portal/transportation"
-                icon={<Truck className="h-4 w-4" />}
-                title="Transportation"
-                detail="Pickup or delivery planning"
-              />
-              <QuietJumpLink
-                href="/portal/resources"
-                icon={<HeartHandshake className="h-4 w-4" />}
-                title="Care resources"
-                detail="Go-home guidance and support materials"
-              />
-            </div>
-          </div>
-        </aside>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1.08fr)_420px]">
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.12fr)_360px]">
         <div className={`${surfaceClass} overflow-hidden`}>
-          <div className="grid gap-0 lg:grid-cols-[360px_minmax(0,1fr)]">
-            <div className="relative min-h-[360px] overflow-hidden bg-[rgba(247,241,233,0.9)]">
-              <Image
-                src={state.puppyImage}
-                alt={state.puppyName}
-                fill
-                unoptimized
-                className="object-cover"
-              />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(39,27,18,0.04)_0%,rgba(39,27,18,0.66)_100%)]" />
-              <div className="absolute inset-x-5 bottom-5 rounded-[1.4rem] border border-white/18 bg-white/14 p-4 text-white backdrop-blur-md">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/78">
-                  Your puppy&apos;s space
-                </div>
-                <div className="mt-2 text-[1.9rem] font-semibold tracking-[-0.04em]">
-                  {state.puppyName}
-                </div>
-                <div className="mt-2 text-sm leading-6 text-white/84">
-                  {state.puppy
-                    ? "A dedicated place for puppy details, milestones, wellness notes, and breeder updates."
-                    : "This profile comes to life as soon as your puppy is linked to your portal account."}
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6 md:p-7">
+          <div className="grid gap-0 lg:grid-cols-[1.02fr_0.98fr]">
+            <div className="p-6 md:p-8">
               <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
-                Puppy story
+                Your puppy&apos;s story
               </div>
-              <h2 className="mt-2 text-[1.9rem] font-bold tracking-[-0.05em] text-[var(--portal-accent)]">
-                {state.puppy ? `${state.puppyName}'s account story` : "Your puppy profile will open here"}
+              <h2 className="mt-2 text-[2rem] font-bold tracking-[-0.05em] text-[var(--portal-accent)]">
+                {state.puppy ? `${state.puppyName} feels closer here` : "Your puppy profile will become the center of this experience"}
               </h2>
-              <p className="mt-3 text-sm leading-8 text-[var(--portal-text-soft)]">
+              <p className="mt-3 max-w-2xl text-sm leading-8 text-[var(--portal-text-soft)]">
                 {puppyStoryText}
               </p>
 
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
                 <StoryFact
                   label="Litter"
                   value={state.puppy?.litter_name || "Not linked yet"}
@@ -1252,8 +1266,8 @@ export default function PortalPage() {
                 />
               </div>
 
-              <div className="mt-5 grid gap-3">
-                <HighlightNote
+              <div className="mt-6 space-y-3">
+                <NarrativeStrip
                   label="Latest breeder note"
                   title={
                     latestEvent?.title ||
@@ -1268,19 +1282,19 @@ export default function PortalPage() {
                         latestHealth?.description ||
                         state.puppy?.notes ||
                         "",
-                      155
+                      170
                     ) ||
                     "When the breeder shares a milestone, wellness note, or pupdate, it will show up here."
                   }
                 />
-                <HighlightNote
-                  label="Go-home readiness"
-                  title={transportationSet ? "Transportation is on file" : "Transportation is still open"}
+                <NarrativeStrip
+                  label="The road to home"
+                  title={transportationSet ? "Transportation is on file" : "Homecoming planning is still ahead"}
                   detail={
                     transportationSet
                       ? `${formatStatusLabel(state.pickupRequest?.request_type)} is requested for ${latestDateText(
                           state.pickupRequest?.request_date,
-                          "your account"
+                          "your requested date"
                         )}.`
                       : "Pickup or delivery planning can be added as soon as your family is ready to lock in the handoff."
                   }
@@ -1296,120 +1310,99 @@ export default function PortalPage() {
                 </SecondaryJourneyLink>
               </div>
             </div>
+
+            <div className="relative min-h-[420px] overflow-hidden bg-[rgba(247,241,233,0.86)]">
+              <Image
+                src={state.puppyImage}
+                alt={state.puppyName}
+                fill
+                unoptimized
+                className="object-cover"
+              />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(39,27,18,0.08)_0%,rgba(39,27,18,0.72)_100%)]" />
+              <div className="absolute inset-x-6 bottom-6 rounded-[1.7rem] border border-white/18 bg-white/14 p-5 text-white backdrop-blur-md">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/78">
+                  Featured profile
+                </div>
+                <div className="mt-2 text-[1.95rem] font-semibold tracking-[-0.05em]">
+                  {state.puppyName}
+                </div>
+                <div className="mt-2 text-sm leading-6 text-white/84">
+                  A more personal place for puppy updates, records, and the little details that make this experience feel real.
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className={`${surfaceClass} p-6 md:p-7`}>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
-                Financial clarity
-              </div>
-              <h2 className="mt-2 text-[1.8rem] font-bold tracking-[-0.05em] text-[var(--portal-accent)]">
-                A calm view of your account
-              </h2>
-            </div>
+        <aside className={`${surfaceClass} p-6 md:p-7`}>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+            From Southwest Virginia Chihuahua
+          </div>
+          <h2 className="mt-2 text-[1.75rem] font-bold tracking-[-0.05em] text-[var(--portal-accent)]">
+            A closer, higher-touch portal experience
+          </h2>
 
+          <div className="mt-5 rounded-[1.9rem] border border-[rgba(188,162,133,0.18)] bg-[linear-gradient(145deg,rgba(252,244,233,0.98)_0%,rgba(255,255,255,0.96)_100%)] p-5">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+              {breederNote.eyebrow}
+            </div>
+            <div className="mt-2 text-[1.25rem] font-semibold tracking-[-0.04em] text-[var(--portal-text)]">
+              {breederNote.title}
+            </div>
+            <p className="mt-3 text-sm leading-7 text-[var(--portal-text-soft)]">
+              {breederNote.detail}
+            </p>
             <Link
-              href="/portal/payments"
-              className="inline-flex items-center gap-2 rounded-full border border-[rgba(188,162,133,0.22)] bg-[rgba(249,244,237,0.9)] px-4 py-2 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[rgba(188,162,133,0.4)]"
+              href={breederNote.href}
+              className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#9c6a3a] transition hover:gap-3"
             >
-              Open payments
+              {breederNote.action}
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
 
-          <p className="mt-3 text-sm leading-7 text-[var(--portal-text-soft)]">
-            Everything below reflects the real breeder account linked to your portal, so your numbers feel transparent, reassuring, and easy to trust.
-          </p>
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <FinanceTile
-              label="Listed price"
-              value={state.salePrice != null ? fmtMoney(state.salePrice) : "Not posted yet"}
-              detail="The current sale price on your buyer record"
-            />
-            <FinanceTile
-              label="Paid to date"
-              value={fmtMoney(paymentTotal)}
-              detail={paymentSummaryLabel(state.payments, state.salePrice, paymentTotal)}
-            />
-            <FinanceTile
-              label="Remaining balance"
-              value={state.salePrice != null ? fmtMoney(remainingBalance) : "Waiting on pricing"}
-              detail={
-                state.salePrice != null
-                  ? remainingBalance > 0
-                    ? "Based on recorded payments and listed price"
-                    : "Your account appears fully covered"
-                  : "This will update when pricing is finalized"
-              }
-            />
-            <FinanceTile
-              label="Next account date"
-              value={nextImportantDate.value}
-              detail={nextImportantDate.label}
-            />
+          <div className="mt-5 space-y-3">
+            {briefingItems.slice(0, 2).map((item) => (
+              <BriefingCard key={item.key} item={item} />
+            ))}
           </div>
 
-          {state.salePrice != null ? (
-            <div className="mt-5 rounded-[1.5rem] border border-[rgba(188,162,133,0.18)] bg-[linear-gradient(135deg,rgba(252,247,241,0.96)_0%,rgba(245,248,252,0.92)_100%)] p-5">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold text-[var(--portal-text)]">
-                    Payment progress
-                  </div>
-                  <div className="mt-1 text-sm text-[var(--portal-text-soft)]">
-                    {state.salePrice > 0
-                      ? `${fmtMoney(paymentTotal)} of ${fmtMoney(state.salePrice)} recorded`
-                      : "Payments will appear here as they post to your account."}
-                  </div>
-                </div>
-                <div className="text-[1.1rem] font-semibold text-[var(--portal-text)]">
-                  {paymentProgress}%
-                </div>
-              </div>
-
-              <div className="mt-4 h-3 overflow-hidden rounded-full bg-white">
-                <div
-                  className="h-full rounded-full bg-[linear-gradient(90deg,rgba(198,146,90,0.95)_0%,rgba(119,160,204,0.95)_100%)]"
-                  style={{ width: `${paymentProgress}%` }}
-                />
-              </div>
-
-              <div className="mt-4 grid gap-3">
-                {state.buyer?.finance_enabled ? (
-                  <DetailStrip
-                    icon={<CreditCard className="h-4 w-4" />}
-                    title="Payment plan is enabled"
-                    detail={`${state.buyer.finance_monthly_amount ? fmtMoney(state.buyer.finance_monthly_amount) : "Monthly amount not set"}${state.buyer.finance_months ? ` for ${state.buyer.finance_months} months` : ""}${state.buyer.finance_next_due_date ? `, next due ${fmtDate(state.buyer.finance_next_due_date)}` : ""}`}
-                  />
-                ) : null}
-                <DetailStrip
-                  icon={<Receipt className="h-4 w-4" />}
-                  title={latestPayment ? "Latest posted payment" : "No posted payment yet"}
-                  detail={
-                    latestPayment
-                      ? `${fmtMoney(Number(latestPayment.amount || 0))} on ${formatOptionalDate(
-                          latestPayment.payment_date,
-                          "file date pending"
-                        )}`
-                      : "When the first payment is recorded, it will appear here with a clearer receipt trail."
-                  }
-                />
-              </div>
+          <div className="mt-6 border-t border-[rgba(188,162,133,0.16)] pt-5">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+              Support nearby
             </div>
-          ) : null}
-        </div>
+            <div className="mt-3 space-y-2">
+              <QuietJumpLink
+                href="/portal/messages"
+                icon={<MessageCircle className="h-4 w-4" />}
+                title="Messages and support"
+                detail="Stay connected to the breeder"
+              />
+              <QuietJumpLink
+                href="/portal/resources"
+                icon={<HeartHandshake className="h-4 w-4" />}
+                title="Care resources"
+                detail="Guidance that stays with you beyond pickup"
+              />
+              <QuietJumpLink
+                href="/portal/documents"
+                icon={<FileText className="h-4 w-4" />}
+                title="Document center"
+                detail="Your records and shared paperwork"
+              />
+            </div>
+          </div>
+        </aside>
       </section>
 
       <section className={`${surfaceClass} p-6 md:p-7`}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
-              Your journey timeline
+              The story so far
             </div>
-            <h2 className="mt-2 text-[1.9rem] font-bold tracking-[-0.05em] text-[var(--portal-accent)]">
+            <h2 className="mt-2 text-[1.95rem] font-bold tracking-[-0.05em] text-[var(--portal-accent)]">
               What has already happened
             </h2>
             <p className="mt-2 max-w-3xl text-sm leading-7 text-[var(--portal-text-soft)]">
@@ -1435,10 +1428,144 @@ export default function PortalPage() {
             </div>
           ) : (
             <CalmEmptyState
-              title="Your journey timeline is just getting started"
-              description="As applications, messages, records, payments, and puppy updates are added to your portal, they will build a clear story here."
+              title="Your story is just getting started"
+              description="As applications, messages, records, payments, and puppy updates are added to your portal, they will build a clear journey here."
             />
           )}
+        </div>
+      </section>
+
+      <section className={`${surfaceClass} p-6 md:p-7`}>
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_390px] xl:items-start">
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+              Your account, made simple
+            </div>
+            <h2 className="mt-2 text-[1.9rem] font-bold tracking-[-0.05em] text-[var(--portal-accent)]">
+              The practical pieces, without taking over the experience
+            </h2>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--portal-text-soft)]">
+              The financial side of your portal stays transparent here, while the rest of the page stays centered on the relationship, the journey, and your puppy.
+            </p>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              <FinanceTile
+                label="Listed price"
+                value={state.salePrice != null ? fmtMoney(state.salePrice) : "Not posted yet"}
+                detail="The current sale price on your buyer record"
+              />
+              <FinanceTile
+                label="Paid to date"
+                value={fmtMoney(paymentTotal)}
+                detail={paymentSummaryLabel(state.payments, state.salePrice, paymentTotal)}
+              />
+              <FinanceTile
+                label="Remaining balance"
+                value={state.salePrice != null ? fmtMoney(remainingBalance) : "Waiting on pricing"}
+                detail={
+                  state.salePrice != null
+                    ? remainingBalance > 0
+                      ? "Based on recorded payments and listed price"
+                      : "Your account appears fully covered"
+                    : "This will update when pricing is finalized"
+                }
+              />
+            </div>
+
+            {state.salePrice != null ? (
+              <div className="mt-5 rounded-[1.6rem] border border-[rgba(188,162,133,0.18)] bg-[linear-gradient(135deg,rgba(252,247,241,0.96)_0%,rgba(245,248,252,0.92)_100%)] p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-[var(--portal-text)]">
+                      Payment progress
+                    </div>
+                    <div className="mt-1 text-sm text-[var(--portal-text-soft)]">
+                      {state.salePrice > 0
+                        ? `${fmtMoney(paymentTotal)} of ${fmtMoney(state.salePrice)} recorded`
+                        : "Payments will appear here as they post to your account."}
+                    </div>
+                  </div>
+                  <div className="text-[1.1rem] font-semibold text-[var(--portal-text)]">
+                    {paymentProgress}%
+                  </div>
+                </div>
+
+                <div className="mt-4 h-3 overflow-hidden rounded-full bg-white">
+                  <div
+                    className="h-full rounded-full bg-[linear-gradient(90deg,rgba(198,146,90,0.95)_0%,rgba(119,160,204,0.95)_100%)]"
+                    style={{ width: `${paymentProgress}%` }}
+                  />
+                </div>
+
+                <div className="mt-4 grid gap-3">
+                  {state.buyer?.finance_enabled ? (
+                    <DetailStrip
+                      icon={<CreditCard className="h-4 w-4" />}
+                      title="Payment plan is enabled"
+                      detail={`${state.buyer.finance_monthly_amount ? fmtMoney(state.buyer.finance_monthly_amount) : "Monthly amount not set"}${state.buyer.finance_months ? ` for ${state.buyer.finance_months} months` : ""}${state.buyer.finance_next_due_date ? `, next due ${fmtDate(state.buyer.finance_next_due_date)}` : ""}`}
+                    />
+                  ) : null}
+                  <DetailStrip
+                    icon={<Receipt className="h-4 w-4" />}
+                    title={latestPayment ? "Latest posted payment" : "No posted payment yet"}
+                    detail={
+                      latestPayment
+                        ? `${fmtMoney(Number(latestPayment.amount || 0))} on ${formatOptionalDate(
+                            latestPayment.payment_date,
+                            "file date pending"
+                          )}`
+                        : "When the first payment is recorded, it will appear here with a clearer receipt trail."
+                    }
+                  />
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-[1.8rem] border border-[rgba(188,162,133,0.18)] bg-[linear-gradient(140deg,rgba(252,245,236,0.98)_0%,rgba(247,250,253,0.96)_100%)] p-5">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                Useful next places
+              </div>
+              <div className="mt-3 space-y-2">
+                <QuietJumpLink
+                  href="/portal/payments"
+                  icon={<CreditCard className="h-4 w-4" />}
+                  title="Open payments"
+                  detail="View posted payments and account details"
+                />
+                <QuietJumpLink
+                  href="/portal/transportation"
+                  icon={<Truck className="h-4 w-4" />}
+                  title="Review transportation"
+                  detail="Check pickup or delivery planning"
+                />
+                <QuietJumpLink
+                  href="/portal/mypuppy"
+                  icon={<PawPrint className="h-4 w-4" />}
+                  title="Visit puppy profile"
+                  detail="Go back to your puppy&apos;s story and updates"
+                />
+              </div>
+            </div>
+
+            <div className="rounded-[1.8rem] border border-[rgba(188,162,133,0.18)] bg-white p-5">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                Support stays with you
+              </div>
+              <p className="mt-3 text-sm leading-7 text-[var(--portal-text-soft)]">
+                This portal remains useful beyond paperwork and payments. It is where your records, your puppy updates, and your connection back to the breeder continue to live.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <SecondaryJourneyLink href="/portal/messages">
+                  Message support
+                </SecondaryJourneyLink>
+                <SecondaryJourneyLink href="/portal/resources">
+                  Care resources
+                </SecondaryJourneyLink>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
     </div>
