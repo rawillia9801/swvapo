@@ -139,6 +139,11 @@ function numberOrNull(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function isMissingTableError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  return message.toLowerCase().includes("does not exist");
+}
+
 function asBuyerPayload(body: Record<string, unknown>) {
   return {
     full_name: firstValue(body.full_name as string | null, body.name as string | null) || null,
@@ -515,6 +520,142 @@ export async function PATCH(req: Request) {
       {
         ok: false,
         error: describeRouteError(error, "Could not update the buyer."),
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const owner = await verifyOwner(req);
+    if (!owner) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = (await req.json()) as Record<string, unknown>;
+    const buyerId = Number(body.id || 0);
+    if (!buyerId) {
+      return NextResponse.json({ ok: false, error: "A buyer id is required." }, { status: 400 });
+    }
+
+    const service = createServiceSupabase();
+    const buyerRes = await service
+      .from("buyers")
+      .select("id,user_id,full_name,name,email")
+      .eq("id", buyerId)
+      .single();
+
+    if (buyerRes.error) throw buyerRes.error;
+
+    const buyerName = firstValue(
+      buyerRes.data.full_name,
+      buyerRes.data.name,
+      buyerRes.data.email,
+      `Buyer #${buyerId}`
+    );
+
+    const [
+      puppiesRes,
+      documentsRes,
+      paymentsRes,
+      adjustmentsRes,
+      subscriptionsRes,
+      noticeLogsRes,
+      noticeSettingsRes,
+      transportationRes,
+    ] = await Promise.all([
+      service.from("puppies").select("id", { count: "exact", head: true }).eq("buyer_id", buyerId),
+      service
+        .from("portal_documents")
+        .select("id", { count: "exact", head: true })
+        .eq("buyer_id", buyerId),
+      service
+        .from("buyer_payments")
+        .select("id", { count: "exact", head: true })
+        .eq("buyer_id", buyerId),
+      service
+        .from("buyer_fee_credit_records")
+        .select("id", { count: "exact", head: true })
+        .eq("buyer_id", buyerId),
+      service
+        .from("buyer_billing_subscriptions")
+        .select("id", { count: "exact", head: true })
+        .eq("buyer_id", buyerId),
+      service
+        .from("buyer_payment_notice_logs")
+        .select("id", { count: "exact", head: true })
+        .eq("buyer_id", buyerId),
+      service
+        .from("buyer_payment_notice_settings")
+        .select("id", { count: "exact", head: true })
+        .eq("buyer_id", buyerId),
+      buyerRes.data.user_id
+        ? service
+            .from("portal_pickup_requests")
+            .select("id", { count: "exact", head: true })
+            .eq("user_id", buyerRes.data.user_id)
+        : Promise.resolve({ count: 0, error: null }),
+    ]);
+
+    const readCount = (result: { count?: number | null; error?: unknown }) => {
+      if (result.error) {
+        if (isMissingTableError(result.error)) return 0;
+        throw result.error;
+      }
+      return Number(result.count || 0);
+    };
+
+    const blockers = [
+      { label: "linked puppies", count: readCount(puppiesRes) },
+      { label: "uploaded documents", count: readCount(documentsRes) },
+      { label: "payments", count: readCount(paymentsRes) },
+      { label: "fee or credit records", count: readCount(adjustmentsRes) },
+      { label: "billing subscriptions", count: readCount(subscriptionsRes) },
+      { label: "payment notice logs", count: readCount(noticeLogsRes) },
+      { label: "transportation requests", count: readCount(transportationRes) },
+    ].filter((item) => item.count > 0);
+
+    if (blockers.length) {
+      const blockerText = blockers
+        .map((item) => `${item.count} ${item.label}`)
+        .join(", ");
+
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `${buyerName} cannot be deleted yet because this record still has ${blockerText}. Clear those records first, then try again.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    const noticeSettingsCount = readCount(noticeSettingsRes);
+    if (noticeSettingsCount > 0) {
+      const noticeSettingsDeleteRes = await service
+        .from("buyer_payment_notice_settings")
+        .delete()
+        .eq("buyer_id", buyerId);
+
+      if (noticeSettingsDeleteRes.error && !isMissingTableError(noticeSettingsDeleteRes.error)) {
+        throw noticeSettingsDeleteRes.error;
+      }
+    }
+
+    const { error } = await service.from("buyers").delete().eq("id", buyerId);
+    if (error) throw error;
+
+    return NextResponse.json({
+      ok: true,
+      buyerId,
+      ownerEmail: owner.email || null,
+    });
+  } catch (error) {
+    console.error("Admin portal buyers delete error:", error);
+    return NextResponse.json(
+      {
+        ok: false,
+        error: describeRouteError(error, "Could not delete the buyer."),
       },
       { status: 500 }
     );

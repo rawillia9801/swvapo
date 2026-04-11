@@ -2,7 +2,7 @@
 
 import React, { useDeferredValue, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { FileUp, PencilLine, Plus, RefreshCw, Search } from "lucide-react";
+import { FileUp, PencilLine, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import {
   AdminEmptyState,
   AdminPageShell,
@@ -16,7 +16,7 @@ import {
   AdminTextAreaInput,
   AdminTextInput,
 } from "@/components/admin/admin-form-fields";
-import { fmtDate, fmtMoney } from "@/lib/utils";
+import { buildPuppyPhotoUrl, fmtDate, fmtMoney } from "@/lib/utils";
 import { usePortalAdminSession } from "@/lib/use-portal-admin-session";
 
 type BuyerRecord = {
@@ -298,6 +298,8 @@ const primaryButtonClass =
   "inline-flex items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(135deg,#c88c52_0%,#a56733_100%)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(159,99,49,0.18)] transition hover:-translate-y-0.5 hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60";
 const secondaryButtonClass =
   "inline-flex items-center justify-center gap-2 rounded-2xl border border-[var(--portal-border)] bg-white/90 px-4 py-2.5 text-sm font-semibold text-[var(--portal-text)] shadow-sm transition hover:border-[var(--portal-border-strong)] hover:bg-[var(--portal-surface-muted)] disabled:cursor-not-allowed disabled:opacity-60";
+const dangerButtonClass =
+  "inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700 shadow-sm transition hover:border-rose-300 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60";
 
 function emptyBuyerForm(): BuyerForm {
   return {
@@ -536,13 +538,6 @@ function buildActivityItems(
   ].sort((left, right) => new Date(right.date || 0).getTime() - new Date(left.date || 0).getTime());
 }
 
-function sameNumberSet(left: number[], right: number[]) {
-  if (left.length !== right.length) return false;
-  const leftSorted = [...left].sort((a, b) => a - b);
-  const rightSorted = [...right].sort((a, b) => a - b);
-  return leftSorted.every((value, index) => value === rightSorted[index]);
-}
-
 async function fetchBuyerWorkspace(accessToken: string) {
   const [buyersRes, accountsRes, transportationRes] = await Promise.all([
     fetch("/api/admin/portal/buyers", {
@@ -681,7 +676,6 @@ function ReadField({
 export function AdminBuyersWorkspace() {
   const { user, accessToken, isAdmin, loading } = usePortalAdminSession();
   const [buyers, setBuyers] = useState<BuyerRecord[]>([]);
-  const [puppies, setPuppies] = useState<PuppyOption[]>([]);
   const [accounts, setAccounts] = useState<BuyerAccount[]>([]);
   const [requests, setRequests] = useState<TransportationRequest[]>([]);
   const [loadingData, setLoadingData] = useState(true);
@@ -689,24 +683,20 @@ export function AdminBuyersWorkspace() {
   const [feedback, setFeedback] = useState<{ tone: FeedbackTone; text: string } | null>(null);
   const [search, setSearch] = useState("");
   const [directoryFilter, setDirectoryFilter] = useState<BuyerDirectoryFilter>("active");
-  const [puppySearch, setPuppySearch] = useState("");
   const [selectedKey, setSelectedKey] = useState("");
   const [activeTab, setActiveTab] = useState<BuyerTabKey>("puppies");
-  const [selectedPuppyIds, setSelectedPuppyIds] = useState<number[]>([]);
   const [modalMode, setModalMode] = useState<BuyerModalMode>(null);
   const [modalForm, setModalForm] = useState<BuyerForm>(emptyBuyerForm());
   const [modalError, setModalError] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
-  const [savingAssignments, setSavingAssignments] = useState(false);
+  const [deletingBuyer, setDeletingBuyer] = useState(false);
 
   const deferredSearch = useDeferredValue(search);
-  const deferredPuppySearch = useDeferredValue(puppySearch);
 
   async function refreshWorkspace(preferredKey?: string) {
     if (!accessToken) return;
     const payload = await fetchBuyerWorkspace(accessToken);
     setBuyers(payload.buyers);
-    setPuppies(payload.puppies);
     setAccounts(payload.accounts);
     setRequests(payload.requests);
     setSelectedKey((current) => {
@@ -734,7 +724,6 @@ export function AdminBuyersWorkspace() {
         const payload = await fetchBuyerWorkspace(accessToken);
         if (!active) return;
         setBuyers(payload.buyers);
-        setPuppies(payload.puppies);
         setAccounts(payload.accounts);
         setRequests(payload.requests);
         setSelectedKey(payload.buyers[0]?.key || "");
@@ -843,30 +832,12 @@ export function AdminBuyersWorkspace() {
         : selectedBuyer?.linkedPuppies || [],
     [selectedAccount?.linkedPuppies, selectedBuyer?.linkedPuppies]
   );
-  const linkedPuppyIds = useMemo(
-    () => linkedPuppies.map((puppy) => puppy.id).sort((left, right) => left - right),
-    [linkedPuppies]
-  );
   const financeEnabled = Boolean(selectedSummary?.financeEnabled);
   const puppyTabLabel = linkedPuppies.length === 1 ? "Puppy" : "Puppies";
   const selectedRequests = selectedBuyer
     ? requests.filter((request) => Number(request.buyer?.id || 0) === selectedBuyer.buyer.id)
     : [];
   const activityItems = buildActivityItems(selectedBuyer, selectedAccount, selectedRequests);
-  const assignmentDirty = !sameNumberSet(selectedPuppyIds, linkedPuppyIds);
-  const selectedPuppyDetails = useMemo(
-    () =>
-      selectedPuppyIds
-        .map((puppyId) => puppies.find((puppy) => puppy.id === puppyId) || null)
-        .filter((puppy): puppy is PuppyOption => Boolean(puppy)),
-    [puppies, selectedPuppyIds]
-  );
-
-  useEffect(() => {
-    setSelectedPuppyIds((current) =>
-      sameNumberSet(current, linkedPuppyIds) ? current : linkedPuppyIds
-    );
-  }, [linkedPuppyIds, selectedBuyer?.key]);
 
   useEffect(() => {
     if (activeTab === "plan" && !financeEnabled) {
@@ -896,6 +867,50 @@ export function AdminBuyersWorkspace() {
       setFeedback({ tone: "success", text: "Buyer workspace refreshed." });
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Could not refresh buyers.");
+    }
+  }
+
+  async function handleDeleteBuyer() {
+    if (!accessToken || !selectedBuyer) return;
+
+    const confirmed = window.confirm(
+      `Delete ${selectedBuyer.displayName}?\n\nThis only removes the buyer record. If linked puppies, payments, documents, subscriptions, notice logs, or transportation requests still exist, deletion will be blocked.`
+    );
+
+    if (!confirmed) return;
+
+    setDeletingBuyer(true);
+    setFeedback(null);
+
+    try {
+      const response = await fetch("/api/admin/portal/buyers", {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id: selectedBuyer.buyer.id,
+        }),
+      });
+
+      const payload = (await response.json()) as { ok?: boolean; error?: string };
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || "Could not delete the buyer.");
+      }
+
+      await refreshWorkspace();
+      setFeedback({
+        tone: "success",
+        text: `${selectedBuyer.displayName} was deleted.`,
+      });
+    } catch (error) {
+      setFeedback({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Could not delete the buyer.",
+      });
+    } finally {
+      setDeletingBuyer(false);
     }
   }
 
@@ -938,40 +953,6 @@ export function AdminBuyersWorkspace() {
       setModalError(error instanceof Error ? error.message : "Could not save the buyer.");
     } finally {
       setSavingProfile(false);
-    }
-  }
-
-  async function handleAssignmentSave() {
-    if (!accessToken || !selectedBuyer || !assignmentDirty) return;
-    setSavingAssignments(true);
-    setFeedback(null);
-    try {
-      const response = await fetch("/api/admin/portal/buyers", {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          id: selectedBuyer.buyer.id,
-          linked_puppy_ids: selectedPuppyIds,
-        }),
-      });
-
-      const payload = (await response.json()) as { ok?: boolean; error?: string };
-      if (!response.ok || !payload.ok) {
-        throw new Error(payload.error || "Could not save puppy assignments.");
-      }
-
-      await refreshWorkspace(selectedBuyer.key);
-      setFeedback({ tone: "success", text: "Puppy assignments saved." });
-    } catch (error) {
-      setFeedback({
-        tone: "error",
-        text: error instanceof Error ? error.message : "Could not save puppy assignments.",
-      });
-    } finally {
-      setSavingAssignments(false);
     }
   }
 
@@ -1102,6 +1083,15 @@ export function AdminBuyersWorkspace() {
                         <PencilLine className="h-4 w-4" />
                         Edit Buyer
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteBuyer()}
+                        disabled={deletingBuyer}
+                        className={dangerButtonClass}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {deletingBuyer ? "Deleting..." : "Delete Buyer"}
+                      </button>
                       <button type="button" onClick={() => void handleRefresh()} className={secondaryButtonClass}>
                         <RefreshCw className="h-4 w-4" />
                         Refresh
@@ -1127,19 +1117,7 @@ export function AdminBuyersWorkspace() {
                 <ProfileTab record={selectedBuyer} account={selectedAccount} />
               ) : null}
               {activeTab === "puppies" ? (
-                <PuppiesTab
-                  entry={selectedEntry}
-                  puppies={puppies}
-                  selectedPuppyDetails={selectedPuppyDetails}
-                  puppySearch={puppySearch}
-                  deferredPuppySearch={deferredPuppySearch}
-                  selectedPuppyIds={selectedPuppyIds}
-                  setPuppySearch={setPuppySearch}
-                  setSelectedPuppyIds={setSelectedPuppyIds}
-                  onSave={handleAssignmentSave}
-                  saving={savingAssignments}
-                  assignmentDirty={assignmentDirty}
-                />
+                <PuppiesTab entry={selectedEntry} />
               ) : null}
               {activeTab === "transportation" ? (
                 <TransportationTab
@@ -1370,211 +1348,185 @@ function ProfileTab({
 
 function PuppiesTab({
   entry,
-  puppies,
-  selectedPuppyDetails,
-  puppySearch,
-  deferredPuppySearch,
-  selectedPuppyIds,
-  setPuppySearch,
-  setSelectedPuppyIds,
-  onSave,
-  saving,
-  assignmentDirty,
 }: {
   entry: BuyerEntry | null;
-  puppies: PuppyOption[];
-  selectedPuppyDetails: PuppyOption[];
-  puppySearch: string;
-  deferredPuppySearch: string;
-  selectedPuppyIds: number[];
-  setPuppySearch: (value: string) => void;
-  setSelectedPuppyIds: React.Dispatch<React.SetStateAction<number[]>>;
-  onSave: () => void;
-  saving: boolean;
-  assignmentDirty: boolean;
 }) {
+  const linkedPuppies = useMemo(
+    () =>
+      entry?.account?.linkedPuppies?.length
+        ? entry.account.linkedPuppies
+        : entry?.record.linkedPuppies || [],
+    [entry]
+  );
+  const [selectedPuppyId, setSelectedPuppyId] = useState("");
+  const effectiveSelectedPuppyId = linkedPuppies.some(
+    (puppy) => String(puppy.id) === selectedPuppyId
+  )
+    ? selectedPuppyId
+    : String(linkedPuppies[0]?.id || "");
+  const selectedPuppy =
+    linkedPuppies.find((puppy) => String(puppy.id) === effectiveSelectedPuppyId) ||
+    linkedPuppies[0] ||
+    null;
   if (!entry) return null;
-
-  const buyerId = entry.record.buyer.id;
-  const selectedLookup = new Set(selectedPuppyIds);
-  const query = deferredPuppySearch.trim().toLowerCase();
-  const filteredPuppies = puppies
-    .filter((puppy) => {
-      if (!query) return true;
-      return [puppyLabel(puppy), puppy.litter_name, puppy.dam, puppy.status, puppy.buyerName]
-        .map((value) => String(value || "").toLowerCase())
-        .join(" ")
-        .includes(query);
-    })
-    .sort((left, right) => puppyLabel(left).localeCompare(puppyLabel(right)));
-
-  function togglePuppy(puppy: PuppyOption) {
-    const assignedBuyerId = Number(puppy.buyer_id || 0);
-    if (assignedBuyerId && assignedBuyerId !== buyerId) return;
-    setSelectedPuppyIds((current) =>
-      current.includes(puppy.id)
-        ? current.filter((value) => value !== puppy.id)
-        : [...current, puppy.id]
-    );
-  }
+  const assignmentHref = `/admin/portal/puppies?buyer=${entry.record.buyer.id}${
+    selectedPuppy ? `&puppy=${selectedPuppy.id}` : ""
+  }`;
+  const selectedPhotoPath = selectedPuppy?.photo_url || selectedPuppy?.image_url || "";
+  const selectedPhotoUrl = selectedPhotoPath ? buildPuppyPhotoUrl(selectedPhotoPath) : "";
 
   return (
     <WorkspaceSurface>
       <SurfaceHeader
         eyebrow={entry.record.linkedPuppies.length === 1 ? "Puppy" : "Puppies"}
-        title="Assignment"
-        subtitle="Select the puppies that belong to this buyer file, then save once the placement looks right."
+        title={linkedPuppies.length === 1 ? "Linked Puppy" : "Linked Puppies"}
+        subtitle="This tab stays buyer-specific. Use the Puppies workspace in the main navigation to assign or reassign puppy records."
         action={
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={!assignmentDirty || saving}
-            className={primaryButtonClass}
-          >
-            {saving ? "Saving..." : "Save Assignment"}
-          </button>
+          <Link href={assignmentHref} className={primaryButtonClass}>
+            Manage Assignment
+          </Link>
         }
       />
 
       <div className="mt-5 space-y-4">
-        {selectedPuppyDetails.length ? (
-          <div className="grid gap-4 xl:grid-cols-2">
-            {selectedPuppyDetails.map((puppy) => (
-              <div
-                key={`selected-puppy-${puppy.id}`}
-                className="overflow-hidden rounded-[1.2rem] border border-[rgba(187,160,132,0.18)] bg-white"
+        <div className="rounded-[1.2rem] bg-[rgba(250,245,239,0.82)] px-5 py-4 text-sm leading-6 text-[var(--portal-text-soft)]">
+          Buyer records stay calm and buyer-specific here. Assignment belongs in the main Puppies workspace so the kennel-wide roster only exists in one place.
+        </div>
+
+        {linkedPuppies.length > 1 ? (
+          <div className="flex flex-wrap gap-2">
+            {linkedPuppies.map((puppy) => (
+              <button
+                key={`linked-puppy-tab-${puppy.id}`}
+                type="button"
+                onClick={() => setSelectedPuppyId(String(puppy.id))}
+                className={[
+                  "rounded-full px-4 py-2 text-sm font-semibold transition",
+                  selectedPuppy && selectedPuppy.id === puppy.id
+                    ? "bg-[rgba(200,140,82,0.2)] text-[var(--portal-text)]"
+                    : "bg-[rgba(248,242,234,0.75)] text-[var(--portal-text-soft)] hover:bg-[rgba(243,232,219,0.85)] hover:text-[var(--portal-text)]",
+                ].join(" ")}
               >
-                <div className="grid gap-0 md:grid-cols-[220px_minmax(0,1fr)]">
-                  <div className="min-h-[220px] bg-[rgba(246,238,228,0.82)]">
-                    {puppy.photo_url || puppy.image_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={puppy.photo_url || puppy.image_url || ""}
-                        alt={puppyLabel(puppy)}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-full items-center justify-center px-6 text-center text-sm text-[var(--portal-text-soft)]">
-                        No puppy photo uploaded yet.
-                      </div>
-                    )}
+                {puppyLabel(puppy)}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        {selectedPuppy ? (
+          <div className="overflow-hidden rounded-[1.2rem] border border-[rgba(187,160,132,0.18)] bg-white">
+            <div className="grid gap-0 md:grid-cols-[240px_minmax(0,1fr)]">
+              <div className="min-h-[240px] bg-[rgba(246,238,228,0.82)]">
+                {selectedPhotoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={selectedPhotoUrl}
+                    alt={puppyLabel(selectedPuppy)}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center px-6 text-center text-sm text-[var(--portal-text-soft)]">
+                    No puppy photo uploaded yet.
                   </div>
-                  <div className="space-y-4 p-5">
-                    <div>
-                      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
-                        Selected Puppy
-                      </div>
-                      <div className="mt-2 text-xl font-semibold tracking-[-0.03em] text-[var(--portal-text)]">
-                        {puppyLabel(puppy)}
-                      </div>
-                      <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
-                        {[puppy.litter_name, puppy.dam ? `Dam: ${puppy.dam}` : null, puppy.sire ? `Sire: ${puppy.sire}` : null]
-                          .filter(Boolean)
-                          .join(" | ") || "No litter or parent details saved yet."}
-                      </div>
-                    </div>
+                )}
+              </div>
 
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <ReadField label="Price" value={fmtMoney(toNumber(puppy.price || puppy.list_price))} />
-                      <ReadField label="Deposit / Balance" value={`${fmtMoney(toNumber(puppy.deposit))} / ${fmtMoney(toNumber(puppy.balance))}`} />
-                      <ReadField label="Status" value={puppy.status || "Not set"} />
-                      <ReadField
-                        label="Details"
-                        value={[puppy.sex, puppy.color, puppy.coat_type || puppy.coat, puppy.pattern]
-                          .filter(Boolean)
-                          .join(" | ") || "No extra details"}
-                        wrap
-                      />
+              <div className="space-y-5 p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+                      Buyer-linked puppy
                     </div>
+                    <div className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[var(--portal-text)]">
+                      {puppyLabel(selectedPuppy)}
+                    </div>
+                    <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
+                      {[
+                        selectedPuppy.litter_name,
+                        selectedPuppy.dam ? `Dam: ${selectedPuppy.dam}` : null,
+                        selectedPuppy.sire ? `Sire: ${selectedPuppy.sire}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" | ") || "No litter or parent details saved yet."}
+                    </div>
+                  </div>
 
-                    {(puppy.description || puppy.notes || puppy.dob || puppy.registry) ? (
-                      <div className="rounded-[1rem] bg-[rgba(250,245,239,0.86)] px-4 py-4 text-sm leading-6 text-[var(--portal-text-soft)]">
-                        {puppy.dob ? <div><strong className="text-[var(--portal-text)]">DOB:</strong> {fmtDate(puppy.dob)}</div> : null}
-                        {puppy.registry ? <div><strong className="text-[var(--portal-text)]">Registry:</strong> {puppy.registry}</div> : null}
-                        {puppy.description ? <div><strong className="text-[var(--portal-text)]">Description:</strong> {puppy.description}</div> : null}
-                        {puppy.notes ? <div><strong className="text-[var(--portal-text)]">Notes:</strong> {puppy.notes}</div> : null}
+                  <div className="flex flex-wrap gap-2">
+                    <Link
+                      href={`/admin/portal/puppies?puppy=${selectedPuppy.id}`}
+                      className={secondaryButtonClass}
+                    >
+                      Open Puppy Record
+                    </Link>
+                    <Link href={assignmentHref} className={secondaryButtonClass}>
+                      Reassign in Puppies
+                    </Link>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <ReadField
+                    label="Status"
+                    value={selectedPuppy.status || "Not set"}
+                  />
+                  <ReadField
+                    label="Price"
+                    value={fmtMoney(toNumber(selectedPuppy.price || selectedPuppy.list_price))}
+                  />
+                  <ReadField
+                    label="Deposit / Balance"
+                    value={`${fmtMoney(toNumber(selectedPuppy.deposit))} / ${fmtMoney(
+                      toNumber(selectedPuppy.balance)
+                    )}`}
+                  />
+                  <ReadField
+                    label="Details"
+                    value={[
+                      selectedPuppy.sex,
+                      selectedPuppy.color,
+                      selectedPuppy.coat_type || selectedPuppy.coat,
+                      selectedPuppy.pattern,
+                    ]
+                      .filter(Boolean)
+                      .join(" | ") || "No extra details"}
+                    wrap
+                  />
+                </div>
+
+                {(selectedPuppy.description ||
+                  selectedPuppy.notes ||
+                  selectedPuppy.dob ||
+                  selectedPuppy.registry) ? (
+                  <div className="rounded-[1rem] bg-[rgba(250,245,239,0.86)] px-4 py-4 text-sm leading-6 text-[var(--portal-text-soft)]">
+                    {selectedPuppy.dob ? (
+                      <div>
+                        <strong className="text-[var(--portal-text)]">DOB:</strong> {fmtDate(selectedPuppy.dob)}
+                      </div>
+                    ) : null}
+                    {selectedPuppy.registry ? (
+                      <div>
+                        <strong className="text-[var(--portal-text)]">Registry:</strong> {selectedPuppy.registry}
+                      </div>
+                    ) : null}
+                    {selectedPuppy.description ? (
+                      <div>
+                        <strong className="text-[var(--portal-text)]">Description:</strong> {selectedPuppy.description}
+                      </div>
+                    ) : null}
+                    {selectedPuppy.notes ? (
+                      <div>
+                        <strong className="text-[var(--portal-text)]">Notes:</strong> {selectedPuppy.notes}
                       </div>
                     ) : null}
                   </div>
-                </div>
+                ) : null}
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-[1.2rem] bg-[rgba(250,245,239,0.82)] px-5 py-4 text-sm text-[var(--portal-text-soft)]">
-            Select a puppy in the assignment list to see its detailed information here before saving.
-          </div>
-        )}
-
-        <label className="relative block">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--portal-text-muted)]" />
-          <input
-            value={puppySearch}
-            onChange={(event) => setPuppySearch(event.target.value)}
-            placeholder="Search puppies, litter, dam..."
-            className="w-full rounded-[1.2rem] border border-[rgba(187,160,132,0.22)] bg-white/92 py-3 pl-11 pr-4 text-sm text-[var(--portal-text)] shadow-sm outline-none transition placeholder:text-[var(--portal-text-muted)] focus:border-[rgba(166,103,51,0.45)] focus:ring-4 focus:ring-[rgba(200,140,82,0.12)]"
-          />
-        </label>
-
-        {filteredPuppies.length ? (
-          <div className="overflow-hidden rounded-[1.1rem] border border-[rgba(187,160,132,0.18)]">
-            {filteredPuppies.map((puppy, index) => {
-              const assignedBuyerId = Number(puppy.buyer_id || 0);
-              const lockedToOtherBuyer = assignedBuyerId > 0 && assignedBuyerId !== buyerId;
-              const selected = selectedLookup.has(puppy.id);
-
-              return (
-                <label
-                  key={`puppy-${puppy.id}`}
-                  className={[
-                    "flex cursor-pointer items-center gap-4 bg-white px-4 py-4 transition",
-                    index > 0 ? "border-t border-[rgba(187,160,132,0.14)]" : "",
-                    lockedToOtherBuyer
-                      ? "cursor-not-allowed bg-[rgba(250,245,239,0.82)]"
-                      : "hover:bg-[rgba(248,242,234,0.7)]",
-                  ].join(" ")}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected}
-                    disabled={lockedToOtherBuyer}
-                    onChange={() => togglePuppy(puppy)}
-                    className="h-4 w-4 rounded border-[var(--portal-border)] text-[#a56733] focus:ring-[#c88c52]"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-semibold text-[var(--portal-text)]">
-                          {puppyLabel(puppy)}
-                        </div>
-                        <div className="mt-0.5 truncate text-xs text-[var(--portal-text-soft)]">
-                          {[puppy.litter_name, puppy.dam ? `Dam: ${puppy.dam}` : null]
-                            .filter(Boolean)
-                            .join(" | ") || "No litter details"}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-semibold text-[var(--portal-text)]">
-                          {fmtMoney(toNumber(puppy.price || puppy.list_price))}
-                        </div>
-                        <div className="mt-0.5 text-xs text-[var(--portal-text-muted)]">
-                          {lockedToOtherBuyer
-                            ? `Assigned to ${puppy.buyerName || "another buyer"}`
-                            : selected
-                              ? "Selected"
-                              : "Available"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </label>
-              );
-            })}
+            </div>
           </div>
         ) : (
           <AdminEmptyState
-            title="No puppies match this search"
-            description="Try a different puppy name, litter, or dam."
+            title="No puppy linked yet"
+            description="This buyer does not currently have a puppy assigned. Use the Puppies workspace to assign one."
           />
         )}
       </div>

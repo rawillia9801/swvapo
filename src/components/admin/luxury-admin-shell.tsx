@@ -42,8 +42,8 @@ const ADMIN_NAV: AdminNavSection[] = [
     items: [
       {
         href: "/admin/portal",
-        label: "Overview",
-        helper: "Kennel health, priorities, workload",
+        label: "Current Puppies",
+        helper: "Available puppies, care logs, publishing",
         icon: <LayoutDashboard className="h-4 w-4" />,
       },
       {
