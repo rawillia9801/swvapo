@@ -1761,6 +1761,125 @@ function JourneyStageCard({
   );
 }
 
+function FloatingCallout({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-[1.35rem] border border-white/16 bg-white/12 px-4 py-4 text-white shadow-[0_12px_32px_rgba(41,29,19,0.10)] backdrop-blur-md">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/72">
+        {label}
+      </div>
+      <div className="mt-2 text-base font-semibold tracking-[-0.02em] text-white">{value}</div>
+      <div className="mt-2 text-sm leading-6 text-white/78">{detail}</div>
+    </div>
+  );
+}
+
+function JourneyPathItem({
+  index,
+  stage,
+}: {
+  index: number;
+  stage: JourneyStage;
+}) {
+  const dotClass =
+    stage.tone === "complete"
+      ? "border-emerald-200 bg-emerald-500 text-white"
+      : stage.tone === "current"
+        ? "border-[rgba(198,146,90,0.35)] bg-[#c8925a] text-white shadow-[0_10px_24px_rgba(198,146,90,0.28)]"
+        : "border-[rgba(188,162,133,0.24)] bg-white text-[var(--portal-text-muted)]";
+  const surfaceClass =
+    stage.tone === "complete"
+      ? "border-emerald-100 bg-[rgba(245,252,247,0.95)]"
+      : stage.tone === "current"
+        ? "border-[rgba(198,146,90,0.24)] bg-[linear-gradient(135deg,rgba(252,245,236,0.98)_0%,rgba(247,250,253,0.96)_100%)]"
+        : "border-[rgba(188,162,133,0.16)] bg-[rgba(255,255,255,0.92)]";
+
+  return (
+    <Link
+      href={stage.href}
+      className="group relative flex items-start gap-4 pl-0.5 transition hover:-translate-y-0.5"
+    >
+      <span
+        className={`relative z-[1] inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-semibold ${dotClass}`}
+      >
+        {stage.tone === "complete" ? <CheckCircle2 className="h-4 w-4" /> : index}
+      </span>
+
+      <div className={`min-w-0 flex-1 rounded-[1.45rem] border px-4 py-4 shadow-[0_14px_32px_rgba(88,67,44,0.05)] ${surfaceClass}`}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+              {stage.tone === "current"
+                ? "Active chapter"
+                : stage.tone === "complete"
+                  ? "Completed"
+                  : "Ahead"}
+            </div>
+            <div className="mt-1 text-base font-semibold tracking-[-0.03em] text-[var(--portal-text)]">
+              {stage.label}
+            </div>
+          </div>
+          <span className="inline-flex items-center gap-2 text-sm font-semibold text-[#9c6a3a] transition group-hover:gap-3">
+            Open
+            <ArrowRight className="h-4 w-4" />
+          </span>
+        </div>
+        <div className="mt-3 text-sm leading-7 text-[var(--portal-text-soft)]">{stage.detail}</div>
+      </div>
+    </Link>
+  );
+}
+
+function NextStepRow({ item }: { item: AttentionItem }) {
+  return (
+    <Link
+      href={item.href}
+      className="group flex items-start justify-between gap-4 rounded-[1.25rem] border border-[rgba(188,162,133,0.16)] bg-white/86 px-4 py-4 transition hover:-translate-y-0.5 hover:border-[rgba(188,162,133,0.32)]"
+    >
+      <div className="min-w-0">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+          {item.eyebrow}
+        </div>
+        <div className="mt-1 text-sm font-semibold text-[var(--portal-text)]">{item.title}</div>
+        <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">{item.detail}</div>
+      </div>
+      <span className="mt-1 inline-flex shrink-0 items-center gap-2 rounded-full bg-[rgba(214,179,141,0.18)] px-3 py-2 text-sm font-semibold text-[#9c6a3a] transition group-hover:gap-3">
+        {item.action}
+        <ArrowRight className="h-4 w-4" />
+      </span>
+    </Link>
+  );
+}
+
+function NarrativeStrip({
+  label,
+  title,
+  detail,
+}: {
+  label: string;
+  title: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-[1.35rem] border border-[rgba(188,162,133,0.16)] bg-[linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(251,248,244,0.94)_100%)] px-4 py-4 shadow-[0_14px_34px_rgba(88,67,44,0.05)]">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+        {label}
+      </div>
+      <div className="mt-2 text-base font-semibold tracking-[-0.03em] text-[var(--portal-text)]">
+        {title}
+      </div>
+      <div className="mt-2 text-sm leading-7 text-[var(--portal-text-soft)]">{detail}</div>
+    </div>
+  );
+}
+
 function AttentionActionCard({ item }: { item: AttentionItem }) {
   return (
     <Link
