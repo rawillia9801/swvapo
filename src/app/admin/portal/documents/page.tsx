@@ -14,7 +14,7 @@ import {
   AdminRestrictedState,
   adminStatusBadge,
 } from "@/components/admin/luxury-admin-shell";
-import { fetchAdminAccounts, type AdminPortalAccount, type AdminFormRecord, adminNormalizeEmail } from "@/lib/admin-portal";
+import { fetchAdminAccounts, type AdminPortalAccount, type AdminFormRecord } from "@/lib/admin-portal";
 import { fmtDate, sb } from "@/lib/utils";
 import { isPortalAdminEmail } from "@/lib/portal-admin";
 
@@ -29,7 +29,6 @@ type PortalDocument = {
   file_name?: string | null;
   user_id?: string | null;
   buyer_id?: number | null;
-  email?: string | null;
 };
 
 type DocumentAccount = AdminPortalAccount & {
@@ -104,7 +103,7 @@ export default function AdminPortalDocumentsPage() {
       fetchAdminAccounts(token),
       sb
         .from("portal_documents")
-        .select("id,title,description,category,status,created_at,source_table,file_name,user_id,buyer_id,email")
+        .select("id,title,description,category,status,created_at,source_table,file_name,user_id,buyer_id")
         .order("created_at", { ascending: false }),
     ]);
 
@@ -113,13 +112,10 @@ export default function AdminPortalDocumentsPage() {
     return baseAccounts
       .map((account) => {
         const buyerId = account.buyer?.id || null;
-        const email = adminNormalizeEmail(account.email);
         const docs = documents.filter((doc) => {
-          const docEmail = adminNormalizeEmail(doc.email);
           return (
             (account.userId && doc.user_id === account.userId) ||
-            (buyerId && Number(doc.buyer_id || 0) === buyerId) ||
-            (email && docEmail === email)
+            (buyerId && Number(doc.buyer_id || 0) === buyerId)
           );
         });
 

@@ -140,7 +140,6 @@ type DocumentRow = {
   id: string;
   user_id?: string | null;
   buyer_id?: number | null;
-  email?: string | null;
   title?: string | null;
   description?: string | null;
   category?: string | null;
@@ -220,7 +219,7 @@ export async function GET(req: Request) {
     ]);
 
     const [documentsRes, messagesRes, pickupRes, puppiesRes, paymentsRes] = await Promise.all([
-      service.from("portal_documents").select("id,user_id,buyer_id,email,title,description,category,status,created_at,source_table,file_name"),
+      service.from("portal_documents").select("id,user_id,buyer_id,title,description,category,status,created_at,source_table,file_name"),
       service.from("portal_messages").select("id,user_id,user_email,subject,message,status,sender,created_at,read_by_admin,read_by_user"),
       service.from("portal_pickup_requests").select("id,user_id,created_at,request_date,request_type,location_text,address_text,notes,status,miles"),
       service.from("puppies").select("id,buyer_id,call_name,puppy_name,name,litter_name,status,price,deposit"),
@@ -273,7 +272,6 @@ export async function GET(req: Request) {
       const matchingDocuments = documents.filter(
         (document) =>
           document.user_id === authUser.id ||
-          normalizeEmail(document.email) === email ||
           (!!matchingBuyer?.id && Number(document.buyer_id || 0) === matchingBuyer.id)
       );
       const matchingMessages = messages.filter(

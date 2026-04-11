@@ -132,7 +132,6 @@ export type PortalDocument = {
   id: string;
   user_id?: string | null;
   buyer_id?: number | null;
-  email?: string | null;
   title?: string | null;
   description?: string | null;
   category?: string | null;
@@ -446,7 +445,6 @@ export async function findPortalMessagesForUser(user: User, limit?: number) {
 }
 
 export async function findPortalDocumentsForUser(user: User, buyer: PortalBuyer | null) {
-  const email = normalizeEmail(user.email);
   const docs: PortalDocument[] = [];
 
   const pushDocs = async (factory: () => Promise<{ data: PortalDocument[] | null; error: unknown }>) => {
@@ -463,7 +461,7 @@ export async function findPortalDocumentsForUser(user: User, buyer: PortalBuyer 
       Promise.resolve(
         sb
           .from("portal_documents")
-          .select("id,user_id,buyer_id,email,title,description,category,status,created_at,source_table,file_name")
+          .select("id,user_id,buyer_id,title,description,category,status,created_at,source_table,file_name")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
       )
@@ -475,20 +473,8 @@ export async function findPortalDocumentsForUser(user: User, buyer: PortalBuyer 
       Promise.resolve(
         sb
           .from("portal_documents")
-          .select("id,user_id,buyer_id,email,title,description,category,status,created_at,source_table,file_name")
+          .select("id,user_id,buyer_id,title,description,category,status,created_at,source_table,file_name")
           .eq("buyer_id", buyer.id)
-          .order("created_at", { ascending: false })
-      )
-    );
-  }
-
-  if (email) {
-    await pushDocs(() =>
-      Promise.resolve(
-        sb
-          .from("portal_documents")
-          .select("id,user_id,buyer_id,email,title,description,category,status,created_at,source_table,file_name")
-          .ilike("email", email)
           .order("created_at", { ascending: false })
       )
     );

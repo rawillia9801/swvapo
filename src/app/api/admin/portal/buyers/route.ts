@@ -103,7 +103,6 @@ type DocumentRow = {
   id: string;
   user_id?: string | null;
   buyer_id?: number | null;
-  email?: string | null;
   title?: string | null;
   description?: string | null;
   category?: string | null;
@@ -291,7 +290,7 @@ export async function GET(req: Request) {
         .order("created_at", { ascending: false }),
       service
         .from("portal_documents")
-        .select("id,user_id,buyer_id,email,title,description,category,status,created_at,source_table,file_name,file_url,visible_to_user,signed_at")
+        .select("id,user_id,buyer_id,title,description,category,status,created_at,source_table,file_name,file_url,visible_to_user,signed_at")
         .order("created_at", { ascending: false }),
       service
         .from("puppies")
@@ -379,8 +378,7 @@ export async function GET(req: Request) {
       const matchingDocuments = documents.filter(
         (document) =>
           (buyer.user_id && document.user_id === buyer.user_id) ||
-          (!!buyer.id && Number(document.buyer_id || 0) === buyer.id) ||
-          (!!email && normalizeEmail(document.email) === email)
+          (!!buyer.id && Number(document.buyer_id || 0) === buyer.id)
       );
 
       const linkedPuppies = [...(puppiesByBuyerId.get(buyer.id) || [])];

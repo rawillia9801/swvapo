@@ -13,7 +13,6 @@ const DOCUMENT_BUCKET = "portal-documents";
 type BuyerLookup = {
   id: number;
   user_id?: string | null;
-  email?: string | null;
   full_name?: string | null;
   name?: string | null;
 };
@@ -82,7 +81,7 @@ export async function POST(req: Request) {
     const service = createServiceSupabase();
     const buyerResult = await service
       .from("buyers")
-      .select("id,user_id,email,full_name,name")
+      .select("id,user_id,full_name,name")
       .eq("id", buyerId)
       .limit(1)
       .maybeSingle<BuyerLookup>();
@@ -124,7 +123,6 @@ export async function POST(req: Request) {
       .insert({
         user_id: buyerResult.data.user_id || null,
         buyer_id: buyerId,
-        email: buyerResult.data.email || null,
         title,
         description,
         category,
@@ -135,7 +133,7 @@ export async function POST(req: Request) {
         visible_to_user: visibleToUser,
       })
       .select(
-        "id,user_id,buyer_id,email,title,description,category,status,created_at,source_table,file_name,file_url,visible_to_user,signed_at"
+        "id,user_id,buyer_id,title,description,category,status,created_at,source_table,file_name,file_url,visible_to_user,signed_at"
       )
       .single();
 
