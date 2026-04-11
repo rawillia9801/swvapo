@@ -2,7 +2,7 @@
 
 import React, { useDeferredValue, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { PencilLine, Plus, RefreshCw, Search } from "lucide-react";
+import { FileUp, PencilLine, Plus, RefreshCw, Search } from "lucide-react";
 import {
   AdminEmptyState,
   AdminPageShell,
@@ -27,10 +27,13 @@ type BuyerRecord = {
     name?: string | null;
     email?: string | null;
     phone?: string | null;
+    address_line1?: string | null;
+    address_line2?: string | null;
     status?: string | null;
     notes?: string | null;
     city?: string | null;
     state?: string | null;
+    postal_code?: string | null;
     delivery_option?: string | null;
     delivery_date?: string | null;
     delivery_location?: string | null;
@@ -56,6 +59,10 @@ type BuyerRecord = {
     id: number;
     status?: string | null;
     created_at?: string | null;
+    phone?: string | null;
+    street_address?: string | null;
+    city_state?: string | null;
+    zip?: string | null;
   } | null;
   latestApplicationStatus?: string | null;
   formCount: number;
@@ -68,7 +75,20 @@ type BuyerRecord = {
     status?: string | null;
     submitted_at?: string | null;
     created_at?: string | null;
-    updated_at?: string | null;
+      updated_at?: string | null;
+  }>;
+  documents: Array<{
+    id: string;
+    title?: string | null;
+    description?: string | null;
+    category?: string | null;
+    status?: string | null;
+    created_at?: string | null;
+    source_table?: string | null;
+    file_name?: string | null;
+    file_url?: string | null;
+    visible_to_user?: boolean | null;
+    signed_at?: string | null;
   }>;
   linkedPuppies: Array<{
     id: number;
@@ -79,9 +99,22 @@ type BuyerRecord = {
     litter_name?: string | null;
     sire?: string | null;
     dam?: string | null;
+    sex?: string | null;
+    color?: string | null;
+    coat_type?: string | null;
+    coat?: string | null;
+    pattern?: string | null;
+    dob?: string | null;
+    registry?: string | null;
     status?: string | null;
     price?: number | null;
     list_price?: number | null;
+    deposit?: number | null;
+    balance?: number | null;
+    photo_url?: string | null;
+    image_url?: string | null;
+    description?: string | null;
+    notes?: string | null;
   }>;
 };
 
@@ -100,6 +133,7 @@ type BuyerAccount = {
     finance_rate?: number | null;
     finance_months?: number | null;
     finance_monthly_amount?: number | null;
+    finance_day_of_month?: number | null;
     finance_next_due_date?: string | null;
     finance_last_payment_date?: string | null;
   };
@@ -141,6 +175,18 @@ type BuyerAccount = {
     default_notice_days_after: number;
     recipient_email?: string | null;
   } | null;
+  payment_notice_logs?: Array<{
+    id: number;
+    created_at: string;
+    notice_kind: string;
+    notice_key: string;
+    notice_date?: string | null;
+    due_date?: string | null;
+    status: string;
+    recipient_email: string;
+    subject: string;
+    provider: string;
+  }>;
   totalPaid: number;
   lastPaymentAt: string | null;
 };
@@ -152,10 +198,18 @@ type TransportationRequest = {
   request_type?: string | null;
   location_text?: string | null;
   address_text?: string | null;
+  miles?: number | null;
   notes?: string | null;
   status?: string | null;
   buyer?: {
     id: number;
+  } | null;
+  puppy?: {
+    id: number;
+    call_name?: string | null;
+    puppy_name?: string | null;
+    name?: string | null;
+    status?: string | null;
   } | null;
 };
 
@@ -163,6 +217,9 @@ type BuyerForm = {
   full_name: string;
   email: string;
   phone: string;
+  address_line1: string;
+  address_line2: string;
+  postal_code: string;
   status: string;
   city: string;
   state: string;
@@ -220,6 +277,19 @@ type ActivityItem = {
 
 type BuyerModalMode = "create" | "edit" | null;
 type FeedbackTone = "success" | "error";
+type BuyerDirectoryFilter = "active" | "financing" | "completed";
+type FuelEstimate = {
+  requestedMonth: string;
+  priceMonth: string;
+  usedFallbackMonth: boolean;
+  pricePerGallon: number;
+  miles: number;
+  assumedVehicle: string;
+  assumedMpg: number;
+  gallonsEstimated: number;
+  estimatedFuelCost: number;
+  pricingSeries: string;
+};
 
 const primaryButtonClass =
   "inline-flex items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(135deg,#c88c52_0%,#a56733_100%)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(159,99,49,0.18)] transition hover:-translate-y-0.5 hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60";
@@ -231,6 +301,9 @@ function emptyBuyerForm(): BuyerForm {
     full_name: "",
     email: "",
     phone: "",
+    address_line1: "",
+    address_line2: "",
+    postal_code: "",
     status: "pending",
     city: "",
     state: "",
@@ -257,6 +330,61 @@ function puppyLabel(puppy: PuppyOption | null | undefined) {
   return puppy.call_name || puppy.puppy_name || puppy.name || `Puppy #${puppy.id}`;
 }
 
+function formatBuyerAddress(record: BuyerRecord | null) {
+  if (!record) return "";
+  return [
+    record.buyer.address_line1,
+    record.buyer.address_line2,
+    [record.buyer.city, record.buyer.state].filter(Boolean).join(", "),
+    record.buyer.postal_code,
+  ]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .join(" | ");
+}
+
+function formatApplicationAddress(record: BuyerRecord | null) {
+  if (!record?.latestApplication) return "";
+  return [
+    record.latestApplication.street_address,
+    record.latestApplication.city_state,
+    record.latestApplication.zip,
+  ]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .join(" | ");
+}
+
+function deliveryFeeStatus(record: BuyerRecord | null) {
+  const fee = toNumber(record?.buyer.delivery_fee);
+  const miles = toNumber(record?.buyer.delivery_miles);
+  const option = String(record?.buyer.delivery_option || "").trim().toLowerCase();
+
+  if (!record) return "Not set";
+  if (option === "pickup") return "Pickup";
+  if (fee > 0) return "Charged";
+  if (miles > 0 || option === "meet" || option === "dropoff") return "Waived";
+  return "Not set";
+}
+
+function matchesPaymentPlanForm(formKey: string | null | undefined) {
+  const normalized = String(formKey || "").trim().toLowerCase();
+  return ["puppy_payment_plan_agreement", "payment_plan_application", "credit_application"].includes(
+    normalized
+  );
+}
+
+function matchesPaymentPlanDocument(
+  category: string | null | undefined,
+  title: string | null | undefined,
+  description: string | null | undefined
+) {
+  const text = [category, title, description].map((value) => String(value || "").toLowerCase()).join(" ");
+  return ["finance", "financing", "payment plan", "credit application"].some((token) =>
+    text.includes(token)
+  );
+}
+
 function isCompletedStatus(value: string | null | undefined) {
   const normalized = String(value || "").trim().toLowerCase();
   return (
@@ -272,6 +400,9 @@ function fillBuyerForm(record: BuyerRecord | null): BuyerForm {
     full_name: String(record.buyer.full_name || record.buyer.name || record.displayName || ""),
     email: String(record.buyer.email || record.email || ""),
     phone: String(record.buyer.phone || record.phone || ""),
+    address_line1: String(record.buyer.address_line1 || ""),
+    address_line2: String(record.buyer.address_line2 || ""),
+    postal_code: String(record.buyer.postal_code || ""),
     status: String(record.buyer.status || "pending"),
     city: String(record.buyer.city || ""),
     state: String(record.buyer.state || ""),
@@ -367,6 +498,16 @@ function buildActivityItems(
           ? `Version ${form.version}`
           : "Portal submission recorded",
       status: form.status || "submitted",
+    })),
+    ...record.documents.map((document) => ({
+      key: `uploaded-document-${document.id}`,
+      date: String(document.signed_at || document.created_at || ""),
+      category: "Uploaded Document",
+      title: document.title || document.file_name || "Buyer upload",
+      detail: [document.category, document.description, document.file_name]
+        .filter(Boolean)
+        .join(" | "),
+      status: document.status || "uploaded",
     })),
     ...(record.latestApplication
       ? [
@@ -535,6 +676,7 @@ export function AdminBuyersWorkspace() {
   const [loadError, setLoadError] = useState("");
   const [feedback, setFeedback] = useState<{ tone: FeedbackTone; text: string } | null>(null);
   const [search, setSearch] = useState("");
+  const [directoryFilter, setDirectoryFilter] = useState<BuyerDirectoryFilter>("active");
   const [puppySearch, setPuppySearch] = useState("");
   const [selectedKey, setSelectedKey] = useState("");
   const [activeTab, setActiveTab] = useState<BuyerTabKey>("puppies");
@@ -643,20 +785,22 @@ export function AdminBuyersWorkspace() {
     [filteredEntries]
   );
 
+  const visibleDirectoryEntries = groupedEntries[directoryFilter];
+
   useEffect(() => {
-    if (!filteredEntries.length) {
+    if (!visibleDirectoryEntries.length) {
       setSelectedKey("");
       return;
     }
-    if (!filteredEntries.some((entry) => entry.record.key === selectedKey)) {
-      setSelectedKey(filteredEntries[0].record.key);
+    if (!visibleDirectoryEntries.some((entry) => entry.record.key === selectedKey)) {
+      setSelectedKey(visibleDirectoryEntries[0].record.key);
     }
-  }, [filteredEntries, selectedKey]);
+  }, [selectedKey, visibleDirectoryEntries]);
 
   const selectedEntry =
     entries.find((entry) => entry.record.key === selectedKey) ||
-    filteredEntries.find((entry) => entry.record.key === selectedKey) ||
-    filteredEntries[0] ||
+    visibleDirectoryEntries.find((entry) => entry.record.key === selectedKey) ||
+    visibleDirectoryEntries[0] ||
     null;
   const selectedBuyer = selectedEntry?.record || null;
   const selectedAccount = selectedEntry?.account || null;
@@ -679,6 +823,13 @@ export function AdminBuyersWorkspace() {
     : [];
   const activityItems = buildActivityItems(selectedBuyer, selectedAccount, selectedRequests);
   const assignmentDirty = !sameNumberSet(selectedPuppyIds, linkedPuppyIds);
+  const selectedPuppyDetails = useMemo(
+    () =>
+      selectedPuppyIds
+        .map((puppyId) => puppies.find((puppy) => puppy.id === puppyId) || null)
+        .filter((puppy): puppy is PuppyOption => Boolean(puppy)),
+    [puppies, selectedPuppyIds]
+  );
 
   useEffect(() => {
     setSelectedPuppyIds((current) =>
@@ -844,22 +995,36 @@ export function AdminBuyersWorkspace() {
             </label>
           </div>
 
-          <div className="mt-5 space-y-5">
+          <div className="mt-5">
+            <div className="flex flex-wrap gap-2">
+              <DirectoryFilterButton
+                active={directoryFilter === "active"}
+                label={`Active (${groupedEntries.active.length})`}
+                onClick={() => setDirectoryFilter("active")}
+              />
+              <DirectoryFilterButton
+                active={directoryFilter === "financing"}
+                label={`Puppy Payment Plans (${groupedEntries.financing.length})`}
+                onClick={() => setDirectoryFilter("financing")}
+              />
+              <DirectoryFilterButton
+                active={directoryFilter === "completed"}
+                label={`Completed (${groupedEntries.completed.length})`}
+                onClick={() => setDirectoryFilter("completed")}
+              />
+            </div>
+          </div>
+
+          <div className="mt-5">
             <DirectorySection
-              title="Active"
-              entries={groupedEntries.active}
-              selectedKey={selectedBuyer?.key || ""}
-              onSelect={setSelectedKey}
-            />
-            <DirectorySection
-              title="Financing"
-              entries={groupedEntries.financing}
-              selectedKey={selectedBuyer?.key || ""}
-              onSelect={setSelectedKey}
-            />
-            <DirectorySection
-              title="Completed"
-              entries={groupedEntries.completed}
+              title={
+                directoryFilter === "active"
+                  ? "Active"
+                  : directoryFilter === "financing"
+                    ? "Puppy Payment Plans"
+                    : "Completed"
+              }
+              entries={visibleDirectoryEntries}
               selectedKey={selectedBuyer?.key || ""}
               onSelect={setSelectedKey}
             />
@@ -934,6 +1099,7 @@ export function AdminBuyersWorkspace() {
                 <PuppiesTab
                   entry={selectedEntry}
                   puppies={puppies}
+                  selectedPuppyDetails={selectedPuppyDetails}
                   puppySearch={puppySearch}
                   deferredPuppySearch={deferredPuppySearch}
                   selectedPuppyIds={selectedPuppyIds}
@@ -948,9 +1114,21 @@ export function AdminBuyersWorkspace() {
                 <TransportationTab record={selectedBuyer} requests={selectedRequests} />
               ) : null}
               {activeTab === "payments" ? <PaymentsTab entry={selectedEntry} /> : null}
-              {activeTab === "documents" ? <DocumentsTab record={selectedBuyer} /> : null}
+              {activeTab === "documents" ? (
+                <DocumentsTab
+                  record={selectedBuyer}
+                  accessToken={accessToken || ""}
+                  onUploaded={() => void refreshWorkspace(selectedBuyer?.key)}
+                />
+              ) : null}
               {activeTab === "activity" ? <ActivityTab items={activityItems} /> : null}
-              {activeTab === "plan" && financeEnabled ? <PlanTab entry={selectedEntry} /> : null}
+              {activeTab === "plan" && financeEnabled ? (
+                <PlanTab
+                  entry={selectedEntry}
+                  accessToken={accessToken || ""}
+                  onUploaded={() => void refreshWorkspace(selectedBuyer?.key)}
+                />
+              ) : null}
             </>
           )}
         </div>
@@ -1032,6 +1210,31 @@ function DirectorySection({
   );
 }
 
+function DirectoryFilterButton({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "rounded-full px-3.5 py-2 text-xs font-semibold transition",
+        active
+          ? "bg-[rgba(200,140,82,0.2)] text-[var(--portal-text)]"
+          : "bg-[rgba(248,242,234,0.75)] text-[var(--portal-text-soft)] hover:bg-[rgba(243,232,219,0.85)] hover:text-[var(--portal-text)]",
+      ].join(" ")}
+    >
+      {label}
+    </button>
+  );
+}
+
 function TabButton({
   active,
   label,
@@ -1066,17 +1269,26 @@ function ProfileTab({
 }) {
   if (!record) return null;
 
+  const buyerAddress = formatBuyerAddress(record);
+  const applicationAddress = formatApplicationAddress(record);
+
   return (
     <WorkspaceSurface>
       <SurfaceHeader
         eyebrow="Profile"
         title="Buyer Profile"
-        subtitle="Core contact details and portal context."
+        subtitle="Core contact details, address, notes, and portal context."
       />
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
         <ReadField label="Buyer Name" value={record.displayName} />
         <ReadField label="Email" value={record.email || "No email on file"} />
         <ReadField label="Phone" value={record.phone || "No phone on file"} />
+        <ReadField
+          label="Street Address"
+          value={buyerAddress || "No buyer address saved"}
+          detail={applicationAddress ? `Application: ${applicationAddress}` : "Address can be added in Edit Buyer."}
+          wrap
+        />
         <ReadField
           label="Portal Access"
           value={record.hasPortalAccount ? "Connected" : "Not connected"}
@@ -1098,6 +1310,7 @@ function ProfileTab({
         <ReadField
           label="Location"
           value={[record.buyer.city, record.buyer.state].filter(Boolean).join(", ") || "Not set"}
+          detail={record.buyer.postal_code ? `ZIP ${record.buyer.postal_code}` : "ZIP not saved"}
         />
         <ReadField label="Notes" value={record.buyer.notes || "No notes saved yet."} wrap />
         <ReadField
@@ -1118,6 +1331,7 @@ function ProfileTab({
 function PuppiesTab({
   entry,
   puppies,
+  selectedPuppyDetails,
   puppySearch,
   deferredPuppySearch,
   selectedPuppyIds,
@@ -1129,6 +1343,7 @@ function PuppiesTab({
 }: {
   entry: BuyerEntry | null;
   puppies: PuppyOption[];
+  selectedPuppyDetails: PuppyOption[];
   puppySearch: string;
   deferredPuppySearch: string;
   selectedPuppyIds: number[];
@@ -1182,6 +1397,75 @@ function PuppiesTab({
       />
 
       <div className="mt-5 space-y-4">
+        {selectedPuppyDetails.length ? (
+          <div className="grid gap-4 xl:grid-cols-2">
+            {selectedPuppyDetails.map((puppy) => (
+              <div
+                key={`selected-puppy-${puppy.id}`}
+                className="overflow-hidden rounded-[1.2rem] border border-[rgba(187,160,132,0.18)] bg-white"
+              >
+                <div className="grid gap-0 md:grid-cols-[220px_minmax(0,1fr)]">
+                  <div className="min-h-[220px] bg-[rgba(246,238,228,0.82)]">
+                    {puppy.photo_url || puppy.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={puppy.photo_url || puppy.image_url || ""}
+                        alt={puppyLabel(puppy)}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center px-6 text-center text-sm text-[var(--portal-text-soft)]">
+                        No puppy photo uploaded yet.
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-4 p-5">
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+                        Selected Puppy
+                      </div>
+                      <div className="mt-2 text-xl font-semibold tracking-[-0.03em] text-[var(--portal-text)]">
+                        {puppyLabel(puppy)}
+                      </div>
+                      <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
+                        {[puppy.litter_name, puppy.dam ? `Dam: ${puppy.dam}` : null, puppy.sire ? `Sire: ${puppy.sire}` : null]
+                          .filter(Boolean)
+                          .join(" | ") || "No litter or parent details saved yet."}
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <ReadField label="Price" value={fmtMoney(toNumber(puppy.price || puppy.list_price))} />
+                      <ReadField label="Deposit / Balance" value={`${fmtMoney(toNumber(puppy.deposit))} / ${fmtMoney(toNumber(puppy.balance))}`} />
+                      <ReadField label="Status" value={puppy.status || "Not set"} />
+                      <ReadField
+                        label="Details"
+                        value={[puppy.sex, puppy.color, puppy.coat_type || puppy.coat, puppy.pattern]
+                          .filter(Boolean)
+                          .join(" | ") || "No extra details"}
+                        wrap
+                      />
+                    </div>
+
+                    {(puppy.description || puppy.notes || puppy.dob || puppy.registry) ? (
+                      <div className="rounded-[1rem] bg-[rgba(250,245,239,0.86)] px-4 py-4 text-sm leading-6 text-[var(--portal-text-soft)]">
+                        {puppy.dob ? <div><strong className="text-[var(--portal-text)]">DOB:</strong> {fmtDate(puppy.dob)}</div> : null}
+                        {puppy.registry ? <div><strong className="text-[var(--portal-text)]">Registry:</strong> {puppy.registry}</div> : null}
+                        {puppy.description ? <div><strong className="text-[var(--portal-text)]">Description:</strong> {puppy.description}</div> : null}
+                        {puppy.notes ? <div><strong className="text-[var(--portal-text)]">Notes:</strong> {puppy.notes}</div> : null}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-[1.2rem] bg-[rgba(250,245,239,0.82)] px-5 py-4 text-sm text-[var(--portal-text-soft)]">
+            Select a puppy in the assignment list to see its detailed information here before saving.
+          </div>
+        )}
+
         <label className="relative block">
           <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--portal-text-muted)]" />
           <input
@@ -1265,6 +1549,85 @@ function TransportationTab({
   record: BuyerRecord | null;
   requests: TransportationRequest[];
 }) {
+  const [fuelEstimate, setFuelEstimate] = useState<FuelEstimate | null>(null);
+  const [fuelError, setFuelError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadFuelEstimate() {
+      if (!record) {
+        if (active) {
+          setFuelEstimate(null);
+          setFuelError("");
+        }
+        return;
+      }
+
+      const deliveryDate = String(record.buyer.delivery_date || "").trim();
+      const deliveryMiles = toNumber(record.buyer.delivery_miles);
+
+      if (!deliveryDate || !deliveryMiles) {
+        if (active) {
+          setFuelEstimate(null);
+          setFuelError("");
+        }
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `/api/admin/portal/transportation/fuel-estimate?date=${encodeURIComponent(deliveryDate)}&miles=${encodeURIComponent(String(deliveryMiles))}`,
+          { cache: "no-store" }
+        );
+        const payload = (await response.json()) as {
+          ok?: boolean;
+          error?: string;
+          requestedMonth?: string;
+          priceMonth?: string;
+          usedFallbackMonth?: boolean;
+          pricePerGallon?: number;
+          miles?: number;
+          assumedVehicle?: string;
+          assumedMpg?: number;
+          gallonsEstimated?: number;
+          estimatedFuelCost?: number;
+          pricingSeries?: string;
+        };
+
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.error || "Could not estimate the fuel cost.");
+        }
+
+        if (active) {
+          setFuelEstimate({
+            requestedMonth: payload.requestedMonth || "",
+            priceMonth: payload.priceMonth || "",
+            usedFallbackMonth: Boolean(payload.usedFallbackMonth),
+            pricePerGallon: toNumber(payload.pricePerGallon),
+            miles: toNumber(payload.miles),
+            assumedVehicle: String(payload.assumedVehicle || "2014 Kia Rio"),
+            assumedMpg: toNumber(payload.assumedMpg) || 31,
+            gallonsEstimated: toNumber(payload.gallonsEstimated),
+            estimatedFuelCost: toNumber(payload.estimatedFuelCost),
+            pricingSeries: String(payload.pricingSeries || ""),
+          });
+          setFuelError("");
+        }
+      } catch (error) {
+        if (active) {
+          setFuelEstimate(null);
+          setFuelError(error instanceof Error ? error.message : "Could not estimate fuel.");
+        }
+      }
+    }
+
+    void loadFuelEstimate();
+    return () => {
+      active = false;
+    };
+  }, [record]);
+
   if (!record) return null;
 
   return (
@@ -1272,7 +1635,7 @@ function TransportationTab({
       <SurfaceHeader
         eyebrow="Transportation"
         title="Transportation"
-        subtitle="Delivery preferences and transportation requests for this buyer."
+        subtitle="Transportation cost details, fee status, mileage, and request history for this buyer."
         action={
           <Link
             href={`/admin/portal/transportation?buyer=${record.buyer.id}`}
@@ -1290,9 +1653,30 @@ function TransportationTab({
         />
         <ReadField label="Location" value={record.buyer.delivery_location || "No location saved"} wrap />
         <ReadField
-          label="Fee / Miles"
-          value={record.buyer.delivery_fee ? fmtMoney(record.buyer.delivery_fee) : "Not set"}
-          detail={record.buyer.delivery_miles ? `${record.buyer.delivery_miles} miles` : "Mileage not saved"}
+          label="Fee Status"
+          value={deliveryFeeStatus(record)}
+          detail={record.buyer.delivery_fee ? `${fmtMoney(record.buyer.delivery_fee)} charged` : "No transportation fee recorded"}
+        />
+        <ReadField
+          label="Mileage"
+          value={record.buyer.delivery_miles ? `${record.buyer.delivery_miles} miles` : "Mileage not saved"}
+          detail="Mileage can be entered in Edit Buyer and drives the gas estimate below."
+        />
+        <ReadField
+          label="Tolls / Hotel"
+          value={`${fmtMoney(toNumber(record.buyer.expense_tolls))} / ${fmtMoney(toNumber(record.buyer.expense_hotel))}`}
+          detail={record.buyer.expense_misc || "No extra transportation notes saved"}
+          wrap
+        />
+        <ReadField
+          label="Estimated Gas"
+          value={fuelEstimate ? fmtMoney(fuelEstimate.estimatedFuelCost) : record.buyer.expense_gas ? fmtMoney(record.buyer.expense_gas) : "Not available yet"}
+          detail={
+            fuelEstimate
+              ? `${fuelEstimate.miles.toFixed(0)} miles / ${fuelEstimate.assumedMpg} MPG (${fuelEstimate.assumedVehicle}) x ${fmtMoney(fuelEstimate.pricePerGallon)} per gallon for ${fuelEstimate.priceMonth}${fuelEstimate.usedFallbackMonth ? " (closest available month)" : ""}.`
+              : fuelError || "Add a transportation date and mileage to calculate the fuel estimate automatically."
+          }
+          wrap
         />
       </div>
       <div className="mt-5 space-y-3">
@@ -1312,6 +1696,7 @@ function TransportationTab({
                     {request.location_text || request.address_text
                       ? ` | ${request.location_text || request.address_text}`
                       : ""}
+                    {request.miles ? ` | ${request.miles} miles` : ""}
                   </div>
                 </div>
                 <span
@@ -1426,7 +1811,156 @@ function PaymentsTab({ entry }: { entry: BuyerEntry | null }) {
   );
 }
 
-function DocumentsTab({ record }: { record: BuyerRecord | null }) {
+function DocumentUploadPanel({
+  buyerId,
+  accessToken,
+  defaultCategory,
+  heading,
+  description,
+  onUploaded,
+}: {
+  buyerId: number;
+  accessToken: string;
+  defaultCategory: string;
+  heading: string;
+  description: string;
+  onUploaded: () => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [notes, setNotes] = useState("");
+  const [category, setCategory] = useState(defaultCategory);
+  const [visibleToUser, setVisibleToUser] = useState(true);
+  const [file, setFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  async function handleUpload() {
+    if (!accessToken) {
+      setError("Admin access token is missing. Refresh and try again.");
+      return;
+    }
+    if (!file) {
+      setError("Choose a scanned form or document to upload.");
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const formData = new FormData();
+      formData.append("buyer_id", String(buyerId));
+      formData.append("title", title.trim());
+      formData.append("description", notes.trim());
+      formData.append("category", category);
+      formData.append("visible_to_user", visibleToUser ? "true" : "false");
+      formData.append("file", file);
+
+      const response = await fetch("/api/admin/portal/buyer-documents", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: formData,
+      });
+
+      const payload = (await response.json()) as { ok?: boolean; error?: string };
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || "Could not upload the document.");
+      }
+
+      setTitle("");
+      setNotes("");
+      setFile(null);
+      setSuccess("Document uploaded and attached to this buyer.");
+      onUploaded();
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Could not upload the document.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="rounded-[1.2rem] border border-[rgba(187,160,132,0.18)] bg-[rgba(250,245,239,0.82)] p-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+            {heading}
+          </div>
+          <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">{description}</div>
+        </div>
+        <button type="button" onClick={handleUpload} disabled={submitting} className={primaryButtonClass}>
+          <FileUp className="h-4 w-4" />
+          {submitting ? "Uploading..." : "Upload Scan"}
+        </button>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <AdminTextInput label="Document Title" value={title} onChange={setTitle} placeholder="Signed payment plan agreement" />
+        <AdminSelectInput
+          label="Category"
+          value={category}
+          onChange={setCategory}
+          options={[
+            { value: "buyer_forms", label: "Buyer Forms" },
+            { value: "financing", label: "Financing" },
+            { value: "placement", label: "Placement" },
+            { value: "transportation", label: "Transportation" },
+            { value: "health", label: "Health" },
+          ]}
+        />
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px]">
+        <div>
+          <label className="block text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+            Scanned File
+          </label>
+          <input
+            type="file"
+            onChange={(event) => setFile(event.target.files?.[0] || null)}
+            className="mt-2 block w-full rounded-[1rem] border border-[rgba(187,160,132,0.22)] bg-white px-4 py-3 text-sm text-[var(--portal-text)] file:mr-4 file:rounded-full file:border-0 file:bg-[rgba(200,140,82,0.16)] file:px-3 file:py-2 file:text-sm file:font-semibold file:text-[var(--portal-text)]"
+          />
+        </div>
+        <label className="flex items-center gap-3 rounded-[1rem] border border-[rgba(187,160,132,0.18)] bg-white px-4 py-3 text-sm text-[var(--portal-text)]">
+          <input
+            type="checkbox"
+            checked={visibleToUser}
+            onChange={(event) => setVisibleToUser(event.target.checked)}
+            className="h-4 w-4 rounded border-[var(--portal-border)] text-[#a56733] focus:ring-[#c88c52]"
+          />
+          Visible to buyer
+        </label>
+      </div>
+
+      <div className="mt-4">
+        <AdminTextAreaInput
+          label="Notes"
+          value={notes}
+          onChange={setNotes}
+          rows={3}
+          placeholder="Optional notes about the uploaded form or scan."
+        />
+      </div>
+
+      {error ? <div className="mt-4 rounded-[1rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
+      {success ? <div className="mt-4 rounded-[1rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</div> : null}
+    </div>
+  );
+}
+
+function DocumentsTab({
+  record,
+  accessToken,
+  onUploaded,
+}: {
+  record: BuyerRecord | null;
+  accessToken: string;
+  onUploaded: () => void;
+}) {
   if (!record) return null;
 
   return (
@@ -1434,39 +1968,102 @@ function DocumentsTab({ record }: { record: BuyerRecord | null }) {
       <SurfaceHeader
         eyebrow="Documents"
         title="Documents"
-        subtitle="Signed forms and packet items for this buyer."
+        subtitle="Signed portal forms and scanned uploads attached to this buyer file."
         action={<Link href="/admin/portal/documents" className={secondaryButtonClass}>Open Documents</Link>}
       />
-      <div className="mt-5 space-y-3">
-        {record.forms.length ? (
-          record.forms.map((form) => (
-            <div key={`form-${form.id}`} className="rounded-[1.1rem] bg-[rgba(250,245,239,0.86)] px-4 py-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold text-[var(--portal-text)]">
-                    {form.form_title || form.form_key || "Portal form"}
+
+      <div className="mt-5">
+        <DocumentUploadPanel
+          buyerId={record.buyer.id}
+          accessToken={accessToken}
+          defaultCategory="buyer_forms"
+          heading="Upload Scanned Forms"
+          description="Attach scanned contracts, handwritten notes, or forms that were completed outside the website. Every uploaded file stays visible on this buyer record."
+          onUploaded={onUploaded}
+        />
+      </div>
+
+      <div className="mt-5 grid gap-6 xl:grid-cols-2">
+        <div className="space-y-3">
+          <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+            Portal Forms
+          </div>
+          {record.forms.length ? (
+            record.forms.map((form) => (
+              <div key={`form-${form.id}`} className="rounded-[1.1rem] bg-[rgba(250,245,239,0.86)] px-4 py-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-[var(--portal-text)]">
+                      {form.form_title || form.form_key || "Portal form"}
+                    </div>
+                    <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
+                      {form.submitted_at || form.updated_at || form.created_at
+                        ? fmtDate(form.submitted_at || form.updated_at || form.created_at || "")
+                        : "Not filed yet"}
+                      {form.signed_name ? ` | Signed by ${form.signed_name}` : ""}
+                    </div>
                   </div>
-                  <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
-                    {form.submitted_at || form.updated_at || form.created_at
-                      ? fmtDate(form.submitted_at || form.updated_at || form.created_at || "")
-                      : "Not filed yet"}
-                    {form.signed_name ? ` | Signed by ${form.signed_name}` : ""}
+                  <span
+                    className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(form.status || "submitted")}`}
+                  >
+                    {form.status || "submitted"}
+                  </span>
+                </div>
+              </div>
+            ))
+          ) : (
+            <AdminEmptyState
+              title="No portal forms yet"
+              description="Portal-generated forms will appear here after they are completed."
+            />
+          )}
+        </div>
+
+        <div className="space-y-3">
+          <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+            Uploaded Scans
+          </div>
+          {record.documents.length ? (
+            record.documents.map((document) => (
+              <div key={`doc-${document.id}`} className="rounded-[1.1rem] bg-[rgba(250,245,239,0.86)] px-4 py-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-[var(--portal-text)]">
+                      {document.title || document.file_name || "Buyer upload"}
+                    </div>
+                    <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
+                      {document.created_at ? fmtDate(document.created_at) : "Date unavailable"}
+                      {document.category ? ` | ${document.category}` : ""}
+                      {document.file_name ? ` | ${document.file_name}` : ""}
+                    </div>
+                    {document.description ? (
+                      <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
+                        {document.description}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <span
+                      className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(document.status || "uploaded")}`}
+                    >
+                      {document.status || "uploaded"}
+                    </span>
+                    {document.file_url ? (
+                      <a href={document.file_url} target="_blank" rel="noreferrer" className={secondaryButtonClass}>
+                        Open File
+                      </a>
+                    ) : null}
                   </div>
                 </div>
-                <span
-                  className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(form.status || "submitted")}`}
-                >
-                  {form.status || "submitted"}
-                </span>
               </div>
-            </div>
-          ))
-        ) : (
-          <AdminEmptyState
-            title="No buyer documents yet"
-            description="Portal forms and signed packet items will appear here once submitted."
-          />
-        )}
+            ))
+          ) : (
+            <AdminEmptyState
+              title="No uploaded scans yet"
+              description="Scanned contracts and outside paperwork will appear here after upload."
+            />
+          )}
+        </div>
       </div>
     </WorkspaceSurface>
   );
@@ -1517,15 +2114,29 @@ function ActivityTab({ items }: { items: ActivityItem[] }) {
   );
 }
 
-function PlanTab({ entry }: { entry: BuyerEntry | null }) {
+function PlanTab({
+  entry,
+  accessToken,
+  onUploaded,
+}: {
+  entry: BuyerEntry | null;
+  accessToken: string;
+  onUploaded: () => void;
+}) {
   if (!entry || !entry.summary.financeEnabled) return null;
+
+  const financingForms = entry.record.forms.filter((form) => matchesPaymentPlanForm(form.form_key));
+  const financingDocuments = entry.record.documents.filter((document) =>
+    matchesPaymentPlanDocument(document.category, document.title, document.description)
+  );
+  const recentNoticeLogs = entry.account?.payment_notice_logs || [];
 
   return (
     <WorkspaceSurface>
       <SurfaceHeader
         eyebrow="Puppy Payment Plan"
         title="Puppy Payment Plan"
-        subtitle="Financing terms, billing sync, and notice preferences for this buyer."
+        subtitle="Financing terms, subscription state, notice cadence, and payment-plan paperwork live together here."
         action={
           <Link
             href={`/admin/portal/puppy-financing?buyer=${entry.record.buyer.id}`}
@@ -1536,6 +2147,8 @@ function PlanTab({ entry }: { entry: BuyerEntry | null }) {
         }
       />
       <div className="mt-5 grid gap-4 lg:grid-cols-4">
+        <ReadField label="Principal" value={fmtMoney(entry.summary.purchasePrice)} detail="Current financed puppy total." />
+        <ReadField label="Deposit" value={fmtMoney(entry.summary.deposit)} detail={`${fmtMoney(entry.summary.balance)} balance remaining`} />
         <ReadField
           label="Monthly"
           value={entry.summary.monthlyAmount ? fmtMoney(entry.summary.monthlyAmount) : "Not set"}
@@ -1546,30 +2159,178 @@ function PlanTab({ entry }: { entry: BuyerEntry | null }) {
           value={entry.summary.financeRate ? `${entry.summary.financeRate}%` : "Not set"}
           detail={entry.summary.financeAdminFee ? "Admin fee enabled" : "Admin fee off"}
         />
+      </div>
+      <div className="mt-4 grid gap-4 lg:grid-cols-4">
         <ReadField
           label="Next Due"
           value={entry.summary.nextDueDate ? fmtDate(entry.summary.nextDueDate) : "Not set"}
-          detail={entry.summary.lastPaymentAt ? `Last payment ${fmtDate(entry.summary.lastPaymentAt)}` : "No payment posted yet"}
+          detail={
+            entry.account?.buyer.finance_day_of_month
+              ? `Due around day ${entry.account.buyer.finance_day_of_month} each month`
+              : "Monthly due day not saved"
+          }
+        />
+        <ReadField
+          label="Last Payment"
+          value={entry.summary.lastPaymentAt ? fmtDate(entry.summary.lastPaymentAt) : "No payment yet"}
+          detail={entry.summary.totalPaid ? `${fmtMoney(entry.summary.totalPaid)} paid to date` : "No payment history recorded"}
         />
         <ReadField
           label="Subscription"
           value={entry.account?.billing_subscription?.subscription_status || "Not synced"}
           detail={entry.account?.billing_subscription?.plan_name || entry.account?.billing_subscription?.plan_code || "No billing plan synced"}
         />
+        <ReadField
+          label="Recurring Amount"
+          value={entry.account?.billing_subscription?.recurring_price ? fmtMoney(entry.account.billing_subscription.recurring_price) : "Not synced"}
+          detail={
+            entry.account?.billing_subscription?.next_billing_at
+              ? `Next billing ${fmtDate(entry.account.billing_subscription.next_billing_at)}`
+              : "Recurring billing has not synced yet"
+          }
+        />
       </div>
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
         <ReadField
           label="Saved Method"
           value={entry.account?.billing_subscription?.card_last_four ? `Ending ${entry.account.billing_subscription.card_last_four}` : "Not synced"}
-          detail={entry.account?.billing_subscription?.next_billing_at ? `Next billing ${fmtDate(entry.account.billing_subscription.next_billing_at)}` : "Recurring billing has not synced yet"}
+          detail={
+            entry.account?.billing_subscription?.customer_name || entry.record.displayName
+          }
           wrap
         />
         <ReadField
           label="Notice Settings"
           value={entry.account?.payment_notice_settings?.enabled ? "Enabled" : "Not configured"}
-          detail={entry.account?.payment_notice_settings ? `Due ${entry.account.payment_notice_settings.due_reminder_enabled ? `${entry.account.payment_notice_settings.due_reminder_days_before}d before` : "off"} | Late ${entry.account.payment_notice_settings.late_notice_enabled ? `${entry.account.payment_notice_settings.late_notice_days_after}d after` : "off"} | Default ${entry.account.payment_notice_settings.default_notice_enabled ? `${entry.account.payment_notice_settings.default_notice_days_after}d after` : "off"}` : "Notice defaults appear once saved"}
+          detail={entry.account?.payment_notice_settings ? `Receipts ${entry.account.payment_notice_settings.receipt_enabled ? "on" : "off"} | Due ${entry.account.payment_notice_settings.due_reminder_enabled ? `${entry.account.payment_notice_settings.due_reminder_days_before}d before` : "off"} | Late ${entry.account.payment_notice_settings.late_notice_enabled ? `${entry.account.payment_notice_settings.late_notice_days_after}d after` : "off"} | Default ${entry.account.payment_notice_settings.default_notice_enabled ? `${entry.account.payment_notice_settings.default_notice_days_after}d after` : "off"}` : "Notice defaults appear once saved"}
           wrap
         />
+      </div>
+
+      <div className="mt-5">
+        <DocumentUploadPanel
+          buyerId={entry.record.buyer.id}
+          accessToken={accessToken}
+          defaultCategory="financing"
+          heading="Upload Payment Plan Documents"
+          description="If the payment plan application, credit application, or signed agreement was handled offline, upload the scanned copy here so it stays tied to this buyer's financing record."
+          onUploaded={onUploaded}
+        />
+      </div>
+
+      <div className="mt-5 grid gap-6 xl:grid-cols-2">
+        <div className="space-y-3">
+          <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+            Payment Plan Forms
+          </div>
+          {financingForms.length ? (
+            financingForms.map((form) => (
+              <div key={`finance-form-${form.id}`} className="rounded-[1.1rem] bg-[rgba(250,245,239,0.86)] px-4 py-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-[var(--portal-text)]">
+                      {form.form_title || form.form_key || "Payment plan form"}
+                    </div>
+                    <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
+                      {form.submitted_at || form.updated_at || form.created_at
+                        ? fmtDate(form.submitted_at || form.updated_at || form.created_at || "")
+                        : "Not filed yet"}
+                      {form.signed_name ? ` | Signed by ${form.signed_name}` : ""}
+                    </div>
+                  </div>
+                  <span
+                    className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(form.status || "submitted")}`}
+                  >
+                    {form.status || "submitted"}
+                  </span>
+                </div>
+              </div>
+            ))
+          ) : (
+            <AdminEmptyState
+              title="No payment-plan forms yet"
+              description="Website-submitted financing forms will appear here automatically."
+            />
+          )}
+        </div>
+
+        <div className="space-y-3">
+          <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+            Uploaded Financing Documents
+          </div>
+          {financingDocuments.length ? (
+            financingDocuments.map((document) => (
+              <div key={`finance-doc-${document.id}`} className="rounded-[1.1rem] bg-[rgba(250,245,239,0.86)] px-4 py-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-[var(--portal-text)]">
+                      {document.title || document.file_name || "Financing upload"}
+                    </div>
+                    <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
+                      {document.created_at ? fmtDate(document.created_at) : "Date unavailable"}
+                      {document.file_name ? ` | ${document.file_name}` : ""}
+                    </div>
+                    {document.description ? (
+                      <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
+                        {document.description}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <span
+                      className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(document.status || "uploaded")}`}
+                    >
+                      {document.status || "uploaded"}
+                    </span>
+                    {document.file_url ? (
+                      <a href={document.file_url} target="_blank" rel="noreferrer" className={secondaryButtonClass}>
+                        Open File
+                      </a>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <AdminEmptyState
+              title="No offline financing docs yet"
+              description="Upload scanned plan applications and agreements here when they were not completed in the portal."
+            />
+          )}
+        </div>
+      </div>
+
+      <div className="mt-5 space-y-3">
+        <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+          Recent Notice Activity
+        </div>
+        {recentNoticeLogs.length ? (
+          recentNoticeLogs.map((log) => (
+            <div key={`notice-log-${log.id}`} className="rounded-[1.1rem] bg-[rgba(250,245,239,0.86)] px-4 py-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-[var(--portal-text)]">
+                    {log.subject}
+                  </div>
+                  <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
+                    {fmtDate(log.created_at)} | {log.notice_kind} | {log.recipient_email}
+                    {log.due_date ? ` | Due ${fmtDate(log.due_date)}` : ""}
+                  </div>
+                </div>
+                <span
+                  className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(log.status || "sent")}`}
+                >
+                  {log.status || "sent"}
+                </span>
+              </div>
+            </div>
+          ))
+        ) : (
+          <AdminEmptyState
+            title="No notice log yet"
+            description="Receipts, due reminders, late notices, and default notices will appear here after they are sent."
+          />
+        )}
       </div>
     </WorkspaceSurface>
   );

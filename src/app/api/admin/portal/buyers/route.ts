@@ -16,10 +16,13 @@ type BuyerRow = {
   name?: string | null;
   email?: string | null;
   phone?: string | null;
+  address_line1?: string | null;
+  address_line2?: string | null;
   status?: string | null;
   notes?: string | null;
   city?: string | null;
   state?: string | null;
+  postal_code?: string | null;
   delivery_option?: string | null;
   delivery_date?: string | null;
   delivery_location?: string | null;
@@ -38,6 +41,10 @@ type ApplicationRow = {
   full_name?: string | null;
   email?: string | null;
   applicant_email?: string | null;
+  phone?: string | null;
+  street_address?: string | null;
+  city_state?: string | null;
+  zip?: string | null;
   status?: string | null;
   created_at?: string | null;
 };
@@ -73,12 +80,40 @@ type PuppyRow = {
   name?: string | null;
   sire?: string | null;
   dam?: string | null;
+  sex?: string | null;
+  color?: string | null;
+  coat_type?: string | null;
+  coat?: string | null;
+  pattern?: string | null;
+  dob?: string | null;
+  registry?: string | null;
   status?: string | null;
   price?: number | null;
   list_price?: number | null;
   deposit?: number | null;
   balance?: number | null;
+  photo_url?: string | null;
+  image_url?: string | null;
+  description?: string | null;
+  notes?: string | null;
   created_at?: string | null;
+};
+
+type DocumentRow = {
+  id: string;
+  user_id?: string | null;
+  buyer_id?: number | null;
+  email?: string | null;
+  title?: string | null;
+  description?: string | null;
+  category?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+  source_table?: string | null;
+  file_name?: string | null;
+  file_url?: string | null;
+  visible_to_user?: boolean | null;
+  signed_at?: string | null;
 };
 
 type LitterRow = {
@@ -111,10 +146,13 @@ function asBuyerPayload(body: Record<string, unknown>) {
     name: firstValue(body.full_name as string | null, body.name as string | null) || null,
     email: firstValue(body.email as string | null) || null,
     phone: firstValue(body.phone as string | null) || null,
+    address_line1: firstValue(body.address_line1 as string | null) || null,
+    address_line2: firstValue(body.address_line2 as string | null) || null,
     status: firstValue(body.status as string | null, "pending"),
     notes: firstValue(body.notes as string | null) || null,
     city: firstValue(body.city as string | null) || null,
     state: firstValue(body.state as string | null) || null,
+    postal_code: firstValue(body.postal_code as string | null) || null,
     delivery_option: firstValue(body.delivery_option as string | null) || null,
     delivery_date: firstValue(body.delivery_date as string | null) || null,
     delivery_location: firstValue(body.delivery_location as string | null) || null,
@@ -237,23 +275,27 @@ export async function GET(req: Request) {
         .filter(([email]) => !!email)
     );
 
-    const [buyersRes, applicationsRes, formsRes, puppiesRes, littersRes, dogsRes] =
+    const [buyersRes, applicationsRes, formsRes, documentsRes, puppiesRes, littersRes, dogsRes] =
       await Promise.all([
       service
         .from("buyers")
-        .select("id,user_id,puppy_id,full_name,name,email,phone,status,notes,city,state,delivery_option,delivery_date,delivery_location,delivery_miles,delivery_fee,expense_gas,expense_hotel,expense_tolls,expense_misc,created_at")
+        .select("id,user_id,puppy_id,full_name,name,email,phone,address_line1,address_line2,status,notes,city,state,postal_code,delivery_option,delivery_date,delivery_location,delivery_miles,delivery_fee,expense_gas,expense_hotel,expense_tolls,expense_misc,created_at")
         .order("created_at", { ascending: false }),
       service
         .from("puppy_applications")
-        .select("id,user_id,full_name,email,applicant_email,status,created_at")
+        .select("id,user_id,full_name,email,applicant_email,phone,street_address,city_state,zip,status,created_at")
         .order("created_at", { ascending: false }),
       service
         .from("portal_form_submissions")
         .select("id,user_id,user_email,email,form_key,form_title,version,signed_name,signed_date,signed_at,status,submitted_at,created_at,updated_at,data,payload")
         .order("created_at", { ascending: false }),
       service
+        .from("portal_documents")
+        .select("id,user_id,buyer_id,email,title,description,category,status,created_at,source_table,file_name,file_url,visible_to_user,signed_at")
+        .order("created_at", { ascending: false }),
+      service
         .from("puppies")
-        .select("id,buyer_id,litter_id,litter_name,dam_id,sire_id,call_name,puppy_name,name,sire,dam,status,price,list_price,deposit,balance,created_at")
+        .select("id,buyer_id,litter_id,litter_name,dam_id,sire_id,call_name,puppy_name,name,sire,dam,sex,color,coat_type,coat,pattern,dob,registry,status,price,list_price,deposit,balance,photo_url,image_url,description,notes,created_at")
         .order("created_at", { ascending: false }),
       service
         .from("litters")
@@ -266,6 +308,7 @@ export async function GET(req: Request) {
     if (buyersRes.error) throw buyersRes.error;
     if (applicationsRes.error) throw applicationsRes.error;
     if (formsRes.error) throw formsRes.error;
+    if (documentsRes.error) throw documentsRes.error;
     if (puppiesRes.error) throw puppiesRes.error;
     if (littersRes.error) throw littersRes.error;
     if (dogsRes.error) throw dogsRes.error;
@@ -273,6 +316,7 @@ export async function GET(req: Request) {
     const buyers = (buyersRes.data || []) as BuyerRow[];
     const applications = (applicationsRes.data || []) as ApplicationRow[];
     const forms = (formsRes.data || []) as FormRow[];
+    const documents = (documentsRes.data || []) as DocumentRow[];
     const puppies = (puppiesRes.data || []) as PuppyRow[];
     const litters = (littersRes.data || []) as LitterRow[];
     const dogs = (dogsRes.data || []) as BreedingDogRow[];
@@ -332,6 +376,12 @@ export async function GET(req: Request) {
               (value) => normalizeEmail(String(value || "")) === email
             ))
       );
+      const matchingDocuments = documents.filter(
+        (document) =>
+          (buyer.user_id && document.user_id === buyer.user_id) ||
+          (!!buyer.id && Number(document.buyer_id || 0) === buyer.id) ||
+          (!!email && normalizeEmail(document.email) === email)
+      );
 
       const linkedPuppies = [...(puppiesByBuyerId.get(buyer.id) || [])];
       const fallbackPuppyId = Number(buyer.puppy_id || 0);
@@ -360,6 +410,7 @@ export async function GET(req: Request) {
         latestApplicationStatus: matchingApplications[0]?.status || null,
         formCount: matchingForms.length,
         forms: matchingForms,
+        documents: matchingDocuments,
         linkedPuppies,
       };
     });

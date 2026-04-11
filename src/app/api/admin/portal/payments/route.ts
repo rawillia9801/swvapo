@@ -17,6 +17,7 @@ type BuyerRow = {
   finance_rate?: number | null;
   finance_months?: number | null;
   finance_monthly_amount?: number | null;
+  finance_day_of_month?: number | null;
   finance_next_due_date?: string | null;
   finance_last_payment_date?: string | null;
   status?: string | null;
@@ -174,7 +175,7 @@ export async function GET(req: Request) {
       service
         .from("buyers")
         .select(
-          "id,user_id,puppy_id,full_name,name,email,phone,sale_price,deposit_amount,finance_enabled,finance_admin_fee,finance_rate,finance_months,finance_monthly_amount,finance_next_due_date,finance_last_payment_date,status"
+          "id,user_id,puppy_id,full_name,name,email,phone,sale_price,deposit_amount,finance_enabled,finance_admin_fee,finance_rate,finance_months,finance_monthly_amount,finance_day_of_month,finance_next_due_date,finance_last_payment_date,status"
         )
         .order("created_at", { ascending: false }),
       service
