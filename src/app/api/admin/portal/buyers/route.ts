@@ -133,6 +133,59 @@ async function syncBuyerPuppyAssignments(
   linkedPuppyIds: number[]
 ) {
   const uniqueIds = Array.from(new Set(linkedPuppyIds.filter((id) => Number.isFinite(id) && id > 0)));
+  if (uniqueIds.length) {
+    const { data: selectedRows, error: selectedError } = await service
+      .from("puppies")
+      .select("id,buyer_id,call_name,puppy_name,name")
+      .in("id", uniqueIds);
+
+    if (selectedError) throw selectedError;
+
+    const conflictingRows = (selectedRows || []).filter((row) => {
+      const currentBuyerId = Number(row.buyer_id || 0);
+      return currentBuyerId > 0 && currentBuyerId !== buyerId;
+    });
+
+    if (conflictingRows.length) {
+      const conflictingBuyerIds = Array.from(
+        new Set(conflictingRows.map((row) => Number(row.buyer_id || 0)).filter(Boolean))
+      );
+      const { data: conflictingBuyers, error: conflictingBuyersError } = await service
+        .from("buyers")
+        .select("id,full_name,name,email")
+        .in("id", conflictingBuyerIds);
+
+      if (conflictingBuyersError) throw conflictingBuyersError;
+
+      const conflictingBuyerNames = new Map(
+        ((conflictingBuyers || []) as Array<{
+          id: number;
+          full_name?: string | null;
+          name?: string | null;
+          email?: string | null;
+        }>).map((buyer) => [
+          Number(buyer.id),
+          firstValue(buyer.full_name, buyer.name, buyer.email, `Buyer #${buyer.id}`),
+        ] as const)
+      );
+
+      const conflictSummary = conflictingRows
+        .map((row) => {
+          const puppyName = firstValue(
+            row.call_name as string | null,
+            row.puppy_name as string | null,
+            row.name as string | null,
+            `Puppy #${row.id}`
+          );
+          const ownerName =
+            conflictingBuyerNames.get(Number(row.buyer_id || 0)) || "another buyer";
+          return `${puppyName} is already assigned to ${ownerName}`;
+        })
+        .join("; ");
+
+      throw new Error(conflictSummary);
+    }
+  }
 
   const { data: existingRows, error: existingError } = await service
     .from("puppies")
@@ -361,7 +414,12 @@ export async function POST(req: Request) {
       : [];
 
     if (linkedPuppyIds.length) {
-      await syncBuyerPuppyAssignments(service, data.id, linkedPuppyIds);
+      try {
+        await syncBuyerPuppyAssignments(service, data.id, linkedPuppyIds);
+      } catch (assignmentError) {
+        await service.from("buyers").delete().eq("id", data.id);
+        throw assignmentError;
+      }
     }
 
     return NextResponse.json({ ok: true, buyerId: data.id, ownerEmail: owner.email || null });
