@@ -113,7 +113,7 @@ export async function POST(req: Request) {
     const title =
       firstValue(formData.get("title") as string | null) ||
       safeFileName ||
-      `${firstValue(buyerResult.data.full_name, buyerResult.data.name, buyerResult.data.email, "Buyer")} document`;
+      `${firstValue(buyerResult.data.full_name, buyerResult.data.name, "Buyer")} document`;
     const description = firstValue(formData.get("description") as string | null) || null;
     const category = firstValue(formData.get("category") as string | null, "buyer_forms");
     const visibleToUser = parseBoolean(formData.get("visible_to_user"));
