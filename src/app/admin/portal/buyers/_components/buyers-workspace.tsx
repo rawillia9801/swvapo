@@ -157,11 +157,14 @@ type BuyerAccount = {
     status?: string | null;
   }>;
   billing_subscription?: {
+    customer_name?: string | null;
     subscription_status?: string | null;
     plan_name?: string | null;
     plan_code?: string | null;
     recurring_price?: number | null;
     next_billing_at?: string | null;
+    last_payment_at?: string | null;
+    last_payment_amount?: number | null;
     card_last_four?: string | null;
   } | null;
   payment_notice_settings?: {
@@ -323,6 +326,15 @@ function emptyBuyerForm(): BuyerForm {
 function toNumber(value: unknown) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function fmtMoneyPrecise(value: unknown) {
+  return Number(value || 0).toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 3,
+  });
 }
 
 function puppyLabel(puppy: PuppyOption | null | undefined) {
@@ -762,8 +774,13 @@ export function AdminBuyersWorkspace() {
         record.displayName,
         record.email,
         record.phone,
+        record.buyer.address_line1,
+        record.buyer.address_line2,
         record.buyer.city,
         record.buyer.state,
+        record.buyer.postal_code,
+        record.buyer.notes,
+        ...record.documents.map((document) => document.title || document.file_name || ""),
         ...record.linkedPuppies.map((puppy) => puppyLabel(puppy)),
       ]
         .map((value) => String(value || "").toLowerCase())
@@ -788,6 +805,21 @@ export function AdminBuyersWorkspace() {
   const visibleDirectoryEntries = groupedEntries[directoryFilter];
 
   useEffect(() => {
+    if (visibleDirectoryEntries.length) return;
+    if (groupedEntries.active.length) {
+      setDirectoryFilter("active");
+      return;
+    }
+    if (groupedEntries.financing.length) {
+      setDirectoryFilter("financing");
+      return;
+    }
+    if (groupedEntries.completed.length) {
+      setDirectoryFilter("completed");
+    }
+  }, [directoryFilter, groupedEntries, visibleDirectoryEntries.length]);
+
+  useEffect(() => {
     if (!visibleDirectoryEntries.length) {
       setSelectedKey("");
       return;
@@ -798,7 +830,6 @@ export function AdminBuyersWorkspace() {
   }, [selectedKey, visibleDirectoryEntries]);
 
   const selectedEntry =
-    entries.find((entry) => entry.record.key === selectedKey) ||
     visibleDirectoryEntries.find((entry) => entry.record.key === selectedKey) ||
     visibleDirectoryEntries[0] ||
     null;
@@ -1111,7 +1142,11 @@ export function AdminBuyersWorkspace() {
                 />
               ) : null}
               {activeTab === "transportation" ? (
-                <TransportationTab record={selectedBuyer} requests={selectedRequests} />
+                <TransportationTab
+                  record={selectedBuyer}
+                  requests={selectedRequests}
+                  accessToken={accessToken || ""}
+                />
               ) : null}
               {activeTab === "payments" ? <PaymentsTab entry={selectedEntry} /> : null}
               {activeTab === "documents" ? (
@@ -1137,6 +1172,7 @@ export function AdminBuyersWorkspace() {
         <BuyerModal
           mode={modalMode}
           form={modalForm}
+          accessToken={accessToken || ""}
           onChange={(key, value) => setModalForm((current) => ({ ...current, [key]: value }))}
           onClose={() => setModalMode(null)}
           onSave={() => void handleModalSave()}
@@ -1282,7 +1318,11 @@ function ProfileTab({
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
         <ReadField label="Buyer Name" value={record.displayName} />
         <ReadField label="Email" value={record.email || "No email on file"} />
-        <ReadField label="Phone" value={record.phone || "No phone on file"} />
+        <ReadField
+          label="Phone"
+          value={record.phone || record.latestApplication?.phone || "No phone on file"}
+          detail={record.phone ? "Buyer profile phone" : record.latestApplication?.phone ? "Pulled from buyer application" : "No phone saved yet"}
+        />
         <ReadField
           label="Street Address"
           value={buyerAddress || "No buyer address saved"}
@@ -1545,9 +1585,11 @@ function PuppiesTab({
 function TransportationTab({
   record,
   requests,
+  accessToken,
 }: {
   record: BuyerRecord | null;
   requests: TransportationRequest[];
+  accessToken: string;
 }) {
   const [fuelEstimate, setFuelEstimate] = useState<FuelEstimate | null>(null);
   const [fuelError, setFuelError] = useState("");
@@ -1578,7 +1620,12 @@ function TransportationTab({
       try {
         const response = await fetch(
           `/api/admin/portal/transportation/fuel-estimate?date=${encodeURIComponent(deliveryDate)}&miles=${encodeURIComponent(String(deliveryMiles))}`,
-          { cache: "no-store" }
+          {
+            cache: "no-store",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
         );
         const payload = (await response.json()) as {
           ok?: boolean;
@@ -1626,7 +1673,7 @@ function TransportationTab({
     return () => {
       active = false;
     };
-  }, [record]);
+  }, [accessToken, record, record?.buyer.delivery_date, record?.buyer.delivery_miles]);
 
   if (!record) return null;
 
@@ -1658,6 +1705,11 @@ function TransportationTab({
           detail={record.buyer.delivery_fee ? `${fmtMoney(record.buyer.delivery_fee)} charged` : "No transportation fee recorded"}
         />
         <ReadField
+          label="Transportation Fee"
+          value={record.buyer.delivery_fee || record.buyer.delivery_fee === 0 ? fmtMoney(record.buyer.delivery_fee) : "Not set"}
+          detail={deliveryFeeStatus(record) === "Waived" ? "Marked as waived." : "Stored fee amount on the buyer record."}
+        />
+        <ReadField
           label="Mileage"
           value={record.buyer.delivery_miles ? `${record.buyer.delivery_miles} miles` : "Mileage not saved"}
           detail="Mileage can be entered in Edit Buyer and drives the gas estimate below."
@@ -1673,7 +1725,7 @@ function TransportationTab({
           value={fuelEstimate ? fmtMoney(fuelEstimate.estimatedFuelCost) : record.buyer.expense_gas ? fmtMoney(record.buyer.expense_gas) : "Not available yet"}
           detail={
             fuelEstimate
-              ? `${fuelEstimate.miles.toFixed(0)} miles / ${fuelEstimate.assumedMpg} MPG (${fuelEstimate.assumedVehicle}) x ${fmtMoney(fuelEstimate.pricePerGallon)} per gallon for ${fuelEstimate.priceMonth}${fuelEstimate.usedFallbackMonth ? " (closest available month)" : ""}.`
+              ? `${fuelEstimate.miles.toFixed(0)} miles / ${fuelEstimate.assumedMpg} MPG (${fuelEstimate.assumedVehicle}) x ${fmtMoneyPrecise(fuelEstimate.pricePerGallon)} per gallon for ${fuelEstimate.priceMonth}${fuelEstimate.usedFallbackMonth ? " (closest available month)" : ""}. ${fuelEstimate.pricingSeries}.`
               : fuelError || "Add a transportation date and mileage to calculate the fuel estimate automatically."
           }
           wrap
@@ -1831,9 +1883,21 @@ function DocumentUploadPanel({
   const [category, setCategory] = useState(defaultCategory);
   const [visibleToUser, setVisibleToUser] = useState(true);
   const [file, setFile] = useState<File | null>(null);
+  const [fileInputKey, setFileInputKey] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  useEffect(() => {
+    setTitle("");
+    setNotes("");
+    setCategory(defaultCategory);
+    setVisibleToUser(true);
+    setFile(null);
+    setFileInputKey((current) => current + 1);
+    setError("");
+    setSuccess("");
+  }, [buyerId, defaultCategory]);
 
   async function handleUpload() {
     if (!accessToken) {
@@ -1874,6 +1938,7 @@ function DocumentUploadPanel({
       setTitle("");
       setNotes("");
       setFile(null);
+      setFileInputKey((current) => current + 1);
       setSuccess("Document uploaded and attached to this buyer.");
       onUploaded();
     } catch (uploadError) {
@@ -1920,6 +1985,7 @@ function DocumentUploadPanel({
             Scanned File
           </label>
           <input
+            key={fileInputKey}
             type="file"
             onChange={(event) => setFile(event.target.files?.[0] || null)}
             className="mt-2 block w-full rounded-[1rem] border border-[rgba(187,160,132,0.22)] bg-white px-4 py-3 text-sm text-[var(--portal-text)] file:mr-4 file:rounded-full file:border-0 file:bg-[rgba(200,140,82,0.16)] file:px-3 file:py-2 file:text-sm file:font-semibold file:text-[var(--portal-text)]"
@@ -2339,6 +2405,7 @@ function PlanTab({
 function BuyerModal({
   mode,
   form,
+  accessToken,
   onChange,
   onClose,
   onSave,
@@ -2347,12 +2414,91 @@ function BuyerModal({
 }: {
   mode: Exclude<BuyerModalMode, null>;
   form: BuyerForm;
+  accessToken: string;
   onChange: (key: keyof BuyerForm, value: string) => void;
   onClose: () => void;
   onSave: () => void;
   saving: boolean;
   error: string;
 }) {
+  const [fuelEstimate, setFuelEstimate] = useState<FuelEstimate | null>(null);
+  const [fuelError, setFuelError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadFuelEstimate() {
+      const deliveryDate = String(form.delivery_date || "").trim();
+      const deliveryMiles = toNumber(form.delivery_miles);
+
+      if (!deliveryDate || !deliveryMiles) {
+        if (active) {
+          setFuelEstimate(null);
+          setFuelError("");
+        }
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `/api/admin/portal/transportation/fuel-estimate?date=${encodeURIComponent(deliveryDate)}&miles=${encodeURIComponent(String(deliveryMiles))}`,
+          {
+            cache: "no-store",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
+        const payload = (await response.json()) as {
+          ok?: boolean;
+          error?: string;
+          requestedMonth?: string;
+          priceMonth?: string;
+          usedFallbackMonth?: boolean;
+          pricePerGallon?: number;
+          miles?: number;
+          assumedVehicle?: string;
+          assumedMpg?: number;
+          gallonsEstimated?: number;
+          estimatedFuelCost?: number;
+          pricingSeries?: string;
+        };
+
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.error || "Could not estimate the fuel cost.");
+        }
+
+        if (active) {
+          setFuelEstimate({
+            requestedMonth: payload.requestedMonth || "",
+            priceMonth: payload.priceMonth || "",
+            usedFallbackMonth: Boolean(payload.usedFallbackMonth),
+            pricePerGallon: toNumber(payload.pricePerGallon),
+            miles: toNumber(payload.miles),
+            assumedVehicle: String(payload.assumedVehicle || "2014 Kia Rio"),
+            assumedMpg: toNumber(payload.assumedMpg) || 31,
+            gallonsEstimated: toNumber(payload.gallonsEstimated),
+            estimatedFuelCost: toNumber(payload.estimatedFuelCost),
+            pricingSeries: String(payload.pricingSeries || ""),
+          });
+          setFuelError("");
+        }
+      } catch (estimateError) {
+        if (active) {
+          setFuelEstimate(null);
+          setFuelError(
+            estimateError instanceof Error ? estimateError.message : "Could not estimate fuel."
+          );
+        }
+      }
+    }
+
+    void loadFuelEstimate();
+    return () => {
+      active = false;
+    };
+  }, [accessToken, form.delivery_date, form.delivery_miles]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(34,24,17,0.42)] px-4 py-8 backdrop-blur-sm">
       <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[1.6rem] border border-[rgba(255,255,255,0.45)] bg-[rgba(255,252,247,0.98)] p-6 shadow-[0_30px_80px_rgba(66,44,24,0.28)]">
@@ -2375,8 +2521,11 @@ function BuyerModal({
             <AdminTextInput label="Email" value={form.email} onChange={(value) => onChange("email", value)} placeholder="buyer@email.com" />
             <AdminTextInput label="Phone" value={form.phone} onChange={(value) => onChange("phone", value)} placeholder="(555) 555-5555" />
             <AdminSelectInput label="Status" value={form.status} onChange={(value) => onChange("status", value)} options={[{ value: "pending", label: "Pending" }, { value: "approved", label: "Approved" }, { value: "completed", label: "Completed" }]} />
+            <AdminTextInput label="Address Line 1" value={form.address_line1} onChange={(value) => onChange("address_line1", value)} placeholder="Street address" />
+            <AdminTextInput label="Address Line 2" value={form.address_line2} onChange={(value) => onChange("address_line2", value)} placeholder="Apartment, suite, etc." />
             <AdminTextInput label="City" value={form.city} onChange={(value) => onChange("city", value)} placeholder="City" />
             <AdminTextInput label="State" value={form.state} onChange={(value) => onChange("state", value)} placeholder="State" />
+            <AdminTextInput label="ZIP Code" value={form.postal_code} onChange={(value) => onChange("postal_code", value)} placeholder="ZIP" />
           </div>
 
           <AdminTextAreaInput label="Notes" value={form.notes} onChange={(value) => onChange("notes", value)} rows={4} placeholder="Buyer notes, household context, or approval notes." />
@@ -2397,6 +2546,20 @@ function BuyerModal({
             </div>
             <div className="mt-4">
               <AdminTextAreaInput label="Transportation Notes" value={form.expense_misc} onChange={(value) => onChange("expense_misc", value)} rows={3} placeholder="Special route notes or miscellaneous transportation details." />
+            </div>
+            <div className="mt-4 rounded-[1rem] border border-[rgba(187,160,132,0.18)] bg-white px-4 py-4 text-sm text-[var(--portal-text-soft)]">
+              {fuelEstimate ? (
+                <div>
+                  <div className="font-semibold text-[var(--portal-text)]">
+                    Estimated gas: {fmtMoney(fuelEstimate.estimatedFuelCost)}
+                  </div>
+                  <div className="mt-1 leading-6">
+                    {fuelEstimate.miles.toFixed(0)} miles / {fuelEstimate.assumedMpg} MPG ({fuelEstimate.assumedVehicle}) x {fmtMoneyPrecise(fuelEstimate.pricePerGallon)} per gallon for {fuelEstimate.priceMonth}{fuelEstimate.usedFallbackMonth ? " using the closest available month." : "."} {fuelEstimate.pricingSeries}.
+                  </div>
+                </div>
+              ) : (
+                <div>{fuelError || "Add transportation date and mileage to preview the automatic gas estimate."}</div>
+              )}
             </div>
           </div>
         </div>

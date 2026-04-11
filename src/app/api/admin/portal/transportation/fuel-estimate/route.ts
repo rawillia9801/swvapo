@@ -82,14 +82,15 @@ function findPriceForMonth(prices: Map<string, number>, requestedMonth: string) 
 
   const candidate = Array.from(prices.keys())
     .filter((key) => key <= requestedMonth)
-    .sort()
-    .at(-1);
+    .sort();
 
-  if (!candidate) return null;
+  const resolvedCandidate = candidate[candidate.length - 1];
+
+  if (!resolvedCandidate) return null;
 
   return {
-    month: candidate,
-    price: prices.get(candidate) || 0,
+    month: resolvedCandidate,
+    price: prices.get(resolvedCandidate) || 0,
     isFallback: true,
   };
 }

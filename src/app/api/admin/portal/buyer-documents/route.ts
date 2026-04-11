@@ -41,7 +41,7 @@ async function ensureDocumentBucket(service: ReturnType<typeof createServiceSupa
 
   const createResult = await service.storage.createBucket(DOCUMENT_BUCKET, {
     public: true,
-    fileSizeLimit: "25MB",
+    fileSizeLimit: 25 * 1024 * 1024,
   });
 
   if (
@@ -130,7 +130,6 @@ export async function POST(req: Request) {
         category,
         status: "uploaded",
         source_table: "buyers_admin_upload",
-        source_id: String(buyerId),
         file_url: publicUrl || null,
         file_name: file.name,
         visible_to_user: visibleToUser,
