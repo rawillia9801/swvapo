@@ -15,7 +15,6 @@ import {
   PawPrint,
   Receipt,
   Scale,
-  ShieldCheck,
   Sparkles,
   Stethoscope,
   Truck,
@@ -1695,72 +1694,6 @@ function HeroStat({
   );
 }
 
-function HeroGlassMetric({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-[1rem] border border-white/18 bg-white/10 px-3 py-3">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/74">
-        {label}
-      </div>
-      <div className="mt-1 text-sm font-semibold text-white">{value}</div>
-    </div>
-  );
-}
-
-function JourneyStageCard({
-  index,
-  label,
-  detail,
-  href,
-  tone,
-}: {
-  index: number;
-  label: string;
-  detail: string;
-  href: string;
-  tone: "complete" | "current" | "upcoming";
-}) {
-  const toneClass =
-    tone === "complete"
-      ? "border-emerald-200 bg-emerald-50/70"
-      : tone === "current"
-        ? "border-[rgba(198,146,90,0.28)] bg-[linear-gradient(135deg,rgba(252,244,234,0.96)_0%,rgba(247,249,252,0.96)_100%)]"
-        : "border-[rgba(188,162,133,0.18)] bg-[rgba(252,251,249,0.94)]";
-  const bulletClass =
-    tone === "complete"
-      ? "border-emerald-200 bg-emerald-500 text-white"
-      : tone === "current"
-        ? "border-[rgba(198,146,90,0.28)] bg-[#c8925a] text-white"
-        : "border-[rgba(188,162,133,0.22)] bg-white text-[var(--portal-text-muted)]";
-
-  return (
-    <Link
-      href={href}
-      className={`w-[220px] shrink-0 rounded-[1.45rem] border p-4 transition hover:-translate-y-0.5 ${toneClass}`}
-    >
-      <div className="flex items-center gap-3">
-        <span
-          className={`inline-flex h-10 w-10 items-center justify-center rounded-full border text-sm font-semibold ${bulletClass}`}
-        >
-          {tone === "complete" ? <CheckCircle2 className="h-4 w-4" /> : index}
-        </span>
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
-            Step {index}
-          </div>
-          <div className="mt-1 text-sm font-semibold text-[var(--portal-text)]">{label}</div>
-        </div>
-      </div>
-      <div className="mt-4 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
-    </Link>
-  );
-}
-
 function FloatingCallout({
   label,
   value,
@@ -1880,25 +1813,6 @@ function NarrativeStrip({
   );
 }
 
-function AttentionActionCard({ item }: { item: AttentionItem }) {
-  return (
-    <Link
-      href={item.href}
-      className="group block rounded-[1.45rem] border border-[rgba(188,162,133,0.18)] bg-[linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(251,247,241,0.96)_100%)] p-4 transition hover:-translate-y-0.5 hover:border-[rgba(188,162,133,0.36)]"
-    >
-      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
-        {item.eyebrow}
-      </div>
-      <div className="mt-2 text-[1rem] font-semibold text-[var(--portal-text)]">{item.title}</div>
-      <div className="mt-2 text-sm leading-7 text-[var(--portal-text-soft)]">{item.detail}</div>
-      <div className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[#9c6a3a] transition group-hover:gap-3">
-        {item.action}
-        <ArrowRight className="h-4 w-4" />
-      </div>
-    </Link>
-  );
-}
-
 function BriefingCard({ item }: { item: BriefingItem }) {
   const icon =
     item.label === "Breeder update" ? (
@@ -1982,26 +1896,6 @@ function StoryFact({
         {label}
       </div>
       <div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">{value}</div>
-    </div>
-  );
-}
-
-function HighlightNote({
-  label,
-  title,
-  detail,
-}: {
-  label: string;
-  title: string;
-  detail: string;
-}) {
-  return (
-    <div className="rounded-[1.3rem] border border-[rgba(188,162,133,0.16)] bg-white p-4">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
-        {label}
-      </div>
-      <div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">{title}</div>
-      <div className="mt-2 text-sm leading-7 text-[var(--portal-text-soft)]">{detail}</div>
     </div>
   );
 }
