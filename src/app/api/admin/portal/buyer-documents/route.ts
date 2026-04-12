@@ -9,6 +9,8 @@ import {
   createServiceSupabase,
   describeRouteError,
   firstValue,
+  listAllAuthUsers,
+  normalizeEmail,
   verifyOwner,
 } from "@/lib/admin-api";
 
@@ -21,6 +23,27 @@ type BuyerLookup = {
   user_id?: string | null;
   full_name?: string | null;
   name?: string | null;
+  email?: string | null;
+};
+
+type PackageSubmissionLookup = {
+  id: number;
+  status?: string | null;
+  data?: Record<string, unknown> | null;
+  payload?: Record<string, unknown> | null;
+  user_id?: string | null;
+  user_email?: string | null;
+  email?: string | null;
+  form_key?: string | null;
+  form_title?: string | null;
+  version?: string | null;
+  signed_name?: string | null;
+  signed_date?: string | null;
+  signed_at?: string | null;
+  submitted_at?: string | null;
+  attachments?: unknown;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 function parseBoolean(value: FormDataEntryValue | null) {
@@ -59,6 +82,34 @@ async function ensureDocumentBucket(service: ReturnType<typeof createServiceSupa
   }
 }
 
+function submissionPayload(
+  row: Pick<PackageSubmissionLookup, "payload" | "data"> | null | undefined
+) {
+  if (row?.payload && typeof row.payload === "object" && !Array.isArray(row.payload)) {
+    return row.payload;
+  }
+  if (row?.data && typeof row.data === "object" && !Array.isArray(row.data)) {
+    return row.data;
+  }
+  return null;
+}
+
+function findPackageTarget(
+  rows: PackageSubmissionLookup[],
+  packageId: string
+) {
+  return rows.find((row) => {
+    const payload = submissionPayload(row);
+    const workflow = payload && typeof payload === "object" ? payload.chi_chi_workflow : null;
+    return (
+      workflow &&
+      typeof workflow === "object" &&
+      !Array.isArray(workflow) &&
+      String((workflow as Record<string, unknown>).package_id || "").trim() === packageId
+    );
+  }) || null;
+}
+
 export async function POST(req: Request) {
   try {
     const owner = await verifyOwner(req);
@@ -69,6 +120,9 @@ export async function POST(req: Request) {
     const formData = await req.formData();
     const buyerId = Number(formData.get("buyer_id") || 0);
     const file = formData.get("file");
+    const packageId = firstValue(formData.get("package_id") as string | null) || null;
+    const packageKey = firstValue(formData.get("package_key") as string | null) || null;
+    const signedAt = firstValue(formData.get("signed_at") as string | null) || null;
 
     if (!buyerId) {
       return NextResponse.json(
@@ -87,7 +141,7 @@ export async function POST(req: Request) {
     const service = createServiceSupabase();
     const buyerResult = await service
       .from("buyers")
-      .select("id,user_id,full_name,name")
+      .select("id,user_id,full_name,name,email")
       .eq("id", buyerId)
       .limit(1)
       .maybeSingle<BuyerLookup>();
@@ -98,6 +152,73 @@ export async function POST(req: Request) {
         { ok: false, error: "Buyer not found." },
         { status: 404 }
       );
+    }
+
+    let targetSubmission: PackageSubmissionLookup | null = null;
+
+    if (packageId) {
+      const submissionResult = await service
+        .from("portal_form_submissions")
+        .select(
+          "id,status,data,payload,user_id,user_email,email,form_key,form_title,version,signed_name,signed_date,signed_at,submitted_at,attachments,created_at,updated_at"
+        )
+        .order("updated_at", { ascending: false })
+        .limit(250)
+        .returns<PackageSubmissionLookup[]>();
+
+      if (submissionResult.error) throw submissionResult.error;
+      targetSubmission = findPackageTarget(submissionResult.data || [], packageId);
+    }
+
+    let resolvedUserId = String(buyerResult.data.user_id || "").trim();
+
+    if (!resolvedUserId) {
+      resolvedUserId = String(targetSubmission?.user_id || "").trim();
+    }
+
+    if (!resolvedUserId) {
+      const authUsers = await listAllAuthUsers();
+      const authByEmail = new Map(
+        authUsers
+          .map((authUser) => [normalizeEmail(authUser.email), authUser] as const)
+          .filter(([email]) => !!email)
+      );
+
+      const candidateEmails = [
+        normalizeEmail(buyerResult.data.email),
+        normalizeEmail(targetSubmission?.user_email),
+        normalizeEmail(targetSubmission?.email),
+      ].filter(Boolean);
+
+      for (const email of candidateEmails) {
+        const match = authByEmail.get(email);
+        if (match?.id) {
+          resolvedUserId = match.id;
+          break;
+        }
+      }
+    }
+
+    if (!resolvedUserId) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "This buyer is not linked to a portal user yet. Link the buyer to their portal account before uploading buyer documents.",
+        },
+        { status: 409 }
+      );
+    }
+
+    if (!buyerResult.data.user_id && resolvedUserId) {
+      const updateBuyerLink = await service
+        .from("buyers")
+        .update({ user_id: resolvedUserId })
+        .eq("id", buyerId);
+
+      if (updateBuyerLink.error) {
+        console.warn("Could not backfill buyer.user_id during document upload:", updateBuyerLink.error);
+      }
     }
 
     await ensureDocumentBucket(service);
@@ -123,9 +244,6 @@ export async function POST(req: Request) {
     const description = firstValue(formData.get("description") as string | null) || null;
     const category = firstValue(formData.get("category") as string | null, "buyer_forms");
     const visibleToUser = parseBoolean(formData.get("visible_to_user"));
-    const packageId = firstValue(formData.get("package_id") as string | null) || null;
-    const packageKey = firstValue(formData.get("package_key") as string | null) || null;
-    const signedAt = firstValue(formData.get("signed_at") as string | null) || null;
     const sourceTable = packageId
       ? buildChiChiDocumentPackageSource(packageId)
       : "buyers_admin_upload";
@@ -133,7 +251,7 @@ export async function POST(req: Request) {
     const insertResult = await service
       .from("portal_documents")
       .insert({
-        user_id: buyerResult.data.user_id || null,
+        user_id: resolvedUserId,
         buyer_id: buyerId,
         title,
         description,
@@ -152,40 +270,8 @@ export async function POST(req: Request) {
 
     if (insertResult.error) throw insertResult.error;
 
-    if (packageId) {
-      const submissionResult = await service
-        .from("portal_form_submissions")
-        .select(
-          "id,status,data,payload,user_id,user_email,email,form_key,form_title,version,signed_name,signed_date,signed_at,submitted_at,attachments,created_at,updated_at"
-        )
-        .order("updated_at", { ascending: false })
-        .limit(250);
-
-      if (submissionResult.error) throw submissionResult.error;
-
-      const target = (submissionResult.data || []).find((row) => {
-        const payload =
-          row.payload && typeof row.payload === "object" && !Array.isArray(row.payload)
-            ? row.payload
-            : row.data && typeof row.data === "object" && !Array.isArray(row.data)
-              ? row.data
-              : null;
-        const workflow = payload && typeof payload === "object" ? payload.chi_chi_workflow : null;
-        return (
-          workflow &&
-          typeof workflow === "object" &&
-          !Array.isArray(workflow) &&
-          String((workflow as Record<string, unknown>).package_id || "").trim() === packageId
-        );
-      });
-
-      if (target) {
-        const payload =
-          target.payload && typeof target.payload === "object" && !Array.isArray(target.payload)
-            ? target.payload
-            : target.data && typeof target.data === "object" && !Array.isArray(target.data)
-              ? target.data
-              : {};
+    if (packageId && targetSubmission) {
+      const payload = submissionPayload(targetSubmission) || {};
         const currentWorkflow =
           payload && typeof payload === "object" && payload.chi_chi_workflow && typeof payload.chi_chi_workflow === "object"
             ? (payload.chi_chi_workflow as ChiChiDocumentPackageWorkflow)
@@ -216,10 +302,9 @@ export async function POST(req: Request) {
             payload: nextPayload,
             status: "submitted",
           })
-          .eq("id", target.id);
+          .eq("id", targetSubmission.id);
 
         if (updateSubmission.error) throw updateSubmission.error;
-      }
     }
 
     return NextResponse.json({

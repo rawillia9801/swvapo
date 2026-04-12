@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import React, { useDeferredValue, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import {
@@ -18,10 +19,6 @@ import {
 } from "lucide-react";
 import {
   AdminEmptyState,
-  AdminHeroPrimaryAction,
-  AdminHeroSecondaryAction,
-  AdminMetricCard,
-  AdminMetricGrid,
   AdminPageHero,
   AdminPageShell,
   AdminRestrictedState,
@@ -73,6 +70,14 @@ type NoticeTone = "success" | "error" | "neutral";
 type NoticeState = {
   tone: NoticeTone;
   message: string;
+};
+
+type InsightTone = "neutral" | "warning" | "success";
+
+type ChiChiInsight = {
+  title: string;
+  detail: string;
+  tone: InsightTone;
 };
 
 type DogForm = {
@@ -192,6 +197,31 @@ const AGE_FILTER_OPTIONS = [
   { value: "prime", label: "2-6 years" },
   { value: "mature", label: "6-8 years" },
   { value: "senior", label: "8+ years" },
+];
+
+const RECORD_GAP_FILTER_OPTIONS = [
+  { value: "all", label: "All record states" },
+  { value: "any", label: "Any missing records" },
+  { value: "critical", label: "Critical gaps" },
+  { value: "health", label: "Health gaps" },
+  { value: "genetics", label: "Genetics gaps" },
+  { value: "lineage", label: "Lineage gaps" },
+  { value: "reproduction", label: "Repro gaps" },
+];
+
+const COMPLETENESS_FILTER_OPTIONS = [
+  { value: "all", label: "Any coverage" },
+  { value: "complete", label: "Complete" },
+  { value: "partial", label: "Partial" },
+  { value: "missing", label: "Missing" },
+];
+
+const REVENUE_TIER_FILTER_OPTIONS = [
+  { value: "all", label: "Any revenue tier" },
+  { value: "top", label: "Top tier" },
+  { value: "performing", label: "Performing" },
+  { value: "growth", label: "Growth" },
+  { value: "unproven", label: "Unproven" },
 ];
 
 function text(value: unknown) {
@@ -417,6 +447,312 @@ function buildDogWarnings(record: ProgramDogRecord) {
   }
 
   return warnings.slice(0, 5);
+}
+
+function healthCompleteness(record: ProgramDogRecord) {
+  const completed = [
+    text(record.metadata.health.testingSummary),
+    text(record.metadata.health.screeningSummary),
+    text(record.metadata.health.vaccinationLog),
+    text(record.metadata.health.vetHistory),
+  ].filter(Boolean).length;
+
+  if (completed >= 3) return "complete" as const;
+  if (completed >= 1) return "partial" as const;
+  return "missing" as const;
+}
+
+function geneticsCompleteness(record: ProgramDogRecord) {
+  const completed = [
+    text(record.dog.genetics_summary),
+    text(record.metadata.genetics.dnaResults),
+    text(record.metadata.genetics.carrierStates),
+    text(record.metadata.genetics.colorGenetics),
+    text(record.metadata.genetics.coatGenetics),
+  ].filter(Boolean).length;
+
+  if (completed >= 3) return "complete" as const;
+  if (completed >= 1) return "partial" as const;
+  return "missing" as const;
+}
+
+function completenessDetailLabel(value: "complete" | "partial" | "missing") {
+  if (value === "complete") return "Complete";
+  if (value === "partial") return "Partial";
+  return "Missing";
+}
+
+function revenueTier(record: ProgramDogRecord, maxRevenue: number) {
+  const totalRevenue = toNumber(record.dog.summary.totalRevenue);
+  if (totalRevenue <= 0 && !record.litters.length) return "unproven";
+  if (maxRevenue <= 0) return totalRevenue > 0 ? "performing" : "unproven";
+
+  const ratio = totalRevenue / maxRevenue;
+  if (ratio >= 0.75) return "top";
+  if (ratio >= 0.35) return "performing";
+  return totalRevenue > 0 ? "growth" : "unproven";
+}
+
+function revenueTierLabel(value: string) {
+  if (value === "top") return "Top Tier";
+  if (value === "performing") return "Performing";
+  if (value === "growth") return "Growth";
+  return "Unproven";
+}
+
+function recordHasLineageGap(record: ProgramDogRecord) {
+  return !text(record.metadata.lineage.bloodlineLabel) && !text(record.metadata.lineage.pedigreeSummary);
+}
+
+function recordHasReproGap(record: ProgramDogRecord) {
+  if (record.role === "dam") {
+    return !text(record.metadata.reproduction.heatCycleHistory) && !record.litters.length;
+  }
+
+  return !text(record.metadata.reproduction.fertilityNotes) && !record.litters.length;
+}
+
+function matchesRecordGap(record: ProgramDogRecord, filter: string) {
+  if (filter === "all") return true;
+  if (filter === "any") return record.warnings.length > 0;
+  if (filter === "critical") return record.warnings.length >= 3;
+  if (filter === "health") return healthCompleteness(record) !== "complete";
+  if (filter === "genetics") return geneticsCompleteness(record) !== "complete";
+  if (filter === "lineage") return recordHasLineageGap(record);
+  if (filter === "reproduction") return recordHasReproGap(record);
+  return true;
+}
+
+function pairingSurvivalRate(pairing: PairingSummary) {
+  if (!pairing.totalPuppies) return 0;
+  return pairing.survivingPuppies / pairing.totalPuppies;
+}
+
+function buildPairingSignals(pairing: PairingSummary) {
+  const notes: string[] = [];
+
+  if (pairing.totalRevenue > 0) {
+    notes.push(`${fmtMoney(pairing.totalRevenue)} produced`);
+  }
+  if (pairingSurvivalRate(pairing) >= 0.9 && pairing.totalPuppies) {
+    notes.push("strong survival");
+  }
+  if (pairing.averageLitterSize >= 3) {
+    notes.push("bigger litters");
+  }
+  if (pairing.retainedPuppies > 0) {
+    notes.push(`${pairing.retainedPuppies} retained`);
+  }
+  if (
+    pairing.dam &&
+    pairing.sire &&
+    text(pairing.dam.metadata.lineage.bloodlineLabel) &&
+    text(pairing.dam.metadata.lineage.bloodlineLabel) ===
+      text(pairing.sire.metadata.lineage.bloodlineLabel)
+  ) {
+    notes.push("review pedigree overlap");
+  }
+  if (
+    (pairing.dam && geneticsCompleteness(pairing.dam) === "missing") ||
+    (pairing.sire && geneticsCompleteness(pairing.sire) === "missing")
+  ) {
+    notes.push("genetics review");
+  }
+
+  return notes.slice(0, 3);
+}
+
+function buildPairingNarrative(pairing: PairingSummary) {
+  const signals = buildPairingSignals(pairing);
+  if (signals.length) return signals.join(" | ");
+  return "Needs more litter history before ChiChi can rank this pairing confidently.";
+}
+
+function insightToneClass(tone: InsightTone) {
+  if (tone === "success") return "border-emerald-200 bg-emerald-50 text-emerald-800";
+  if (tone === "warning") return "border-amber-200 bg-amber-50 text-amber-900";
+  return "border-[var(--portal-border)] bg-[var(--portal-surface-muted)] text-[var(--portal-text-soft)]";
+}
+
+function buildProgramChiChiInsights({
+  topDam,
+  topSire,
+  dueSoonDogs,
+  incompleteDogs,
+  bloodlineLeaderboard,
+  pairings,
+}: {
+  topDam: ProgramDogRecord | null;
+  topSire: ProgramDogRecord | null;
+  dueSoonDogs: ProgramDogRecord[];
+  incompleteDogs: ProgramDogRecord[];
+  bloodlineLeaderboard: Array<{ label: string; revenue: number; puppies: number; dogs: number }>;
+  pairings: PairingSummary[];
+}) {
+  const insights: ChiChiInsight[] = [];
+
+  if (topDam) {
+    insights.push({
+      title: `${topDam.dog.displayName} is pacing the dam side.`,
+      detail: `${fmtMoney(topDam.dog.summary.totalRevenue)} across ${topDam.litters.length} litters and ${topDam.puppies.length} puppies.`,
+      tone: "success",
+    });
+  }
+
+  if (topSire) {
+    insights.push({
+      title: `${topSire.dog.displayName} is pacing the sire side.`,
+      detail: `${fmtMoney(topSire.dog.summary.totalRevenue)} in sire-linked production so far.`,
+      tone: "success",
+    });
+  }
+
+  if (pairings[0]) {
+    insights.push({
+      title: `${pairings[0].dam?.dog.displayName || "Unknown dam"} x ${pairings[0].sire?.dog.displayName || "Unknown sire"} is your strongest completed pairing.`,
+      detail: buildPairingNarrative(pairings[0]),
+      tone: "neutral",
+    });
+  }
+
+  insights.push(
+    dueSoonDogs.length
+      ? {
+          title: `${dueSoonDogs.length} breeding milestone${dueSoonDogs.length === 1 ? "" : "s"} land within 30 days.`,
+          detail: dueSoonDogs
+            .slice(0, 3)
+            .map((record) => `${record.dog.displayName}${text(record.metadata.reproduction.dueDate) ? ` due ${fmtDate(record.metadata.reproduction.dueDate)}` : ""}`)
+            .join(" | "),
+          tone: "warning",
+        }
+      : {
+          title: "No due dates are tracked for the next 30 days.",
+          detail: "If you expect upcoming pregnancies or whelp windows, this is the first place to tighten.",
+          tone: "neutral",
+        }
+  );
+
+  insights.push(
+    incompleteDogs.length
+      ? {
+          title: `${incompleteDogs.length} dog record${incompleteDogs.length === 1 ? "" : "s"} still need breeder detail.`,
+          detail: incompleteDogs
+            .slice(0, 3)
+            .map((record) => `${record.dog.displayName}: ${record.warnings.join(", ")}`)
+            .join(" | "),
+          tone: "warning",
+        }
+      : {
+          title: "Record coverage looks clean right now.",
+          detail: "Health, genetics, lineage, and reproductive tracking appear well-covered across the active set.",
+          tone: "success",
+        }
+  );
+
+  if (bloodlineLeaderboard[0]) {
+    insights.push({
+      title: `${bloodlineLeaderboard[0].label} is the current lead bloodline.`,
+      detail: `${fmtMoney(bloodlineLeaderboard[0].revenue)} across ${bloodlineLeaderboard[0].dogs} dogs and ${bloodlineLeaderboard[0].puppies} puppies.`,
+      tone: "neutral",
+    });
+  }
+
+  return insights.slice(0, 4);
+}
+
+function buildSelectedDogInsights({
+  record,
+  pairings,
+  bestLitter,
+  maxRevenue,
+}: {
+  record: ProgramDogRecord;
+  pairings: PairingSummary[];
+  bestLitter: AdminLineageLitter | null;
+  maxRevenue: number;
+}) {
+  const insights: ChiChiInsight[] = [];
+  const healthState = healthCompleteness(record);
+  const geneticsState = geneticsCompleteness(record);
+  const tier = revenueTier(record, maxRevenue);
+  const topPairing = pairings[0] || null;
+  const dueGap = dateDiffDays(record.metadata.reproduction.dueDate);
+  const heatGap = dateDiffDays(record.metadata.reproduction.expectedNextHeat);
+  const retirementGap = dateDiffDays(record.metadata.profile.retirementTarget || record.metadata.profile.retirementDate);
+
+  insights.push(
+    record.warnings.length
+      ? {
+          title: `${record.dog.displayName} still needs breeder detail.`,
+          detail: record.warnings.join(" | "),
+          tone: "warning",
+        }
+      : {
+          title: `${record.dog.displayName}'s core file looks solid.`,
+          detail: "Lineage, health, genetics, and reproductive notes are in place with no immediate record warnings.",
+          tone: "success",
+        }
+  );
+
+  if (record.role === "dam") {
+    if (dueGap != null && dueGap >= -7 && dueGap <= 30) {
+      insights.push({
+        title: `${record.dog.displayName} is in an active due-soon window.`,
+        detail: `Current due date is ${fmtDate(record.metadata.reproduction.dueDate)}. Keep pregnancy, whelping, and support prep in motion.`,
+        tone: "warning",
+      });
+    } else if (heatGap != null && heatGap >= -7 && heatGap <= 30) {
+      insights.push({
+        title: `${record.dog.displayName} is approaching a heat review window.`,
+        detail: text(record.metadata.reproduction.expectedNextHeat)
+          ? `Expected next heat ${fmtDate(record.metadata.reproduction.expectedNextHeat)}.`
+          : "A heat review window is near, but the exact date still needs to be logged.",
+        tone: "warning",
+      });
+    } else if (!record.litters.length) {
+      insights.push({
+        title: `${record.dog.displayName} has not produced a litter yet.`,
+        detail: "ChiChi will get stronger pairing guidance once reproductive timing, health, and genetics coverage are tighter.",
+        tone: "neutral",
+      });
+    }
+  } else if (!pairings.length) {
+    insights.push({
+      title: `${record.dog.displayName} has no completed sire pairing history yet.`,
+      detail: "Fertility notes, genetics, and compatibility notes matter more while the sire side is still unproven.",
+      tone: "neutral",
+    });
+  }
+
+  if (topPairing) {
+    insights.push({
+      title: `Best recorded pairing is ${topPairing.dam?.dog.displayName || "Unknown dam"} x ${topPairing.sire?.dog.displayName || "Unknown sire"}.`,
+      detail: buildPairingNarrative(topPairing),
+      tone: "success",
+    });
+  } else if (bestLitter) {
+    insights.push({
+      title: `${bestLitter.displayName} is the strongest litter tied to this dog so far.`,
+      detail: `${fmtMoney(bestLitter.summary.totalRevenue)} from ${bestLitter.puppies.length} puppies.`,
+      tone: "success",
+    });
+  }
+
+  if (retirementGap != null && retirementGap >= 0 && retirementGap <= 365) {
+    insights.push({
+      title: `${record.dog.displayName} is entering a retirement review year.`,
+      detail: `Retirement target is ${fmtDate(record.metadata.profile.retirementTarget || record.metadata.profile.retirementDate)}. Review recovery, litter trend, and retained-program value.`,
+      tone: "warning",
+    });
+  }
+
+  insights.push({
+    title: `${record.dog.displayName} currently sits in the ${revenueTierLabel(tier).toLowerCase()} contribution tier.`,
+    detail: `${fmtMoney(record.dog.summary.totalRevenue)} produced, ${record.retainedPuppies} retained, health ${completenessDetailLabel(healthState).toLowerCase()}, genetics ${completenessDetailLabel(geneticsState).toLowerCase()}.`,
+    tone: tier === "top" ? "success" : tier === "unproven" ? "warning" : "neutral",
+  });
+
+  return insights.slice(0, 4);
 }
 
 function buildPairingSummaries(
@@ -721,28 +1057,155 @@ function ListPill({
   );
 }
 
-function BrowserDogCard({
-  record,
-  selected,
-  onClick,
+function CommandActionLink({
+  href,
+  icon,
+  title,
+  detail,
 }: {
-  record: ProgramDogRecord;
-  selected: boolean;
+  href: string;
+  icon: React.ReactNode;
+  title: string;
+  detail: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group flex items-start justify-between gap-3 rounded-[1.05rem] border border-[var(--portal-border)] bg-white px-3 py-3 text-left transition hover:border-[var(--portal-border-strong)] hover:bg-[var(--portal-surface-muted)]"
+    >
+      <div className="flex min-w-0 items-start gap-3">
+        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[rgba(214,179,141,0.18)] text-[#b67744]">
+          {icon}
+        </span>
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-[var(--portal-text)]">{title}</div>
+          <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">{detail}</div>
+        </div>
+      </div>
+      <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#a56a37]">
+        Open
+      </span>
+    </Link>
+  );
+}
+
+function CommandActionButton({
+  onClick,
+  icon,
+  title,
+  detail,
+  disabled = false,
+}: {
   onClick: () => void;
+  icon: React.ReactNode;
+  title: string;
+  detail: string;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
+      className="group flex w-full items-start justify-between gap-3 rounded-[1.05rem] border border-[var(--portal-border)] bg-white px-3 py-3 text-left transition hover:border-[var(--portal-border-strong)] hover:bg-[var(--portal-surface-muted)] disabled:cursor-not-allowed disabled:opacity-55"
+    >
+      <div className="flex min-w-0 items-start gap-3">
+        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[rgba(214,179,141,0.18)] text-[#b67744]">
+          {icon}
+        </span>
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-[var(--portal-text)]">{title}</div>
+          <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">{detail}</div>
+        </div>
+      </div>
+      <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#a56a37]">
+        Open
+      </span>
+    </button>
+  );
+}
+
+function ProgramMetricTile({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-[1.2rem] border border-[var(--portal-border)] bg-white px-4 py-4 shadow-sm">
+      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+        {label}
+      </div>
+      <div className="mt-2 text-[1.45rem] font-semibold tracking-[-0.04em] text-[var(--portal-text)]">
+        {value}
+      </div>
+      <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">{detail}</div>
+    </div>
+  );
+}
+
+function MiniStatTile({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-[0.95rem] border border-[var(--portal-border)] bg-[rgba(249,244,237,0.74)] px-3 py-3">
+      <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+        {label}
+      </div>
+      <div className="mt-1 text-sm font-semibold text-[var(--portal-text)]">{value}</div>
+      <div className="mt-1 text-[11px] leading-5 text-[var(--portal-text-soft)]">{detail}</div>
+    </div>
+  );
+}
+
+function ChiChiInsightCard({ insight }: { insight: ChiChiInsight }) {
+  return (
+    <div
+      className={`rounded-[1.1rem] border px-4 py-4 ${insightToneClass(insight.tone)}`}
+    >
+      <div className="text-sm font-semibold">{insight.title}</div>
+      <div className="mt-2 text-xs leading-5 opacity-90">{insight.detail}</div>
+    </div>
+  );
+}
+
+function BrowserDogCard({
+  record,
+  maxRevenue,
+  selected,
+  onClick,
+}: {
+  record: ProgramDogRecord;
+  maxRevenue: number;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  const healthState = healthCompleteness(record);
+  const geneticsState = geneticsCompleteness(record);
+  const tier = revenueTier(record, maxRevenue);
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
       className={[
-        "block w-full rounded-[1.25rem] border px-4 py-4 text-left transition",
+        "block w-full rounded-[1.15rem] border px-4 py-4 text-left transition",
         selected
-          ? "border-[var(--portal-border-strong)] bg-white shadow-[var(--portal-shadow-sm)]"
+          ? "border-[var(--portal-border-strong)] bg-white shadow-[var(--portal-shadow-sm)] ring-1 ring-[rgba(182,123,67,0.18)]"
           : "border-[var(--portal-border)] bg-[rgba(255,255,255,0.72)] hover:border-[var(--portal-border-strong)] hover:bg-white",
       ].join(" ")}
     >
       <div className="flex items-start gap-3">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[1rem] bg-[rgba(236,224,210,0.7)]">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[0.95rem] bg-[rgba(236,224,210,0.7)]">
           {record.photoUrl ? (
             <div className="relative h-full w-full">
               <Image
@@ -750,7 +1213,7 @@ function BrowserDogCard({
                 alt={record.dog.displayName}
                 fill
                 unoptimized
-                sizes="56px"
+                sizes="48px"
                 className="object-cover"
               />
             </div>
@@ -765,12 +1228,20 @@ function BrowserDogCard({
               <div className="truncate text-sm font-semibold text-[var(--portal-text)]">
                 {record.dog.displayName}
               </div>
-              <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
+              <div className="mt-1 truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--portal-text-muted)]">
                 {joinMeta([
                   roleLabel(record.role),
+                  record.metadata.profile.currentProgramState ||
+                    record.metadata.profile.provenStatus ||
+                    "",
+                ]) || roleLabel(record.role)}
+              </div>
+              <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
+                {joinMeta([
                   record.ageLabel,
                   record.dog.color || "",
                   record.dog.coat || "",
+                  record.dog.registry || "",
                 ])}
               </div>
             </div>
@@ -783,23 +1254,63 @@ function BrowserDogCard({
             </span>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-[var(--portal-text-muted)]">
-            <span>{record.litters.length} litters</span>
-            <span>•</span>
-            <span>{record.puppies.length} puppies</span>
-            <span>•</span>
-            <span>{fmtMoney(record.dog.summary.totalRevenue)}</span>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <MiniStatTile
+              label="Litters"
+              value={String(record.litters.length)}
+              detail={`${record.averageLitterSize ? record.averageLitterSize.toFixed(1) : "0.0"} avg`}
+            />
+            <MiniStatTile
+              label="Produced"
+              value={String(record.puppies.length)}
+              detail={`${record.retainedPuppies} retained`}
+            />
+            <MiniStatTile
+              label="Revenue"
+              value={fmtMoney(record.dog.summary.totalRevenue)}
+              detail={revenueTierLabel(tier)}
+            />
           </div>
 
-          {record.warnings.length ? (
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {record.warnings.slice(0, 2).map((warning) => (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            <ListPill
+              tone={
+                healthState === "complete"
+                  ? "success"
+                  : healthState === "missing"
+                    ? "warning"
+                    : "neutral"
+              }
+            >
+              Health {completenessDetailLabel(healthState)}
+            </ListPill>
+            <ListPill
+              tone={
+                geneticsState === "complete"
+                  ? "success"
+                  : geneticsState === "missing"
+                    ? "warning"
+                    : "neutral"
+              }
+            >
+              Genetics {completenessDetailLabel(geneticsState)}
+            </ListPill>
+            {record.metadata.profile.breedingEligibility ? (
+              <ListPill tone="neutral">{record.metadata.profile.breedingEligibility}</ListPill>
+            ) : null}
+          </div>
+
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {record.warnings.length ? (
+              record.warnings.slice(0, 2).map((warning) => (
                 <ListPill key={`${record.dog.id}-${warning}`} tone="warning">
                   {warning}
                 </ListPill>
-              ))}
-            </div>
-          ) : null}
+              ))
+            ) : (
+              <ListPill tone="success">Record covered</ListPill>
+            )}
+          </div>
         </div>
       </div>
     </button>
@@ -888,6 +1399,11 @@ export default function AdminPortalBreedingProgramPage() {
   const [coatFilter, setCoatFilter] = useState("all");
   const [bloodlineFilter, setBloodlineFilter] = useState("all");
   const [ageFilter, setAgeFilter] = useState("all");
+  const [eligibilityFilter, setEligibilityFilter] = useState("all");
+  const [recordGapFilter, setRecordGapFilter] = useState("all");
+  const [revenueTierFilter, setRevenueTierFilter] = useState("all");
+  const [healthFilter, setHealthFilter] = useState("all");
+  const [geneticsFilter, setGeneticsFilter] = useState("all");
   const [selectedId, setSelectedId] = useState("");
   const [createMode, setCreateMode] = useState(false);
   const [form, setForm] = useState<DogForm>(emptyDogForm());
@@ -1012,6 +1528,11 @@ export default function AdminPortalBreedingProgramPage() {
     [programDogs]
   );
 
+  const maxDogRevenue = useMemo(
+    () => Math.max(0, ...programDogs.map((record) => toNumber(record.dog.summary.totalRevenue))),
+    [programDogs]
+  );
+
   const registryOptions = useMemo(
     () =>
       ["all", ...new Set(programDogs.map((record) => text(record.dog.registry)).filter(Boolean))].map(
@@ -1062,6 +1583,20 @@ export default function AdminPortalBreedingProgramPage() {
         return false;
       }
       if (!matchesAgeBand(record.ageMonths, ageFilter)) return false;
+      if (
+        eligibilityFilter !== "all" &&
+        text(record.metadata.profile.breedingEligibility) !== eligibilityFilter
+      ) {
+        return false;
+      }
+      if (!matchesRecordGap(record, recordGapFilter)) return false;
+      if (revenueTierFilter !== "all" && revenueTier(record, maxDogRevenue) !== revenueTierFilter) {
+        return false;
+      }
+      if (healthFilter !== "all" && healthCompleteness(record) !== healthFilter) return false;
+      if (geneticsFilter !== "all" && geneticsCompleteness(record) !== geneticsFilter) {
+        return false;
+      }
 
       const q = text(deferredSearch).toLowerCase();
       if (!q) return true;
@@ -1091,7 +1626,13 @@ export default function AdminPortalBreedingProgramPage() {
     bloodlineFilter,
     coatFilter,
     deferredSearch,
+    eligibilityFilter,
+    geneticsFilter,
+    healthFilter,
+    maxDogRevenue,
     programDogs,
+    recordGapFilter,
+    revenueTierFilter,
     registryFilter,
     roleFilter,
     statusFilter,
@@ -1254,6 +1795,56 @@ export default function AdminPortalBreedingProgramPage() {
     [selectedRecord]
   );
 
+  const breedingTasksDue = useMemo(
+    () =>
+      programDogs.filter((record) => {
+        const dueGap = dateDiffDays(record.metadata.reproduction.dueDate);
+        const heatGap = dateDiffDays(record.metadata.reproduction.expectedNextHeat);
+        const retirementGap = dateDiffDays(
+          record.metadata.profile.retirementTarget || record.metadata.profile.retirementDate
+        );
+
+        return (
+          (dueGap != null && dueGap >= -7 && dueGap <= 30) ||
+          (heatGap != null && heatGap >= -7 && heatGap <= 30) ||
+          (retirementGap != null && retirementGap >= 0 && retirementGap <= 180) ||
+          record.warnings.length > 0
+        );
+      }).length,
+    [programDogs]
+  );
+
+  const averageSurvivingPuppies = workspace?.summary.totalLitters
+    ? (workspace?.puppies || []).filter((puppy) => !isLossStatus(puppy.status)).length /
+      workspace.summary.totalLitters
+    : 0;
+
+  const programChiChiInsights = useMemo(
+    () =>
+      buildProgramChiChiInsights({
+        topDam,
+        topSire,
+        dueSoonDogs,
+        incompleteDogs,
+        bloodlineLeaderboard,
+        pairings: pairingSummaries,
+      }),
+    [bloodlineLeaderboard, dueSoonDogs, incompleteDogs, pairingSummaries, topDam, topSire]
+  );
+
+  const selectedChiChiInsights = useMemo(
+    () =>
+      selectedRecord
+        ? buildSelectedDogInsights({
+            record: selectedRecord,
+            pairings: selectedPairings,
+            bestLitter: selectedBestLitter,
+            maxRevenue: maxDogRevenue,
+          })
+        : [],
+    [maxDogRevenue, selectedBestLitter, selectedPairings, selectedRecord]
+  );
+
   async function handleRefresh() {
     if (!accessToken) return;
     setNotice({ tone: "neutral", message: "Refreshing breeding program data..." });
@@ -1407,37 +1998,29 @@ export default function AdminPortalBreedingProgramPage() {
             </>
           }
           aside={
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-              <div>
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.18fr)_420px]">
+              <div className="space-y-4">
                 <div className="max-w-4xl text-sm leading-7 text-[var(--portal-text-soft)]">
-                  This workspace now ties together dams, sires, pairings, heat cycles, pregnancies, litters, produced puppies, health, genetics, and financial value so you can manage the program from one breeder-grade command center instead of a single dog form.
+                  This workspace ties together dams, sires, reproductive timing, pregnancies, litters, produced puppies, lineage, health, genetics, and financial contribution so the breeding program reads like one serious internal system instead of scattered records.
                 </div>
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <AdminHeroPrimaryAction href="/admin/portal/litters">
-                    Open Litters
-                  </AdminHeroPrimaryAction>
-                  <AdminHeroSecondaryAction href="/admin/portal/puppies">
-                    Open Puppies
-                  </AdminHeroSecondaryAction>
-                  <AdminHeroSecondaryAction href="/admin/portal/documents">
-                    Open Documents
-                  </AdminHeroSecondaryAction>
-                </div>
-              </div>
 
-              <Surface className="p-5">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <StatChip
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <ProgramMetricTile
+                    label="Program Health"
+                    value={incompleteDogs.length || breedingTasksDue ? "Needs Attention" : "On Track"}
+                    detail={`${breedingTasksDue} due tasks and ${incompleteDogs.length} incomplete dog files`}
+                  />
+                  <ProgramMetricTile
                     label="Top Dam"
                     value={topDam?.dog.displayName || "No dam yet"}
                     detail={topDam ? fmtMoney(topDam.dog.summary.totalRevenue) : "Awaiting litter output"}
                   />
-                  <StatChip
+                  <ProgramMetricTile
                     label="Top Sire"
                     value={topSire?.dog.displayName || "No sire yet"}
                     detail={topSire ? fmtMoney(topSire.dog.summary.totalRevenue) : "Awaiting litter output"}
                   />
-                  <StatChip
+                  <ProgramMetricTile
                     label="Strongest Bloodline"
                     value={bloodlineLeaderboard[0]?.label || "Not tagged yet"}
                     detail={
@@ -1446,11 +2029,115 @@ export default function AdminPortalBreedingProgramPage() {
                         : "Add bloodline tags to compare program strength"
                     }
                   />
-                  <StatChip
-                    label="Due Soon"
-                    value={String(dueSoonDogs.length)}
-                    detail="Pregnancy due dates within the next 30 days"
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <CommandActionButton
+                    onClick={() => {
+                      setCreateMode(false);
+                      setProgramTab("pairings");
+                    }}
+                    icon={<GitBranch className="h-4 w-4" />}
+                    title="Open Pairings"
+                    detail="Review strongest sire and dam combinations."
                   />
+                  <CommandActionButton
+                    onClick={() => {
+                      setCreateMode(false);
+                      setProgramTab("dogs");
+                      setDogTab("reproduction");
+                    }}
+                    icon={<Clock3 className="h-4 w-4" />}
+                    title="Log Heat"
+                    detail={
+                      selectedRecord
+                        ? `Open ${selectedRecord.dog.displayName}'s reproductive lane.`
+                        : "Select a dog first to open reproductive tracking."
+                    }
+                    disabled={!selectedRecord || createMode}
+                  />
+                  <CommandActionButton
+                    onClick={() => {
+                      setCreateMode(false);
+                      setProgramTab("dogs");
+                      setDogTab("reproduction");
+                    }}
+                    icon={<CircleAlert className="h-4 w-4" />}
+                    title="Confirm Pregnancy"
+                    detail={
+                      selectedRecord
+                        ? `Jump into ${selectedRecord.dog.displayName}'s pregnancy fields.`
+                        : "Select a dog first to review pregnancy tracking."
+                    }
+                    disabled={!selectedRecord || createMode}
+                  />
+                  <CommandActionLink
+                    href="/admin/portal/litters"
+                    icon={<Layers3 className="h-4 w-4" />}
+                    title="Create Litter"
+                    detail="Open the litter workspace for new or active records."
+                  />
+                  <CommandActionLink
+                    href="/admin/portal/litters"
+                    icon={<Layers3 className="h-4 w-4" />}
+                    title="Open Litters"
+                    detail="Review due, on-ground, and completed litters."
+                  />
+                  <CommandActionLink
+                    href="/admin/portal/puppies"
+                    icon={<PawPrint className="h-4 w-4" />}
+                    title="Open Puppies"
+                    detail="Jump into produced puppies, availability, and retention."
+                  />
+                  <CommandActionLink
+                    href="/admin/portal/documents"
+                    icon={<Dog className="h-4 w-4" />}
+                    title="Open Documents"
+                    detail="Review health tests, contracts, and breeder records."
+                  />
+                  <CommandActionButton
+                    onClick={() =>
+                      document.getElementById("breeding-chichi-panel")?.scrollIntoView({
+                        behavior: "smooth",
+                        block: "start",
+                      })
+                    }
+                    icon={<TrendingUp className="h-4 w-4" />}
+                    title="Ask ChiChi"
+                    detail={
+                      selectedRecord
+                        ? `Open ChiChi's read on ${selectedRecord.dog.displayName}.`
+                        : "Jump to the live breeding intelligence panel."
+                    }
+                  />
+                </div>
+              </div>
+
+              <Surface className="p-4">
+                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+                  Command Search
+                </div>
+                <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
+                  Search dogs, litters, bloodlines, breeders, registry notes, and produced puppies from one command input.
+                </div>
+
+                <label className="relative mt-4 block">
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--portal-text-muted)]" />
+                  <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search dogs, pairings, litters, bloodlines..."
+                    className="w-full rounded-2xl border border-[var(--portal-border)] bg-white py-3 pl-11 pr-4 text-sm text-[var(--portal-text)] shadow-sm outline-none transition focus:border-[var(--portal-accent)] focus:ring-4 focus:ring-[rgba(90,142,245,0.14)]"
+                  />
+                </label>
+
+                <div className="mt-4 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+                  ChiChi briefing
+                </div>
+                <div className="mt-3 space-y-2">
+                  {programChiChiInsights.map((insight) => (
+                    <ChiChiInsightCard key={insight.title} insight={insight} />
+                  ))}
                 </div>
               </Surface>
             </div>
@@ -1463,71 +2150,85 @@ export default function AdminPortalBreedingProgramPage() {
           </div>
         ) : null}
 
-        <AdminMetricGrid>
-          <AdminMetricCard
+        <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6">
+          <ProgramMetricTile
             label="Active Dams"
             value={String(activeDams)}
-            detail={`${pregnantDogs} pregnant and ${onGroundLitters.length} litters on the ground`}
+            detail={`${pregnantDogs} pregnant and ${onGroundLitters.length} litters on ground`}
           />
-          <AdminMetricCard
+          <ProgramMetricTile
             label="Active Sires"
             value={String(activeSires)}
             detail={`${prospects} prospects and ${retiredDogs} retired dogs tracked`}
           />
-          <AdminMetricCard
-            label="Program Revenue"
-            value={fmtMoney(workspace?.summary.totalRevenue || 0)}
-            detail={`${fmtMoney(workspace?.summary.totalProfit || 0)} estimated total profit`}
+          <ProgramMetricTile
+            label="Puppy Flow"
+            value={`${workspace?.summary.availableCount || 0} available`}
+            detail={`${retainedProgramPuppies} retained and ${workspace?.summary.completedCount || 0} completed`}
           />
-          <AdminMetricCard
-            label="Available / Retained"
-            value={`${workspace?.summary.availableCount || 0} / ${retainedProgramPuppies}`}
-            detail="Available puppies and retained-program puppies"
-          />
-          <AdminMetricCard
+          <ProgramMetricTile
             label="Litters This Year"
             value={String(totalLittersThisYear)}
             detail={`${averageLitterSize ? averageLitterSize.toFixed(1) : "0.0"} average litter size`}
           />
-          <AdminMetricCard
-            label="Average Revenue / Litter"
+          <ProgramMetricTile
+            label="Avg Puppies Surviving"
+            value={averageSurvivingPuppies ? averageSurvivingPuppies.toFixed(1) : "0.0"}
+            detail="Average surviving puppies per litter"
+          />
+          <ProgramMetricTile
+            label="Program Revenue"
+            value={fmtMoney(workspace?.summary.totalRevenue || 0)}
+            detail={`${fmtMoney(workspace?.summary.totalProfit || 0)} estimated total profit`}
+          />
+          <ProgramMetricTile
+            label="Avg Revenue / Litter"
             value={fmtMoney(averageRevenuePerLitter)}
             detail={`${fmtMoney(workspace?.summary.averageSalePrice || 0)} average puppy sale price`}
           />
-          <AdminMetricCard
+          <ProgramMetricTile
+            label="Due Soon"
+            value={String(dueSoonDogs.length)}
+            detail="Pregnancy or whelping windows within 30 days"
+          />
+          <ProgramMetricTile
             label="Missing Records"
             value={String(incompleteDogs.length)}
             detail={`${missingHealthItems.length} dogs missing health or genetics detail`}
           />
-          <AdminMetricCard
+          <ProgramMetricTile
+            label="Tasks Due"
+            value={String(breedingTasksDue)}
+            detail="Heat, due, retirement, or file-review follow-up"
+          />
+          <ProgramMetricTile
             label="Retirement Reviews"
             value={String(retirementReviews.length)}
             detail="Dogs with retirement targets within 12 months"
           />
-        </AdminMetricGrid>
+          <ProgramMetricTile
+            label="Strongest Bloodline"
+            value={bloodlineLeaderboard[0]?.label || "Not tagged"}
+            detail={
+              bloodlineLeaderboard[0]
+                ? `${bloodlineLeaderboard[0].dogs} dogs and ${bloodlineLeaderboard[0].puppies} puppies`
+                : "Add bloodline tags to compare program strength"
+            }
+          />
+        </section>
 
         <Surface className="p-5 md:p-6">
-          <div className="grid gap-5 xl:grid-cols-[310px_minmax(0,1fr)_340px]">
-            <aside className="space-y-5">
+          <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)_360px]">
+            <aside className="space-y-4 self-start xl:sticky xl:top-24">
               <Surface className="p-4">
                 <SurfaceHeader
                   eyebrow="Dog Browser"
                   title="Program roster"
-                  subtitle="Search and filter dams and sires, then jump straight into the selected dog workspace."
+                  subtitle="Filter the breeding inventory fast, then jump directly into the selected dog's command center."
                 />
 
                 <div className="mt-5 space-y-4">
-                  <label className="relative block">
-                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--portal-text-muted)]" />
-                    <input
-                      value={search}
-                      onChange={(event) => setSearch(event.target.value)}
-                      placeholder="Search dogs, litters, bloodlines..."
-                      className="w-full rounded-2xl border border-[var(--portal-border)] bg-white py-3 pl-11 pr-4 text-sm text-[var(--portal-text)] shadow-sm outline-none transition focus:border-[var(--portal-accent)] focus:ring-4 focus:ring-[rgba(90,142,245,0.14)]"
-                    />
-                  </label>
-
-                  <div className="grid gap-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <AdminSelectInput
                       label="Role"
                       value={roleFilter}
@@ -1581,11 +2282,54 @@ export default function AdminPortalBreedingProgramPage() {
                       onChange={setAgeFilter}
                       options={AGE_FILTER_OPTIONS}
                     />
+                    <AdminSelectInput
+                      label="Eligibility"
+                      value={eligibilityFilter}
+                      onChange={setEligibilityFilter}
+                      options={[{ value: "all", label: "All eligibility states" }, { value: "", label: "Not set" }, ...ELIGIBILITY_OPTIONS]}
+                    />
+                    <AdminSelectInput
+                      label="Record Gaps"
+                      value={recordGapFilter}
+                      onChange={setRecordGapFilter}
+                      options={RECORD_GAP_FILTER_OPTIONS}
+                    />
+                    <AdminSelectInput
+                      label="Revenue Tier"
+                      value={revenueTierFilter}
+                      onChange={setRevenueTierFilter}
+                      options={REVENUE_TIER_FILTER_OPTIONS}
+                    />
+                    <AdminSelectInput
+                      label="Health Coverage"
+                      value={healthFilter}
+                      onChange={setHealthFilter}
+                      options={COMPLETENESS_FILTER_OPTIONS}
+                    />
+                    <AdminSelectInput
+                      label="Genetics Coverage"
+                      value={geneticsFilter}
+                      onChange={setGeneticsFilter}
+                      options={COMPLETENESS_FILTER_OPTIONS}
+                    />
                   </div>
 
                   <div className="flex flex-wrap gap-2">
                     <TabButton
-                      active={roleFilter === "all" && statusFilter === "all" && registryFilter === "all" && coatFilter === "all" && bloodlineFilter === "all" && ageFilter === "all" && !search}
+                      active={
+                        roleFilter === "all" &&
+                        statusFilter === "all" &&
+                        registryFilter === "all" &&
+                        coatFilter === "all" &&
+                        bloodlineFilter === "all" &&
+                        ageFilter === "all" &&
+                        eligibilityFilter === "all" &&
+                        recordGapFilter === "all" &&
+                        revenueTierFilter === "all" &&
+                        healthFilter === "all" &&
+                        geneticsFilter === "all" &&
+                        !search
+                      }
                       onClick={() => {
                         setSearch("");
                         setRoleFilter("all");
@@ -1594,15 +2338,22 @@ export default function AdminPortalBreedingProgramPage() {
                         setCoatFilter("all");
                         setBloodlineFilter("all");
                         setAgeFilter("all");
+                        setEligibilityFilter("all");
+                        setRecordGapFilter("all");
+                        setRevenueTierFilter("all");
+                        setHealthFilter("all");
+                        setGeneticsFilter("all");
                       }}
                     >
                       Clear filters
                     </TabButton>
+                    {search ? <ListPill tone="neutral">Search: {search}</ListPill> : null}
+                    {recordGapFilter !== "all" ? <ListPill tone="warning">Gap watch</ListPill> : null}
                   </div>
                 </div>
               </Surface>
 
-              <Surface className="max-h-[calc(100vh-21rem)] overflow-hidden">
+              <Surface className="max-h-[calc(100vh-17.5rem)] overflow-hidden">
                 <div className="flex items-center justify-between border-b border-[var(--portal-border)] px-4 py-4">
                   <div>
                     <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
@@ -1611,18 +2362,26 @@ export default function AdminPortalBreedingProgramPage() {
                     <div className="mt-1 text-sm font-semibold text-[var(--portal-text)]">
                       {filteredDogs.length} breeding dogs
                     </div>
+                    <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
+                      {createMode
+                        ? "Save the new dog to bring it into roster analytics."
+                        : selectedRecord
+                          ? `${selectedRecord.dog.displayName} is open in the center workspace.`
+                          : "Select a dog to load its breeding workspace."}
+                    </div>
                   </div>
                   <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[var(--portal-surface-muted)] text-[var(--portal-text-muted)]">
                     <Filter className="h-4 w-4" />
                   </span>
                 </div>
 
-                <div className="max-h-[calc(100vh-27rem)] space-y-3 overflow-y-auto px-4 py-4">
+                <div className="max-h-[calc(100vh-23rem)] space-y-3 overflow-y-auto px-4 py-4">
                   {filteredDogs.length ? (
                     filteredDogs.map((record) => (
                       <BrowserDogCard
                         key={record.dog.id}
                         record={record}
+                        maxRevenue={maxDogRevenue}
                         selected={!createMode && String(record.dog.id) === selectedId}
                         onClick={() => {
                           setCreateMode(false);
@@ -1682,6 +2441,64 @@ export default function AdminPortalBreedingProgramPage() {
                     ))}
                   </div>
                 </div>
+
+                {selectedRecord && !createMode ? (
+                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <StatChip
+                      label="Program State"
+                      value={
+                        selectedRecord.metadata.profile.currentProgramState ||
+                        selectedRecord.dog.status ||
+                        "Active"
+                      }
+                      detail={
+                        selectedRecord.metadata.profile.provenStatus ||
+                        "Proven status not logged"
+                      }
+                    />
+                    <StatChip
+                      label="Breeding Eligibility"
+                      value={
+                        selectedRecord.metadata.profile.breedingEligibility || "Not set"
+                      }
+                      detail={
+                        selectedRecord.metadata.profile.valueTier
+                          ? `${selectedRecord.metadata.profile.valueTier} value tier`
+                          : "Value tier not tagged"
+                      }
+                    />
+                    <StatChip
+                      label="Next Milestone"
+                      value={
+                        selectedRecord.metadata.reproduction.dueDate
+                          ? fmtDate(selectedRecord.metadata.reproduction.dueDate)
+                          : selectedRecord.metadata.reproduction.expectedNextHeat
+                            ? fmtDate(selectedRecord.metadata.reproduction.expectedNextHeat)
+                            : "No date logged"
+                      }
+                      detail={
+                        selectedRecord.metadata.reproduction.dueDate
+                          ? "Due date"
+                          : selectedRecord.metadata.reproduction.expectedNextHeat
+                            ? "Expected next heat"
+                            : "Add reproductive timing"
+                      }
+                    />
+                    <StatChip
+                      label="Best Pairing"
+                      value={
+                        selectedPairings[0]
+                          ? `${selectedPairings[0].dam?.dog.displayName || "Dam"} x ${selectedPairings[0].sire?.dog.displayName || "Sire"}`
+                          : "No pairing history"
+                      }
+                      detail={
+                        selectedPairings[0]
+                          ? fmtMoney(selectedPairings[0].totalRevenue)
+                          : "Awaiting linked litters"
+                      }
+                    />
+                  </div>
+                ) : null}
               </Surface>
 
               {programTab === "overview" ? (
@@ -1695,6 +2512,9 @@ export default function AdminPortalBreedingProgramPage() {
                   dueSoonDogs={dueSoonDogs}
                   onGroundLitters={onGroundLitters}
                   timelineEvents={timelineEvents}
+                  averageSurvivingPuppies={averageSurvivingPuppies}
+                  breedingTasksDue={breedingTasksDue}
+                  programChiChiInsights={programChiChiInsights}
                 />
               ) : null}
 
@@ -1746,6 +2566,10 @@ export default function AdminPortalBreedingProgramPage() {
             <SelectedDogRail
               selectedRecord={selectedRecord}
               createMode={createMode}
+              selectedPairings={selectedPairings}
+              selectedTimeline={selectedDogTimeline}
+              selectedBestLitter={selectedBestLitter}
+              selectedChiChiInsights={selectedChiChiInsights}
               onOpenDogTab={(value) => {
                 setProgramTab("dogs");
                 setDogTab(value);
@@ -1768,6 +2592,9 @@ function ProgramOverview({
   dueSoonDogs,
   onGroundLitters,
   timelineEvents,
+  averageSurvivingPuppies,
+  breedingTasksDue,
+  programChiChiInsights,
 }: {
   workspace: AdminLineageWorkspace | null;
   programDogs: ProgramDogRecord[];
@@ -1778,6 +2605,9 @@ function ProgramOverview({
   dueSoonDogs: ProgramDogRecord[];
   onGroundLitters: AdminLineageLitter[];
   timelineEvents: TimelineEvent[];
+  averageSurvivingPuppies: number;
+  breedingTasksDue: number;
+  programChiChiInsights: ChiChiInsight[];
 }) {
   const recentEvents = timelineEvents
     .filter((event) => dateDiffDays(event.date) != null && (dateDiffDays(event.date) || 0) >= -45)
@@ -1796,10 +2626,10 @@ function ProgramOverview({
           <SurfaceHeader
             eyebrow="Program Dashboard"
             title="At-a-glance breeding intelligence"
-            subtitle="This is the top command area for the whole program: active dogs, litters, upcoming work, and which bloodlines and pairings are producing the strongest outcomes."
+            subtitle="This is the top command area for the whole program: active inventory, reproductive workload, bloodline momentum, and which dogs or pairings are driving the strongest results."
           />
 
-          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <ReadTile
               label="Program Dogs"
               value={String(programDogs.length)}
@@ -1819,6 +2649,16 @@ function ProgramOverview({
               label="Program Profit"
               value={fmtMoney(workspace?.summary.totalProfit || 0)}
               detail={`${fmtMoney(workspace?.summary.totalRevenue || 0)} gross revenue`}
+            />
+            <ReadTile
+              label="Avg Surviving"
+              value={averageSurvivingPuppies ? averageSurvivingPuppies.toFixed(1) : "0.0"}
+              detail="Average surviving puppies per litter"
+            />
+            <ReadTile
+              label="Tasks Due"
+              value={String(breedingTasksDue)}
+              detail="Reproductive milestones, review prompts, and file follow-up"
             />
           </div>
 
@@ -1897,40 +2737,49 @@ function ProgramOverview({
 
         <Surface className="p-5">
           <SurfaceHeader
-            eyebrow="Recent Activity"
-            title="Program movement"
-            subtitle="The most recent breeding milestones, litter events, and timing signals."
+            eyebrow="ChiChi Briefing"
+            title="Program movement and recommendations"
+            subtitle="ChiChi reads the current program state, then keeps the most important movement and gaps in one rail."
           />
 
           <div className="mt-5 space-y-3">
-            {recentEvents.length ? (
-              recentEvents.map((event) => (
-                <div
-                  key={event.key}
-                  className="rounded-[1.1rem] border border-[var(--portal-border)] bg-white px-4 py-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
-                        {event.category}
+            {programChiChiInsights.map((insight) => (
+              <ChiChiInsightCard key={insight.title} insight={insight} />
+            ))}
+          </div>
+
+          <div className="mt-5 rounded-[1.2rem] border border-[var(--portal-border)] bg-white p-4">
+            <div className="text-sm font-semibold text-[var(--portal-text)]">Recent activity</div>
+            <div className="mt-3 space-y-3">
+              {recentEvents.length ? (
+                recentEvents.map((event) => (
+                  <div
+                    key={event.key}
+                    className="rounded-[1.1rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                          {event.category}
+                        </div>
+                        <div className="mt-1 text-sm font-semibold text-[var(--portal-text)]">
+                          {event.title}
+                        </div>
+                        <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
+                          {event.detail}
+                        </div>
                       </div>
-                      <div className="mt-1 text-sm font-semibold text-[var(--portal-text)]">
-                        {event.title}
-                      </div>
-                      <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
-                        {event.detail}
-                      </div>
+                      <ListPill>{fmtDate(event.date)}</ListPill>
                     </div>
-                    <ListPill>{fmtDate(event.date)}</ListPill>
                   </div>
-                </div>
-              ))
-            ) : (
-              <AdminEmptyState
-                title="No recent timeline activity"
-                description="Heat windows, due dates, and litter milestones will populate this activity lane."
-              />
-            )}
+                ))
+              ) : (
+                <AdminEmptyState
+                  title="No recent timeline activity"
+                  description="Heat windows, due dates, and litter milestones will populate this activity lane."
+                />
+              )}
+            </div>
           </div>
         </Surface>
       </div>
@@ -1940,7 +2789,7 @@ function ProgramOverview({
           <SurfaceHeader
             eyebrow="Pairing Board"
             title="Current pairing intelligence"
-            subtitle="The strongest pairings bubble up here so you can see which dam-and-sire combinations are producing the best size, value, and follow-through."
+            subtitle="The strongest pairings bubble up here so you can see which dam-and-sire combinations are producing the best size, value, survival, and follow-through."
           />
 
           <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -1967,6 +2816,16 @@ function ProgramOverview({
                 <div className="mt-3 text-xs leading-5 text-[var(--portal-text-soft)]">
                   Strongest color outcome: {pairing.colorSummary}
                 </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {buildPairingSignals(pairing).map((signal) => (
+                    <ListPill
+                      key={`${pairing.key}-${signal}`}
+                      tone={signal.includes("review") ? "warning" : "success"}
+                    >
+                      {signal}
+                    </ListPill>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
@@ -1980,28 +2839,38 @@ function ProgramOverview({
           />
 
           <div className="mt-5 space-y-3">
-            {programDogs.filter((record) => record.warnings.length).slice(0, 6).map((record) => (
-              <div
-                key={`gap-${record.dog.id}`}
-                className="rounded-[1.1rem] border border-[var(--portal-border)] bg-white px-4 py-4"
-              >
-                <div className="flex items-start gap-3">
-                  <CircleAlert className="mt-0.5 h-4 w-4 text-[#b67744]" />
-                  <div>
-                    <div className="text-sm font-semibold text-[var(--portal-text)]">
-                      {record.dog.displayName}
-                    </div>
-                    <div className="mt-1 flex flex-wrap gap-1.5">
-                      {record.warnings.map((warning) => (
-                        <ListPill key={`${record.dog.id}-${warning}`} tone="warning">
-                          {warning}
-                        </ListPill>
-                      ))}
+            {programDogs.filter((record) => record.warnings.length).slice(0, 6).length ? (
+              programDogs
+                .filter((record) => record.warnings.length)
+                .slice(0, 6)
+                .map((record) => (
+                  <div
+                    key={`gap-${record.dog.id}`}
+                    className="rounded-[1.1rem] border border-[var(--portal-border)] bg-white px-4 py-4"
+                  >
+                    <div className="flex items-start gap-3">
+                      <CircleAlert className="mt-0.5 h-4 w-4 text-[#b67744]" />
+                      <div>
+                        <div className="text-sm font-semibold text-[var(--portal-text)]">
+                          {record.dog.displayName}
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          {record.warnings.map((warning) => (
+                            <ListPill key={`${record.dog.id}-${warning}`} tone="warning">
+                              {warning}
+                            </ListPill>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            ))}
+                ))
+            ) : (
+              <AdminEmptyState
+                title="No program gaps right now"
+                description="Health, genetics, lineage, and reproductive coverage look clean across the active set."
+              />
+            )}
           </div>
         </Surface>
       </div>
@@ -2598,7 +3467,15 @@ function PairingWorkspace({
           pairing.dam?.dog.id === selectedRecord.dog.id ||
           pairing.sire?.dog.id === selectedRecord.dog.id
       )
-    : pairings;
+        : pairings;
+
+  const strongestByRevenue = visiblePairings[0] || null;
+  const strongestBySize =
+    [...visiblePairings].sort((left, right) => right.averageLitterSize - left.averageLitterSize)[0] ||
+    null;
+  const strongestBySurvival =
+    [...visiblePairings].sort((left, right) => pairingSurvivalRate(right) - pairingSurvivalRate(left))[0] ||
+    null;
 
   return (
     <div className="space-y-5">
@@ -2606,48 +3483,182 @@ function PairingWorkspace({
         <SurfaceHeader
           eyebrow="Pairings"
           title={selectedRecord ? `Pairings involving ${selectedRecord.dog.displayName}` : "All pairing history"}
-          subtitle="Each pairing aggregates every linked litter so you can compare performance by revenue, litter size, and color or coat outcome."
+          subtitle="Each pairing aggregates linked litters, produced puppies, survival, retention, and revenue so you can compare true breeding outcomes instead of isolated litter records."
         />
 
-        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {visiblePairings.length ? (
-            visiblePairings.map((pairing) => (
-              <div
-                key={pairing.key}
-                className="rounded-[1.2rem] border border-[var(--portal-border)] bg-white p-4"
-              >
-                <div className="text-sm font-semibold text-[var(--portal-text)]">
-                  {pairing.dam?.dog.displayName || "Unknown dam"} x{" "}
-                  {pairing.sire?.dog.displayName || "Unknown sire"}
-                </div>
-                <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
-                  {pairing.litters.length} litters | {pairing.totalPuppies} puppies |{" "}
-                  {pairing.retainedPuppies} retained
-                </div>
-                <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  <ReadTile label="Revenue" value={fmtMoney(pairing.totalRevenue)} />
-                  <ReadTile label="Profit" value={fmtMoney(pairing.totalProfit)} />
-                  <ReadTile
-                    label="Avg litter size"
-                    value={pairing.averageLitterSize ? pairing.averageLitterSize.toFixed(1) : "0.0"}
-                  />
-                  <ReadTile label="Avg sale price" value={fmtMoney(pairing.averageSalePrice)} />
-                </div>
-                <div className="mt-3 text-xs leading-5 text-[var(--portal-text-soft)]">
-                  Color trend: {pairing.colorSummary}
-                </div>
-                <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
-                  Coat trend: {pairing.coatSummary}
-                </div>
-              </div>
-            ))
-          ) : (
-            <AdminEmptyState
-              title="No pairings to show yet"
-              description="Create litters with linked dams and sires to turn this area into a true pairing board."
-            />
-          )}
-        </div>
+        {visiblePairings.length ? (
+          <>
+            <div className="mt-5 grid gap-4 xl:grid-cols-3">
+              <ProgramMetricTile
+                label="Best Revenue Pairing"
+                value={
+                  strongestByRevenue
+                    ? `${strongestByRevenue.dam?.dog.displayName || "Dam"} x ${strongestByRevenue.sire?.dog.displayName || "Sire"}`
+                    : "No pairing yet"
+                }
+                detail={
+                  strongestByRevenue
+                    ? `${fmtMoney(strongestByRevenue.totalRevenue)} across ${strongestByRevenue.litters.length} litters`
+                    : "Awaiting linked litters"
+                }
+              />
+              <ProgramMetricTile
+                label="Best Size Pairing"
+                value={
+                  strongestBySize
+                    ? `${strongestBySize.dam?.dog.displayName || "Dam"} x ${strongestBySize.sire?.dog.displayName || "Sire"}`
+                    : "No pairing yet"
+                }
+                detail={
+                  strongestBySize
+                    ? `${strongestBySize.averageLitterSize.toFixed(1)} average puppies per litter`
+                    : "Awaiting linked litters"
+                }
+              />
+              <ProgramMetricTile
+                label="Best Survival Pairing"
+                value={
+                  strongestBySurvival
+                    ? `${strongestBySurvival.dam?.dog.displayName || "Dam"} x ${strongestBySurvival.sire?.dog.displayName || "Sire"}`
+                    : "No pairing yet"
+                }
+                detail={
+                  strongestBySurvival
+                    ? `${Math.round(pairingSurvivalRate(strongestBySurvival) * 100)}% survival across ${strongestBySurvival.totalPuppies} puppies`
+                    : "Awaiting linked litters"
+                }
+              />
+            </div>
+
+            <div className="mt-5 overflow-x-auto rounded-[1.3rem] border border-[var(--portal-border)] bg-white">
+              <table className="min-w-[1120px] w-full text-left">
+                <thead className="border-b border-[var(--portal-border)] bg-[rgba(249,244,237,0.8)]">
+                  <tr>
+                    {[
+                      "Pairing",
+                      "Lifecycle",
+                      "Litters",
+                      "Produced",
+                      "Survival",
+                      "Revenue",
+                      "Avg Sale",
+                      "Outcomes",
+                      "ChiChi Read",
+                    ].map((heading) => (
+                      <th
+                        key={heading}
+                        className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]"
+                      >
+                        {heading}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {visiblePairings.map((pairing) => (
+                    <tr
+                      key={pairing.key}
+                      className="border-b border-[var(--portal-border)] last:border-b-0"
+                    >
+                      <td className="px-4 py-4 align-top">
+                        <div className="text-sm font-semibold text-[var(--portal-text)]">
+                          {pairing.dam?.dog.displayName || "Unknown dam"} x{" "}
+                          {pairing.sire?.dog.displayName || "Unknown sire"}
+                        </div>
+                        <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
+                          {joinMeta([
+                            pairing.dam?.metadata.lineage.bloodlineLabel || "",
+                            pairing.sire?.metadata.lineage.bloodlineLabel || "",
+                          ]) || "Bloodline tags not complete"}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <div className="text-sm font-semibold text-[var(--portal-text)]">
+                          {pairing.lastWhelpDate ? fmtDate(pairing.lastWhelpDate) : "No whelp date"}
+                        </div>
+                        <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
+                          {pairing.pregnancyResult || "Outcome pending"}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <div className="text-sm font-semibold text-[var(--portal-text)]">
+                          {pairing.litters.length}
+                        </div>
+                        <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
+                          {pairing.averageLitterSize ? pairing.averageLitterSize.toFixed(1) : "0.0"} avg litter
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <div className="text-sm font-semibold text-[var(--portal-text)]">
+                          {pairing.totalPuppies} puppies
+                        </div>
+                        <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
+                          {pairing.retainedPuppies} retained into program
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <div className="text-sm font-semibold text-[var(--portal-text)]">
+                          {Math.round(pairingSurvivalRate(pairing) * 100)}%
+                        </div>
+                        <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
+                          {pairing.survivingPuppies} surviving of {pairing.totalPuppies}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <div className="text-sm font-semibold text-[var(--portal-text)]">
+                          {fmtMoney(pairing.totalRevenue)}
+                        </div>
+                        <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
+                          {fmtMoney(pairing.totalProfit)} profit
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <div className="text-sm font-semibold text-[var(--portal-text)]">
+                          {fmtMoney(pairing.averageSalePrice)}
+                        </div>
+                        <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
+                          Avg puppy sale price
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <div className="text-xs leading-5 text-[var(--portal-text-soft)]">
+                          Color: {pairing.colorSummary}
+                        </div>
+                        <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
+                          Coat: {pairing.coatSummary}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <div className="flex flex-wrap gap-1.5">
+                          {buildPairingSignals(pairing).length ? (
+                            buildPairingSignals(pairing).map((signal) => (
+                              <ListPill
+                                key={`${pairing.key}-${signal}`}
+                                tone={signal.includes("review") ? "warning" : "success"}
+                              >
+                                {signal}
+                              </ListPill>
+                            ))
+                          ) : (
+                            <ListPill tone="neutral">Needs more history</ListPill>
+                          )}
+                        </div>
+                        <div className="mt-2 text-xs leading-5 text-[var(--portal-text-soft)]">
+                          {buildPairingNarrative(pairing)}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <AdminEmptyState
+            title="No pairings to show yet"
+            description="Create litters with linked dams and sires to turn this area into a true pairing board."
+          />
+        )}
       </Surface>
     </div>
   );
@@ -2890,15 +3901,23 @@ function InsightsWorkspace({
 function SelectedDogRail({
   selectedRecord,
   createMode,
+  selectedPairings,
+  selectedTimeline,
+  selectedBestLitter,
+  selectedChiChiInsights,
   onOpenDogTab,
 }: {
   selectedRecord: ProgramDogRecord | null;
   createMode: boolean;
+  selectedPairings: PairingSummary[];
+  selectedTimeline: TimelineEvent[];
+  selectedBestLitter: AdminLineageLitter | null;
+  selectedChiChiInsights: ChiChiInsight[];
   onOpenDogTab: (value: DogTab) => void;
 }) {
   if (createMode) {
     return (
-      <aside className="space-y-5 self-start">
+      <aside className="space-y-4 self-start xl:sticky xl:top-24">
         <Surface className="p-5">
           <SurfaceHeader
             eyebrow="Create Mode"
@@ -2917,11 +3936,11 @@ function SelectedDogRail({
   }
 
   return (
-    <aside className="space-y-5 self-start">
+    <aside className="space-y-4 self-start xl:sticky xl:top-24">
       {selectedRecord ? (
         <>
           <Surface className="overflow-hidden">
-            <div className="relative aspect-[4/3] bg-[linear-gradient(135deg,rgba(245,233,219,0.95)_0%,rgba(255,252,248,0.98)_100%)]">
+            <div className="relative aspect-[5/4] bg-[linear-gradient(135deg,rgba(245,233,219,0.95)_0%,rgba(255,252,248,0.98)_100%)]">
               {selectedRecord.photoUrl ? (
                 <Image
                   src={selectedRecord.photoUrl}
@@ -2949,46 +3968,141 @@ function SelectedDogRail({
                   <ListPill tone="neutral">
                     {selectedRecord.dog.status || selectedRecord.stateLabel || "Active"}
                   </ListPill>
+                  {selectedRecord.metadata.profile.breedingEligibility ? (
+                    <ListPill tone="neutral">
+                      {selectedRecord.metadata.profile.breedingEligibility}
+                    </ListPill>
+                  ) : null}
                 </div>
               </div>
             </div>
           </Surface>
 
-          <Surface className="p-5">
+          <Surface className="p-4">
             <SurfaceHeader
               eyebrow="Selected Dog"
-              title="Quick intelligence"
-              subtitle="This rail keeps the selected dog's context, warnings, lineage, and metrics visible while you work."
+              title="Dog intelligence"
+              subtitle="This rail keeps lifecycle status, breeding signals, and ChiChi guidance visible while you work."
             />
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <StatChip label="Age" value={selectedRecord.ageLabel} />
               <StatChip label="Litters" value={String(selectedRecord.litters.length)} />
               <StatChip label="Puppies" value={String(selectedRecord.puppies.length)} />
               <StatChip label="Revenue" value={fmtMoney(selectedRecord.dog.summary.totalRevenue)} />
+              <StatChip
+                label="Avg Litter"
+                value={
+                  selectedRecord.averageLitterSize
+                    ? selectedRecord.averageLitterSize.toFixed(1)
+                    : "0.0"
+                }
+              />
+              <StatChip
+                label="Retained"
+                value={String(selectedRecord.retainedPuppies)}
+                detail={`${selectedRecord.completedPuppies} completed placements`}
+              />
             </div>
 
-            <div className="mt-5 space-y-4">
+            <div className="mt-4 space-y-4">
               <div className="rounded-[1.2rem] border border-[var(--portal-border)] bg-white p-4">
-                <div className="text-sm font-semibold text-[var(--portal-text)]">
-                  Alerts and reminders
+                <div className="text-sm font-semibold text-[var(--portal-text)]">Lifecycle flags</div>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  <ListPill tone="neutral">
+                    {selectedRecord.metadata.profile.currentProgramState || "State not set"}
+                  </ListPill>
+                  <ListPill
+                    tone={
+                      healthCompleteness(selectedRecord) === "complete"
+                        ? "success"
+                        : healthCompleteness(selectedRecord) === "missing"
+                          ? "warning"
+                          : "neutral"
+                    }
+                  >
+                    Health {completenessDetailLabel(healthCompleteness(selectedRecord))}
+                  </ListPill>
+                  <ListPill
+                    tone={
+                      geneticsCompleteness(selectedRecord) === "complete"
+                        ? "success"
+                        : geneticsCompleteness(selectedRecord) === "missing"
+                          ? "warning"
+                          : "neutral"
+                    }
+                  >
+                    Genetics {completenessDetailLabel(geneticsCompleteness(selectedRecord))}
+                  </ListPill>
+                  {selectedRecord.metadata.profile.valueTier ? (
+                    <ListPill tone="neutral">{selectedRecord.metadata.profile.valueTier}</ListPill>
+                  ) : null}
                 </div>
-                <div className="mt-3 space-y-2">
-                  {selectedRecord.warnings.length ? (
-                    selectedRecord.warnings.map((warning) => (
-                      <div
-                        key={`${selectedRecord.dog.id}-${warning}`}
-                        className="flex items-start gap-2 rounded-[1rem] bg-[var(--portal-surface-muted)] px-3 py-3"
-                      >
-                        <AlertTriangle className="mt-0.5 h-4 w-4 text-[#b67744]" />
-                        <div className="text-xs leading-5 text-[var(--portal-text-soft)]">{warning}</div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-xs leading-5 text-[var(--portal-text-soft)]">
-                      No immediate record warnings. This dog&apos;s program file looks fairly complete.
-                    </div>
-                  )}
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  <ReadTile
+                    label="Next heat"
+                    value={
+                      selectedRecord.metadata.reproduction.expectedNextHeat
+                        ? fmtDate(selectedRecord.metadata.reproduction.expectedNextHeat)
+                        : "Not scheduled"
+                    }
+                  />
+                  <ReadTile
+                    label="Due date"
+                    value={
+                      selectedRecord.metadata.reproduction.dueDate
+                        ? fmtDate(selectedRecord.metadata.reproduction.dueDate)
+                        : "Not logged"
+                    }
+                  />
+                  <ReadTile
+                    label="Last litter"
+                    value={
+                      selectedRecord.lastLitterDate
+                        ? fmtDate(selectedRecord.lastLitterDate)
+                        : "No litter yet"
+                    }
+                  />
+                  <ReadTile
+                    label="Retirement target"
+                    value={
+                      selectedRecord.metadata.profile.retirementTarget
+                        ? fmtDate(selectedRecord.metadata.profile.retirementTarget)
+                        : selectedRecord.metadata.profile.retirementDate
+                          ? fmtDate(selectedRecord.metadata.profile.retirementDate)
+                          : "Not set"
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-[1.2rem] border border-[var(--portal-border)] bg-white p-4">
+                <div className="text-sm font-semibold text-[var(--portal-text)]">Financial + pairing snapshot</div>
+                <div className="mt-3 grid gap-3">
+                  <ReadTile
+                    label="Best litter"
+                    value={selectedBestLitter?.displayName || "No litter yet"}
+                    detail={
+                      selectedBestLitter
+                        ? fmtMoney(selectedBestLitter.summary.totalRevenue)
+                        : "Awaiting litter output"
+                    }
+                    wrap
+                  />
+                  <ReadTile
+                    label="Top pairing"
+                    value={
+                      selectedPairings[0]
+                        ? `${selectedPairings[0].dam?.dog.displayName || "Dam"} x ${selectedPairings[0].sire?.dog.displayName || "Sire"}`
+                        : "No pairing history yet"
+                    }
+                    detail={
+                      selectedPairings[0]
+                        ? buildPairingNarrative(selectedPairings[0])
+                        : "Once litters are linked, ChiChi will rank the strongest pairing."
+                    }
+                    wrap
+                  />
                 </div>
               </div>
 
@@ -3005,6 +4119,59 @@ function SelectedDogRail({
                     detail={selectedRecord.metadata.lineage.pedigreeSummary || "Add a pedigree summary in the lineage tab."}
                     wrap
                   />
+                </div>
+              </div>
+
+              <div
+                id="breeding-chichi-panel"
+                className="rounded-[1.2rem] border border-[rgba(188,162,133,0.2)] bg-[linear-gradient(135deg,rgba(251,247,240,0.96)_0%,rgba(245,248,252,0.96)_100%)] p-4"
+              >
+                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+                  ChiChi intelligence
+                </div>
+                <div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">
+                  Recommendations for {selectedRecord.dog.displayName}
+                </div>
+                <div className="mt-3 space-y-2">
+                  {selectedChiChiInsights.length ? (
+                    selectedChiChiInsights.map((insight) => (
+                      <ChiChiInsightCard key={insight.title} insight={insight} />
+                    ))
+                  ) : (
+                    <div className="rounded-[1rem] bg-white px-4 py-4 text-xs leading-5 text-[var(--portal-text-soft)]">
+                      ChiChi needs a little more lineage, reproductive, or litter history before surfacing dog-specific guidance here.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-[1.2rem] border border-[var(--portal-border)] bg-white p-4">
+                <div className="text-sm font-semibold text-[var(--portal-text)]">
+                  Recent milestones
+                </div>
+                <div className="mt-3 space-y-2">
+                  {selectedTimeline.length ? (
+                    selectedTimeline.slice(0, 3).map((event) => (
+                      <div
+                        key={event.key}
+                        className="rounded-[1rem] bg-[var(--portal-surface-muted)] px-3 py-3"
+                      >
+                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+                          {event.category}
+                        </div>
+                        <div className="mt-1 text-sm font-semibold text-[var(--portal-text)]">
+                          {event.title}
+                        </div>
+                        <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
+                          {fmtDate(event.date)}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-xs leading-5 text-[var(--portal-text-soft)]">
+                      No reproductive or timeline milestones are logged for this dog yet.
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -3039,7 +4206,7 @@ function SelectedDogRail({
           <SurfaceHeader
             eyebrow="No Dog Selected"
             title="Choose a dog from the roster"
-            subtitle="The right rail will show the selected dog's metrics, warnings, and lineage once a profile is open."
+            subtitle="The right rail will show lifecycle flags, ChiChi guidance, financial rollups, and lineage context once a profile is open."
           />
         </Surface>
       )}
