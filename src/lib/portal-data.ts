@@ -139,6 +139,9 @@ export type PortalDocument = {
   created_at?: string | null;
   source_table?: string | null;
   file_name?: string | null;
+  file_url?: string | null;
+  visible_to_user?: boolean | null;
+  signed_at?: string | null;
 };
 
 export type PortalPuppyEvent = {
@@ -460,8 +463,8 @@ export async function findPortalDocumentsForUser(user: User, buyer: PortalBuyer 
     await pushDocs(() =>
       Promise.resolve(
         sb
-          .from("portal_documents")
-          .select("id,user_id,buyer_id,title,description,category,status,created_at,source_table,file_name")
+      .from("portal_documents")
+      .select("id,user_id,buyer_id,title,description,category,status,created_at,source_table,file_name,file_url,visible_to_user,signed_at")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
       )
@@ -472,8 +475,8 @@ export async function findPortalDocumentsForUser(user: User, buyer: PortalBuyer 
     await pushDocs(() =>
       Promise.resolve(
         sb
-          .from("portal_documents")
-          .select("id,user_id,buyer_id,title,description,category,status,created_at,source_table,file_name")
+      .from("portal_documents")
+      .select("id,user_id,buyer_id,title,description,category,status,created_at,source_table,file_name,file_url,visible_to_user,signed_at")
           .eq("buyer_id", buyer.id)
           .order("created_at", { ascending: false })
       )

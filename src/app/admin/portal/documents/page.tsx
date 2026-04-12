@@ -27,6 +27,8 @@ type PortalDocument = {
   created_at?: string | null;
   source_table?: string | null;
   file_name?: string | null;
+  file_url?: string | null;
+  signed_at?: string | null;
   user_id?: string | null;
   buyer_id?: number | null;
 };
@@ -103,7 +105,7 @@ export default function AdminPortalDocumentsPage() {
       fetchAdminAccounts(token),
       sb
         .from("portal_documents")
-        .select("id,title,description,category,status,created_at,source_table,file_name,user_id,buyer_id")
+        .select("id,title,description,category,status,created_at,source_table,file_name,file_url,signed_at,user_id,buyer_id")
         .order("created_at", { ascending: false }),
     ]);
 

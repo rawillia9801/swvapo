@@ -95,6 +95,8 @@ type AccountRow = {
     created_at?: string | null;
     source_table?: string | null;
     file_name?: string | null;
+    file_url?: string | null;
+    signed_at?: string | null;
   }>;
   messages: Array<{
     id: string;
@@ -147,6 +149,8 @@ type DocumentRow = {
   created_at?: string | null;
   source_table?: string | null;
   file_name?: string | null;
+  file_url?: string | null;
+  signed_at?: string | null;
 };
 
 type MessageRow = {
@@ -219,7 +223,7 @@ export async function GET(req: Request) {
     ]);
 
     const [documentsRes, messagesRes, pickupRes, puppiesRes, paymentsRes] = await Promise.all([
-      service.from("portal_documents").select("id,user_id,buyer_id,title,description,category,status,created_at,source_table,file_name"),
+      service.from("portal_documents").select("id,user_id,buyer_id,title,description,category,status,created_at,source_table,file_name,file_url,signed_at"),
       service.from("portal_messages").select("id,user_id,user_email,subject,message,status,sender,created_at,read_by_admin,read_by_user"),
       service.from("portal_pickup_requests").select("id,user_id,created_at,request_date,request_type,location_text,address_text,notes,status,miles"),
       service.from("puppies").select("id,buyer_id,call_name,puppy_name,name,litter_name,status,price,deposit"),

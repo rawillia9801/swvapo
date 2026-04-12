@@ -80,6 +80,8 @@ export type AdminPortalAccount = {
     created_at?: string | null;
     source_table?: string | null;
     file_name?: string | null;
+    file_url?: string | null;
+    signed_at?: string | null;
   }>;
   messages?: Array<{
     id: string;
