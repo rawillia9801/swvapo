@@ -3,6 +3,28 @@ import { parseCityState } from "@/lib/portal-data";
 
 export const APPLICATION_SCHEMA_VERSION = "2026-04";
 export const APPLICATION_TERMS_VERSION = "2026-03";
+export const APPLICATION_PREFERRED_CONTACT_OPTIONS = ["Call", "Text", "Email"] as const;
+export const APPLICATION_COAT_OPTIONS = ["Short", "Long", "No Preference"] as const;
+export const APPLICATION_GENDER_OPTIONS = ["Male", "Female", "No Preference"] as const;
+export const APPLICATION_INTEREST_OPTIONS = ["Current Puppy", "Future Puppy"] as const;
+export const APPLICATION_HOME_TYPE_OPTIONS = ["House", "Apartment", "Other"] as const;
+export const APPLICATION_WORK_STATUS_OPTIONS = [
+  "Work From Home",
+  "Part-Time",
+  "Full-Time",
+] as const;
+export const APPLICATION_DISCOVERY_OPTIONS = [
+  "Facebook",
+  "Website",
+  "Referral",
+  "Instagram",
+] as const;
+export const APPLICATION_BOOLEAN_OPTIONS = ["Yes", "No"] as const;
+export const APPLICATION_PAYMENT_PREFERENCE_OPTIONS = [
+  "In Full",
+  "Deposit and remainder due at meet",
+  "Third Choice",
+] as const;
 
 export const FULL_PUPPY_APPLICATION_SELECT =
   "id,user_id,full_name,email,applicant_email,phone,city_state,preferred_contact,street_address,zip,status,admin_notes,application,created_at,assigned_puppy_id,ack_age,ack_accuracy,ack_home_env,ack_care_commitment,ack_health_guarantee,ack_nonrefundable_deposit,ack_purchase_price_tax,ack_contract_obligation,ack_return_rehoming,ack_release_liability,ack_terms,ack_communications";
@@ -149,6 +171,20 @@ function normalizeEmail(value: unknown) {
   return trimText(value).toLowerCase();
 }
 
+function normalizeChoice(value: string, options: readonly string[]) {
+  const normalized = trimText(value).toLowerCase().replace(/\s+/g, " ");
+  if (!normalized) return "";
+
+  if (normalized === "futiure puppy") return "Future Puppy";
+  if (normalized === "work from home") return "Work From Home";
+  if (normalized === "no preference") return "No Preference";
+
+  const exact = options.find(
+    (option) => option.toLowerCase().replace(/\s+/g, " ") === normalized
+  );
+  return exact || trimText(value);
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -275,11 +311,14 @@ export function normalizeApplicationPayload(
         ])
       ),
       phone: readStringAt(payload, [["applicant", "phone"], ["phone"]]),
-      preferred_contact_method: readStringAt(payload, [
-        ["applicant", "preferred_contact_method"],
-        ["preferredContactMethod"],
-        ["preferred_contact_method"],
-      ]),
+      preferred_contact_method: normalizeChoice(
+        readStringAt(payload, [
+          ["applicant", "preferred_contact_method"],
+          ["preferredContactMethod"],
+          ["preferred_contact_method"],
+        ]),
+        APPLICATION_PREFERRED_CONTACT_OPTIONS
+      ),
     },
     address: {
       street_address: readStringAt(payload, [
@@ -296,21 +335,30 @@ export function normalizeApplicationPayload(
       ]),
     },
     puppy_preferences: {
-      interest_type: readStringAt(payload, [
-        ["puppy_preferences", "interest_type"],
-        ["interestType"],
-        ["interest_type"],
-      ]),
-      preferred_gender: readStringAt(payload, [
-        ["puppy_preferences", "preferred_gender"],
-        ["preferredGender"],
-        ["preferred_gender"],
-      ]),
-      preferred_coat_type: readStringAt(payload, [
-        ["puppy_preferences", "preferred_coat_type"],
-        ["preferredCoatType"],
-        ["preferred_coat_type"],
-      ]),
+      interest_type: normalizeChoice(
+        readStringAt(payload, [
+          ["puppy_preferences", "interest_type"],
+          ["interestType"],
+          ["interest_type"],
+        ]),
+        APPLICATION_INTEREST_OPTIONS
+      ),
+      preferred_gender: normalizeChoice(
+        readStringAt(payload, [
+          ["puppy_preferences", "preferred_gender"],
+          ["preferredGender"],
+          ["preferred_gender"],
+        ]),
+        APPLICATION_GENDER_OPTIONS
+      ),
+      preferred_coat_type: normalizeChoice(
+        readStringAt(payload, [
+          ["puppy_preferences", "preferred_coat_type"],
+          ["preferredCoatType"],
+          ["preferred_coat_type"],
+        ]),
+        APPLICATION_COAT_OPTIONS
+      ),
       color_preference: readStringAt(payload, [
         ["puppy_preferences", "color_preference"],
         ["colorPreference"],
@@ -323,36 +371,51 @@ export function normalizeApplicationPayload(
       ]),
     },
     household: {
-      other_pets: readStringAt(payload, [
-        ["household", "other_pets"],
-        ["otherPets"],
-        ["other_pets"],
-      ]),
+      other_pets: normalizeChoice(
+        readStringAt(payload, [
+          ["household", "other_pets"],
+          ["otherPets"],
+          ["other_pets"],
+        ]),
+        APPLICATION_BOOLEAN_OPTIONS
+      ),
       pet_details: readStringAt(payload, [
         ["household", "pet_details"],
         ["petDetails"],
         ["pet_details"],
       ]),
-      owned_chihuahua_before: readStringAt(payload, [
-        ["household", "owned_chihuahua_before"],
-        ["ownedChihuahuaBefore"],
-        ["owned_chihuahua_before"],
-      ]),
-      home_type: readStringAt(payload, [
-        ["household", "home_type"],
-        ["homeType"],
-        ["home_type"],
-      ]),
-      fenced_yard: readStringAt(payload, [
-        ["household", "fenced_yard"],
-        ["fencedYard"],
-        ["fenced_yard"],
-      ]),
-      work_status: readStringAt(payload, [
-        ["household", "work_status"],
-        ["workStatus"],
-        ["work_status"],
-      ]),
+      owned_chihuahua_before: normalizeChoice(
+        readStringAt(payload, [
+          ["household", "owned_chihuahua_before"],
+          ["ownedChihuahuaBefore"],
+          ["owned_chihuahua_before"],
+        ]),
+        APPLICATION_BOOLEAN_OPTIONS
+      ),
+      home_type: normalizeChoice(
+        readStringAt(payload, [
+          ["household", "home_type"],
+          ["homeType"],
+          ["home_type"],
+        ]),
+        APPLICATION_HOME_TYPE_OPTIONS
+      ),
+      fenced_yard: normalizeChoice(
+        readStringAt(payload, [
+          ["household", "fenced_yard"],
+          ["fencedYard"],
+          ["fenced_yard"],
+        ]),
+        APPLICATION_BOOLEAN_OPTIONS
+      ),
+      work_status: normalizeChoice(
+        readStringAt(payload, [
+          ["household", "work_status"],
+          ["workStatus"],
+          ["work_status"],
+        ]),
+        APPLICATION_WORK_STATUS_OPTIONS
+      ),
       who_cares_for_puppy: readStringAt(payload, [
         ["household", "who_cares_for_puppy"],
         ["whoCaresForPuppy"],
@@ -365,21 +428,30 @@ export function normalizeApplicationPayload(
       ]),
     },
     readiness: {
-      payment_preference: readStringAt(payload, [
-        ["readiness", "payment_preference"],
-        ["paymentPreference"],
-        ["payment_preference"],
-      ]),
-      how_did_you_hear: readStringAt(payload, [
-        ["readiness", "how_did_you_hear"],
-        ["howDidYouHear"],
-        ["how_did_you_hear"],
-      ]),
-      ready_to_place_deposit: readStringAt(payload, [
-        ["readiness", "ready_to_place_deposit"],
-        ["readyToPlaceDeposit"],
-        ["ready_to_place_deposit"],
-      ]),
+      payment_preference: normalizeChoice(
+        readStringAt(payload, [
+          ["readiness", "payment_preference"],
+          ["paymentPreference"],
+          ["payment_preference"],
+        ]),
+        APPLICATION_PAYMENT_PREFERENCE_OPTIONS
+      ),
+      how_did_you_hear: normalizeChoice(
+        readStringAt(payload, [
+          ["readiness", "how_did_you_hear"],
+          ["howDidYouHear"],
+          ["how_did_you_hear"],
+        ]),
+        APPLICATION_DISCOVERY_OPTIONS
+      ),
+      ready_to_place_deposit: normalizeChoice(
+        readStringAt(payload, [
+          ["readiness", "ready_to_place_deposit"],
+          ["readyToPlaceDeposit"],
+          ["ready_to_place_deposit"],
+        ]),
+        APPLICATION_BOOLEAN_OPTIONS
+      ),
       questions: readStringAt(payload, [
         ["readiness", "questions"],
         ["questions"],
@@ -483,7 +555,10 @@ export function buildCanonicalApplicationPayload(
       full_name: trimText(form.fullName),
       email: normalizeEmail(form.email),
       phone: trimText(form.phone),
-      preferred_contact_method: trimText(form.preferredContactMethod),
+      preferred_contact_method: normalizeChoice(
+        form.preferredContactMethod,
+        APPLICATION_PREFERRED_CONTACT_OPTIONS
+      ),
     },
     address: {
       street_address: trimText(form.streetAddress),
@@ -492,26 +567,41 @@ export function buildCanonicalApplicationPayload(
       postal_code: trimText(form.zip),
     },
     puppy_preferences: {
-      interest_type: trimText(form.interestType),
-      preferred_gender: trimText(form.preferredGender),
-      preferred_coat_type: trimText(form.preferredCoatType),
+      interest_type: normalizeChoice(form.interestType, APPLICATION_INTEREST_OPTIONS),
+      preferred_gender: normalizeChoice(form.preferredGender, APPLICATION_GENDER_OPTIONS),
+      preferred_coat_type: normalizeChoice(
+        form.preferredCoatType,
+        APPLICATION_COAT_OPTIONS
+      ),
       color_preference: trimText(form.colorPreference),
       desired_adoption_date: trimText(form.desiredAdoptionDate),
     },
     household: {
-      other_pets: trimText(form.otherPets),
+      other_pets: normalizeChoice(form.otherPets, APPLICATION_BOOLEAN_OPTIONS),
       pet_details: trimText(form.petDetails),
-      owned_chihuahua_before: trimText(form.ownedChihuahuaBefore),
-      home_type: trimText(form.homeType),
-      fenced_yard: trimText(form.fencedYard),
-      work_status: trimText(form.workStatus),
+      owned_chihuahua_before: normalizeChoice(
+        form.ownedChihuahuaBefore,
+        APPLICATION_BOOLEAN_OPTIONS
+      ),
+      home_type: normalizeChoice(form.homeType, APPLICATION_HOME_TYPE_OPTIONS),
+      fenced_yard: normalizeChoice(form.fencedYard, APPLICATION_BOOLEAN_OPTIONS),
+      work_status: normalizeChoice(form.workStatus, APPLICATION_WORK_STATUS_OPTIONS),
       who_cares_for_puppy: trimText(form.whoCaresForPuppy),
       children_at_home: trimText(form.childrenAtHome),
     },
     readiness: {
-      payment_preference: trimText(form.paymentPreference),
-      how_did_you_hear: trimText(form.howDidYouHear),
-      ready_to_place_deposit: trimText(form.readyToPlaceDeposit),
+      payment_preference: normalizeChoice(
+        form.paymentPreference,
+        APPLICATION_PAYMENT_PREFERENCE_OPTIONS
+      ),
+      how_did_you_hear: normalizeChoice(
+        form.howDidYouHear,
+        APPLICATION_DISCOVERY_OPTIONS
+      ),
+      ready_to_place_deposit: normalizeChoice(
+        form.readyToPlaceDeposit,
+        APPLICATION_BOOLEAN_OPTIONS
+      ),
       questions: trimText(form.questions),
     },
     declarations: {

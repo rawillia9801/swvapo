@@ -10,7 +10,16 @@ import {
   type PortalPuppy,
 } from "@/lib/portal-data";
 import {
+  APPLICATION_BOOLEAN_OPTIONS,
+  APPLICATION_COAT_OPTIONS,
+  APPLICATION_DISCOVERY_OPTIONS,
+  APPLICATION_GENDER_OPTIONS,
+  APPLICATION_HOME_TYPE_OPTIONS,
+  APPLICATION_INTEREST_OPTIONS,
+  APPLICATION_PAYMENT_PREFERENCE_OPTIONS,
+  APPLICATION_PREFERRED_CONTACT_OPTIONS,
   APPLICATION_SCHEMA_VERSION,
+  APPLICATION_WORK_STATUS_OPTIONS,
   FULL_PUPPY_APPLICATION_SELECT,
   buildApplicationDocumentMirrorData,
   buildApplicationFormState,
@@ -489,9 +498,11 @@ export default function PortalApplicationPage() {
                     }
                   >
                     <option value="">Select</option>
-                    <option value="email">Email</option>
-                    <option value="text">Text</option>
-                    <option value="phone">Phone</option>
+                    {APPLICATION_PREFERRED_CONTACT_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
                   </PortalSelect>
                 </PortalField>
 
@@ -536,10 +547,11 @@ export default function PortalApplicationPage() {
                     onChange={(event) => updateField("interestType", event.target.value)}
                   >
                     <option value="">Select</option>
-                    <option value="companion">Companion</option>
-                    <option value="pet home">Pet Home</option>
-                    <option value="wait list">Wait List</option>
-                    <option value="matched puppy">Matched Puppy</option>
+                    {APPLICATION_INTEREST_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
                   </PortalSelect>
                 </PortalField>
 
@@ -559,9 +571,11 @@ export default function PortalApplicationPage() {
                     onChange={(event) => updateField("preferredCoatType", event.target.value)}
                   >
                     <option value="">Select</option>
-                    <option value="long coat">Long Coat</option>
-                    <option value="smooth coat">Smooth Coat</option>
-                    <option value="either">Either</option>
+                    {APPLICATION_COAT_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
                   </PortalSelect>
                 </PortalField>
 
@@ -571,9 +585,11 @@ export default function PortalApplicationPage() {
                     onChange={(event) => updateField("preferredGender", event.target.value)}
                   >
                     <option value="">Select</option>
-                    <option value="female">Female</option>
-                    <option value="male">Male</option>
-                    <option value="either">Either</option>
+                    {APPLICATION_GENDER_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
                   </PortalSelect>
                 </PortalField>
 
@@ -598,8 +614,11 @@ export default function PortalApplicationPage() {
                     onChange={(event) => updateField("otherPets", event.target.value)}
                   >
                     <option value="">Select</option>
-                    <option value="yes">Yes</option>
-                    <option value="no">No</option>
+                    {APPLICATION_BOOLEAN_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
                   </PortalSelect>
                 </PortalField>
 
@@ -619,17 +638,26 @@ export default function PortalApplicationPage() {
                     }
                   >
                     <option value="">Select</option>
-                    <option value="yes">Yes</option>
-                    <option value="no">No</option>
+                    {APPLICATION_BOOLEAN_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
                   </PortalSelect>
                 </PortalField>
 
                 <PortalField label="Home Type">
-                  <PortalInput
+                  <PortalSelect
                     value={form.homeType}
                     onChange={(event) => updateField("homeType", event.target.value)}
-                    placeholder="House, condo, apartment, farm, etc."
-                  />
+                  >
+                    <option value="">Select</option>
+                    {APPLICATION_HOME_TYPE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </PortalSelect>
                 </PortalField>
 
                 <PortalField label="Fenced Yard">
@@ -638,18 +666,26 @@ export default function PortalApplicationPage() {
                     onChange={(event) => updateField("fencedYard", event.target.value)}
                   >
                     <option value="">Select</option>
-                    <option value="yes">Yes</option>
-                    <option value="no">No</option>
-                    <option value="partially">Partially</option>
+                    {APPLICATION_BOOLEAN_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
                   </PortalSelect>
                 </PortalField>
 
                 <PortalField label="Work Status">
-                  <PortalInput
+                  <PortalSelect
                     value={form.workStatus}
                     onChange={(event) => updateField("workStatus", event.target.value)}
-                    placeholder="Work from home, hybrid, full-time away, etc."
-                  />
+                  >
+                    <option value="">Select</option>
+                    {APPLICATION_WORK_STATUS_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </PortalSelect>
                 </PortalField>
 
                 <PortalField label="Who Cares for the Puppy">
@@ -679,20 +715,33 @@ export default function PortalApplicationPage() {
             >
               <div className="grid gap-5 md:grid-cols-2">
                 <PortalField label="Payment Preference">
-                  <PortalInput
+                  <PortalSelect
                     value={form.paymentPreference}
                     onChange={(event) =>
                       updateField("paymentPreference", event.target.value)
                     }
-                    placeholder="Full payment, financing, undecided"
-                  />
+                  >
+                    <option value="">Select</option>
+                    {APPLICATION_PAYMENT_PREFERENCE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </PortalSelect>
                 </PortalField>
 
                 <PortalField label="How Did You Hear About Us">
-                  <PortalInput
+                  <PortalSelect
                     value={form.howDidYouHear}
                     onChange={(event) => updateField("howDidYouHear", event.target.value)}
-                  />
+                  >
+                    <option value="">Select</option>
+                    {APPLICATION_DISCOVERY_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </PortalSelect>
                 </PortalField>
 
                 <PortalField label="Ready to Place Deposit">
@@ -703,9 +752,11 @@ export default function PortalApplicationPage() {
                     }
                   >
                     <option value="">Select</option>
-                    <option value="yes">Yes</option>
-                    <option value="no">No</option>
-                    <option value="need details">Need Details</option>
+                    {APPLICATION_BOOLEAN_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
                   </PortalSelect>
                 </PortalField>
 

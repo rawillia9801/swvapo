@@ -5,6 +5,7 @@ import type {
   PortalFormSubmission,
   PortalPuppy,
 } from "@/lib/portal-data";
+import { normalizeApplicationPayload } from "@/lib/portal-application";
 
 export type PortalDocumentFieldType =
   | "checkbox"
@@ -121,6 +122,76 @@ function puppyName(context: PortalDocumentPacketContext) {
 
 function deliveryMethod(context: PortalDocumentPacketContext) {
   return firstFilled(context.buyer?.delivery_option, "pickup");
+}
+
+function applicationPayload(context: PortalDocumentPacketContext) {
+  return context.application?.application
+    ? normalizeApplicationPayload(context.application.application)
+    : null;
+}
+
+function buyerFullName(context: PortalDocumentPacketContext) {
+  const application = applicationPayload(context);
+  return firstFilled(
+    context.buyer?.full_name,
+    context.buyer?.name,
+    application?.applicant.full_name,
+    context.application?.full_name
+  );
+}
+
+function splitFullName(value: string) {
+  const parts = String(value || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return { firstName: "", lastName: "" };
+  if (parts.length === 1) return { firstName: parts[0], lastName: "" };
+  return {
+    firstName: parts[0],
+    lastName: parts.slice(1).join(" "),
+  };
+}
+
+function buyerEmail(context: PortalDocumentPacketContext) {
+  const application = applicationPayload(context);
+  return firstFilled(
+    context.buyer?.email,
+    application?.applicant.email,
+    context.application?.email,
+    context.application?.applicant_email
+  );
+}
+
+function buyerPhone(context: PortalDocumentPacketContext) {
+  const application = applicationPayload(context);
+  return firstFilled(context.buyer?.phone, application?.applicant.phone, context.application?.phone);
+}
+
+function buyerAddress(context: PortalDocumentPacketContext) {
+  const application = applicationPayload(context);
+  return {
+    line1: firstFilled(
+      context.buyer?.address_line1,
+      application?.address.street_address,
+      context.application?.street_address
+    ),
+    line2: firstFilled(context.buyer?.address_line2),
+    city: firstFilled(context.buyer?.city, application?.address.city),
+    state: firstFilled(context.buyer?.state, application?.address.state),
+    postalCode: firstFilled(context.buyer?.postal_code, application?.address.postal_code),
+    country: "United States",
+  };
+}
+
+function preferredContact(context: PortalDocumentPacketContext) {
+  const application = applicationPayload(context);
+  return firstFilled(application?.applicant.preferred_contact_method);
+}
+
+function adoptionDate(context: PortalDocumentPacketContext) {
+  const application = applicationPayload(context);
+  return firstFilled(
+    context.buyer?.delivery_date,
+    application?.puppy_preferences.desired_adoption_date
+  );
 }
 
 export const portalDocumentPacket: PortalDocumentDefinition[] = [
@@ -470,65 +541,384 @@ export const portalDocumentPacket: PortalDocumentDefinition[] = [
   },
   {
     key: "hypoglycemia-awareness",
-    formKey: "hypoglycemia_awareness_form",
-    title: "Hypoglycemia Awareness Form",
-    shortTitle: "Hypoglycemia",
+    formKey: "hypoglycemia_awareness_care_agreement",
+    aliases: ["hypoglycemia_awareness_form", "hypoglycemia_care_agreement"],
+    title: "Hypoglycemia Awareness & Care Agreement",
+    shortTitle: "Hypoglycemia Care",
     category: "Health",
     description:
-      "Toy-breed emergency awareness, warning signs, and first-response steps should stay signed inside the portal packet.",
+      "This agreement keeps homecoming feeding guidance, hypoglycemia warning signs, emergency steps, and clinic planning attached to the puppy file.",
     completionSummary:
-      "This acknowledgement keeps the emergency care instructions attached to the puppy profile for quick review.",
+      "The signed hypoglycemia care agreement stays in both the portal and breeder record so the first days home are backed by one shared plan.",
     mode: "form",
     fields: [
       {
-        key: "warn_shaking",
-        label: "I reviewed shaking, weakness, and glassy eyes as early warning signs.",
-        type: "checkbox",
-        required: true,
-      },
-      {
-        key: "warn_lethargy",
-        label: "I reviewed lethargy, poor appetite, and unusual sleepiness as warning signs.",
-        type: "checkbox",
-        required: true,
-      },
-      {
-        key: "step_feed_often",
-        label: "I understand the puppy should eat on a consistent schedule and not go long periods without food.",
-        type: "checkbox",
-        required: true,
-      },
-      {
-        key: "step_sugar",
-        label: "I reviewed the breeder instructions for using sugar support in an emergency while seeking veterinary care.",
-        type: "checkbox",
-        required: true,
-      },
-      {
-        key: "step_contact",
-        label: "I understand I should contact my veterinarian or emergency clinic immediately if symptoms appear.",
-        type: "checkbox",
-        required: true,
-      },
-      {
-        key: "emergency_phone",
-        label: "Emergency clinic or veterinarian phone",
+        key: "buyer_first_name",
+        label: "Buyer first name",
         type: "text",
-        placeholder: "Vet or emergency clinic phone",
+        required: true,
+        placeholder: "First name",
+      },
+      {
+        key: "buyer_last_name",
+        label: "Buyer last name",
+        type: "text",
+        required: true,
+        placeholder: "Last name",
+      },
+      {
+        key: "email",
+        label: "Email",
+        type: "text",
+        required: true,
+        placeholder: "buyer@email.com",
+      },
+      {
+        key: "mobile_number",
+        label: "Mobile number",
+        type: "text",
+        required: true,
+        placeholder: "(555) 555-5555",
+      },
+      {
+        key: "physical_address_line1",
+        label: "Physical address line 1",
+        type: "text",
+        required: true,
+        placeholder: "Street address",
+      },
+      {
+        key: "physical_address_line2",
+        label: "Physical address line 2",
+        type: "text",
+        placeholder: "Apartment, suite, etc.",
+      },
+      {
+        key: "physical_address_city",
+        label: "City",
+        type: "text",
+        required: true,
+        placeholder: "City",
+      },
+      {
+        key: "physical_address_state",
+        label: "State / Province",
+        type: "text",
+        required: true,
+        placeholder: "State",
+      },
+      {
+        key: "physical_address_postal_code",
+        label: "Postal / Zip code",
+        type: "text",
+        required: true,
+        placeholder: "Zip code",
+      },
+      {
+        key: "physical_address_country",
+        label: "Country",
+        type: "text",
+        placeholder: "United States",
+      },
+      {
+        key: "puppy_name",
+        label: "Puppy name",
+        type: "text",
+        required: true,
+        placeholder: "Puppy name",
+      },
+      {
+        key: "adoption_date",
+        label: "Adoption date",
+        type: "date",
+        required: true,
+      },
+      {
+        key: "buyer_puppy_initials",
+        label: "Section 1 initials",
+        type: "text",
+        required: true,
+        placeholder: "Initials",
+      },
+      {
+        key: "reviewed_hypoglycemia_definition",
+        label: "I reviewed what hypoglycemia is and understand it can become an emergency for a toy-breed puppy.",
+        type: "checkbox",
+        required: true,
+      },
+      {
+        key: "definition_initials",
+        label: "Section 2 initials",
+        type: "text",
+        required: true,
+        placeholder: "Initials",
+      },
+      {
+        key: "reviewed_warning_signs",
+        label: "I reviewed warning signs including wobbliness, weakness, tremors, glassy eyes, sudden sleepiness, crying, poor appetite, or unusual behavior.",
+        type: "checkbox",
+        required: true,
+      },
+      {
+        key: "warning_signs_initials",
+        label: "Section 3 initials",
+        type: "text",
+        required: true,
+        placeholder: "Initials",
+      },
+      {
+        key: "feeding_every_2_to_3_hours",
+        label: "I will feed frequent small meals during the first days home and will not allow long gaps without food.",
+        type: "checkbox",
+        required: true,
+      },
+      {
+        key: "keep_honey_or_karo_available",
+        label: "I will keep honey or Karo syrup available in case sugar support is needed.",
+        type: "checkbox",
+        required: true,
+      },
+      {
+        key: "offer_frequent_water",
+        label: "I understand fresh water should be offered often and the puppy should stay hydrated.",
+        type: "checkbox",
+        required: true,
+      },
+      {
+        key: "keep_warm_and_avoid_cold",
+        label: "I will keep the puppy warm and avoid cold exposure, drafts, or chilling.",
+        type: "checkbox",
+        required: true,
+      },
+      {
+        key: "travel_with_food_and_pad",
+        label: "I will travel with food, warmth, and emergency sugar support during the first days home.",
+        type: "checkbox",
+        required: true,
+      },
+      {
+        key: "avoid_stress_first_days",
+        label: "I understand overexertion, stressful outings, and too much activity can increase risk during the first 3 to 5 days.",
+        type: "checkbox",
+        required: true,
+      },
+      {
+        key: "weigh_daily_first_two_weeks",
+        label: "I will monitor appetite, energy, stool, and weight daily during the adjustment period.",
+        type: "checkbox",
+        required: true,
+      },
+      {
+        key: "prevention_plan_initials",
+        label: "Section 4 initials",
+        type: "text",
+        required: true,
+        placeholder: "Initials",
+      },
+      {
+        key: "offer_food_if_early_signs",
+        label: "If early signs appear, I will first offer food immediately if the puppy is alert enough to eat.",
+        type: "checkbox",
+        required: true,
+      },
+      {
+        key: "karo_or_honey_if_refusing_food",
+        label: "If the puppy refuses food but is alert, I reviewed the breeder instructions for a small amount of Karo syrup or honey on the gums.",
+        type: "checkbox",
+        required: true,
+      },
+      {
+        key: "keep_warm_and_quiet_if_symptoms",
+        label: "I will keep the puppy warm, quiet, and closely observed if symptoms appear.",
+        type: "checkbox",
+        required: true,
+      },
+      {
+        key: "seek_vet_if_not_improving",
+        label: "If symptoms do not improve quickly, I will seek veterinary care immediately.",
+        type: "checkbox",
+        required: true,
+      },
+      {
+        key: "at_home_action_initials",
+        label: "Section 5 initials",
+        type: "text",
+        required: true,
+        placeholder: "Initials",
+      },
+      {
+        key: "administer_small_amount_if_severe",
+        label: "For severe signs, I reviewed the breeder guidance for emergency sugar support while preparing for immediate transport.",
+        type: "checkbox",
+        required: true,
+      },
+      {
+        key: "do_not_force_liquid",
+        label: "I understand I should not force liquid if the puppy cannot swallow normally.",
+        type: "checkbox",
+        required: true,
+      },
+      {
+        key: "transport_immediately_keep_warm",
+        label: "I will transport the puppy immediately while keeping the puppy warm, calm, and secure.",
+        type: "checkbox",
+        required: true,
+      },
+      {
+        key: "call_clinic_ahead",
+        label: "I will call the emergency clinic ahead if possible so they are ready on arrival.",
+        type: "checkbox",
+        required: true,
+      },
+      {
+        key: "clinic_name",
+        label: "Nearest 24 / 7 emergency clinic name",
+        type: "text",
+        required: true,
+        placeholder: "Clinic name",
+      },
+      {
+        key: "clinic_address_line1",
+        label: "Clinic address line 1",
+        type: "text",
+        required: true,
+        placeholder: "Street address",
+      },
+      {
+        key: "clinic_address_line2",
+        label: "Clinic address line 2",
+        type: "text",
+        placeholder: "Suite, unit, etc.",
+      },
+      {
+        key: "clinic_city",
+        label: "Clinic city",
+        type: "text",
+        required: true,
+        placeholder: "City",
+      },
+      {
+        key: "clinic_state",
+        label: "Clinic state / province",
+        type: "text",
+        required: true,
+        placeholder: "State",
+      },
+      {
+        key: "clinic_postal_code",
+        label: "Clinic postal / zip code",
+        type: "text",
+        placeholder: "Zip code",
+      },
+      {
+        key: "clinic_country",
+        label: "Clinic country",
+        type: "text",
+        placeholder: "United States",
+      },
+      {
+        key: "clinic_phone",
+        label: "Clinic phone number",
+        type: "text",
+        required: true,
+        placeholder: "Phone number",
+      },
+      {
+        key: "emergency_protocol_initials",
+        label: "Section 6 initials",
+        type: "text",
+        required: true,
+        placeholder: "Initials",
+      },
+      {
+        key: "reviewed_feeding_schedule",
+        label: "I reviewed the first-week feeding and monitoring schedule and understand frequent meals and daily checks are required.",
+        type: "checkbox",
+        required: true,
+      },
+      {
+        key: "feeding_schedule_initials",
+        label: "Section 7 initials",
+        type: "text",
+        required: true,
+        placeholder: "Initials",
+      },
+      {
+        key: "received_breeder_guide",
+        label: "I received and read the breeder's hypoglycemia care guide or equivalent homegoing instructions.",
+        type: "checkbox",
+        required: true,
+      },
+      {
+        key: "avoid_busy_events",
+        label: "I will avoid scheduling busy travel, visitors, or major outings if the puppy is still settling in.",
+        type: "checkbox",
+        required: true,
+      },
+      {
+        key: "contact_breeder_for_concerns",
+        label: "I will contact the breeder if appetite, weight, stool, energy, or warning signs become concerning.",
+        type: "checkbox",
+        required: true,
+      },
+      {
+        key: "understand_noncompliance_risk",
+        label: "I understand the adjustment program can be affected by improper husbandry or failure to follow the care plan.",
+        type: "checkbox",
+        required: true,
+      },
+      {
+        key: "acknowledgements_initials",
+        label: "Section 8 initials",
+        type: "text",
+        required: true,
+        placeholder: "Initials",
+      },
+      {
+        key: "follow_up_contact_consent",
+        label: "I consent to text or email follow-up about my puppy's transition.",
+        type: "checkbox",
+      },
+      {
+        key: "preferred_contact_text",
+        label: "Preferred follow-up contact: Text",
+        type: "checkbox",
+      },
+      {
+        key: "preferred_contact_email",
+        label: "Preferred follow-up contact: Email",
+        type: "checkbox",
+      },
+      {
+        key: "preferred_contact_phone",
+        label: "Preferred follow-up contact: Phone",
+        type: "checkbox",
+      },
+      {
+        key: "certify_read_and_understand",
+        label: "I certify I have read and understand this agreement and will follow the care plan above.",
+        type: "checkbox",
+        required: true,
+      },
+      {
+        key: "terms_and_conditions_ack",
+        label: "I accept the terms and conditions of the Hypoglycemia Awareness & Care Agreement.",
+        type: "checkbox",
+        required: true,
       },
       {
         key: "notes",
         label: "Notes",
         type: "textarea",
-        rows: 3,
-        placeholder: "Add any feeding, emergency, or monitoring notes.",
+        rows: 4,
+        placeholder: "Add clinic notes, travel concerns, feeding reminders, or anything the breeder should keep with this care plan.",
       },
       {
         key: "signed_name",
-        label: "Full legal name",
+        label: "Buyer signature",
         type: "text",
         required: true,
-        placeholder: "Type your full name",
+        placeholder: "Type your full legal name",
       },
       {
         key: "signed_date",
@@ -537,23 +927,80 @@ export const portalDocumentPacket: PortalDocumentDefinition[] = [
         required: true,
       },
     ],
-    getInitialData: () => ({
-      warn_shaking: true,
-      warn_lethargy: true,
-      step_feed_often: true,
-      step_sugar: true,
-      step_contact: true,
-      emergency_phone: "",
-      notes: "",
-      signed_name: "",
-      signed_date: documentToday(),
-    }),
+    getInitialData: (context) => {
+      const fullName = buyerFullName(context);
+      const name = splitFullName(fullName);
+      const address = buyerAddress(context);
+      const contactMethod = preferredContact(context).toLowerCase();
+
+      return {
+        buyer_first_name: name.firstName,
+        buyer_last_name: name.lastName,
+        email: buyerEmail(context),
+        mobile_number: buyerPhone(context),
+        physical_address_line1: address.line1,
+        physical_address_line2: address.line2,
+        physical_address_city: address.city,
+        physical_address_state: address.state,
+        physical_address_postal_code: address.postalCode,
+        physical_address_country: address.country,
+        puppy_name: puppyName(context),
+        adoption_date: adoptionDate(context),
+        buyer_puppy_initials: "",
+        reviewed_hypoglycemia_definition: true,
+        definition_initials: "",
+        reviewed_warning_signs: true,
+        warning_signs_initials: "",
+        feeding_every_2_to_3_hours: true,
+        keep_honey_or_karo_available: true,
+        offer_frequent_water: true,
+        keep_warm_and_avoid_cold: true,
+        travel_with_food_and_pad: true,
+        avoid_stress_first_days: true,
+        weigh_daily_first_two_weeks: true,
+        prevention_plan_initials: "",
+        offer_food_if_early_signs: true,
+        karo_or_honey_if_refusing_food: true,
+        keep_warm_and_quiet_if_symptoms: true,
+        seek_vet_if_not_improving: true,
+        at_home_action_initials: "",
+        administer_small_amount_if_severe: true,
+        do_not_force_liquid: true,
+        transport_immediately_keep_warm: true,
+        call_clinic_ahead: true,
+        clinic_name: "",
+        clinic_address_line1: "",
+        clinic_address_line2: "",
+        clinic_city: "",
+        clinic_state: "",
+        clinic_postal_code: "",
+        clinic_country: "United States",
+        clinic_phone: "",
+        emergency_protocol_initials: "",
+        reviewed_feeding_schedule: true,
+        feeding_schedule_initials: "",
+        received_breeder_guide: true,
+        avoid_busy_events: true,
+        contact_breeder_for_concerns: true,
+        understand_noncompliance_risk: true,
+        acknowledgements_initials: "",
+        follow_up_contact_consent: false,
+        preferred_contact_text: contactMethod === "text",
+        preferred_contact_email: contactMethod === "email",
+        preferred_contact_phone: contactMethod === "call" || contactMethod === "phone",
+        certify_read_and_understand: true,
+        terms_and_conditions_ack: true,
+        notes: "",
+        signed_name: fullName,
+        signed_date: documentToday(),
+      };
+    },
     getAvailability: (context) =>
       context.puppy || context.buyer
         ? { enabled: true }
         : {
             enabled: false,
-            reason: "This acknowledgement is filed once a puppy is assigned to your home.",
+            reason: "This care agreement is activated once a puppy is assigned to the buyer file.",
           },
   },
   {

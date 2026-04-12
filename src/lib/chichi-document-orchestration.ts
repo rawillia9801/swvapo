@@ -597,10 +597,13 @@ function buildPackageHighlights(item: PreparedPackage) {
     item.prefill["monthly_amount"]
       ? `Monthly: ${formatMoney(item.prefill["monthly_amount"]) || String(item.prefill["monthly_amount"])}`
       : null,
+    item.prefill["adoption_date"] ? `Adoption: ${String(item.prefill["adoption_date"])}` : null,
     item.prefill["delivery_date"] ? `Date: ${String(item.prefill["delivery_date"])}` : null,
     item.prefill["delivery_location"]
       ? `Location: ${String(item.prefill["delivery_location"])}`
       : null,
+    item.prefill["clinic_name"] ? `Clinic: ${String(item.prefill["clinic_name"])}` : null,
+    item.prefill["clinic_phone"] ? `Clinic phone: ${String(item.prefill["clinic_phone"])}` : null,
   ].filter(Boolean);
 
   return highlights.slice(0, 3);
