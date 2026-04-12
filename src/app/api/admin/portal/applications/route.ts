@@ -6,8 +6,21 @@ import {
   verifyOwner,
 } from "@/lib/admin-api";
 import { resolveBreedingDogName, resolveLitterName, resolvePuppyName } from "@/lib/lineage";
-
-type ApplicationJson = Record<string, unknown>;
+import {
+  applicationCityState,
+  applicationDisplayName,
+  applicationEmail,
+  applicationInterest,
+  applicationPaymentPreference,
+  applicationPhone,
+  applicationQuestions,
+  applicationShowsDepositReadiness,
+  applicationShowsFinancingInterest,
+  buildApplicationExperienceSummary,
+  buildApplicationHouseholdSummary,
+  buildApplicationTransportContext,
+  normalizeApplicationPayload,
+} from "@/lib/portal-application";
 
 type ApplicationRow = {
   id: number;
@@ -21,7 +34,7 @@ type ApplicationRow = {
   status?: string | null;
   admin_notes?: string | null;
   assigned_puppy_id?: number | null;
-  application?: ApplicationJson | null;
+  application?: Record<string, unknown> | null;
 };
 
 type BuyerRow = {
@@ -94,27 +107,6 @@ type PickupRequestRow = {
   status?: string | null;
 };
 
-function safeRecord(value: unknown): ApplicationJson | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as ApplicationJson)
-    : null;
-}
-
-function readString(record: ApplicationJson | null, key: string) {
-  const value = record?.[key];
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function readBooleanLike(record: ApplicationJson | null, key: string) {
-  const value = record?.[key];
-  if (typeof value === "boolean") return value;
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    return ["yes", "true", "ready", "y"].includes(normalized);
-  }
-  return false;
-}
-
 function toNumberOrNull(value: unknown) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
@@ -186,77 +178,6 @@ function buildPuppyOption(
     sire: firstValue(puppy.sire, resolveBreedingDogName(sireProfile)) || null,
     buyer_id: puppy.buyer_id ?? null,
   };
-}
-
-function applicationDisplayName(row: ApplicationRow, application: ApplicationJson | null) {
-  return (
-    firstValue(
-      row.full_name,
-      readString(application, "fullName"),
-      row.email,
-      row.applicant_email,
-      `Application #${row.id}`
-    ) || `Application #${row.id}`
-  );
-}
-
-function applicationEmail(row: ApplicationRow, application: ApplicationJson | null) {
-  return (
-    firstValue(
-      row.email,
-      row.applicant_email,
-      readString(application, "email"),
-      readString(application, "applicantEmail")
-    ) || ""
-  );
-}
-
-function applicationPhone(row: ApplicationRow, application: ApplicationJson | null) {
-  return firstValue(row.phone, readString(application, "phone")) || "";
-}
-
-function applicationCityState(row: ApplicationRow, application: ApplicationJson | null) {
-  const explicit = String(row.city_state || "").trim();
-  if (explicit) return explicit;
-  const city = readString(application, "city");
-  const state = readString(application, "state");
-  return [city, state].filter(Boolean).join(", ");
-}
-
-function applicationInterest(
-  application: ApplicationJson | null,
-  matchedPuppyLabel: string | null
-) {
-  if (matchedPuppyLabel) return matchedPuppyLabel;
-  const preference = [
-    readString(application, "interestType"),
-    readString(application, "preferredGender"),
-    readString(application, "preferredCoatType"),
-    readString(application, "colorPreference"),
-  ]
-    .filter(Boolean)
-    .join(" / ");
-  return preference || "General inquiry";
-}
-
-function buildHouseholdSummary(application: ApplicationJson | null) {
-  const parts = [
-    readString(application, "homeType"),
-    readString(application, "childrenAtHome"),
-    readString(application, "otherPets"),
-    readString(application, "workStatus"),
-    readString(application, "fencedYard"),
-  ].filter(Boolean);
-  return parts.join(" / ") || "Household notes not provided yet.";
-}
-
-function buildExperienceSummary(application: ApplicationJson | null) {
-  const parts = [
-    readString(application, "ownedChihuahuaBefore"),
-    readString(application, "whoCaresForPuppy"),
-    readString(application, "petDetails"),
-  ].filter(Boolean);
-  return parts.join(" / ") || "Experience notes not provided yet.";
 }
 
 function nextBuyerStatus(currentStatus: string | null | undefined) {
@@ -364,7 +285,7 @@ async function loadWorkspace() {
   });
 
   const queueItems = applications.map((row) => {
-    const application = safeRecord(row.application);
+    const application = normalizeApplicationPayload(row.application);
     const normalizedStatus = normalizeApplicationStatus(row.status);
     const userId = String(row.user_id || "").trim();
     const email = normalizeEmail(applicationEmail(row, application));
@@ -398,10 +319,10 @@ async function loadWorkspace() {
       return userId && requestUserId === userId;
     });
 
-    const paymentPreference = readString(application, "paymentPreference");
-    const questions = readString(application, "questions");
+    const paymentPreference = applicationPaymentPreference(application);
+    const questions = applicationQuestions(application);
     const transportText = [
-      readString(application, "interestType"),
+      buildApplicationTransportContext(application),
       questions,
       ...transportMatches.map((request) =>
         [request.request_type, request.location_text, request.notes].filter(Boolean).join(" ")
@@ -424,12 +345,10 @@ async function loadWorkspace() {
       admin_notes: String(row.admin_notes || ""),
       assigned_puppy_id: row.assigned_puppy_id ?? null,
       puppyInterest: applicationInterest(application, matchedPuppy?.displayName || null),
-      preferredGender: readString(application, "preferredGender"),
-      preferredCoatType: readString(application, "preferredCoatType"),
+      preferredGender: application.puppy_preferences.preferred_gender,
+      preferredCoatType: application.puppy_preferences.preferred_coat_type,
       paymentPreference,
-      financingInterest:
-        matchesKeywords(paymentPreference, ["financ", "payment plan", "monthly"]) ||
-        matchesKeywords(questions, ["financ", "payment plan", "monthly"]),
+      financingInterest: applicationShowsFinancingInterest(application),
       transportInterest:
         transportMatches.length > 0 ||
         matchesKeywords(transportText, [
@@ -443,7 +362,7 @@ async function loadWorkspace() {
           "drop off",
           "travel",
         ]),
-      depositReady: readBooleanLike(application, "readyToPlaceDeposit"),
+      depositReady: applicationShowsDepositReadiness(application),
       matchedBuyer: matchedBuyer
         ? {
             id: matchedBuyer.id,
@@ -458,8 +377,8 @@ async function loadWorkspace() {
       matchedPuppy,
       messages: matchedMessages,
       application,
-      householdSummary: buildHouseholdSummary(application),
-      experienceSummary: buildExperienceSummary(application),
+      householdSummary: buildApplicationHouseholdSummary(application),
+      experienceSummary: buildApplicationExperienceSummary(application),
       questions,
     };
   });
@@ -532,7 +451,7 @@ async function findBuyerForApplication(
   service: ReturnType<typeof createServiceSupabase>,
   application: ApplicationRow
 ) {
-  const applicationData = safeRecord(application.application);
+  const applicationData = normalizeApplicationPayload(application.application);
   const email = normalizeEmail(applicationEmail(application, applicationData));
 
   if (application.user_id) {
@@ -673,7 +592,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Application not found." }, { status: 404 });
     }
 
-    const applicationData = safeRecord(application.application);
+    const applicationData = normalizeApplicationPayload(application.application);
     const email = normalizeEmail(applicationEmail(application, applicationData));
     const fullName = applicationDisplayName(application, applicationData);
     const phone = applicationPhone(application, applicationData);

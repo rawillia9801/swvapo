@@ -47,6 +47,7 @@ export type PortalApplication = {
   city_state?: string | null;
   zip?: string | null;
   status?: string | null;
+  application?: Record<string, unknown> | null;
   created_at?: string | null;
   assigned_puppy_id?: number | null;
 };
@@ -232,7 +233,7 @@ const buyerSelect =
   "id,user_id,puppy_id,full_name,name,email,phone,address_line1,address_line2,status,notes,city,state,postal_code,sale_price,deposit_amount,deposit_date,finance_enabled,finance_admin_fee,finance_rate,finance_months,finance_monthly_amount,finance_day_of_month,finance_next_due_date,finance_last_payment_date,delivery_option,delivery_date,delivery_location,delivery_fee,portal_profile_photo_url,portal_profile_photo_path,created_at";
 
 const applicationSelect =
-  "id,user_id,full_name,email,applicant_email,phone,street_address,city_state,zip,status,created_at,assigned_puppy_id";
+  "id,user_id,full_name,email,applicant_email,phone,street_address,city_state,zip,status,application,created_at,assigned_puppy_id";
 
 const puppySelect =
   "id,buyer_id,litter_id,litter_name,dam_id,sire_id,call_name,puppy_name,name,sire,dam,sex,color,coat_type,coat,pattern,dob,registry,price,list_price,deposit,balance,status,w_1,w_2,w_3,w_4,w_5,w_6,w_7,w_8,birth_weight,current_weight,weight_unit,weight_date,image_url,photo_url,owner_email,description,notes,created_at";

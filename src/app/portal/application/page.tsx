@@ -3,13 +3,22 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   loadPortalContext,
-  parseCityState,
   portalDisplayName,
   portalPuppyName,
   type PortalApplication,
   type PortalBuyer,
   type PortalPuppy,
 } from "@/lib/portal-data";
+import {
+  APPLICATION_SCHEMA_VERSION,
+  FULL_PUPPY_APPLICATION_SELECT,
+  buildApplicationDocumentMirrorData,
+  buildApplicationFormState,
+  buildPuppyApplicationRowPayload,
+  emptyApplicationForm,
+  type ApplicationForm,
+  type PuppyApplicationRecord,
+} from "@/lib/portal-application";
 import { fmtDate, sb } from "@/lib/utils";
 import { usePortalSession } from "@/hooks/use-portal-session";
 import {
@@ -28,84 +37,6 @@ import {
   PortalSelect,
   PortalTextarea,
 } from "@/components/portal/luxury-shell";
-
-type ApplicationPayload = Record<string, unknown>;
-
-type PuppyApplicationRecord = {
-  id: number;
-  user_id?: string | null;
-  full_name?: string | null;
-  email?: string | null;
-  applicant_email?: string | null;
-  phone?: string | null;
-  city_state?: string | null;
-  preferred_contact?: string | null;
-  street_address?: string | null;
-  zip?: string | null;
-  status?: string | null;
-  admin_notes?: string | null;
-  application?: ApplicationPayload | null;
-  created_at?: string | null;
-  assigned_puppy_id?: number | null;
-  ack_age?: boolean | null;
-  ack_accuracy?: boolean | null;
-  ack_home_env?: boolean | null;
-  ack_care_commitment?: boolean | null;
-  ack_health_guarantee?: boolean | null;
-  ack_nonrefundable_deposit?: boolean | null;
-  ack_purchase_price_tax?: boolean | null;
-  ack_contract_obligation?: boolean | null;
-  ack_return_rehoming?: boolean | null;
-  ack_release_liability?: boolean | null;
-  ack_terms?: boolean | null;
-  ack_communications?: boolean | null;
-};
-
-type ApplicationForm = {
-  fullName: string;
-  email: string;
-  phone: string;
-  streetAddress: string;
-  city: string;
-  state: string;
-  zip: string;
-  preferredContactMethod: string;
-  preferredCoatType: string;
-  preferredGender: string;
-  colorPreference: string;
-  desiredAdoptionDate: string;
-  interestType: string;
-  otherPets: string;
-  petDetails: string;
-  ownedChihuahuaBefore: string;
-  homeType: string;
-  fencedYard: string;
-  workStatus: string;
-  whoCaresForPuppy: string;
-  childrenAtHome: string;
-  paymentPreference: string;
-  howDidYouHear: string;
-  readyToPlaceDeposit: string;
-  questions: string;
-  agreeTerms: boolean;
-  ackAgeCapacity: boolean;
-  ackAccuracy: boolean;
-  ackHomeEnvironment: boolean;
-  ackCareCommitment: boolean;
-  ackHealthGuarantee: boolean;
-  ackNonrefundableDeposit: boolean;
-  ackPurchasePriceTax: boolean;
-  ackContractualObligation: boolean;
-  ackReturnRehoming: boolean;
-  ackReleaseLiability: boolean;
-  ackAgreementTerms: boolean;
-  ackCommunications: boolean;
-  signedAt: string;
-  signature: string;
-};
-
-const fullApplicationSelect =
-  "id,user_id,full_name,email,applicant_email,phone,city_state,preferred_contact,street_address,zip,status,admin_notes,application,created_at,assigned_puppy_id,ack_age,ack_accuracy,ack_home_env,ack_care_commitment,ack_health_guarantee,ack_nonrefundable_deposit,ack_purchase_price_tax,ack_contract_obligation,ack_return_rehoming,ack_release_liability,ack_terms,ack_communications";
 
 const policyHighlights = [
   "Applications are reviewed before a puppy is approved or reserved.",
@@ -166,65 +97,6 @@ const declarationItems: Array<{ key: keyof ApplicationForm; label: string }> = [
   },
 ];
 
-function emptyForm(): ApplicationForm {
-  return {
-    fullName: "",
-    email: "",
-    phone: "",
-    streetAddress: "",
-    city: "",
-    state: "",
-    zip: "",
-    preferredContactMethod: "",
-    preferredCoatType: "",
-    preferredGender: "",
-    colorPreference: "",
-    desiredAdoptionDate: "",
-    interestType: "",
-    otherPets: "",
-    petDetails: "",
-    ownedChihuahuaBefore: "",
-    homeType: "",
-    fencedYard: "",
-    workStatus: "",
-    whoCaresForPuppy: "",
-    childrenAtHome: "",
-    paymentPreference: "",
-    howDidYouHear: "",
-    readyToPlaceDeposit: "",
-    questions: "",
-    agreeTerms: false,
-    ackAgeCapacity: false,
-    ackAccuracy: false,
-    ackHomeEnvironment: false,
-    ackCareCommitment: false,
-    ackHealthGuarantee: false,
-    ackNonrefundableDeposit: false,
-    ackPurchasePriceTax: false,
-    ackContractualObligation: false,
-    ackReturnRehoming: false,
-    ackReleaseLiability: false,
-    ackAgreementTerms: false,
-    ackCommunications: false,
-    signedAt: "",
-    signature: "",
-  };
-}
-
-function readString(payload: ApplicationPayload | null | undefined, key: string) {
-  const value = payload?.[key];
-  return typeof value === "string" ? value : "";
-}
-
-function readBool(payload: ApplicationPayload | null | undefined, key: string) {
-  return Boolean(payload?.[key]);
-}
-
-function formatDateTimeLocal(date: Date) {
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
 async function findFullApplication(
   userId: string,
   email: string,
@@ -233,7 +105,7 @@ async function findFullApplication(
   if (preferredId) {
     const { data, error } = await sb
       .from("puppy_applications")
-      .select(fullApplicationSelect)
+      .select(FULL_PUPPY_APPLICATION_SELECT)
       .eq("id", preferredId)
       .maybeSingle();
 
@@ -242,7 +114,7 @@ async function findFullApplication(
 
   const byUserId = await sb
     .from("puppy_applications")
-    .select(fullApplicationSelect)
+    .select(FULL_PUPPY_APPLICATION_SELECT)
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -257,7 +129,7 @@ async function findFullApplication(
 
   const byEmail = await sb
     .from("puppy_applications")
-    .select(fullApplicationSelect)
+    .select(FULL_PUPPY_APPLICATION_SELECT)
     .eq("email", normalizedEmail)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -269,7 +141,7 @@ async function findFullApplication(
 
   const byApplicantEmail = await sb
     .from("puppy_applications")
-    .select(fullApplicationSelect)
+    .select(FULL_PUPPY_APPLICATION_SELECT)
     .eq("applicant_email", normalizedEmail)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -281,90 +153,6 @@ async function findFullApplication(
 
   return null;
 }
-
-function buildForm(
-  userEmail: string,
-  record: PuppyApplicationRecord | null,
-  buyer: PortalBuyer | null,
-  application: PortalApplication | null
-): ApplicationForm {
-  const payload = record?.application;
-  const cityState = parseCityState(record?.city_state || application?.city_state);
-
-  return {
-    fullName:
-      record?.full_name ||
-      buyer?.full_name ||
-      buyer?.name ||
-      application?.full_name ||
-      readString(payload, "fullName"),
-    email:
-      record?.email ||
-      record?.applicant_email ||
-      buyer?.email ||
-      application?.email ||
-      application?.applicant_email ||
-      userEmail ||
-      "",
-    phone: record?.phone || application?.phone || readString(payload, "phone"),
-    streetAddress:
-      record?.street_address || application?.street_address || readString(payload, "streetAddress"),
-    city: cityState.city || readString(payload, "city"),
-    state: cityState.state || readString(payload, "state"),
-    zip: record?.zip || application?.zip || readString(payload, "zip"),
-    preferredContactMethod:
-      record?.preferred_contact || readString(payload, "preferredContactMethod"),
-    preferredCoatType: readString(payload, "preferredCoatType"),
-    preferredGender: readString(payload, "preferredGender"),
-    colorPreference: readString(payload, "colorPreference"),
-    desiredAdoptionDate: readString(payload, "desiredAdoptionDate"),
-    interestType: readString(payload, "interestType"),
-    otherPets: readString(payload, "otherPets"),
-    petDetails: readString(payload, "petDetails"),
-    ownedChihuahuaBefore: readString(payload, "ownedChihuahuaBefore"),
-    homeType: readString(payload, "homeType"),
-    fencedYard: readString(payload, "fencedYard"),
-    workStatus: readString(payload, "workStatus"),
-    whoCaresForPuppy: readString(payload, "whoCaresForPuppy"),
-    childrenAtHome: readString(payload, "childrenAtHome"),
-    paymentPreference: readString(payload, "paymentPreference"),
-    howDidYouHear: readString(payload, "howDidYouHear"),
-    readyToPlaceDeposit: readString(payload, "readyToPlaceDeposit"),
-    questions: readString(payload, "questions"),
-    agreeTerms: readBool(payload, "agreeTerms"),
-    ackAgeCapacity: Boolean(record?.ack_age ?? readBool(payload, "ackAgeCapacity")),
-    ackAccuracy: Boolean(record?.ack_accuracy ?? readBool(payload, "ackAccuracy")),
-    ackHomeEnvironment: Boolean(record?.ack_home_env ?? readBool(payload, "ackHomeEnvironment")),
-    ackCareCommitment: Boolean(
-      record?.ack_care_commitment ?? readBool(payload, "ackCareCommitment")
-    ),
-    ackHealthGuarantee: Boolean(
-      record?.ack_health_guarantee ?? readBool(payload, "ackHealthGuarantee")
-    ),
-    ackNonrefundableDeposit: Boolean(
-      record?.ack_nonrefundable_deposit ?? readBool(payload, "ackNonrefundableDeposit")
-    ),
-    ackPurchasePriceTax: Boolean(
-      record?.ack_purchase_price_tax ?? readBool(payload, "ackPurchasePriceTax")
-    ),
-    ackContractualObligation: Boolean(
-      record?.ack_contract_obligation ?? readBool(payload, "ackContractualObligation")
-    ),
-    ackReturnRehoming: Boolean(
-      record?.ack_return_rehoming ?? readBool(payload, "ackReturnRehoming")
-    ),
-    ackReleaseLiability: Boolean(
-      record?.ack_release_liability ?? readBool(payload, "ackReleaseLiability")
-    ),
-    ackAgreementTerms: Boolean(record?.ack_terms ?? readBool(payload, "ackAgreementTerms")),
-    ackCommunications: Boolean(
-      record?.ack_communications ?? readBool(payload, "ackCommunications")
-    ),
-    signedAt: readString(payload, "signedAt") || formatDateTimeLocal(new Date()),
-    signature: readString(payload, "signature"),
-  };
-}
-
 async function syncApplicationDocumentCopy(
   form: ApplicationForm,
   nextStatus: string | null | undefined
@@ -386,51 +174,8 @@ async function syncApplicationDocumentCopy(
     body: JSON.stringify({
       documentKey: "application",
       status: nextStatus || "submitted",
-      version: "2026-04",
-      data: {
-        full_name: form.fullName.trim(),
-        email: form.email.trim().toLowerCase(),
-        phone: form.phone.trim(),
-        street_address: form.streetAddress.trim(),
-        city: form.city.trim(),
-        state: form.state.trim(),
-        zip: form.zip.trim(),
-        preferred_contact_method: form.preferredContactMethod,
-        preferred_coat_type: form.preferredCoatType,
-        preferred_gender: form.preferredGender,
-        color_preference: form.colorPreference,
-        desired_adoption_date: form.desiredAdoptionDate,
-        interest_type: form.interestType,
-        other_pets: form.otherPets,
-        pet_details: form.petDetails,
-        owned_chihuahua_before: form.ownedChihuahuaBefore,
-        home_type: form.homeType,
-        fenced_yard: form.fencedYard,
-        work_status: form.workStatus,
-        who_cares_for_puppy: form.whoCaresForPuppy,
-        children_at_home: form.childrenAtHome,
-        payment_preference: form.paymentPreference,
-        how_did_you_hear: form.howDidYouHear,
-        ready_to_place_deposit: form.readyToPlaceDeposit,
-        questions: form.questions,
-        agree_terms: form.agreeTerms,
-        ack_age_capacity: form.ackAgeCapacity,
-        ack_accuracy: form.ackAccuracy,
-        ack_home_environment: form.ackHomeEnvironment,
-        ack_care_commitment: form.ackCareCommitment,
-        ack_health_guarantee: form.ackHealthGuarantee,
-        ack_nonrefundable_deposit: form.ackNonrefundableDeposit,
-        ack_purchase_price_tax: form.ackPurchasePriceTax,
-        ack_contractual_obligation: form.ackContractualObligation,
-        ack_return_rehoming: form.ackReturnRehoming,
-        ack_release_liability: form.ackReleaseLiability,
-        ack_agreement_terms: form.ackAgreementTerms,
-        ack_communications: form.ackCommunications,
-        signed_name: form.signature.trim(),
-        signed_date:
-          form.signedAt?.slice(0, 10) || new Date().toISOString().slice(0, 10),
-        signed_at: form.signedAt || formatDateTimeLocal(new Date()),
-      },
+      version: APPLICATION_SCHEMA_VERSION,
+      data: buildApplicationDocumentMirrorData(form),
     }),
   });
 
@@ -446,7 +191,7 @@ export default function PortalApplicationPage() {
   const [application, setApplication] = useState<PortalApplication | null>(null);
   const [puppy, setPuppy] = useState<PortalPuppy | null>(null);
   const [record, setRecord] = useState<PuppyApplicationRecord | null>(null);
-  const [form, setForm] = useState<ApplicationForm>(emptyForm);
+  const [form, setForm] = useState<ApplicationForm>(emptyApplicationForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errorText, setErrorText] = useState("");
@@ -462,7 +207,7 @@ export default function PortalApplicationPage() {
         setApplication(null);
         setPuppy(null);
         setRecord(null);
-        setForm(emptyForm());
+        setForm(emptyApplicationForm());
         return;
       }
 
@@ -482,7 +227,14 @@ export default function PortalApplicationPage() {
         setApplication(context.application);
         setPuppy(context.puppy);
         setRecord(fullRecord);
-        setForm(buildForm(user.email || "", fullRecord, context.buyer, context.application));
+        setForm(
+          buildApplicationFormState({
+            userEmail: user.email || "",
+            record: fullRecord,
+            buyer: context.buyer,
+            application: context.application,
+          })
+        );
       } catch (error) {
         console.error("Could not load application page:", error);
         if (!active) return;
@@ -550,83 +302,18 @@ export default function PortalApplicationPage() {
     setErrorText("");
     setStatusText("");
 
-    const payload = {
-      user_id: user.id,
-      full_name: form.fullName.trim(),
-      email: form.email.trim().toLowerCase(),
-      applicant_email: form.email.trim().toLowerCase(),
-      phone: form.phone.trim() || null,
-      street_address: form.streetAddress.trim() || null,
-      city_state:
-        `${form.city.trim()}${form.city.trim() && form.state.trim() ? ", " : ""}${form.state.trim()}` ||
-        null,
-      preferred_contact: form.preferredContactMethod || null,
-      best_time: null,
-      zip: form.zip.trim() || null,
+    const payload = buildPuppyApplicationRowPayload({
+      form,
+      userId: user.id,
       status: record?.status || "submitted",
-      ack_age: form.ackAgeCapacity,
-      ack_accuracy: form.ackAccuracy,
-      ack_home_env: form.ackHomeEnvironment,
-      ack_care_commitment: form.ackCareCommitment,
-      ack_health_guarantee: form.ackHealthGuarantee,
-      ack_nonrefundable_deposit: form.ackNonrefundableDeposit,
-      ack_purchase_price_tax: form.ackPurchasePriceTax,
-      ack_contract_obligation: form.ackContractualObligation,
-      ack_return_rehoming: form.ackReturnRehoming,
-      ack_release_liability: form.ackReleaseLiability,
-      ack_terms: form.ackAgreementTerms,
-      ack_communications: form.ackCommunications,
-      application: {
-        fullName: form.fullName.trim(),
-        email: form.email.trim().toLowerCase(),
-        phone: form.phone.trim(),
-        streetAddress: form.streetAddress.trim(),
-        city: form.city.trim(),
-        state: form.state.trim(),
-        zip: form.zip.trim(),
-        preferredContactMethod: form.preferredContactMethod,
-        preferredCoatType: form.preferredCoatType,
-        preferredGender: form.preferredGender,
-        colorPreference: form.colorPreference,
-        desiredAdoptionDate: form.desiredAdoptionDate,
-        interestType: form.interestType,
-        otherPets: form.otherPets,
-        petDetails: form.petDetails,
-        ownedChihuahuaBefore: form.ownedChihuahuaBefore,
-        homeType: form.homeType,
-        fencedYard: form.fencedYard,
-        workStatus: form.workStatus,
-        whoCaresForPuppy: form.whoCaresForPuppy,
-        childrenAtHome: form.childrenAtHome,
-        paymentPreference: form.paymentPreference,
-        howDidYouHear: form.howDidYouHear,
-        readyToPlaceDeposit: form.readyToPlaceDeposit,
-        questions: form.questions,
-        agreeTerms: form.agreeTerms,
-        ackAgeCapacity: form.ackAgeCapacity,
-        ackAccuracy: form.ackAccuracy,
-        ackHomeEnvironment: form.ackHomeEnvironment,
-        ackCareCommitment: form.ackCareCommitment,
-        ackHealthGuarantee: form.ackHealthGuarantee,
-        ackNonrefundableDeposit: form.ackNonrefundableDeposit,
-        ackPurchasePriceTax: form.ackPurchasePriceTax,
-        ackContractualObligation: form.ackContractualObligation,
-        ackReturnRehoming: form.ackReturnRehoming,
-        ackReleaseLiability: form.ackReleaseLiability,
-        ackAgreementTerms: form.ackAgreementTerms,
-        ackCommunications: form.ackCommunications,
-        signedAt: form.signedAt || formatDateTimeLocal(new Date()),
-        signature: form.signature.trim(),
-        termsVersion: "2026-03",
-      },
-    };
+    }).row;
 
     try {
       const query = record?.id
         ? sb.from("puppy_applications").update(payload).eq("id", record.id)
         : sb.from("puppy_applications").insert(payload);
 
-      const { data, error } = await query.select(fullApplicationSelect).single();
+      const { data, error } = await query.select(FULL_PUPPY_APPLICATION_SELECT).single();
       if (error) throw error;
 
       const nextRecord = data as PuppyApplicationRecord;
@@ -666,7 +353,7 @@ export default function PortalApplicationPage() {
       try {
         await syncApplicationDocumentCopy(
           form,
-          nextRecord.status || payload.status || "submitted"
+          nextRecord.status || record?.status || "submitted"
         );
       } catch (syncError) {
         console.error("Could not sync application document copy:", syncError);
