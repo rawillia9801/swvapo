@@ -104,7 +104,7 @@ const ADMIN_NAV: AdminNavSection[] = [
       {
         href: "/admin/portal/dams-sires",
         label: "Breeding Program",
-        helper: "Dams, sires, output history",
+        helper: "Dogs, pairings, lineage, insights",
         icon: <Dog className="h-4 w-4" />,
       },
       {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceSupabase, firstValue, verifyOwner } from "@/lib/admin-api";
 import { isMissingBreedingGeneticsColumnError } from "@/lib/breeding-genetics";
+import { breedingStatusIsInactive } from "@/lib/breeding-program";
 
 function normalizeUuid(value: unknown) {
   const text = String(value || "").trim();
@@ -31,13 +32,14 @@ function asDogPayload(body: Record<string, unknown>) {
   const geneticsReportUrl = firstValue(body.genetics_report_url as string | null) || null;
   const geneticsUpdatedAt =
     geneticsSummary || geneticsRaw || geneticsReportUrl ? new Date().toISOString() : null;
+  const status = firstValue(body.status as string | null, "Active");
 
   return {
     role,
     dog_name: dogName,
     name: registeredName,
     call_name: firstValue(body.call_name as string | null) || null,
-    status: firstValue(body.status as string | null, "active"),
+    status,
     sex: firstValue(body.sex as string | null, role === "sire" ? "Male" : "Female"),
     dob: dateOfBirth,
     date_of_birth: dateOfBirth,
@@ -48,7 +50,7 @@ function asDogPayload(body: Record<string, unknown>) {
     genetics_raw: geneticsRaw,
     genetics_report_url: geneticsReportUrl,
     genetics_updated_at: geneticsUpdatedAt,
-    is_active: String(firstValue(body.status as string | null, "active")).toLowerCase() !== "archived",
+    is_active: !breedingStatusIsInactive(status),
     notes: firstValue(body.notes as string | null) || null,
   };
 }
