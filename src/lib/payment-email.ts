@@ -750,7 +750,7 @@ async function sendNoticeEmail(input: {
   const sendResult = await resend.emails.send({
     from:
       normalizeText(process.env.PAYMENT_NOTICES_FROM_EMAIL) ||
-      "Southwest Virginia Chihuahua <onboarding@resend.dev>",
+      "Southwest Virginia Chihuahua <billing@noreply.swvachihuahua.com>",
     to: recipientEmail,
     cc: context.settings.cc_emails.length ? context.settings.cc_emails : undefined,
     bcc: bcc.length ? bcc : undefined,
