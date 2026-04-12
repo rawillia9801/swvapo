@@ -628,6 +628,56 @@ export function buildCanonicalApplicationPayload(
   };
 }
 
+export function buildApplicationFormFromCanonical(
+  canonicalInput: ApplicationCanonicalPayload | null | undefined
+): ApplicationForm {
+  const canonical = normalizeApplicationPayload(canonicalInput);
+
+  return {
+    ...emptyApplicationForm(),
+    fullName: canonical.applicant.full_name,
+    email: canonical.applicant.email,
+    phone: canonical.applicant.phone,
+    streetAddress: canonical.address.street_address,
+    city: canonical.address.city,
+    state: canonical.address.state,
+    zip: canonical.address.postal_code,
+    preferredContactMethod: canonical.applicant.preferred_contact_method,
+    preferredCoatType: canonical.puppy_preferences.preferred_coat_type,
+    preferredGender: canonical.puppy_preferences.preferred_gender,
+    colorPreference: canonical.puppy_preferences.color_preference,
+    desiredAdoptionDate: canonical.puppy_preferences.desired_adoption_date,
+    interestType: canonical.puppy_preferences.interest_type,
+    otherPets: canonical.household.other_pets,
+    petDetails: canonical.household.pet_details,
+    ownedChihuahuaBefore: canonical.household.owned_chihuahua_before,
+    homeType: canonical.household.home_type,
+    fencedYard: canonical.household.fenced_yard,
+    workStatus: canonical.household.work_status,
+    whoCaresForPuppy: canonical.household.who_cares_for_puppy,
+    childrenAtHome: canonical.household.children_at_home,
+    paymentPreference: canonical.readiness.payment_preference,
+    howDidYouHear: canonical.readiness.how_did_you_hear,
+    readyToPlaceDeposit: canonical.readiness.ready_to_place_deposit,
+    questions: canonical.readiness.questions,
+    agreeTerms: canonical.declarations.agree_terms,
+    ackAgeCapacity: canonical.declarations.ack_age_capacity,
+    ackAccuracy: canonical.declarations.ack_accuracy,
+    ackHomeEnvironment: canonical.declarations.ack_home_environment,
+    ackCareCommitment: canonical.declarations.ack_care_commitment,
+    ackHealthGuarantee: canonical.declarations.ack_health_guarantee,
+    ackNonrefundableDeposit: canonical.declarations.ack_nonrefundable_deposit,
+    ackPurchasePriceTax: canonical.declarations.ack_purchase_price_tax,
+    ackContractualObligation: canonical.declarations.ack_contractual_obligation,
+    ackReturnRehoming: canonical.declarations.ack_return_rehoming,
+    ackReleaseLiability: canonical.declarations.ack_release_liability,
+    ackAgreementTerms: canonical.declarations.ack_agreement_terms,
+    ackCommunications: canonical.declarations.ack_communications,
+    signedAt: canonical.signature.signed_at || formatDateTimeLocal(new Date()),
+    signature: canonical.signature.signed_name,
+  };
+}
+
 export function buildApplicationFormState(params: {
   userEmail: string;
   record: PuppyApplicationRecord | null;
@@ -638,8 +688,10 @@ export function buildApplicationFormState(params: {
   const cityState = parseCityState(
     params.record?.city_state || params.application?.city_state
   );
+  const baseForm = buildApplicationFormFromCanonical(canonical);
 
   return {
+    ...baseForm,
     fullName:
       firstFilled(
         params.record?.full_name,
@@ -673,23 +725,6 @@ export function buildApplicationFormState(params: {
     preferredContactMethod:
       firstFilled(params.record?.preferred_contact, canonical.applicant.preferred_contact_method) ||
       "",
-    preferredCoatType: canonical.puppy_preferences.preferred_coat_type,
-    preferredGender: canonical.puppy_preferences.preferred_gender,
-    colorPreference: canonical.puppy_preferences.color_preference,
-    desiredAdoptionDate: canonical.puppy_preferences.desired_adoption_date,
-    interestType: canonical.puppy_preferences.interest_type,
-    otherPets: canonical.household.other_pets,
-    petDetails: canonical.household.pet_details,
-    ownedChihuahuaBefore: canonical.household.owned_chihuahua_before,
-    homeType: canonical.household.home_type,
-    fencedYard: canonical.household.fenced_yard,
-    workStatus: canonical.household.work_status,
-    whoCaresForPuppy: canonical.household.who_cares_for_puppy,
-    childrenAtHome: canonical.household.children_at_home,
-    paymentPreference: canonical.readiness.payment_preference,
-    howDidYouHear: canonical.readiness.how_did_you_hear,
-    readyToPlaceDeposit: canonical.readiness.ready_to_place_deposit,
-    questions: canonical.readiness.questions,
     agreeTerms: canonical.declarations.agree_terms,
     ackAgeCapacity:
       params.record?.ack_age ?? canonical.declarations.ack_age_capacity,
@@ -721,7 +756,7 @@ export function buildApplicationFormState(params: {
     ackCommunications:
       params.record?.ack_communications ??
       canonical.declarations.ack_communications,
-    signedAt: canonical.signature.signed_at || formatDateTimeLocal(new Date()),
+    signedAt: canonical.signature.signed_at || baseForm.signedAt,
     signature: canonical.signature.signed_name,
   };
 }
@@ -785,40 +820,53 @@ export function buildPuppyApplicationRowPayload(params: {
   status: string;
 }) {
   const canonical = buildCanonicalApplicationPayload(params.form);
+  const row = buildPuppyApplicationRowFromCanonical({
+    canonical,
+    userId: params.userId,
+    status: params.status,
+  });
+
+  return {
+    canonical,
+    row,
+  };
+}
+
+export function buildPuppyApplicationRowFromCanonical(params: {
+  canonical: ApplicationCanonicalPayload;
+  userId?: string | null;
+  status: string;
+}) {
+  const canonical = normalizeApplicationPayload(params.canonical);
   const cityState = [canonical.address.city, canonical.address.state]
     .filter(Boolean)
     .join(", ");
 
   return {
-    canonical,
-    row: {
-      user_id: params.userId,
-      full_name: canonical.applicant.full_name || null,
-      email: canonical.applicant.email || null,
-      applicant_email: canonical.applicant.email || null,
-      phone: canonical.applicant.phone || null,
-      street_address: canonical.address.street_address || null,
-      city_state: cityState || null,
-      preferred_contact: canonical.applicant.preferred_contact_method || null,
-      best_time: null,
-      zip: canonical.address.postal_code || null,
-      status: trimText(params.status) || "submitted",
-      ack_age: canonical.declarations.ack_age_capacity,
-      ack_accuracy: canonical.declarations.ack_accuracy,
-      ack_home_env: canonical.declarations.ack_home_environment,
-      ack_care_commitment: canonical.declarations.ack_care_commitment,
-      ack_health_guarantee: canonical.declarations.ack_health_guarantee,
-      ack_nonrefundable_deposit:
-        canonical.declarations.ack_nonrefundable_deposit,
-      ack_purchase_price_tax: canonical.declarations.ack_purchase_price_tax,
-      ack_contract_obligation:
-        canonical.declarations.ack_contractual_obligation,
-      ack_return_rehoming: canonical.declarations.ack_return_rehoming,
-      ack_release_liability: canonical.declarations.ack_release_liability,
-      ack_terms: canonical.declarations.ack_agreement_terms,
-      ack_communications: canonical.declarations.ack_communications,
-      application: canonical,
-    },
+    user_id: trimText(params.userId) || null,
+    full_name: canonical.applicant.full_name || null,
+    email: canonical.applicant.email || null,
+    applicant_email: canonical.applicant.email || null,
+    phone: canonical.applicant.phone || null,
+    street_address: canonical.address.street_address || null,
+    city_state: cityState || null,
+    preferred_contact: canonical.applicant.preferred_contact_method || null,
+    best_time: null,
+    zip: canonical.address.postal_code || null,
+    status: trimText(params.status) || "submitted",
+    ack_age: canonical.declarations.ack_age_capacity,
+    ack_accuracy: canonical.declarations.ack_accuracy,
+    ack_home_env: canonical.declarations.ack_home_environment,
+    ack_care_commitment: canonical.declarations.ack_care_commitment,
+    ack_health_guarantee: canonical.declarations.ack_health_guarantee,
+    ack_nonrefundable_deposit: canonical.declarations.ack_nonrefundable_deposit,
+    ack_purchase_price_tax: canonical.declarations.ack_purchase_price_tax,
+    ack_contract_obligation: canonical.declarations.ack_contractual_obligation,
+    ack_return_rehoming: canonical.declarations.ack_return_rehoming,
+    ack_release_liability: canonical.declarations.ack_release_liability,
+    ack_terms: canonical.declarations.ack_agreement_terms,
+    ack_communications: canonical.declarations.ack_communications,
+    application: canonical,
   };
 }
 

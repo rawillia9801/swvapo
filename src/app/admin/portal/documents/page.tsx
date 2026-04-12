@@ -115,10 +115,11 @@ export default function AdminPortalDocumentsPage() {
       .map((account) => {
         const buyerId = account.buyer?.id || null;
         const docs = documents.filter((doc) => {
-          return (
-            (account.userId && doc.user_id === account.userId) ||
-            (buyerId && Number(doc.buyer_id || 0) === buyerId)
-          );
+          const docBuyerId = Number(doc.buyer_id || 0);
+          if (docBuyerId > 0) {
+            return buyerId ? docBuyerId === buyerId : false;
+          }
+          return Boolean(account.userId && doc.user_id === account.userId);
         });
 
         return {

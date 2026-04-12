@@ -1818,6 +1818,7 @@ function PaymentsTab({ entry }: { entry: BuyerEntry | null }) {
 function DocumentUploadPanel({
   buyerId,
   accessToken,
+  portalReady = false,
   defaultCategory,
   heading,
   description,
@@ -1825,6 +1826,7 @@ function DocumentUploadPanel({
 }: {
   buyerId: number;
   accessToken: string;
+  portalReady?: boolean;
   defaultCategory: string;
   heading: string;
   description: string;
@@ -1882,7 +1884,11 @@ function DocumentUploadPanel({
         body: formData,
       });
 
-      const payload = (await response.json()) as { ok?: boolean; error?: string };
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+        pendingPortalLink?: boolean;
+      };
       if (!response.ok || !payload.ok) {
         throw new Error(payload.error || "Could not upload the document.");
       }
@@ -1891,7 +1897,13 @@ function DocumentUploadPanel({
       setNotes("");
       setFile(null);
       setFileInputKey((current) => current + 1);
-      setSuccess("Document uploaded and attached to this buyer.");
+      setSuccess(
+        payload.pendingPortalLink
+          ? visibleToUser
+            ? "Document uploaded and attached to this buyer. It will appear in the portal once this buyer is linked to a portal account."
+            : "Document uploaded and attached to this buyer. It is saved internally and will stay off the buyer portal until you choose to make it visible."
+          : "Document uploaded and attached to this buyer."
+      );
       onUploaded();
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Could not upload the document.");
@@ -1930,6 +1942,12 @@ function DocumentUploadPanel({
           ]}
         />
       </div>
+
+      {!portalReady ? (
+        <div className="mt-4 rounded-[1rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          This buyer has not created a portal account yet. You can still upload scanned paperwork now, and any buyer-visible files will appear in their portal automatically once the buyer is linked later.
+        </div>
+      ) : null}
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px]">
         <div>
@@ -1994,6 +2012,7 @@ function DocumentsTab({
         <DocumentUploadPanel
           buyerId={record.buyer.id}
           accessToken={accessToken}
+          portalReady={record.hasPortalAccount}
           defaultCategory="buyer_forms"
           heading="Upload Scanned Forms"
           description="Attach scanned contracts, handwritten notes, or forms that were completed outside the website. Every uploaded file stays visible on this buyer record."
@@ -2229,6 +2248,7 @@ function PlanTab({
         <DocumentUploadPanel
           buyerId={entry.record.buyer.id}
           accessToken={accessToken}
+          portalReady={entry.record.hasPortalAccount}
           defaultCategory="financing"
           heading="Upload Payment Plan Documents"
           description="If the payment plan application, credit application, or signed agreement was handled offline, upload the scanned copy here so it stays tied to this buyer's financing record."

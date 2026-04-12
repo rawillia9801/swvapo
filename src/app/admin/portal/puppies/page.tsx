@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   AdminEmptyState,
@@ -351,11 +351,13 @@ function PuppyDetailDrawer({
   form,
   saving,
   deleting,
+  uploadingPhoto,
   statusText,
   createMode,
   onClose,
   onSave,
   onDelete,
+  onUploadPhoto,
   onFieldChange,
   onLitterChange,
 }: {
@@ -367,14 +369,17 @@ function PuppyDetailDrawer({
   form: PuppyForm;
   saving: boolean;
   deleting: boolean;
+  uploadingPhoto: boolean;
   statusText: string;
   createMode: boolean;
   onClose: () => void;
   onSave: () => void;
   onDelete: () => void;
+  onUploadPhoto: (file: File) => void;
   onFieldChange: (key: string, value: string) => void;
   onLitterChange: (value: string) => void;
 }) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const rawPhoto = form.photo_url ?? form.image_url ?? "";
   const photo = rawPhoto ? buildPuppyPhotoUrl(rawPhoto) : "";
   const priceHidden = shouldHidePublicPuppyPrice(form.status);
@@ -446,6 +451,18 @@ function PuppyDetailDrawer({
                 </div>
                 <div className="mt-1 flex items-center gap-2">
                   <StatusBadge status={form.status} />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingPhoto}
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] transition ${
+                      photo
+                        ? "border-white/40 bg-white/90 text-[var(--portal-text)] hover:bg-white"
+                        : "border-[var(--portal-border)] bg-white/90 text-[var(--portal-text)] hover:bg-[var(--portal-surface-muted)]"
+                    } disabled:opacity-60`}
+                  >
+                    {uploadingPhoto ? "Uploading..." : "Upload Photo"}
+                  </button>
                   {!createMode && puppy?.dob && (
                     <span className={`text-xs ${photo ? "text-white/80" : "text-[var(--portal-text-soft)]"}`}>
                       Born {fmtDate(puppy.dob)}
@@ -455,6 +472,17 @@ function PuppyDetailDrawer({
               </div>
             </div>
           </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) onUploadPhoto(file);
+              event.target.value = "";
+            }}
+          />
         </div>
 
         {/* Scrollable body */}
@@ -611,6 +639,25 @@ function PuppyDetailDrawer({
                   </div>
                 </div>
 
+                <div className="rounded-xl border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-widest text-[var(--portal-text-muted)]">Photo Source</div>
+                      <div className="mt-1 text-sm text-[var(--portal-text-soft)]">
+                        Upload a puppy photo here or keep using a direct image URL below.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingPhoto}
+                      className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--portal-text)] transition hover:bg-white disabled:opacity-60"
+                    >
+                      {uploadingPhoto ? "Uploading Photo..." : "Upload Puppy Photo"}
+                    </button>
+                  </div>
+                </div>
+
                 <div className="grid gap-3 sm:grid-cols-2">
                   <AdminTextInput label="Photo URL" value={form.photo_url} onChange={(v: string) => onFieldChange("photo_url", v)} placeholder="Public photo URL" />
                   <AdminTextInput label="Image Path / URL" value={form.image_url} onChange={(v: string) => onFieldChange("image_url", v)} placeholder="Storage path or URL" />
@@ -680,6 +727,7 @@ export default function AdminPortalPuppiesPage() {
   const [loadingData, setLoadingData] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [createMode, setCreateMode] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -829,6 +877,57 @@ export default function AdminPortalPuppiesPage() {
     } catch (error) {
       setStatusText(error instanceof Error ? error.message : "Could not delete the puppy.");
     } finally { setDeleting(false); }
+  }
+
+  async function uploadPhoto(file: File) {
+    if (!accessToken) return;
+
+    setUploadingPhoto(true);
+    setStatusText("");
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      if (!createMode && selectedPuppy) {
+        formData.append("puppy_id", String(selectedPuppy.id));
+      }
+
+      const response = await fetch("/api/admin/portal/puppy-photo", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: formData,
+      });
+
+      const payload = (await response.json()) as {
+        error?: string;
+        uploadPath?: string;
+        publicUrl?: string | null;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Could not upload the puppy photo.");
+      }
+
+      setForm((current) => ({
+        ...current,
+        image_url: payload.uploadPath || current.image_url,
+        photo_url: payload.publicUrl || current.photo_url,
+      }));
+
+      if (!createMode && selectedPuppy) {
+        await refresh(String(selectedPuppy.id), false);
+      }
+
+      setStatusText(
+        createMode
+          ? "Photo uploaded. Save the puppy record to keep it attached."
+          : "Photo uploaded."
+      );
+    } catch (error) {
+      setStatusText(error instanceof Error ? error.message : "Could not upload the puppy photo.");
+    } finally {
+      setUploadingPhoto(false);
+    }
   }
 
   if (loading || loadingData) return (
@@ -1014,11 +1113,13 @@ export default function AdminPortalPuppiesPage() {
           form={form}
           saving={saving}
           deleting={deleting}
+          uploadingPhoto={uploadingPhoto}
           statusText={statusText}
           createMode={createMode}
           onClose={() => setDrawerOpen(false)}
           onSave={() => void savePuppy()}
           onDelete={() => void deletePuppy()}
+          onUploadPhoto={(file) => void uploadPhoto(file)}
           onFieldChange={updateField}
           onLitterChange={chooseLitter}
         />

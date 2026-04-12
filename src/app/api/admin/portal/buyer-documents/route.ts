@@ -171,6 +171,7 @@ export async function POST(req: Request) {
     }
 
     let resolvedUserId = String(buyerResult.data.user_id || "").trim();
+    let pendingPortalLink = false;
 
     if (!resolvedUserId) {
       resolvedUserId = String(targetSubmission?.user_id || "").trim();
@@ -200,17 +201,22 @@ export async function POST(req: Request) {
     }
 
     if (!resolvedUserId) {
+      resolvedUserId = String(owner.id || "").trim();
+      pendingPortalLink = Boolean(resolvedUserId);
+    }
+
+    if (!resolvedUserId) {
       return NextResponse.json(
         {
           ok: false,
           error:
-            "This buyer is not linked to a portal user yet. Link the buyer to their portal account before uploading buyer documents.",
+            "Could not resolve a valid document owner for this upload. Refresh and try again.",
         },
         { status: 409 }
       );
     }
 
-    if (!buyerResult.data.user_id && resolvedUserId) {
+    if (!pendingPortalLink && !buyerResult.data.user_id && resolvedUserId) {
       const updateBuyerLink = await service
         .from("buyers")
         .update({ user_id: resolvedUserId })
@@ -310,6 +316,8 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       document: insertResult.data,
+      pendingPortalLink,
+      linkedPortalUserId: pendingPortalLink ? null : resolvedUserId,
       ownerEmail: owner.email || null,
     });
   } catch (error) {
