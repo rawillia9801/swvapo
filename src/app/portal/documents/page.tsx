@@ -210,12 +210,8 @@ function normalizeToken(value: unknown) {
 
 function sortDocumentsForDisplay(documents: PortalDocument[]) {
   return documents.slice().sort((left, right) => {
-    const leftTime = new Date(
-      left.signed_at || left.created_at || 0
-    ).getTime();
-    const rightTime = new Date(
-      right.signed_at || right.created_at || 0
-    ).getTime();
+    const leftTime = new Date(left.signed_at || left.created_at || 0).getTime();
+    const rightTime = new Date(right.signed_at || right.created_at || 0).getTime();
     return rightTime - leftTime;
   });
 }
@@ -239,9 +235,7 @@ function findRelatedPortalDocument(
         (!!titleToken && (title.includes(titleToken) || fileName.includes(titleToken))) ||
         (!!title && titleToken.includes(title));
 
-      const categoryMatch =
-        !!categoryToken && !!category && category === categoryToken;
-
+      const categoryMatch = !!categoryToken && !!category && category === categoryToken;
       const sourceMatch = !!keyToken && !!sourceTable && sourceTable.includes(keyToken);
 
       return titleMatch || categoryMatch || sourceMatch;
@@ -257,9 +251,7 @@ function isPdfLike(document: PortalDocument | null) {
 }
 
 function documentSummaryCopy(definition: PortalDocumentDefinition) {
-  return (
-    CUSTOMER_DOCUMENT_COPY[definition.key]?.summary || definition.description
-  );
+  return CUSTOMER_DOCUMENT_COPY[definition.key]?.summary || definition.description;
 }
 
 function documentAvailabilityCopy(
@@ -386,9 +378,7 @@ export default function PortalDocumentsPage() {
   const [errorText, setErrorText] = useState("");
   const [selectedKey, setSelectedKey] = useState("");
   const [editingKey, setEditingKey] = useState("");
-  const [drafts, setDrafts] = useState<Record<string, Record<string, unknown>>>(
-    {}
-  );
+  const [drafts, setDrafts] = useState<Record<string, Record<string, unknown>>>({});
   const [savingKey, setSavingKey] = useState("");
   const [panelMessage, setPanelMessage] = useState("");
 
@@ -418,7 +408,6 @@ export default function PortalDocumentsPage() {
           application: context.application,
           puppy: context.puppy,
           forms: submissionRows,
-          submissionRows,
           documents: documentRows,
           displayName: portalDisplayName(user, context.buyer, context.application),
           puppyName: portalPuppyName(context.puppy).toLowerCase(),
