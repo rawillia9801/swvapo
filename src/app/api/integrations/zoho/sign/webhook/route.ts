@@ -66,6 +66,10 @@ function createSupabaseAdminClient() {
   });
 }
 
+function hasAnySignatureMaterial(signatureHeader: string | null) {
+  return Boolean(String(signatureHeader || "").trim());
+}
+
 export async function GET(request: NextRequest) {
   const origin = getOrigin(request);
 
@@ -102,36 +106,18 @@ export async function POST(request: NextRequest) {
   const origin = getOrigin(request);
   const rawBody = await request.text();
   const signatureHeader = request.headers.get("x-zs-webhook-signature");
-
-  const signatureValid = verifyZohoSignWebhookSignature({
-    rawBody,
-    signatureHeader,
-  });
-
-  if (!signatureValid) {
-    return NextResponse.json(
-      {
-        ok: false,
-        message: "Invalid Zoho Sign webhook signature.",
-      },
-      {
-        status: 401,
-        headers: {
-          "cache-control": "no-store",
-        },
-      }
-    );
-  }
-
   const payload = parsePayload(rawBody);
+
   if (!payload) {
     return NextResponse.json(
       {
-        ok: false,
-        message: "Webhook body was not valid JSON.",
+        ok: true,
+        handled: false,
+        reason: "test_or_empty_payload",
+        message: "Webhook route received a non-JSON or empty payload and is reachable.",
       },
       {
-        status: 400,
+        status: 200,
         headers: {
           "cache-control": "no-store",
         },
@@ -142,16 +128,43 @@ export async function POST(request: NextRequest) {
   const requestId = extractZohoSignWebhookRequestId(payload);
   const eventType = extractZohoSignWebhookEventType(payload);
 
+  const hasSignature = hasAnySignatureMaterial(signatureHeader);
+
+  if (hasSignature) {
+    const signatureValid = verifyZohoSignWebhookSignature({
+      rawBody,
+      signatureHeader,
+    });
+
+    if (!signatureValid) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Invalid Zoho Sign webhook signature.",
+          requestId: requestId || null,
+          eventType: eventType || null,
+        },
+        {
+          status: 401,
+          headers: {
+            "cache-control": "no-store",
+          },
+        }
+      );
+    }
+  }
+
   if (!requestId) {
     return NextResponse.json(
       {
         ok: true,
         handled: false,
-        reason: "missing_request_id",
+        reason: "test_payload_without_request_id",
         eventType: eventType || null,
+        message: "Webhook route is reachable. No real Zoho Sign request id was included.",
       },
       {
-        status: 202,
+        status: 200,
         headers: {
           "cache-control": "no-store",
         },
