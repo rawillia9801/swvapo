@@ -38,6 +38,13 @@ export type ZohoSignRequestDetails = {
   raw: Record<string, unknown> | null;
 };
 
+type ZohoTokenCache = {
+  accessToken: string;
+  expiresAt: number;
+};
+
+let tokenCache: ZohoTokenCache | null = null;
+
 function readOptionalEnv(...names: string[]) {
   for (const name of names) {
     const value = String(process.env[name] || "").trim();
@@ -77,40 +84,64 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function buildApiBaseUrl(base: string, suffix: string) {
+  const trimmed = trimTrailingSlash(base);
+  if (!trimmed) return "";
+  return `${trimmed}${suffix.startsWith("/") ? suffix : `/${suffix}`}`;
+}
+
 function getZohoDocumentConfig() {
   const clientId = readOptionalEnv(
+    "ZOHO_CLIENT_ID",
     "ZOHO_DOCUMENTS_CLIENT_ID",
     "ZOHO_SIGN_CLIENT_ID",
     "ZOHO_WRITER_CLIENT_ID"
   );
+
   const clientSecret = readOptionalEnv(
+    "ZOHO_CLIENT_SECRET",
     "ZOHO_DOCUMENTS_CLIENT_SECRET",
     "ZOHO_SIGN_CLIENT_SECRET",
     "ZOHO_WRITER_CLIENT_SECRET"
   );
+
   const refreshToken = readOptionalEnv(
+    "ZOHO_REFRESH_TOKEN",
     "ZOHO_DOCUMENTS_REFRESH_TOKEN",
     "ZOHO_SIGN_REFRESH_TOKEN",
     "ZOHO_WRITER_REFRESH_TOKEN"
+  );
+
+  const accountsBaseUrl = trimTrailingSlash(
+    readOptionalEnv(
+      "ZOHO_ACCOUNTS_DOMAIN",
+      "ZOHO_DOCUMENTS_ACCOUNTS_BASE_URL",
+      "ZOHO_SIGN_ACCOUNTS_BASE_URL",
+      "ZOHO_WRITER_ACCOUNTS_BASE_URL"
+    ) || "https://accounts.zoho.com"
+  );
+
+  const genericApiDomain = trimTrailingSlash(
+    readOptionalEnv("ZOHO_API_DOMAIN") || "https://www.zohoapis.com"
+  );
+
+  const writerApiBaseUrl = trimTrailingSlash(
+    readOptionalEnv("ZOHO_WRITER_API_BASE_URL") ||
+      buildApiBaseUrl(genericApiDomain, "/writer/api/v1") ||
+      "https://www.zohoapis.com/writer/api/v1"
+  );
+
+  const signApiBaseUrl = trimTrailingSlash(
+    readOptionalEnv("ZOHO_SIGN_API_BASE_URL") || "https://sign.zoho.com/api/v1"
   );
 
   return {
     clientId,
     clientSecret,
     refreshToken,
-    accountsBaseUrl: trimTrailingSlash(
-      readOptionalEnv(
-        "ZOHO_DOCUMENTS_ACCOUNTS_BASE_URL",
-        "ZOHO_SIGN_ACCOUNTS_BASE_URL",
-        "ZOHO_WRITER_ACCOUNTS_BASE_URL"
-      ) || "https://accounts.zoho.com"
-    ),
-    writerApiBaseUrl: trimTrailingSlash(
-      readOptionalEnv("ZOHO_WRITER_API_BASE_URL") || "https://www.zohoapis.com/writer/api/v1"
-    ),
-    signApiBaseUrl: trimTrailingSlash(
-      readOptionalEnv("ZOHO_SIGN_API_BASE_URL") || "https://sign.zoho.com/api/v1"
-    ),
+    accountsBaseUrl,
+    writerApiBaseUrl,
+    signApiBaseUrl,
     signOrgId: readOptionalEnv("CHICHI_ZOHO_SIGN_ORG_ID", "ZOHO_SIGN_ORG_ID") || null,
     signWebhookSecret:
       readOptionalEnv(
@@ -118,8 +149,11 @@ function getZohoDocumentConfig() {
         "ZOHO_SIGN_WEBHOOK_SECRET"
       ) || null,
     testMode:
-      readOptionalEnv("CHICHI_ZOHO_DOCUMENTS_TEST_MODE", "ZOHO_DOCUMENTS_TEST_MODE")
-        .toLowerCase() === "true",
+      readOptionalEnv(
+        "CHICHI_ZOHO_DOCUMENTS_TEST_MODE",
+        "ZOHO_DOCUMENTS_TEST_MODE",
+        "ZOHO_TEST_MODE"
+      ).toLowerCase() === "true",
   };
 }
 
@@ -128,20 +162,25 @@ export function getZohoDocumentPackageIntegrations(
 ): ZohoDocumentPackageIntegrations {
   const stem = packageStem(packageKey);
   const config = getZohoDocumentConfig();
+
   const formsUrl =
     readOptionalEnv(`CHICHI_ZOHO_FORMS_${stem}_URL`, `ZOHO_FORMS_${stem}_URL`) || null;
+
   const writerTemplateId =
     readOptionalEnv(
       `CHICHI_ZOHO_WRITER_${stem}_TEMPLATE_ID`,
       `ZOHO_WRITER_${stem}_TEMPLATE_ID`
     ) || null;
+
   const writerTemplateUrl =
     readOptionalEnv(
       `CHICHI_ZOHO_WRITER_${stem}_URL`,
       `ZOHO_WRITER_${stem}_URL`
     ) || null;
+
   const signUrl =
     readOptionalEnv(`CHICHI_ZOHO_SIGN_${stem}_URL`, `ZOHO_SIGN_${stem}_URL`) || null;
+
   const signRequestTypeId =
     readOptionalEnv(
       `CHICHI_ZOHO_SIGN_${stem}_REQUEST_TYPE_ID`,
@@ -151,7 +190,10 @@ export function getZohoDocumentPackageIntegrations(
   const oauthReady = Boolean(
     config.clientId && config.clientSecret && config.refreshToken
   );
-  const writerSignReady = Boolean(oauthReady && writerTemplateId && config.signOrgId);
+
+  const writerSignReady = Boolean(
+    oauthReady && writerTemplateId && config.signOrgId
+  );
 
   return {
     formsUrl,
@@ -165,11 +207,21 @@ export function getZohoDocumentPackageIntegrations(
   };
 }
 
+function hasFreshCachedToken() {
+  if (!tokenCache?.accessToken) return false;
+  return tokenCache.expiresAt - 60_000 > Date.now();
+}
+
 async function getZohoDocumentsAccessToken() {
+  if (hasFreshCachedToken()) {
+    return tokenCache!.accessToken;
+  }
+
   const config = getZohoDocumentConfig();
+
   if (!(config.clientId && config.clientSecret && config.refreshToken)) {
     throw new Error(
-      "Zoho document workflow is not configured. Add Zoho document OAuth credentials first."
+      "Zoho document workflow is not configured. Add Zoho OAuth credentials first."
     );
   }
 
@@ -186,11 +238,13 @@ async function getZohoDocumentsAccessToken() {
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body,
+    cache: "no-store",
   });
 
   const text = await response.text();
   const payload = parseJson<{
     access_token?: string;
+    expires_in?: number;
     error?: string;
     error_description?: string;
   }>(text);
@@ -199,6 +253,11 @@ async function getZohoDocumentsAccessToken() {
     const detail = payload?.error_description || payload?.error || text || "Unknown error";
     throw new Error(`Zoho document OAuth refresh failed: ${detail}`);
   }
+
+  tokenCache = {
+    accessToken: payload.access_token,
+    expiresAt: Date.now() + Number(payload.expires_in || 3600) * 1000,
+  };
 
   return payload.access_token;
 }
@@ -213,20 +272,20 @@ async function zohoWriterRequest(
 ) {
   const config = getZohoDocumentConfig();
   const accessToken = await getZohoDocumentsAccessToken();
+
   const url = path.startsWith("http")
     ? path
     : `${config.writerApiBaseUrl}${path.startsWith("/") ? path : `/${path}`}`;
 
-  const response = await fetch(url, {
+  return fetch(url, {
     method: options.method || "GET",
     headers: {
       Authorization: `Zoho-oauthtoken ${accessToken}`,
       ...(options.headers || {}),
     },
     body: options.body,
+    cache: "no-store",
   });
-
-  return response;
 }
 
 async function zohoSignRequest<T>(
@@ -239,6 +298,7 @@ async function zohoSignRequest<T>(
   const config = getZohoDocumentConfig();
   const accessToken = await getZohoDocumentsAccessToken();
   const url = `${config.signApiBaseUrl}${path.startsWith("/") ? path : `/${path}`}`;
+
   const response = await fetch(url, {
     method: options.method || "GET",
     headers: {
@@ -246,10 +306,12 @@ async function zohoSignRequest<T>(
       ...(options.body ? { "Content-Type": "application/json" } : {}),
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
+    cache: "no-store",
   });
 
   const text = await response.text();
   const payload = parseJson<T & { code?: number; message?: string }>(text);
+
   if (!response.ok || !payload || (typeof payload.code === "number" && payload.code !== 0)) {
     const detail = payload?.message || text || "Unknown Zoho Sign error.";
     throw new Error(`Zoho Sign request failed: ${detail}`);
@@ -260,23 +322,20 @@ async function zohoSignRequest<T>(
 
 function extractWriterSignLaunchResult(payload: Record<string, unknown> | null) {
   const record = Array.isArray(payload?.records)
-    ? payload?.records.find((entry) => isObject(entry))
+    ? payload.records.find((entry) => isObject(entry))
     : null;
+
   const firstRecord = isObject(record) ? record : null;
 
   return {
-    signRequestId: normalizeString(
-      firstRecord?.sign_request_id || payload?.sign_request_id
-    ) || null,
-    writerMergeReportUrl: normalizeString(
-      firstRecord?.merge_report_url || payload?.merge_report_url
-    ) || null,
-    writerMergeReportDataUrl: normalizeString(
-      firstRecord?.merge_report_data_url || payload?.merge_report_data_url
-    ) || null,
-    writerDownloadLink: normalizeString(
-      firstRecord?.download_link || payload?.download_link
-    ) || null,
+    signRequestId:
+      normalizeString(firstRecord?.sign_request_id || payload?.sign_request_id) || null,
+    writerMergeReportUrl:
+      normalizeString(firstRecord?.merge_report_url || payload?.merge_report_url) || null,
+    writerMergeReportDataUrl:
+      normalizeString(firstRecord?.merge_report_data_url || payload?.merge_report_data_url) || null,
+    writerDownloadLink:
+      normalizeString(firstRecord?.download_link || payload?.download_link) || null,
   };
 }
 
@@ -289,14 +348,14 @@ export async function createZohoWriterSignRequest(params: {
   privateNotes?: string | null;
 }) {
   const integrations = getZohoDocumentPackageIntegrations(params.packageKey);
+
   if (!(integrations.writerTemplateId && integrations.signOrgId)) {
-    throw new Error(
-      "Zoho Writer/Sign is not configured for this document package."
-    );
+    throw new Error("Zoho Writer/Sign is not configured for this document package.");
   }
 
   const config = getZohoDocumentConfig();
   const formData = new FormData();
+
   formData.set("service_name", "zohosign");
   formData.set("filename", params.filename);
   formData.set("merge_data", JSON.stringify({ data: [params.mergeData] }));
@@ -313,9 +372,11 @@ export async function createZohoWriterSignRequest(params: {
     ])
   );
   formData.set("sign_org_id", integrations.signOrgId);
+
   if (integrations.signRequestTypeId) {
     formData.set("sign_request_type_id", integrations.signRequestTypeId);
   }
+
   if (config.testMode) {
     formData.set("test_mode", "true");
   }
@@ -335,6 +396,7 @@ export async function createZohoWriterSignRequest(params: {
   }
 
   const launch = extractWriterSignLaunchResult(payload);
+
   if (!launch.signRequestId) {
     throw new Error("Zoho Writer merge/sign did not return a sign request id.");
   }
@@ -390,6 +452,7 @@ export async function downloadZohoSignCompletedDocument(params: {
 }) {
   const config = getZohoDocumentConfig();
   const accessToken = await getZohoDocumentsAccessToken();
+
   const targetPath = params.documentId
     ? `/requests/${params.requestId}/documents/${params.documentId}/pdf`
     : `/requests/${params.requestId}/pdf`;
@@ -399,6 +462,7 @@ export async function downloadZohoSignCompletedDocument(params: {
     headers: {
       Authorization: `Zoho-oauthtoken ${accessToken}`,
     },
+    cache: "no-store",
   });
 
   if (!response.ok) {
