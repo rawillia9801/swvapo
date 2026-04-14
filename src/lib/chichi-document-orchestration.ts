@@ -366,6 +366,32 @@ function resolvePreferredLaunchUrl(params: {
   return params.launches.portalReviewUrl;
 }
 
+function shouldOverrideActiveFlow(
+  current: ChiChiDocumentPackageWorkflow | null,
+  nextFlow: ChiChiDocumentPackageFlow
+) {
+  if (!current?.active_flow) return true;
+  if (current.active_flow === nextFlow) return false;
+
+  const currentStatus = String(current.package_status || "").trim().toLowerCase();
+
+  if (
+    current.active_flow === "portal_fallback" &&
+    (nextFlow === "zoho_writer_sign" || nextFlow === "zoho_forms")
+  ) {
+    return !["sent_to_sign", "signed", "filed"].includes(currentStatus);
+  }
+
+  if (
+    current.active_flow === "zoho_forms" &&
+    nextFlow === "zoho_writer_sign"
+  ) {
+    return !["sent_to_sign", "signed", "filed"].includes(currentStatus);
+  }
+
+  return false;
+}
+
 function findSignedCopy(
   packageId: string,
   definition: ChiChiPackageDefinition,
@@ -405,12 +431,17 @@ function buildPackageWorkflow(
       userId: context.buyer?.user_id || context.user.id || null,
     });
 
-  const activeFlow = current?.active_flow || launches.flow;
+  const activeFlow = shouldOverrideActiveFlow(current, launches.flow)
+    ? launches.flow
+    : current?.active_flow || launches.flow;
+
   const launchUrl = resolvePreferredLaunchUrl({
     flow: activeFlow,
     launches,
-    currentLaunchUrl: current?.launch_url || null,
-    signEmbedUrl: current?.zoho?.sign_embed_url || null,
+    currentLaunchUrl:
+      shouldOverrideActiveFlow(current, launches.flow) ? null : current?.launch_url || null,
+    signEmbedUrl:
+      shouldOverrideActiveFlow(current, launches.flow) ? null : current?.zoho?.sign_embed_url || null,
   });
 
   return mergeChiChiDocumentPackageWorkflow(current, {
@@ -424,9 +455,9 @@ function buildPackageWorkflow(
     active_flow: activeFlow,
     launch_url: launchUrl,
     flow_detail:
-      launches.flow === "zoho_writer_sign"
+      activeFlow === "zoho_writer_sign"
         ? "ChiChi is using Zoho Writer and Zoho Sign for the formal document path."
-        : launches.flow === "zoho_forms"
+        : activeFlow === "zoho_forms"
           ? "ChiChi is using Zoho Forms because the buyer still needs to review or update structured fields."
           : "ChiChi is falling back to the native portal signing flow.",
     zoho: {
@@ -535,7 +566,7 @@ function buildPackageStatus(
 function buildChiChiNote(
   definition: ChiChiPackageDefinition,
   context: PackageContext,
-  integrations: ReturnType<typeof getPackageIntegrations>
+  itemFlow: ChiChiDocumentPackageFlow
 ) {
   const buyerName = buyerDisplayName(context.buyer, context.user);
   const puppyName = puppyDisplayName(context);
@@ -554,9 +585,9 @@ function buildChiChiNote(
     puppyName ? `Puppy context: ${puppyName}.` : null,
     pricing ? `Pricing context: ${pricing}.` : null,
     delivery ? `Transportation context: ${delivery}.` : null,
-    integrations.flow === "zoho_writer_sign"
+    itemFlow === "zoho_writer_sign"
       ? "Zoho Writer and Zoho Sign are configured as the formal document path."
-      : integrations.flow === "zoho_forms"
+      : itemFlow === "zoho_forms"
         ? "Zoho Forms is configured for the buyer-facing intake step."
         : "This package will stay on the native portal fallback path until Zoho document settings are added.",
   ]
@@ -588,9 +619,10 @@ function buildPreparedPackage(
   const workflow = buildPackageWorkflow(definition, context, submission, launches);
   const signedCopy = findSignedCopy(workflow.package_id, definition, context.documents);
   const status = buildPackageStatus(definition, workflow, launches, submission, signedCopy);
-  const note = buildChiChiNote(definition, context, integrations);
+  const flow = workflow.active_flow || launches.flow;
+  const note = buildChiChiNote(definition, context, flow);
   const launchUrl = resolvePreferredLaunchUrl({
-    flow: workflow.active_flow || launches.flow,
+    flow,
     launches,
     currentLaunchUrl: workflow.launch_url || null,
     signEmbedUrl: workflow.zoho?.sign_embed_url || null,
@@ -603,7 +635,7 @@ function buildPreparedPackage(
     signedCopy,
     workflow,
     packageId: workflow.package_id,
-    flow: workflow.active_flow || launches.flow,
+    flow,
     launchUrl,
     status,
     prefill,
@@ -700,7 +732,7 @@ async function loadBuyerByPortalIdentity(admin: SupabaseClient, user: User) {
     .limit(1)
     .maybeSingle<BuyerRow>();
 
-  if (!error && data) return data;
+    if (!error && data) return data;
   return null;
 }
 
