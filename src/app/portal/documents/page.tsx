@@ -58,6 +58,82 @@ type SavedSubmission = PortalFormSubmission & {
   payload?: Record<string, unknown> | null;
 };
 
+const CUSTOMER_DOCUMENT_COPY: Partial<
+  Record<
+    string,
+    {
+      summary: string;
+      readyText?: string;
+      pendingText?: string;
+    }
+  >
+> = {
+  "portal-terms-of-service": {
+    summary:
+      "This record confirms the expectations that protect your portal access, account communication, document delivery, and payment handling.",
+    readyText:
+      "This document is available in your account and may be reviewed at any time.",
+    pendingText:
+      "This document will become available when your portal record is ready for signature.",
+  },
+  application: {
+    summary:
+      "Your puppy application remains part of your buyer record so it is easy to revisit, update, and reference throughout your placement journey.",
+    readyText:
+      "Your application record is available in your account for review.",
+    pendingText:
+      "This application record will appear here once it has been attached to your account.",
+  },
+  "deposit-agreement": {
+    summary:
+      "This agreement confirms the puppy or approved placement being reserved, the deposit applied to your file, and the reservation terms associated with that placement.",
+    readyText:
+      "Your Deposit Agreement is active and available in your account.",
+    pendingText:
+      "This agreement will appear once your reservation step has been opened on your account.",
+  },
+  "bill-of-sale": {
+    summary:
+      "This record outlines the completed placement details, sale terms, and the formal transfer information tied to your puppy.",
+    readyText:
+      "Your Bill of Sale is available in your account once placement details are ready.",
+    pendingText:
+      "This document will activate after the placement record is ready to be finalized.",
+  },
+  "health-guarantee": {
+    summary:
+      "This document outlines the health-related terms that accompany your puppy’s placement record and breeder file.",
+    readyText:
+      "Your Health Guarantee is available in your account for review.",
+    pendingText:
+      "This document will become available when the related placement steps are ready.",
+  },
+  "hypoglycemia-awareness": {
+    summary:
+      "This record keeps important care guidance together for families whose puppy packet includes hypoglycemia-related education.",
+    readyText:
+      "This educational record is available in your account for review.",
+    pendingText:
+      "This document will appear when it is relevant to your puppy’s packet.",
+  },
+  "payment-plan-agreement": {
+    summary:
+      "This agreement keeps your approved payment-plan terms, schedule, and related acknowledgements together in one signed record.",
+    readyText:
+      "Your Payment Plan Agreement is available in your account.",
+    pendingText:
+      "This document will activate once a payment-plan arrangement is attached to your buyer record.",
+  },
+  "pickup-delivery-confirmation": {
+    summary:
+      "This record keeps your pickup, delivery, or transportation confirmation details together with your puppy’s go-home file.",
+    readyText:
+      "Your pickup or delivery confirmation is available in your account.",
+    pendingText:
+      "This document will appear once transportation or pickup details have been scheduled.",
+  },
+};
+
 function emptyState(): PageState {
   return {
     buyer: null,
@@ -82,15 +158,17 @@ function mergeSubmission(
   current: PortalFormSubmission[],
   next: SavedSubmission
 ): PortalFormSubmission[] {
-  return [next, ...current.filter((entry) => entry.id !== next.id)].sort((left, right) => {
-    const leftTime = new Date(
-      left.submitted_at || left.updated_at || left.created_at || 0
-    ).getTime();
-    const rightTime = new Date(
-      right.submitted_at || right.updated_at || right.created_at || 0
-    ).getTime();
-    return rightTime - leftTime;
-  });
+  return [next, ...current.filter((entry) => entry.id !== next.id)].sort(
+    (left, right) => {
+      const leftTime = new Date(
+        left.submitted_at || left.updated_at || left.created_at || 0
+      ).getTime();
+      const rightTime = new Date(
+        right.submitted_at || right.updated_at || right.created_at || 0
+      ).getTime();
+      return rightTime - leftTime;
+    }
+  );
 }
 
 function displayDocDate(value: string | null | undefined) {
@@ -119,6 +197,88 @@ function documentStatusLabel(status: ReturnType<typeof portalDocumentStatus>) {
 function toInputValue(value: unknown) {
   if (typeof value === "boolean") return value;
   return String(value ?? "");
+}
+
+function normalizeToken(value: unknown) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function sortDocumentsForDisplay(documents: PortalDocument[]) {
+  return documents.slice().sort((left, right) => {
+    const leftTime = new Date(
+      left.signed_at || left.created_at || 0
+    ).getTime();
+    const rightTime = new Date(
+      right.signed_at || right.created_at || 0
+    ).getTime();
+    return rightTime - leftTime;
+  });
+}
+
+function findRelatedPortalDocument(
+  definition: PortalDocumentDefinition,
+  documents: PortalDocument[]
+) {
+  const titleToken = normalizeToken(definition.title);
+  const categoryToken = normalizeToken(definition.category);
+  const keyToken = normalizeToken(definition.key);
+
+  return (
+    sortDocumentsForDisplay(documents).find((document) => {
+      const title = normalizeToken(document.title);
+      const category = normalizeToken(document.category);
+      const fileName = normalizeToken(document.file_name);
+      const sourceTable = normalizeToken(document.source_table);
+
+      const titleMatch =
+        (!!titleToken && (title.includes(titleToken) || fileName.includes(titleToken))) ||
+        (!!title && titleToken.includes(title));
+
+      const categoryMatch =
+        !!categoryToken && !!category && category === categoryToken;
+
+      const sourceMatch = !!keyToken && !!sourceTable && sourceTable.includes(keyToken);
+
+      return titleMatch || categoryMatch || sourceMatch;
+    }) || null
+  );
+}
+
+function isPdfLike(document: PortalDocument | null) {
+  const fileUrl = firstFilled(document?.file_url);
+  const fileName = firstFilled(document?.file_name, document?.title);
+
+  return /\.pdf($|\?)/i.test(fileUrl) || /\.pdf$/i.test(fileName);
+}
+
+function documentSummaryCopy(definition: PortalDocumentDefinition) {
+  return (
+    CUSTOMER_DOCUMENT_COPY[definition.key]?.summary || definition.description
+  );
+}
+
+function documentAvailabilityCopy(
+  definition: PortalDocumentDefinition,
+  enabled: boolean,
+  fallbackReason?: string
+) {
+  if (enabled) {
+    return (
+      CUSTOMER_DOCUMENT_COPY[definition.key]?.readyText ||
+      "This document is available in your account and ready for review."
+    );
+  }
+
+  return (
+    fallbackReason ||
+    CUSTOMER_DOCUMENT_COPY[definition.key]?.pendingText ||
+    "This document will appear here when it becomes active on your account."
+  );
 }
 
 function DocumentPaper({
@@ -194,6 +354,31 @@ function DocumentWorkspace({
   );
 }
 
+function DocumentActionLink({
+  href,
+  children,
+  tone = "primary",
+}: {
+  href: string;
+  children: React.ReactNode;
+  tone?: "primary" | "secondary";
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className={
+        tone === "primary"
+          ? "inline-flex items-center justify-center rounded-[999px] bg-[linear-gradient(135deg,#c46b3d_0%,#8e42df_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(151,82,39,0.24)] transition hover:-translate-y-0.5"
+          : "inline-flex items-center justify-center rounded-[999px] border border-[var(--portal-border-strong)] bg-white px-5 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:-translate-y-0.5"
+      }
+    >
+      {children}
+    </a>
+  );
+}
+
 export default function PortalDocumentsPage() {
   const { user, loading: sessionLoading } = usePortalSession();
   const [state, setState] = useState<PageState>(emptyState);
@@ -201,7 +386,9 @@ export default function PortalDocumentsPage() {
   const [errorText, setErrorText] = useState("");
   const [selectedKey, setSelectedKey] = useState("");
   const [editingKey, setEditingKey] = useState("");
-  const [drafts, setDrafts] = useState<Record<string, Record<string, unknown>>>({});
+  const [drafts, setDrafts] = useState<Record<string, Record<string, unknown>>>(
+    {}
+  );
   const [savingKey, setSavingKey] = useState("");
   const [panelMessage, setPanelMessage] = useState("");
 
@@ -231,6 +418,7 @@ export default function PortalDocumentsPage() {
           application: context.application,
           puppy: context.puppy,
           forms: submissionRows,
+          submissionRows,
           documents: documentRows,
           displayName: portalDisplayName(user, context.buyer, context.application),
           puppyName: portalPuppyName(context.puppy).toLowerCase(),
@@ -272,15 +460,18 @@ export default function PortalDocumentsPage() {
       const status = portalDocumentStatus(definition, packetContext, submission);
       const availability = definition.getAvailability(packetContext);
       const highlights = documentHighlightText(definition, submission);
+      const portalDocument = findRelatedPortalDocument(definition, state.documents);
+
       return {
         definition,
         submission,
         status,
         availability,
         highlights,
+        portalDocument,
       };
     });
-  }, [packetContext, state.forms]);
+  }, [packetContext, state.documents, state.forms]);
 
   useEffect(() => {
     if (!documentCards.length) {
@@ -440,6 +631,7 @@ export default function PortalDocumentsPage() {
     (selectedDefinition
       ? getDocumentInitialData(selectedDefinition, packetContext, selectedSubmission)
       : {});
+  const selectedPortalDocument = selectedEntry?.portalDocument || null;
   const showingEditor =
     !!selectedDefinition &&
     selectedDefinition.mode === "form" &&
@@ -447,13 +639,19 @@ export default function PortalDocumentsPage() {
       !selectedSubmission ||
       !selectedStatus?.complete);
   const selectedPayload = getDocumentSubmissionPayload(selectedSubmission);
+  const selectedPreviewRows = selectedDefinition
+    ? documentPreviewRows(selectedDefinition, selectedPayload, 20)
+    : [];
+  const signedFileUrl = firstFilled(selectedPortalDocument?.file_url);
+  const canEmbedSignedDocument =
+    !!signedFileUrl && isPdfLike(selectedPortalDocument);
 
   return (
     <div className="space-y-6 pb-14">
       <PortalPageHero
         eyebrow="Documents"
         title="Contracts & Documents"
-        description={`Review your agreements, signed copies, and breeder-shared records for ${state.puppyName} in one organized place. Everything stays easy to find, clearly labeled, and available whenever you need it.`}
+        description={`Review your agreements, signed records, and breeder-shared files for ${state.puppyName} in one organized place. Everything stays clear, easy to revisit, and available whenever you need it.`}
         actions={
           <PortalHeroPrimaryAction href="/portal/messages">
             Ask The Breeder A Question
@@ -469,7 +667,7 @@ export default function PortalDocumentsPage() {
                 {state.displayName}
               </div>
               <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
-                Signed copies and shared records are stored here for quick access throughout your puppy journey.
+                Signed copies, contract records, and breeder-shared files are kept together here for easy access.
               </div>
             </div>
             <div className="rounded-[1.25rem] border border-[var(--portal-border)] bg-white p-4 shadow-sm">
@@ -480,7 +678,7 @@ export default function PortalDocumentsPage() {
                 {portalPuppyName(state.puppy)}
               </div>
               <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
-                Health, placement, financing, and go-home records stay grouped together in one file.
+                Placement, health, financing, and go-home records remain grouped together in one file.
               </div>
             </div>
           </div>
@@ -491,12 +689,12 @@ export default function PortalDocumentsPage() {
         <PortalMetricCard
           label="Packet Items"
           value={String(summary.packetCount)}
-          detail="Required and conditional buyer documents tracked from one portal tab."
+          detail="Required and conditional buyer records tracked from one portal tab."
         />
         <PortalMetricCard
           label="Signed Copies"
           value={String(summary.complete)}
-          detail="Records already filed back into your account."
+          detail="Documents already filed back into your account."
           accent="from-[rgba(113,198,164,0.16)] via-transparent to-[rgba(159,175,198,0.14)]"
         />
         <PortalMetricCard
@@ -520,7 +718,7 @@ export default function PortalDocumentsPage() {
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
         <PortalPanel
           title="Contracts & Documents"
-          subtitle="Each item is presented like a filed portal document so it is easier to review what is complete, what still needs attention, and what will unlock later."
+          subtitle="Each item is presented like a clean filed record so it is easier to see what is complete, what still needs attention, and what is already on file."
         >
           <div className="space-y-4">
             {documentCards.map((entry) => (
@@ -545,7 +743,7 @@ export default function PortalDocumentsPage() {
                 </div>
 
                 <div className="mt-6 text-sm leading-6 text-[var(--portal-text-soft)]">
-                  {entry.definition.description}
+                  {documentSummaryCopy(entry.definition)}
                 </div>
 
                 <div className="mt-4 space-y-2">
@@ -570,22 +768,29 @@ export default function PortalDocumentsPage() {
 
                 <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[rgba(177,150,116,0.16)] pt-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">
                   <span>
-                    {entry.submission
-                      ? `Updated ${displayDocDate(
-                          entry.submission.submitted_at ||
-                            entry.submission.updated_at ||
-                            entry.submission.created_at
+                    {entry.portalDocument?.signed_at || entry.portalDocument?.created_at
+                      ? `Filed ${displayDocDate(
+                          entry.portalDocument?.signed_at ||
+                            entry.portalDocument?.created_at
                         )}`
-                      : entry.availability.enabled
-                        ? "Ready to review"
-                        : "Available later"}
+                      : entry.submission
+                        ? `Updated ${displayDocDate(
+                            entry.submission.submitted_at ||
+                              entry.submission.updated_at ||
+                              entry.submission.created_at
+                          )}`
+                        : entry.availability.enabled
+                          ? "Ready to review"
+                          : "Available later"}
                   </span>
                   <span>
-                    {entry.availability.enabled
-                      ? selectedKey === entry.definition.key
-                        ? "Open Document"
-                        : "View Document"
-                      : "Pending Activation"}
+                    {entry.portalDocument?.file_url
+                      ? "View Signed Copy"
+                      : entry.availability.enabled
+                        ? selectedKey === entry.definition.key
+                          ? "Open Document"
+                          : "View Document"
+                        : "Pending Activation"}
                   </span>
                 </div>
               </DocumentPaper>
@@ -597,7 +802,7 @@ export default function PortalDocumentsPage() {
           {selectedDefinition ? (
             <PortalPanel
               title="Document Review"
-              subtitle="Open, review, and complete the selected document from your portal file."
+              subtitle="Open, review, and access the selected document from your portal file."
               action={
                 selectedDefinition.mode === "link" && selectedDefinition.href ? (
                   <PortalHeroPrimaryAction href={selectedDefinition.href}>
@@ -620,7 +825,9 @@ export default function PortalDocumentsPage() {
                 category={selectedDefinition.category}
                 status={selectedStatus ? documentStatusLabel(selectedStatus) : null}
                 filedDate={`Filed ${displayDocDate(
-                  selectedSubmission?.submitted_at ||
+                  selectedPortalDocument?.signed_at ||
+                    selectedPortalDocument?.created_at ||
+                    selectedSubmission?.submitted_at ||
                     selectedSubmission?.updated_at ||
                     selectedSubmission?.created_at
                 )}`}
@@ -632,7 +839,7 @@ export default function PortalDocumentsPage() {
                         Document Summary
                       </div>
                       <div className="mt-3 text-sm leading-7 text-[var(--portal-text-soft)]">
-                        {selectedDefinition.description}
+                        {documentSummaryCopy(selectedDefinition)}
                       </div>
                     </div>
 
@@ -641,9 +848,11 @@ export default function PortalDocumentsPage() {
                         Availability
                       </div>
                       <div className="mt-3 text-sm leading-7 text-[var(--portal-text-soft)]">
-                        {selectedAvailability.enabled
-                          ? "This document is active and ready for review in your account."
-                          : selectedAvailability.reason || "This document will activate later."}
+                        {documentAvailabilityCopy(
+                          selectedDefinition,
+                          selectedAvailability.enabled,
+                          selectedAvailability.reason
+                        )}
                       </div>
                     </div>
                   </div>
@@ -651,6 +860,44 @@ export default function PortalDocumentsPage() {
                   {panelMessage ? (
                     <div className="rounded-[1rem] border border-[rgba(200,140,82,0.35)] bg-[rgba(255,247,240,0.92)] px-5 py-4 text-sm leading-7 text-[var(--portal-text)]">
                       {panelMessage}
+                    </div>
+                  ) : null}
+
+                  {signedFileUrl ? (
+                    <div className="rounded-[1rem] border border-[rgba(193,164,129,0.24)] bg-white px-5 py-5">
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-dashed border-[rgba(182,154,120,0.28)] pb-3">
+                        <div>
+                          <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                            Signed Document
+                          </div>
+                          <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
+                            Your completed document is on file and can be opened directly from your portal.
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-3">
+                          <DocumentActionLink href={signedFileUrl}>
+                            View Signed Copy
+                          </DocumentActionLink>
+                          <DocumentActionLink href={signedFileUrl} tone="secondary">
+                            Open In New Tab
+                          </DocumentActionLink>
+                        </div>
+                      </div>
+
+                      {canEmbedSignedDocument ? (
+                        <div className="mt-5 overflow-hidden rounded-[1rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)]">
+                          <iframe
+                            title={`${selectedDefinition.title} Signed Copy`}
+                            src={signedFileUrl}
+                            className="min-h-[760px] w-full bg-white"
+                          />
+                        </div>
+                      ) : (
+                        <div className="mt-5 rounded-[1rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-5 py-4 text-sm leading-7 text-[var(--portal-text-soft)]">
+                          A signed file is on record for this document. Use the button above to open the saved copy.
+                        </div>
+                      )}
                     </div>
                   ) : null}
 
@@ -667,14 +914,8 @@ export default function PortalDocumentsPage() {
                         </div>
 
                         <div className="mt-5 grid gap-3 md:grid-cols-2">
-                          {(documentPreviewRows(
-                            selectedDefinition,
-                            selectedPayload,
-                            12
-                          ).length
-                            ? documentPreviewRows(selectedDefinition, selectedPayload, 12).map(
-                                (row) => [row.label, row.value] as [string, string]
-                              )
+                          {(selectedPreviewRows.length
+                            ? selectedPreviewRows.map((row) => [row.label, row.value] as [string, string])
                             : applicationPreviewRows(state.application)
                           ).map(([label, value]) => (
                             <div
@@ -703,7 +944,7 @@ export default function PortalDocumentsPage() {
 
                       {!selectedSubmission ? (
                         <div className="rounded-[1rem] border border-dashed border-[var(--portal-border-strong)] bg-[var(--portal-surface-muted)] px-5 py-4 text-sm leading-7 text-[var(--portal-text-soft)]">
-                          This application is already part of your portal file. Opening the application page lets you update it and refresh the saved document copy here.
+                          This application is already part of your portal file. Opening the application page lets you review it and keep your saved record current.
                         </div>
                       ) : null}
                     </div>
@@ -712,7 +953,7 @@ export default function PortalDocumentsPage() {
                       title="This document activates later"
                       description={
                         selectedAvailability.reason ||
-                        "Once the related buyer step starts, you will be able to sign this form here."
+                        "Once the related buyer step starts, you will be able to review this record here."
                       }
                       action={
                         <PortalHeroPrimaryAction href="/portal/messages">
@@ -726,15 +967,15 @@ export default function PortalDocumentsPage() {
                         <div className="rounded-[1rem] border border-[rgba(193,164,129,0.24)] bg-white px-5 py-5">
                           <div className="flex items-center justify-between gap-3 border-b border-dashed border-[rgba(182,154,120,0.28)] pb-3">
                             <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
-                              Saved Copy
+                              Saved Record Details
                             </div>
                             <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">
-                              Signed Record
+                              Account Copy
                             </div>
                           </div>
 
                           <div className="mt-5 grid gap-3 md:grid-cols-2">
-                            {documentPreviewRows(selectedDefinition, selectedPayload, 20).map((row) => (
+                            {selectedPreviewRows.map((row) => (
                               <div
                                 key={`${row.label}-${row.value}`}
                                 className="rounded-[0.95rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3"
@@ -758,7 +999,7 @@ export default function PortalDocumentsPage() {
                               Signature & Submission
                             </div>
                             <div className="mt-2 text-sm leading-7 text-[var(--portal-text-soft)]">
-                              Complete the fields below to save a draft or file your signed copy. Once saved, this document is stored in your portal and mirrored into the breeder&apos;s buyer profile.
+                              Complete the fields below to save a draft or file your signed copy. Once saved, this record is stored in your portal and mirrored into the breeder file.
                             </div>
                           </div>
 
@@ -888,11 +1129,11 @@ export default function PortalDocumentsPage() {
 
           <PortalPanel
             title="Breeder Shared Records"
-            subtitle="Files shared to your account are displayed here in a simple document view for quick reference."
+            subtitle="Files shared to your account are displayed here in a clear document view for quick reference."
           >
             {state.documents.length ? (
               <div className="space-y-4">
-                {state.documents.map((document) => (
+                {sortDocumentsForDisplay(state.documents).map((document) => (
                   <div
                     key={document.id}
                     className="relative overflow-hidden rounded-[1rem] border border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(252,249,244,1)_100%)] shadow-sm"
@@ -910,7 +1151,7 @@ export default function PortalDocumentsPage() {
                           </div>
                         </div>
                         <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">
-                          {displayDocDate(document.created_at)}
+                          {displayDocDate(document.signed_at || document.created_at)}
                         </div>
                       </div>
 
@@ -918,14 +1159,16 @@ export default function PortalDocumentsPage() {
                         {firstFilled(
                           document.description,
                           document.file_name,
-                          "A breeder-posted record is on file for this account."
+                          "A breeder-shared record is on file for this account."
                         )}
                       </div>
 
-                      <div className="mt-4 space-y-2">
-                        <div className="h-px w-full bg-[rgba(177,150,116,0.18)]" />
-                        <div className="h-px w-[90%] bg-[rgba(177,150,116,0.14)]" />
-                        <div className="h-px w-[68%] bg-[rgba(177,150,116,0.1)]" />
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        {document.file_url ? (
+                          <DocumentActionLink href={document.file_url}>
+                            View File
+                          </DocumentActionLink>
+                        ) : null}
                       </div>
                     </div>
                   </div>
