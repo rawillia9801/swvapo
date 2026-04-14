@@ -346,6 +346,26 @@ function buildLaunchOptions(
   };
 }
 
+function resolvePreferredLaunchUrl(params: {
+  flow: ChiChiDocumentPackageFlow;
+  launches: LaunchOptions;
+  currentLaunchUrl?: string | null;
+  signEmbedUrl?: string | null;
+}) {
+  if (params.signEmbedUrl) return params.signEmbedUrl;
+  if (params.currentLaunchUrl) return params.currentLaunchUrl;
+
+  if (params.flow === "zoho_writer_sign") {
+    return params.launches.zohoSignUrl || params.launches.portalReviewUrl;
+  }
+
+  if (params.flow === "zoho_forms") {
+    return params.launches.zohoFormsUrl || params.launches.portalReviewUrl;
+  }
+
+  return params.launches.portalReviewUrl;
+}
+
 function findSignedCopy(
   packageId: string,
   definition: ChiChiPackageDefinition,
@@ -385,6 +405,14 @@ function buildPackageWorkflow(
       userId: context.buyer?.user_id || context.user.id || null,
     });
 
+  const activeFlow = current?.active_flow || launches.flow;
+  const launchUrl = resolvePreferredLaunchUrl({
+    flow: activeFlow,
+    launches,
+    currentLaunchUrl: current?.launch_url || null,
+    signEmbedUrl: current?.zoho?.sign_embed_url || null,
+  });
+
   return mergeChiChiDocumentPackageWorkflow(current, {
     package_id: packageId,
     package_key: definition.key,
@@ -393,12 +421,8 @@ function buildPackageWorkflow(
     puppy_id: context.puppy?.id ?? null,
     user_id: context.buyer?.user_id || context.user.id || null,
     preferred_flow: launches.flow,
-    active_flow: current?.active_flow || launches.flow,
-    launch_url:
-      current?.launch_url ||
-      (launches.flow === "zoho_forms"
-        ? launches.zohoFormsUrl
-        : launches.portalReviewUrl),
+    active_flow: activeFlow,
+    launch_url: launchUrl,
     flow_detail:
       launches.flow === "zoho_writer_sign"
         ? "ChiChi is using Zoho Writer and Zoho Sign for the formal document path."
@@ -565,6 +589,12 @@ function buildPreparedPackage(
   const signedCopy = findSignedCopy(workflow.package_id, definition, context.documents);
   const status = buildPackageStatus(definition, workflow, launches, submission, signedCopy);
   const note = buildChiChiNote(definition, context, integrations);
+  const launchUrl = resolvePreferredLaunchUrl({
+    flow: workflow.active_flow || launches.flow,
+    launches,
+    currentLaunchUrl: workflow.launch_url || null,
+    signEmbedUrl: workflow.zoho?.sign_embed_url || null,
+  });
 
   return {
     definition,
@@ -574,7 +604,7 @@ function buildPreparedPackage(
     workflow,
     packageId: workflow.package_id,
     flow: workflow.active_flow || launches.flow,
-    launchUrl: workflow.launch_url || null,
+    launchUrl,
     status,
     prefill,
     note,
@@ -1005,8 +1035,13 @@ function preparedPackagesForContext(
   );
 }
 
-function launchUrlForPackage(launches: LaunchOptions) {
-  return launches.zohoSignUrl || launches.zohoFormsUrl || launches.portalReviewUrl;
+function launchUrlForPackage(item: PreparedPackage, launches: LaunchOptions) {
+  return resolvePreferredLaunchUrl({
+    flow: item.flow,
+    launches,
+    currentLaunchUrl: item.launchUrl,
+    signEmbedUrl: item.workflow.zoho?.sign_embed_url || null,
+  });
 }
 
 function buildPreparedText(
@@ -1036,6 +1071,9 @@ function buildPreparedText(
   if (launches.zohoSignUrl) lines.push(`- Zoho Sign launch: ${launches.zohoSignUrl}`);
   if (item.workflow.zoho?.sign_request_id) {
     lines.push(`- Zoho Sign request id: ${item.workflow.zoho.sign_request_id}`);
+  }
+  if (item.workflow.zoho?.sign_embed_url) {
+    lines.push(`- Live signer path: ${item.workflow.zoho.sign_embed_url}`);
   }
 
   lines.push(
@@ -1080,7 +1118,11 @@ function buildStatusText(
         ? "- Signed portal file: on file"
         : "- Signed portal file: not synced yet",
     `- Buyer review link: ${launches.portalReviewUrl}`,
-    launches.zohoSignUrl ? `- Zoho Sign: ${launches.zohoSignUrl}` : null,
+    item.workflow.zoho?.sign_embed_url
+      ? `- Live signer path: ${item.workflow.zoho.sign_embed_url}`
+      : launches.zohoSignUrl
+        ? `- Zoho Sign: ${launches.zohoSignUrl}`
+        : null,
   ]
     .filter(Boolean)
     .join("\n");
@@ -1116,7 +1158,9 @@ function buildSyncText(
         ? `Zoho Sign request: ${item.workflow.zoho.sign_request_id}`
         : null,
       "Next step: sync the package to pull the signed PDF back into the portal and admin record.",
-    ].join("\n");
+    ]
+      .filter(Boolean)
+      .join("\n");
   }
 
   if (item.submission) {
@@ -1247,6 +1291,13 @@ async function upsertPreparedSubmission(
 ) {
   const existing = item.submission;
   const nowIso = new Date().toISOString();
+  const nextLaunchUrl = resolvePreferredLaunchUrl({
+    flow: item.workflow.active_flow || launches.flow,
+    launches,
+    currentLaunchUrl: item.workflow.launch_url || null,
+    signEmbedUrl: item.workflow.zoho?.sign_embed_url || null,
+  });
+
   const workflow = mergeChiChiDocumentPackageWorkflow(item.workflow, {
     prepared_at: item.workflow.prepared_at || nowIso,
     package_status:
@@ -1255,17 +1306,14 @@ async function upsertPreparedSubmission(
         : item.workflow.active_flow === "portal_fallback"
           ? "fallback_portal_flow"
           : "prepared",
-    launch_url:
-      item.workflow.launch_url ||
-      (launches.flow === "zoho_forms"
-        ? launches.zohoFormsUrl
-        : launches.portalReviewUrl),
+    launch_url: nextLaunchUrl,
     zoho: {
       ...(item.workflow.zoho || {}),
       forms_url: launches.zohoFormsUrl,
       writer_template_id: getPackageIntegrations(item.definition.key).writerTemplateId,
     },
   });
+
   const payload = buildWorkflowPayload(existing, item.prefill, workflow);
 
   const basePayload = {
@@ -1292,7 +1340,7 @@ async function upsertPreparedSubmission(
       .eq("id", existing.id)
       .select(
         "id,user_id,user_email,email,form_key,form_title,version,signed_name,signed_date,signed_at,data,payload,status,submitted_at,attachments,created_at,updated_at"
-    )
+      )
       .single();
     if (result.error) throw result.error;
     return result.data as PackageFormSubmission;
@@ -1327,6 +1375,7 @@ async function fileSignedPackageDocument(
     params.fileName || buildPackageFileName(item.definition, context)
   );
   const storagePath = `packages/${item.packageId}/${Date.now()}-${fileName || "signed-document.pdf"}`;
+
   const uploadResult = await admin.storage.from(DOCUMENT_BUCKET).upload(storagePath, params.buffer, {
     contentType: params.contentType || "application/pdf",
     upsert: false,
@@ -1390,6 +1439,7 @@ async function fileSignedPackageDocument(
     final_document_id: String(documentResult.data.id),
     final_document_name: documentResult.data.file_name || fileName,
     final_document_url: documentResult.data.file_url || publicUrl || null,
+    launch_url: documentResult.data.file_url || publicUrl || item.workflow.launch_url || null,
     zoho: {
       ...(item.workflow.zoho || {}),
       sign_completed_document_url: documentResult.data.file_url || publicUrl || null,
@@ -1432,6 +1482,7 @@ async function launchPreparedPackage(
           "ChiChi could not send this package to Zoho Sign because the buyer email is missing.",
         launch_url: launches.portalReviewUrl,
       });
+
       const updatedSubmission = await updatePackageSubmissionWorkflow(
         admin,
         submission,
@@ -1439,6 +1490,7 @@ async function launchPreparedPackage(
         workflow,
         submission?.status || "prepared"
       );
+
       submission = updatedSubmission || submission;
       return { submission, workflow, launchUrl: launches.portalReviewUrl };
     }
@@ -1453,12 +1505,17 @@ async function launchPreparedPackage(
         privateNotes: item.note,
       });
 
+      const writerLaunchUrl =
+        zohoLaunch.signEmbedUrl ||
+        launches.zohoSignUrl ||
+        launches.portalReviewUrl;
+
       workflow = mergeChiChiDocumentPackageWorkflow(workflow, {
         active_flow: "zoho_writer_sign",
         package_status: "sent_to_sign",
         sent_to_sign_at: new Date().toISOString(),
         last_synced_at: new Date().toISOString(),
-        launch_url: launches.portalReviewUrl,
+        launch_url: writerLaunchUrl,
         zoho: {
           ...(workflow.zoho || {}),
           sign_request_id: zohoLaunch.signRequestId,
@@ -1479,13 +1536,19 @@ async function launchPreparedPackage(
         workflow,
         submission?.status || "prepared"
       );
+
       submission = updatedSubmission || submission;
     }
 
     return {
       submission,
       workflow,
-      launchUrl: workflow.zoho?.sign_embed_url || launches.portalReviewUrl,
+      launchUrl: resolvePreferredLaunchUrl({
+        flow: "zoho_writer_sign",
+        launches,
+        currentLaunchUrl: workflow.launch_url || null,
+        signEmbedUrl: workflow.zoho?.sign_embed_url || null,
+      }),
     };
   }
 
@@ -1496,6 +1559,7 @@ async function launchPreparedPackage(
       launch_url: launches.zohoFormsUrl || launches.portalReviewUrl,
       last_synced_at: new Date().toISOString(),
     });
+
     const updatedSubmission = await updatePackageSubmissionWorkflow(
       admin,
       submission,
@@ -1503,6 +1567,7 @@ async function launchPreparedPackage(
       workflow,
       submission?.status || "prepared"
     );
+
     submission = updatedSubmission || submission;
     return {
       submission,
@@ -1517,6 +1582,7 @@ async function launchPreparedPackage(
     launch_url: launches.portalReviewUrl,
     last_synced_at: new Date().toISOString(),
   });
+
   {
     const updatedSubmission = await updatePackageSubmissionWorkflow(
       admin,
@@ -1541,17 +1607,27 @@ async function syncPreparedPackage(
   item: PreparedPackage,
   launches: LaunchOptions
 ) {
+  if (item.signedCopy && item.status.phase === "filed") {
+    return {
+      submission: item.submission,
+      workflow: item.workflow,
+      document: item.signedCopy,
+      launchUrl: item.signedCopy.file_url || item.launchUrl || launches.portalReviewUrl,
+    };
+  }
+
   const signRequestId = item.workflow.zoho?.sign_request_id;
   if (!signRequestId) {
     return {
       submission: item.submission,
       workflow: item.workflow,
       document: item.signedCopy,
-      launchUrl: item.signedCopy?.file_url || launches.portalReviewUrl,
+      launchUrl: item.signedCopy?.file_url || item.launchUrl || launches.portalReviewUrl,
     };
   }
 
   const details = await getZohoSignRequestDetails(signRequestId);
+
   const workflow = mergeChiChiDocumentPackageWorkflow(item.workflow, {
     package_status:
       details.requestStatus &&
@@ -1569,6 +1645,12 @@ async function syncPreparedPackage(
         ? item.workflow.signed_at || new Date().toISOString()
         : item.workflow.signed_at || null,
     last_synced_at: new Date().toISOString(),
+    launch_url: resolvePreferredLaunchUrl({
+      flow: item.flow,
+      launches,
+      currentLaunchUrl: item.workflow.launch_url || null,
+      signEmbedUrl: item.workflow.zoho?.sign_embed_url || null,
+    }),
     zoho: {
       ...(item.workflow.zoho || {}),
       sign_request_id: details.requestId,
@@ -1585,27 +1667,43 @@ async function syncPreparedPackage(
     workflow,
     workflow.package_status === "signed" ? "submitted" : item.submission?.status || "prepared"
   );
+
   const submission = updatedSubmission || item.submission;
 
   if (details.requestStatus && ["completed", "signed"].includes(details.requestStatus.toLowerCase())) {
+    if (item.signedCopy) {
+      return {
+        submission,
+        workflow,
+        document: item.signedCopy,
+        launchUrl: item.signedCopy.file_url || launches.portalReviewUrl,
+      };
+    }
+
     const download = await downloadZohoSignCompletedDocument({
       requestId: details.requestId,
       documentId: details.documentId,
     });
-    const filed = await fileSignedPackageDocument(admin, context, {
-      ...item,
-      submission,
-      workflow,
-    }, {
-      buffer: download.buffer,
-      contentType: download.contentType,
-      fileName:
-        download.fileName ||
-        details.documentName ||
-        buildPackageFileName(item.definition, context),
-      sourceLabel: "Zoho Sign",
-      signedAt: workflow.signed_at || new Date().toISOString(),
-    });
+
+    const filed = await fileSignedPackageDocument(
+      admin,
+      context,
+      {
+        ...item,
+        submission,
+        workflow,
+      },
+      {
+        buffer: download.buffer,
+        contentType: download.contentType,
+        fileName:
+          download.fileName ||
+          details.documentName ||
+          buildPackageFileName(item.definition, context),
+        sourceLabel: "Zoho Sign",
+        signedAt: workflow.signed_at || new Date().toISOString(),
+      }
+    );
 
     return {
       submission: filed.submission,
@@ -1619,7 +1717,7 @@ async function syncPreparedPackage(
     submission,
     workflow,
     document: item.signedCopy,
-    launchUrl: launches.portalReviewUrl,
+    launchUrl: item.launchUrl || launches.portalReviewUrl,
   };
 }
 
@@ -1715,7 +1813,9 @@ export async function syncChiChiDocumentPackageFromZohoSignWebhook(
     {
       last_synced_at: new Date().toISOString(),
       zoho: {
-        ...(workflow.zoho || {}),
+        ...(extractChiChiDocumentPackageWorkflow(synced.submission || submission)?.zoho ||
+          workflow.zoho ||
+          {}),
         sign_request_id: requestId,
         sign_webhook_event_type: String(params.eventType || "").trim() || null,
         sign_last_event_at: new Date().toISOString(),
@@ -1799,7 +1899,7 @@ export async function lookupChiChiDocumentStatus(
 
   return {
     text: buildStatusText(item, resolved.context, launches),
-    launchUrl: launchUrlForPackage(launches),
+    launchUrl: launchUrlForPackage(item, launches),
     packageKey: definition.key,
   };
 }
@@ -1836,6 +1936,7 @@ export async function prepareChiChiDocumentPackage(
     params.origin,
     params.canManageAnyBuyer
   );
+
   if (!item.availability.enabled) {
     return {
       text: buildDocumentPackageProposalText({
@@ -1856,7 +1957,7 @@ export async function prepareChiChiDocumentPackage(
     params.canManageAnyBuyer
   );
 
-  await launchPreparedPackage(admin, resolved.context, item, launches);
+  const launched = await launchPreparedPackage(admin, resolved.context, item, launches);
   const refreshed = await resolvePackageContext(admin, params);
   const context = refreshed.context || resolved.context;
   item = buildPreparedPackage(
@@ -1868,7 +1969,7 @@ export async function prepareChiChiDocumentPackage(
 
   return {
     text: buildPreparedText(item, context, launches),
-    launchUrl: launchUrlForPackage(launches),
+    launchUrl: launched.launchUrl || launchUrlForPackage(item, launches),
     packageKey: definition.key,
   };
 }
@@ -1905,6 +2006,7 @@ export async function syncChiChiDocumentPackage(
     params.origin,
     params.canManageAnyBuyer
   );
+
   const launches = buildLaunchOptions(
     params.origin,
     definition,
@@ -1912,7 +2014,8 @@ export async function syncChiChiDocumentPackage(
     getPackageIntegrations(definition.key),
     params.canManageAnyBuyer
   );
-  await syncPreparedPackage(admin, resolved.context, item, launches);
+
+  const synced = await syncPreparedPackage(admin, resolved.context, item, launches);
   const refreshed = await resolvePackageContext(admin, params);
   const context = refreshed.context || resolved.context;
   item = buildPreparedPackage(
@@ -1924,7 +2027,10 @@ export async function syncChiChiDocumentPackage(
 
   return {
     text: buildSyncText(item, context, launches),
-    launchUrl: item.signedCopy?.file_url || launchUrlForPackage(launches),
+    launchUrl:
+      synced.launchUrl ||
+      item.signedCopy?.file_url ||
+      launchUrlForPackage(item, launches),
     packageKey: definition.key,
   };
 }
