@@ -185,7 +185,9 @@ function applicationPreviewRows(application: PortalApplication | null) {
     ["Status", firstFilled(application.status)],
     [
       "Assigned puppy",
-      application.assigned_puppy_id ? `Puppy #${application.assigned_puppy_id}` : "",
+      application.assigned_puppy_id
+        ? `Puppy #${application.assigned_puppy_id}`
+        : "",
     ],
   ].filter((entry) => entry[1]) as Array<[string, string]>;
 }
@@ -211,7 +213,9 @@ function normalizeToken(value: unknown) {
 function sortDocumentsForDisplay(documents: PortalDocument[]) {
   return documents.slice().sort((left, right) => {
     const leftTime = new Date(left.signed_at || left.created_at || 0).getTime();
-    const rightTime = new Date(right.signed_at || right.created_at || 0).getTime();
+    const rightTime = new Date(
+      right.signed_at || right.created_at || 0
+    ).getTime();
     return rightTime - leftTime;
   });
 }
@@ -232,11 +236,14 @@ function findRelatedPortalDocument(
       const sourceTable = normalizeToken(document.source_table);
 
       const titleMatch =
-        (!!titleToken && (title.includes(titleToken) || fileName.includes(titleToken))) ||
+        (!!titleToken &&
+          (title.includes(titleToken) || fileName.includes(titleToken))) ||
         (!!title && titleToken.includes(title));
 
-      const categoryMatch = !!categoryToken && !!category && category === categoryToken;
-      const sourceMatch = !!keyToken && !!sourceTable && sourceTable.includes(keyToken);
+      const categoryMatch =
+        !!categoryToken && !!category && category === categoryToken;
+      const sourceMatch =
+        !!keyToken && !!sourceTable && sourceTable.includes(keyToken);
 
       return titleMatch || categoryMatch || sourceMatch;
     }) || null
@@ -273,6 +280,25 @@ function documentAvailabilityCopy(
   );
 }
 
+function documentTypeLabel(definition: PortalDocumentDefinition) {
+  if (definition.key === "bill-of-sale") return "Executed Contract";
+  if (definition.key === "deposit-agreement") return "Reservation Contract";
+  if (definition.key === "health-guarantee") return "Health Record";
+  if (definition.key === "payment-plan-agreement") return "Financing Contract";
+  if (definition.key === "pickup-delivery-confirmation")
+    return "Transportation Record";
+  if (definition.key === "application") return "Buyer Record";
+  return "Portal Record";
+}
+
+function packetReferenceNumber(definition: PortalDocumentDefinition, displayName: string) {
+  const base = `${definition.key}-${displayName}`
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `SWVA-${base.slice(0, 26) || "DOCUMENT"}`;
+}
+
 function DocumentPaper({
   selected,
   onClick,
@@ -286,51 +312,167 @@ function DocumentPaper({
     <button
       type="button"
       onClick={onClick}
-      className={`group relative block w-full overflow-hidden rounded-[1rem] border text-left transition ${
+      className={`group relative block w-full overflow-hidden rounded-[1.15rem] border text-left transition ${
         selected
-          ? "border-[#cfa77f] bg-[linear-gradient(180deg,rgba(255,254,250,0.98)_0%,rgba(251,245,236,0.98)_100%)] shadow-[0_20px_34px_rgba(120,81,45,0.12)]"
-          : "border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(252,249,244,1)_100%)] shadow-sm hover:-translate-y-0.5 hover:border-[#d4b089] hover:shadow-[0_16px_28px_rgba(121,88,47,0.10)]"
+          ? "border-[#c79a69] bg-[linear-gradient(180deg,rgba(255,252,247,1)_0%,rgba(249,243,233,1)_100%)] shadow-[0_22px_42px_rgba(119,82,48,0.12)]"
+          : "border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(252,249,244,1)_100%)] shadow-sm hover:-translate-y-0.5 hover:border-[#d1a577] hover:shadow-[0_18px_34px_rgba(119,82,48,0.09)]"
       }`}
     >
-      <div className="absolute inset-y-0 left-0 w-1.5 bg-[linear-gradient(180deg,#d8b38e_0%,#bb8b5f_100%)]" />
-      <div className="absolute right-0 top-0 h-12 w-12 translate-x-4 -translate-y-4 rotate-45 border border-[rgba(207,167,127,0.28)] bg-[rgba(252,245,234,0.92)]" />
-      <div className="absolute left-5 right-5 top-[4.15rem] border-t border-dashed border-[rgba(182,154,120,0.28)]" />
-      <div className="relative pl-6 pr-5 py-5">{children}</div>
+      <div className="absolute inset-y-0 left-0 w-2 bg-[linear-gradient(180deg,#d8b38e_0%,#bb8b5f_100%)]" />
+      <div className="absolute inset-x-6 top-[4.5rem] border-t border-dashed border-[rgba(180,148,111,0.24)]" />
+      <div className="absolute right-0 top-0 h-14 w-14 translate-x-5 -translate-y-5 rotate-45 border border-[rgba(201,167,127,0.25)] bg-[rgba(250,240,224,0.86)]" />
+      <div className="relative px-6 pb-5 pt-5">{children}</div>
     </button>
+  );
+}
+
+function ContractDirectoryCard({
+  title,
+  value,
+  hint,
+}: {
+  title: string;
+  value: string;
+  hint: string;
+}) {
+  return (
+    <div className="rounded-[1rem] border border-[rgba(193,164,129,0.24)] bg-[rgba(255,252,246,0.78)] px-4 py-4">
+      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+        {title}
+      </div>
+      <div className="mt-2 text-lg font-semibold text-[var(--portal-text)]">
+        {value}
+      </div>
+      <div className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">
+        {hint}
+      </div>
+    </div>
+  );
+}
+
+function ContractMetaRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="grid gap-2 border-b border-dashed border-[rgba(182,154,120,0.22)] py-3 md:grid-cols-[160px_minmax(0,1fr)]">
+      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+        {label}
+      </div>
+      <div className="text-sm leading-7 text-[var(--portal-text)]">{value}</div>
+    </div>
+  );
+}
+
+function RecordLine({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-[0.95rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3">
+      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+        {label}
+      </div>
+      <div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function ContractSection({
+  title,
+  eyebrow,
+  children,
+}: {
+  title: string;
+  eyebrow?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-[1.1rem] border border-[rgba(193,164,129,0.24)] bg-[rgba(255,255,255,0.92)] px-5 py-5">
+      <div className="border-b border-dashed border-[rgba(182,154,120,0.28)] pb-3">
+        {eyebrow ? (
+          <div className="text-[10px] font-bold uppercase tracking-[0.17em] text-[var(--portal-text-muted)]">
+            {eyebrow}
+          </div>
+        ) : null}
+        <div className="mt-2 text-[1.05rem] font-semibold tracking-[-0.03em] text-[var(--portal-text)]">
+          {title}
+        </div>
+      </div>
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
+
+function SignatureGuidance({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="rounded-[1rem] border border-[rgba(193,164,129,0.24)] bg-[linear-gradient(180deg,rgba(255,252,247,1)_0%,rgba(251,246,239,1)_100%)] px-5 py-4">
+      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+        {title}
+      </div>
+      <div className="mt-2 text-sm leading-7 text-[var(--portal-text-soft)]">
+        {description}
+      </div>
+    </div>
   );
 }
 
 function DocumentWorkspace({
   title,
   category,
+  reference,
   status,
   filedDate,
+  displayName,
+  puppyName,
   children,
 }: {
   title: string;
   category?: string;
+  reference: string;
   status?: React.ReactNode;
   filedDate?: string;
+  displayName: string;
+  puppyName: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-[1.4rem] border border-[rgba(191,160,121,0.34)] bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(252,248,241,1)_100%)] shadow-[0_20px_40px_rgba(94,72,45,0.08)]">
+    <div className="relative overflow-hidden rounded-[1.5rem] border border-[rgba(191,160,121,0.34)] bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(252,248,241,1)_100%)] shadow-[0_22px_46px_rgba(94,72,45,0.08)]">
       <div className="absolute inset-y-0 left-0 w-2 bg-[linear-gradient(180deg,#d7b089_0%,#bf8d5f_100%)]" />
-      <div className="absolute inset-x-0 top-0 h-16 bg-[linear-gradient(180deg,rgba(252,245,234,0.92)_0%,rgba(252,245,234,0)_100%)]" />
+      <div className="absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,rgba(252,245,234,0.92)_0%,rgba(252,245,234,0)_100%)]" />
       <div className="absolute right-0 top-0 h-16 w-16 translate-x-5 -translate-y-5 rotate-45 border border-[rgba(201,167,127,0.25)] bg-[rgba(250,240,224,0.86)]" />
-      <div className="absolute left-8 right-8 top-[5.65rem] border-t border-dashed border-[rgba(182,154,120,0.28)]" />
+      <div className="absolute inset-x-8 top-[6.6rem] border-t border-dashed border-[rgba(182,154,120,0.28)]" />
+      <div className="absolute inset-x-8 bottom-6 top-[7.2rem] bg-[linear-gradient(to_bottom,rgba(180,148,111,0.10)_1px,transparent_1px)] bg-[length:100%_2.35rem] opacity-[0.22] pointer-events-none" />
 
       <div className="relative px-8 pb-8 pt-7">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-5">
           <div className="min-w-0">
             <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
-              {category || "Buyer Document"}
+              Southwest Virginia Chihuahua
             </div>
-            <div className="mt-2 text-[1.6rem] font-semibold tracking-[-0.04em] text-[var(--portal-text)]">
+            <div className="mt-2 text-[1.75rem] font-semibold tracking-[-0.05em] text-[var(--portal-text)]">
               {title}
             </div>
+            <div className="mt-2 text-sm leading-7 text-[var(--portal-text-soft)]">
+              {category || "Buyer Document"} · Reference {reference}
+            </div>
           </div>
-          <div className="flex flex-col items-end gap-2">
+
+          <div className="flex min-w-[190px] flex-col items-end gap-2">
             {status ? <div>{status}</div> : null}
             {filedDate ? (
               <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">
@@ -338,6 +480,24 @@ function DocumentWorkspace({
               </div>
             ) : null}
           </div>
+        </div>
+
+        <div className="mt-8 grid gap-4 md:grid-cols-3">
+          <ContractDirectoryCard
+            title="Document Type"
+            value={category || "Buyer Document"}
+            hint="Formal record held in your puppy packet and buyer file."
+          />
+          <ContractDirectoryCard
+            title="Account Holder"
+            value={displayName}
+            hint="Primary portal account associated with this record."
+          />
+          <ContractDirectoryCard
+            title="Puppy File"
+            value={puppyName}
+            hint="Placement, health, and go-home records stay grouped together."
+          />
         </div>
 
         <div className="mt-8">{children}</div>
@@ -378,7 +538,9 @@ export default function PortalDocumentsPage() {
   const [errorText, setErrorText] = useState("");
   const [selectedKey, setSelectedKey] = useState("");
   const [editingKey, setEditingKey] = useState("");
-  const [drafts, setDrafts] = useState<Record<string, Record<string, unknown>>>({});
+  const [drafts, setDrafts] = useState<Record<string, Record<string, unknown>>>(
+    {}
+  );
   const [savingKey, setSavingKey] = useState("");
   const [panelMessage, setPanelMessage] = useState("");
 
@@ -409,7 +571,11 @@ export default function PortalDocumentsPage() {
           puppy: context.puppy,
           forms: submissionRows,
           documents: documentRows,
-          displayName: portalDisplayName(user, context.buyer, context.application),
+          displayName: portalDisplayName(
+            user,
+            context.buyer,
+            context.application
+          ),
           puppyName: portalPuppyName(context.puppy).toLowerCase(),
         });
       } catch (error) {
@@ -517,7 +683,9 @@ export default function PortalDocumentsPage() {
     definition: PortalDocumentDefinition,
     mode: "draft" | "submitted"
   ) {
-    const draft = drafts[definition.key] || getDocumentInitialData(definition, packetContext);
+    const draft =
+      drafts[definition.key] ||
+      getDocumentInitialData(definition, packetContext);
 
     if (mode === "submitted") {
       const validationErrors = validateDocumentPayload(definition, draft);
@@ -586,7 +754,9 @@ export default function PortalDocumentsPage() {
     } catch (error) {
       console.error("Could not save portal document:", error);
       setPanelMessage(
-        error instanceof Error ? error.message : "Could not save the document right now."
+        error instanceof Error
+          ? error.message
+          : "Could not save the document right now."
       );
     } finally {
       setSavingKey("");
@@ -608,7 +778,12 @@ export default function PortalDocumentsPage() {
   }
 
   if (errorText) {
-    return <PortalErrorState title="Documents are unavailable" description={errorText} />;
+    return (
+      <PortalErrorState
+        title="Documents are unavailable"
+        description={errorText}
+      />
+    );
   }
 
   const selectedDefinition = selectedEntry?.definition || null;
@@ -634,13 +809,22 @@ export default function PortalDocumentsPage() {
   const signedFileUrl = firstFilled(selectedPortalDocument?.file_url);
   const canEmbedSignedDocument =
     !!signedFileUrl && isPdfLike(selectedPortalDocument);
+  const packetReference = selectedDefinition
+    ? packetReferenceNumber(selectedDefinition, state.displayName)
+    : "SWVA-DOCUMENT";
+  const activeReviewRows =
+    selectedPreviewRows.length
+      ? selectedPreviewRows.map((row) => [row.label, row.value] as [string, string])
+      : selectedDefinition?.key === "application"
+        ? applicationPreviewRows(state.application)
+        : [];
 
   return (
     <div className="space-y-6 pb-14">
       <PortalPageHero
-        eyebrow="Documents"
+        eyebrow="Document Center"
         title="Contracts & Documents"
-        description={`Review your agreements, signed records, and breeder-shared files for ${state.puppyName} in one organized place. Everything stays clear, easy to revisit, and available whenever you need it.`}
+        description={`Review signed agreements, buyer records, and breeder-shared file copies for ${state.puppyName} in a cleaner contract-style workspace designed to feel more like a formal packet and less like a generic portal page.`}
         actions={
           <PortalHeroPrimaryAction href="/portal/messages">
             Ask The Breeder A Question
@@ -648,26 +832,29 @@ export default function PortalDocumentsPage() {
         }
         aside={
           <div className="grid gap-4">
-            <div className="rounded-[1.25rem] border border-[var(--portal-border)] bg-white p-4 shadow-sm">
-              <div className="text-[11px] font-semibold tracking-[-0.01em] text-[var(--portal-text-muted)]">
-                Account
+            <div className="rounded-[1.25rem] border border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(251,247,241,1)_100%)] p-4 shadow-sm">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--portal-text-muted)]">
+                Account Holder
               </div>
               <div className="mt-2 text-xl font-semibold text-[var(--portal-text)]">
                 {state.displayName}
               </div>
               <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
-                Signed copies, contract records, and breeder-shared files are kept together here for easy access.
+                Signed copies, draft records, and breeder-filed documents are kept
+                together here in one organized packet.
               </div>
             </div>
-            <div className="rounded-[1.25rem] border border-[var(--portal-border)] bg-white p-4 shadow-sm">
-              <div className="text-[11px] font-semibold tracking-[-0.01em] text-[var(--portal-text-muted)]">
+
+            <div className="rounded-[1.25rem] border border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(251,247,241,1)_100%)] p-4 shadow-sm">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--portal-text-muted)]">
                 Puppy Packet
               </div>
               <div className="mt-2 text-xl font-semibold text-[var(--portal-text)]">
                 {portalPuppyName(state.puppy)}
               </div>
               <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
-                Placement, health, financing, and go-home records remain grouped together in one file.
+                Placement records, health documents, transportation notes, and
+                financing paperwork remain grouped under one file.
               </div>
             </div>
           </div>
@@ -678,36 +865,36 @@ export default function PortalDocumentsPage() {
         <PortalMetricCard
           label="Packet Items"
           value={String(summary.packetCount)}
-          detail="Required and conditional buyer records tracked from one portal tab."
+          detail="Document records currently visible in your buyer packet."
         />
         <PortalMetricCard
-          label="Signed Copies"
+          label="Filed / Signed"
           value={String(summary.complete)}
-          detail="Documents already filed back into your account."
+          detail="Documents already completed and saved back into your account."
           accent="from-[rgba(113,198,164,0.16)] via-transparent to-[rgba(159,175,198,0.14)]"
         />
         <PortalMetricCard
-          label="Still Needed"
+          label="Awaiting Action"
           value={String(summary.pending)}
-          detail="Items that are active and still waiting to be completed."
+          detail="Active items that still need review, completion, or signature."
           accent="from-[rgba(200,140,82,0.16)] via-transparent to-[rgba(159,175,198,0.14)]"
         />
         <PortalMetricCard
-          label="Breeder Shared Files"
+          label="Shared Records"
           value={String(summary.shared)}
           detail={
             summary.shared
-              ? "Published breeder records and uploaded files on your account."
+              ? "Breeder-posted files and completed account records."
               : "No breeder-posted files yet."
           }
           accent="from-[rgba(110,166,218,0.16)] via-transparent to-[rgba(159,175,198,0.14)]"
         />
       </PortalMetricGrid>
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(420px,1.1fr)]">
         <PortalPanel
-          title="Contracts & Documents"
-          subtitle="Each item is presented like a clean filed record so it is easier to see what is complete, what still needs attention, and what is already on file."
+          title="Packet Directory"
+          subtitle="Browse each contract, application, acknowledgement, or breeder-posted record from one formal index."
         >
           <div className="space-y-4">
             {documentCards.map((entry) => (
@@ -721,21 +908,24 @@ export default function PortalDocumentsPage() {
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
-                      {entry.definition.category}
+                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+                      {documentTypeLabel(entry.definition)}
                     </div>
                     <div className="mt-2 text-lg font-semibold tracking-[-0.03em] text-[var(--portal-text)]">
                       {entry.definition.title}
+                    </div>
+                    <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">
+                      {entry.definition.category}
                     </div>
                   </div>
                   <div className="shrink-0">{documentStatusLabel(entry.status)}</div>
                 </div>
 
-                <div className="mt-6 text-sm leading-6 text-[var(--portal-text-soft)]">
+                <div className="mt-5 text-sm leading-7 text-[var(--portal-text-soft)]">
                   {documentSummaryCopy(entry.definition)}
                 </div>
 
-                <div className="mt-4 space-y-2">
+                <div className="mt-5 space-y-2">
                   {entry.highlights.length ? (
                     entry.highlights.slice(0, 3).map((line) => (
                       <div
@@ -755,31 +945,48 @@ export default function PortalDocumentsPage() {
                   )}
                 </div>
 
+                <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-[0.95rem] border border-[rgba(193,164,129,0.20)] bg-[rgba(255,252,247,0.8)] px-4 py-3">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                      Reference
+                    </div>
+                    <div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">
+                      {packetReferenceNumber(entry.definition, state.displayName)}
+                    </div>
+                  </div>
+                  <div className="rounded-[0.95rem] border border-[rgba(193,164,129,0.20)] bg-[rgba(255,252,247,0.8)] px-4 py-3">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                      File Status
+                    </div>
+                    <div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">
+                      {entry.portalDocument?.signed_at || entry.portalDocument?.created_at
+                        ? `Filed ${displayDocDate(
+                            entry.portalDocument?.signed_at ||
+                              entry.portalDocument?.created_at
+                          )}`
+                        : entry.submission
+                          ? `Updated ${displayDocDate(
+                              entry.submission.submitted_at ||
+                                entry.submission.updated_at ||
+                                entry.submission.created_at
+                            )}`
+                          : entry.availability.enabled
+                            ? "Ready for review"
+                            : "Pending activation"}
+                    </div>
+                  </div>
+                </div>
+
                 <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[rgba(177,150,116,0.16)] pt-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">
                   <span>
-                    {entry.portalDocument?.signed_at || entry.portalDocument?.created_at
-                      ? `Filed ${displayDocDate(
-                          entry.portalDocument?.signed_at ||
-                            entry.portalDocument?.created_at
-                        )}`
-                      : entry.submission
-                        ? `Updated ${displayDocDate(
-                            entry.submission.submitted_at ||
-                              entry.submission.updated_at ||
-                              entry.submission.created_at
-                          )}`
-                        : entry.availability.enabled
-                          ? "Ready to review"
-                          : "Available later"}
+                    {entry.portalDocument?.file_url
+                      ? "Signed copy available"
+                      : entry.availability.enabled
+                        ? "Open document"
+                        : "Available later"}
                   </span>
                   <span>
-                    {entry.portalDocument?.file_url
-                      ? "View Signed Copy"
-                      : entry.availability.enabled
-                        ? selectedKey === entry.definition.key
-                          ? "Open Document"
-                          : "View Document"
-                        : "Pending Activation"}
+                    {selectedKey === entry.definition.key ? "Currently selected" : "Select"}
                   </span>
                 </div>
               </DocumentPaper>
@@ -790,8 +997,8 @@ export default function PortalDocumentsPage() {
         <div className="space-y-6">
           {selectedDefinition ? (
             <PortalPanel
-              title="Document Review"
-              subtitle="Open, review, and access the selected document from your portal file."
+              title="Contract Review Workspace"
+              subtitle="Read the selected item in a more formal document-style layout, with account details, contract context, filed-copy access, and signing tools."
               action={
                 selectedDefinition.mode === "link" && selectedDefinition.href ? (
                   <PortalHeroPrimaryAction href={selectedDefinition.href}>
@@ -804,7 +1011,7 @@ export default function PortalDocumentsPage() {
                       setPanelMessage("");
                     }}
                   >
-                    Update Signed Copy
+                    Reopen For Review
                   </PortalSecondaryButton>
                 ) : null
               }
@@ -812,6 +1019,7 @@ export default function PortalDocumentsPage() {
               <DocumentWorkspace
                 title={selectedDefinition.title}
                 category={selectedDefinition.category}
+                reference={packetReference}
                 status={selectedStatus ? documentStatusLabel(selectedStatus) : null}
                 filedDate={`Filed ${displayDocDate(
                   selectedPortalDocument?.signed_at ||
@@ -820,31 +1028,37 @@ export default function PortalDocumentsPage() {
                     selectedSubmission?.updated_at ||
                     selectedSubmission?.created_at
                 )}`}
+                displayName={state.displayName}
+                puppyName={portalPuppyName(state.puppy)}
               >
                 <div className="space-y-6">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="rounded-[1rem] border border-[rgba(193,164,129,0.24)] bg-[rgba(255,252,246,0.84)] px-5 py-4">
-                      <div className="text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--portal-text-muted)]">
-                        Document Summary
-                      </div>
-                      <div className="mt-3 text-sm leading-7 text-[var(--portal-text-soft)]">
-                        {documentSummaryCopy(selectedDefinition)}
-                      </div>
-                    </div>
-
-                    <div className="rounded-[1rem] border border-[rgba(193,164,129,0.24)] bg-[rgba(255,252,246,0.84)] px-5 py-4">
-                      <div className="text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--portal-text-muted)]">
-                        Availability
-                      </div>
-                      <div className="mt-3 text-sm leading-7 text-[var(--portal-text-soft)]">
-                        {documentAvailabilityCopy(
+                  <ContractSection
+                    eyebrow="Document Overview"
+                    title="Record Classification & Availability"
+                  >
+                    <div className="space-y-1">
+                      <ContractMetaRow
+                        label="Record Type"
+                        value={documentTypeLabel(selectedDefinition)}
+                      />
+                      <ContractMetaRow
+                        label="Summary"
+                        value={documentSummaryCopy(selectedDefinition)}
+                      />
+                      <ContractMetaRow
+                        label="Availability"
+                        value={documentAvailabilityCopy(
                           selectedDefinition,
                           selectedAvailability.enabled,
                           selectedAvailability.reason
                         )}
-                      </div>
+                      />
+                      <ContractMetaRow
+                        label="Packet Reference"
+                        value={packetReference}
+                      />
                     </div>
-                  </div>
+                  </ContractSection>
 
                   {panelMessage ? (
                     <div className="rounded-[1rem] border border-[rgba(200,140,82,0.35)] bg-[rgba(255,247,240,0.92)] px-5 py-4 text-sm leading-7 text-[var(--portal-text)]">
@@ -852,16 +1066,29 @@ export default function PortalDocumentsPage() {
                     </div>
                   ) : null}
 
+                  {activeReviewRows.length ? (
+                    <ContractSection
+                      eyebrow="Account Record"
+                      title="Saved Details On File"
+                    >
+                      <div className="grid gap-3 md:grid-cols-2">
+                        {activeReviewRows.map(([label, value]) => (
+                          <RecordLine key={`${label}-${value}`} label={label} value={value} />
+                        ))}
+                      </div>
+                    </ContractSection>
+                  ) : null}
+
                   {signedFileUrl ? (
-                    <div className="rounded-[1rem] border border-[rgba(193,164,129,0.24)] bg-white px-5 py-5">
-                      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-dashed border-[rgba(182,154,120,0.28)] pb-3">
-                        <div>
-                          <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
-                            Signed Document
-                          </div>
-                          <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
-                            Your completed document is on file and can be opened directly from your portal.
-                          </div>
+                    <ContractSection
+                      eyebrow="Filed Copy"
+                      title="Signed Document On Record"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="max-w-2xl text-sm leading-7 text-[var(--portal-text-soft)]">
+                          Your completed document is on file and may be opened
+                          directly from your portal. This copy stays connected to
+                          your buyer packet and breeder record for future review.
                         </div>
 
                         <div className="flex flex-wrap gap-3">
@@ -879,46 +1106,28 @@ export default function PortalDocumentsPage() {
                           <iframe
                             title={`${selectedDefinition.title} Signed Copy`}
                             src={signedFileUrl}
-                            className="min-h-[760px] w-full bg-white"
+                            className="min-h-[820px] w-full bg-white"
                           />
                         </div>
                       ) : (
                         <div className="mt-5 rounded-[1rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-5 py-4 text-sm leading-7 text-[var(--portal-text-soft)]">
-                          A signed file is on record for this document. Use the button above to open the saved copy.
+                          A signed file is on record for this document. Use the
+                          action buttons above to open the saved copy.
                         </div>
                       )}
-                    </div>
+                    </ContractSection>
                   ) : null}
 
                   {selectedDefinition.mode === "link" ? (
                     <div className="space-y-5">
-                      <div className="rounded-[1rem] border border-[rgba(193,164,129,0.24)] bg-white px-5 py-5">
-                        <div className="flex items-center justify-between gap-3 border-b border-dashed border-[rgba(182,154,120,0.28)] pb-3">
-                          <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
-                            Saved Application Record
-                          </div>
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">
-                            Portal Copy
-                          </div>
-                        </div>
-
-                        <div className="mt-5 grid gap-3 md:grid-cols-2">
-                          {(selectedPreviewRows.length
-                            ? selectedPreviewRows.map((row) => [row.label, row.value] as [string, string])
-                            : applicationPreviewRows(state.application)
-                          ).map(([label, value]) => (
-                            <div
-                              key={`${label}-${value}`}
-                              className="rounded-[0.95rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3"
-                            >
-                              <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
-                                {label}
-                              </div>
-                              <div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">
-                                {value}
-                              </div>
-                            </div>
-                          ))}
+                      <ContractSection
+                        eyebrow="Application Record"
+                        title="Application Access"
+                      >
+                        <div className="text-sm leading-7 text-[var(--portal-text-soft)]">
+                          Your application remains part of your buyer file and may
+                          be reopened whenever you need to review or update the
+                          information associated with your account.
                         </div>
 
                         <div className="mt-5 flex flex-wrap gap-3">
@@ -929,12 +1138,13 @@ export default function PortalDocumentsPage() {
                             Review Profile
                           </PortalHeroPrimaryAction>
                         </div>
-                      </div>
+                      </ContractSection>
 
                       {!selectedSubmission ? (
-                        <div className="rounded-[1rem] border border-dashed border-[var(--portal-border-strong)] bg-[var(--portal-surface-muted)] px-5 py-4 text-sm leading-7 text-[var(--portal-text-soft)]">
-                          This application is already part of your portal file. Opening the application page lets you review it and keep your saved record current.
-                        </div>
+                        <SignatureGuidance
+                          title="Portal Guidance"
+                          description="This application is already part of your portal file. Opening the application page lets you review it and keep your saved record current."
+                        />
                       ) : null}
                     </div>
                   ) : !selectedAvailability.enabled && !selectedSubmission ? (
@@ -952,162 +1162,169 @@ export default function PortalDocumentsPage() {
                     />
                   ) : (
                     <div className="space-y-5">
-                      {selectedSubmission && !showingEditor ? (
-                        <div className="rounded-[1rem] border border-[rgba(193,164,129,0.24)] bg-white px-5 py-5">
-                          <div className="flex items-center justify-between gap-3 border-b border-dashed border-[rgba(182,154,120,0.28)] pb-3">
-                            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
-                              Saved Record Details
-                            </div>
-                            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">
-                              Account Copy
-                            </div>
-                          </div>
-
-                          <div className="mt-5 grid gap-3 md:grid-cols-2">
-                            {selectedPreviewRows.map((row) => (
-                              <div
-                                key={`${row.label}-${row.value}`}
-                                className="rounded-[0.95rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3"
-                              >
-                                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
-                                  {row.label}
-                                </div>
-                                <div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">
-                                  {row.value}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
-
                       {showingEditor ? (
-                        <div className="rounded-[1rem] border border-[rgba(193,164,129,0.24)] bg-white px-5 py-5">
-                          <div className="border-b border-dashed border-[rgba(182,154,120,0.28)] pb-3">
-                            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
-                              Signature & Submission
-                            </div>
-                            <div className="mt-2 text-sm leading-7 text-[var(--portal-text-soft)]">
-                              Complete the fields below to save a draft or file your signed copy. Once saved, this record is stored in your portal and mirrored into the breeder file.
-                            </div>
-                          </div>
+                        <>
+                          <SignatureGuidance
+                            title="Contract Review Notice"
+                            description="Please complete the fields below carefully. Saving a draft stores your current work in the portal. Saving a signed copy files the completed record back into your account and breeder file."
+                          />
 
-                          <div className="mt-5 grid gap-4 md:grid-cols-2">
-                            {selectedDefinition.fields.map((field) => {
-                              if (field.type === "textarea") {
-                                return (
-                                  <div key={field.key} className="md:col-span-2">
-                                    <PortalField label={field.label}>
-                                      <PortalTextarea
-                                        rows={field.rows || 4}
-                                        value={toInputValue(selectedDraft[field.key]) as string}
-                                        placeholder={field.placeholder}
+                          <ContractSection
+                            eyebrow="Signature & Submission"
+                            title="Complete This Record"
+                          >
+                            <div className="grid gap-4 md:grid-cols-2">
+                              {selectedDefinition.fields.map((field) => {
+                                if (field.type === "textarea") {
+                                  return (
+                                    <div key={field.key} className="md:col-span-2">
+                                      <PortalField label={field.label}>
+                                        <PortalTextarea
+                                          rows={field.rows || 4}
+                                          value={toInputValue(
+                                            selectedDraft[field.key]
+                                          ) as string}
+                                          placeholder={field.placeholder}
+                                          onChange={(event) =>
+                                            setDrafts((current) => ({
+                                              ...current,
+                                              [selectedDefinition.key]: {
+                                                ...current[selectedDefinition.key],
+                                                [field.key]: event.target.value,
+                                              },
+                                            }))
+                                          }
+                                        />
+                                      </PortalField>
+                                    </div>
+                                  );
+                                }
+
+                                if (field.type === "checkbox") {
+                                  return (
+                                    <label
+                                      key={field.key}
+                                      className="md:col-span-2 flex items-start gap-3 rounded-[1rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={Boolean(selectedDraft[field.key])}
                                         onChange={(event) =>
                                           setDrafts((current) => ({
                                             ...current,
                                             [selectedDefinition.key]: {
                                               ...current[selectedDefinition.key],
-                                              [field.key]: event.target.value,
+                                              [field.key]: event.target.checked,
                                             },
                                           }))
                                         }
+                                        className="mt-1 h-4 w-4 rounded border-[#d3b596] text-[#a56733] focus:ring-[#cba379]"
                                       />
-                                    </PortalField>
-                                  </div>
-                                );
-                              }
+                                      <span className="text-sm leading-6 text-[var(--portal-text)]">
+                                        {field.label}
+                                      </span>
+                                    </label>
+                                  );
+                                }
 
-                              if (field.type === "checkbox") {
                                 return (
-                                  <label
-                                    key={field.key}
-                                    className="flex items-start gap-3 rounded-[1rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4"
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={Boolean(selectedDraft[field.key])}
+                                  <PortalField key={field.key} label={field.label}>
+                                    <PortalInput
+                                      type={
+                                        field.type === "date"
+                                          ? "date"
+                                          : field.type === "currency"
+                                            ? "number"
+                                            : "text"
+                                      }
+                                      step={
+                                        field.type === "currency" ? "0.01" : undefined
+                                      }
+                                      value={toInputValue(
+                                        selectedDraft[field.key]
+                                      ) as string}
+                                      placeholder={field.placeholder}
                                       onChange={(event) =>
                                         setDrafts((current) => ({
                                           ...current,
                                           [selectedDefinition.key]: {
                                             ...current[selectedDefinition.key],
-                                            [field.key]: event.target.checked,
+                                            [field.key]: event.target.value,
                                           },
                                         }))
                                       }
-                                      className="mt-1 h-4 w-4 rounded border-[#d3b596] text-[#a56733] focus:ring-[#cba379]"
                                     />
-                                    <span className="text-sm leading-6 text-[var(--portal-text)]">
-                                      {field.label}
-                                    </span>
-                                  </label>
+                                  </PortalField>
                                 );
-                              }
+                              })}
+                            </div>
 
-                              return (
-                                <PortalField key={field.key} label={field.label}>
-                                  <PortalInput
-                                    type={
-                                      field.type === "date"
-                                        ? "date"
-                                        : field.type === "currency"
-                                          ? "number"
-                                          : "text"
-                                    }
-                                    step={field.type === "currency" ? "0.01" : undefined}
-                                    value={toInputValue(selectedDraft[field.key]) as string}
-                                    placeholder={field.placeholder}
-                                    onChange={(event) =>
-                                      setDrafts((current) => ({
-                                        ...current,
-                                        [selectedDefinition.key]: {
-                                          ...current[selectedDefinition.key],
-                                          [field.key]: event.target.value,
-                                        },
-                                      }))
-                                    }
-                                  />
-                                </PortalField>
-                              );
-                            })}
-                          </div>
-
-                          <div className="mt-6 flex flex-wrap gap-3 border-t border-dashed border-[rgba(182,154,120,0.28)] pt-5">
-                            <PortalSecondaryButton
-                              disabled={savingKey === selectedDefinition.key}
-                              onClick={() => void saveDocument(selectedDefinition, "draft")}
-                            >
-                              {savingKey === selectedDefinition.key ? "Saving..." : "Save Draft"}
-                            </PortalSecondaryButton>
-                            <PortalButton
-                              disabled={savingKey === selectedDefinition.key}
-                              onClick={() => void saveDocument(selectedDefinition, "submitted")}
-                            >
-                              {savingKey === selectedDefinition.key
-                                ? "Saving Signed Copy..."
-                                : "Save Signed Copy"}
-                            </PortalButton>
-                            {selectedSubmission ? (
+                            <div className="mt-6 flex flex-wrap gap-3 border-t border-dashed border-[rgba(182,154,120,0.28)] pt-5">
                               <PortalSecondaryButton
                                 disabled={savingKey === selectedDefinition.key}
-                                onClick={() => {
-                                  setEditingKey("");
-                                  setDrafts((current) => ({
-                                    ...current,
-                                    [selectedDefinition.key]: getDocumentInitialData(
-                                      selectedDefinition,
-                                      packetContext,
-                                      selectedSubmission
-                                    ),
-                                  }));
-                                  setPanelMessage("");
-                                }}
+                                onClick={() =>
+                                  void saveDocument(selectedDefinition, "draft")
+                                }
                               >
-                                Cancel
+                                {savingKey === selectedDefinition.key
+                                  ? "Saving..."
+                                  : "Save Draft"}
                               </PortalSecondaryButton>
-                            ) : null}
+                              <PortalButton
+                                disabled={savingKey === selectedDefinition.key}
+                                onClick={() =>
+                                  void saveDocument(selectedDefinition, "submitted")
+                                }
+                              >
+                                {savingKey === selectedDefinition.key
+                                  ? "Saving Signed Copy..."
+                                  : "Save Signed Copy"}
+                              </PortalButton>
+                              {selectedSubmission ? (
+                                <PortalSecondaryButton
+                                  disabled={savingKey === selectedDefinition.key}
+                                  onClick={() => {
+                                    setEditingKey("");
+                                    setDrafts((current) => ({
+                                      ...current,
+                                      [selectedDefinition.key]: getDocumentInitialData(
+                                        selectedDefinition,
+                                        packetContext,
+                                        selectedSubmission
+                                      ),
+                                    }));
+                                    setPanelMessage("");
+                                  }}
+                                >
+                                  Cancel
+                                </PortalSecondaryButton>
+                              ) : null}
+                            </div>
+                          </ContractSection>
+                        </>
+                      ) : selectedSubmission ? (
+                        <ContractSection
+                          eyebrow="Saved Record"
+                          title="Completed Portal Copy"
+                        >
+                          <div className="text-sm leading-7 text-[var(--portal-text-soft)]">
+                            This portal copy has already been saved. You may reopen
+                            it if you need to review or update the information on
+                            file.
                           </div>
-                        </div>
+
+                          {selectedPreviewRows.length ? (
+                            <div className="mt-5 grid gap-3 md:grid-cols-2">
+                              {selectedPreviewRows.map((row) => (
+                                <RecordLine
+                                  key={`${row.label}-${row.value}`}
+                                  label={row.label}
+                                  value={row.value}
+                                />
+                              ))}
+                            </div>
+                          ) : null}
+                        </ContractSection>
                       ) : null}
                     </div>
                   )}
@@ -1118,25 +1335,30 @@ export default function PortalDocumentsPage() {
 
           <PortalPanel
             title="Breeder Shared Records"
-            subtitle="Files shared to your account are displayed here in a clear document view for quick reference."
+            subtitle="Additional breeder-posted files are displayed as formal file cards so they read more like filed account records."
           >
             {state.documents.length ? (
               <div className="space-y-4">
                 {sortDocumentsForDisplay(state.documents).map((document) => (
                   <div
                     key={document.id}
-                    className="relative overflow-hidden rounded-[1rem] border border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(252,249,244,1)_100%)] shadow-sm"
+                    className="relative overflow-hidden rounded-[1.1rem] border border-[var(--portal-border)] bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(252,249,244,1)_100%)] shadow-sm"
                   >
-                    <div className="absolute inset-y-0 left-0 w-1.5 bg-[linear-gradient(180deg,#d8b38e_0%,#bb8b5f_100%)]" />
+                    <div className="absolute inset-y-0 left-0 w-2 bg-[linear-gradient(180deg,#d8b38e_0%,#bb8b5f_100%)]" />
+                    <div className="absolute inset-x-6 top-[4.2rem] border-t border-dashed border-[rgba(182,154,120,0.22)]" />
                     <div className="absolute right-0 top-0 h-12 w-12 translate-x-4 -translate-y-4 rotate-45 border border-[rgba(207,167,127,0.28)] bg-[rgba(252,245,234,0.92)]" />
-                    <div className="relative pl-6 pr-5 py-5">
+                    <div className="relative px-6 pb-5 pt-5">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
-                            {firstFilled(document.category, document.status, "Document")}
+                          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+                            {firstFilled(document.category, document.status, "Filed Record")}
                           </div>
-                          <div className="mt-2 text-base font-semibold text-[var(--portal-text)]">
-                            {firstFilled(document.title, document.file_name, `Document ${document.id}`)}
+                          <div className="mt-2 text-lg font-semibold text-[var(--portal-text)]">
+                            {firstFilled(
+                              document.title,
+                              document.file_name,
+                              `Document ${document.id}`
+                            )}
                           </div>
                         </div>
                         <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">
@@ -1144,7 +1366,7 @@ export default function PortalDocumentsPage() {
                         </div>
                       </div>
 
-                      <div className="mt-5 border-t border-dashed border-[rgba(182,154,120,0.28)] pt-4 text-sm leading-6 text-[var(--portal-text-soft)]">
+                      <div className="mt-5 text-sm leading-7 text-[var(--portal-text-soft)]">
                         {firstFilled(
                           document.description,
                           document.file_name,
@@ -1152,7 +1374,7 @@ export default function PortalDocumentsPage() {
                         )}
                       </div>
 
-                      <div className="mt-4 flex flex-wrap gap-3">
+                      <div className="mt-5 flex flex-wrap gap-3">
                         {document.file_url ? (
                           <DocumentActionLink href={document.file_url}>
                             View File
