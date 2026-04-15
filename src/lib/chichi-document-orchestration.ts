@@ -51,7 +51,6 @@ type BuyerRow = {
   sale_price?: number | null;
   deposit_amount?: number | null;
   deposit_date?: string | null;
-  deposit_payment_method?: string | null;
   finance_enabled?: boolean | null;
   finance_rate?: number | null;
   finance_months?: number | null;
@@ -728,7 +727,7 @@ async function loadBuyerByPortalIdentity(admin: SupabaseClient, user: User) {
     const { data, error } = await admin
       .from("buyers")
       .select(
-        "id,user_id,puppy_id,full_name,name,email,phone,status,sale_price,deposit_amount,deposit_date,deposit_payment_method,finance_enabled,finance_rate,finance_months,finance_monthly_amount,finance_next_due_date,delivery_option,delivery_date,delivery_location,notes"
+        "id,user_id,puppy_id,full_name,name,email,phone,status,sale_price,deposit_amount,deposit_date,finance_enabled,finance_rate,finance_months,finance_monthly_amount,finance_next_due_date,delivery_option,delivery_date,delivery_location,notes"
       )
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
@@ -743,7 +742,7 @@ async function loadBuyerByPortalIdentity(admin: SupabaseClient, user: User) {
   const { data, error } = await admin
     .from("buyers")
     .select(
-      "id,user_id,puppy_id,full_name,name,email,phone,status,sale_price,deposit_amount,deposit_date,deposit_payment_method,finance_enabled,finance_rate,finance_months,finance_monthly_amount,finance_next_due_date,delivery_option,delivery_date,delivery_location,notes"
+      "id,user_id,puppy_id,full_name,name,email,phone,status,sale_price,deposit_amount,deposit_date,finance_enabled,finance_rate,finance_months,finance_monthly_amount,finance_next_due_date,delivery_option,delivery_date,delivery_location,notes"
     )
     .ilike("email", email)
     .order("created_at", { ascending: false })
@@ -766,7 +765,7 @@ async function resolveBuyer(admin: SupabaseClient, options: ResolveOptions) {
     const { data, error } = await admin
       .from("buyers")
       .select(
-        "id,user_id,puppy_id,full_name,name,email,phone,status,sale_price,deposit_amount,deposit_date,deposit_payment_method,finance_enabled,finance_rate,finance_months,finance_monthly_amount,finance_next_due_date,delivery_option,delivery_date,delivery_location,notes"
+        "id,user_id,puppy_id,full_name,name,email,phone,status,sale_price,deposit_amount,deposit_date,finance_enabled,finance_rate,finance_months,finance_monthly_amount,finance_next_due_date,delivery_option,delivery_date,delivery_location,notes"
       )
       .eq("id", options.buyerId)
       .maybeSingle<BuyerRow>();
@@ -780,7 +779,7 @@ async function resolveBuyer(admin: SupabaseClient, options: ResolveOptions) {
     const { data, error } = await admin
       .from("buyers")
       .select(
-        "id,user_id,puppy_id,full_name,name,email,phone,status,sale_price,deposit_amount,deposit_date,deposit_payment_method,finance_enabled,finance_rate,finance_months,finance_monthly_amount,finance_next_due_date,delivery_option,delivery_date,delivery_location,notes"
+        "id,user_id,puppy_id,full_name,name,email,phone,status,sale_price,deposit_amount,deposit_date,finance_enabled,finance_rate,finance_months,finance_monthly_amount,finance_next_due_date,delivery_option,delivery_date,delivery_location,notes"
       )
       .ilike("email", buyerEmail)
       .limit(1)
@@ -805,7 +804,7 @@ async function resolveBuyer(admin: SupabaseClient, options: ResolveOptions) {
   const { data, error } = await admin
     .from("buyers")
     .select(
-      "id,user_id,puppy_id,full_name,name,email,phone,status,sale_price,deposit_amount,deposit_date,deposit_payment_method,finance_enabled,finance_rate,finance_months,finance_monthly_amount,finance_next_due_date,delivery_option,delivery_date,delivery_location,notes"
+      "id,user_id,puppy_id,full_name,name,email,phone,status,sale_price,deposit_amount,deposit_date,finance_enabled,finance_rate,finance_months,finance_monthly_amount,finance_next_due_date,delivery_option,delivery_date,delivery_location,notes"
     )
     .order("created_at", { ascending: false })
     .limit(250);
