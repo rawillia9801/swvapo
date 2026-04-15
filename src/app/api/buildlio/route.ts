@@ -5674,7 +5674,7 @@ async function executeAddPuppyWeight(
 
   const payload = {
     puppy_id: puppy.id,
-    weigh_date: intent.weight_date 
+    weigh_date: intent.weight_date,
     age_weeks:
       intent.age_weeks === null || intent.age_weeks === undefined
         ? null
@@ -5739,7 +5739,7 @@ async function findPuppyWeight(
   if (!puppy?.id) throw new Error("I could not find that puppy to locate the weight entry.");
 
   let query = admin.from("puppy_weights").select("*").eq("puppy_id", puppy.id).limit(50);
-  if (intent.weight_date) query = query.eq("weight_date", intent.weight_date);
+  if (intent.weight_date) query = query.eq("weigh_date", intent.weight_date);
   const { data, error } = await query;
   if (error) throw new Error(`Could not load puppy weights: ${error.message}`);
 
@@ -5776,7 +5776,6 @@ async function executeUpdatePuppyWeight(
   if (!weight?.id) throw new Error("I could not find that weight entry to update.");
 
   const payload = compactObject({
-    weight_date: intent.new_weight_date || undefined,
     weigh_date: intent.new_weight_date || undefined,
     age_weeks: intent.age_weeks === null || intent.age_weeks === undefined ? undefined : Number(intent.age_weeks),
     weight_oz: intent.weight_oz === null || intent.weight_oz === undefined ? undefined : Number(intent.weight_oz),
