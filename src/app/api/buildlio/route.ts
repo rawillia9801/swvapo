@@ -1177,7 +1177,6 @@ async function getWeights(admin: SupabaseClient, puppyId: number | null) {
     .select(`
       id,
       weigh_date,
-      weight_date,
       age_weeks,
       weight_oz,
       weight_g,
@@ -5675,8 +5674,7 @@ async function executeAddPuppyWeight(
 
   const payload = {
     puppy_id: puppy.id,
-    weigh_date: intent.weight_date,
-    weight_date: intent.weight_date,
+    weigh_date: intent.weight_date 
     age_weeks:
       intent.age_weeks === null || intent.age_weeks === undefined
         ? null
