@@ -14,6 +14,10 @@ import {
   type ChiChiDocumentPackageWorkflow,
 } from "@/lib/chichi-document-packages";
 import {
+  buildChiChiBuyerDealProfile,
+  buildChiChiDocumentMergeData,
+} from "@/lib/chichi-document-merge-data";
+import {
   findMatchingDocumentSubmission,
   getDocumentInitialData,
   portalDocumentPacket,
@@ -47,6 +51,7 @@ type BuyerRow = {
   sale_price?: number | null;
   deposit_amount?: number | null;
   deposit_date?: string | null;
+  deposit_payment_method?: string | null;
   finance_enabled?: boolean | null;
   finance_rate?: number | null;
   finance_months?: number | null;
@@ -63,6 +68,7 @@ type PuppyRow = {
   buyer_id?: number | null;
   call_name?: string | null;
   puppy_name?: string | null;
+  registered_name?: string | null;
   name?: string | null;
   sex?: string | null;
   color?: string | null;
@@ -73,6 +79,8 @@ type PuppyRow = {
   deposit?: number | null;
   status?: string | null;
   registry?: string | null;
+  sire?: string | null;
+  dam?: string | null;
   owner_email?: string | null;
 };
 
@@ -720,7 +728,7 @@ async function loadBuyerByPortalIdentity(admin: SupabaseClient, user: User) {
     const { data, error } = await admin
       .from("buyers")
       .select(
-        "id,user_id,puppy_id,full_name,name,email,phone,status,sale_price,deposit_amount,deposit_date,finance_enabled,finance_rate,finance_months,finance_monthly_amount,finance_next_due_date,delivery_option,delivery_date,delivery_location,notes"
+        "id,user_id,puppy_id,full_name,name,email,phone,status,sale_price,deposit_amount,deposit_date,deposit_payment_method,finance_enabled,finance_rate,finance_months,finance_monthly_amount,finance_next_due_date,delivery_option,delivery_date,delivery_location,notes"
       )
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
@@ -735,7 +743,7 @@ async function loadBuyerByPortalIdentity(admin: SupabaseClient, user: User) {
   const { data, error } = await admin
     .from("buyers")
     .select(
-      "id,user_id,puppy_id,full_name,name,email,phone,status,sale_price,deposit_amount,deposit_date,finance_enabled,finance_rate,finance_months,finance_monthly_amount,finance_next_due_date,delivery_option,delivery_date,delivery_location,notes"
+      "id,user_id,puppy_id,full_name,name,email,phone,status,sale_price,deposit_amount,deposit_date,deposit_payment_method,finance_enabled,finance_rate,finance_months,finance_monthly_amount,finance_next_due_date,delivery_option,delivery_date,delivery_location,notes"
     )
     .ilike("email", email)
     .order("created_at", { ascending: false })
@@ -758,7 +766,7 @@ async function resolveBuyer(admin: SupabaseClient, options: ResolveOptions) {
     const { data, error } = await admin
       .from("buyers")
       .select(
-        "id,user_id,puppy_id,full_name,name,email,phone,status,sale_price,deposit_amount,deposit_date,finance_enabled,finance_rate,finance_months,finance_monthly_amount,finance_next_due_date,delivery_option,delivery_date,delivery_location,notes"
+        "id,user_id,puppy_id,full_name,name,email,phone,status,sale_price,deposit_amount,deposit_date,deposit_payment_method,finance_enabled,finance_rate,finance_months,finance_monthly_amount,finance_next_due_date,delivery_option,delivery_date,delivery_location,notes"
       )
       .eq("id", options.buyerId)
       .maybeSingle<BuyerRow>();
@@ -772,7 +780,7 @@ async function resolveBuyer(admin: SupabaseClient, options: ResolveOptions) {
     const { data, error } = await admin
       .from("buyers")
       .select(
-        "id,user_id,puppy_id,full_name,name,email,phone,status,sale_price,deposit_amount,deposit_date,finance_enabled,finance_rate,finance_months,finance_monthly_amount,finance_next_due_date,delivery_option,delivery_date,delivery_location,notes"
+        "id,user_id,puppy_id,full_name,name,email,phone,status,sale_price,deposit_amount,deposit_date,deposit_payment_method,finance_enabled,finance_rate,finance_months,finance_monthly_amount,finance_next_due_date,delivery_option,delivery_date,delivery_location,notes"
       )
       .ilike("email", buyerEmail)
       .limit(1)
@@ -797,7 +805,7 @@ async function resolveBuyer(admin: SupabaseClient, options: ResolveOptions) {
   const { data, error } = await admin
     .from("buyers")
     .select(
-      "id,user_id,puppy_id,full_name,name,email,phone,status,sale_price,deposit_amount,deposit_date,finance_enabled,finance_rate,finance_months,finance_monthly_amount,finance_next_due_date,delivery_option,delivery_date,delivery_location,notes"
+      "id,user_id,puppy_id,full_name,name,email,phone,status,sale_price,deposit_amount,deposit_date,deposit_payment_method,finance_enabled,finance_rate,finance_months,finance_monthly_amount,finance_next_due_date,delivery_option,delivery_date,delivery_location,notes"
     )
     .order("created_at", { ascending: false })
     .limit(250);
@@ -864,7 +872,7 @@ async function loadPuppy(admin: SupabaseClient, buyer: BuyerRow | null, user: Us
     const { data, error } = await admin
       .from("puppies")
       .select(
-        "id,buyer_id,call_name,puppy_name,name,sex,color,coat_type,dob,price,list_price,deposit,status,registry,owner_email"
+        "id,buyer_id,call_name,puppy_name,registered_name,name,sex,color,coat_type,dob,price,list_price,deposit,status,registry,sire,dam,owner_email"
       )
       .eq("id", buyer.puppy_id)
       .maybeSingle<PuppyRow>();
@@ -875,7 +883,7 @@ async function loadPuppy(admin: SupabaseClient, buyer: BuyerRow | null, user: Us
     const { data, error } = await admin
       .from("puppies")
       .select(
-        "id,buyer_id,call_name,puppy_name,name,sex,color,coat_type,dob,price,list_price,deposit,status,registry,owner_email"
+        "id,buyer_id,call_name,puppy_name,registered_name,name,sex,color,coat_type,dob,price,list_price,deposit,status,registry,sire,dam,owner_email"
       )
       .eq("buyer_id", buyer.id)
       .order("created_at", { ascending: false })
@@ -890,7 +898,7 @@ async function loadPuppy(admin: SupabaseClient, buyer: BuyerRow | null, user: Us
   const { data, error } = await admin
     .from("puppies")
     .select(
-      "id,buyer_id,call_name,puppy_name,name,sex,color,coat_type,dob,price,list_price,deposit,status,registry,owner_email"
+      "id,buyer_id,call_name,puppy_name,registered_name,name,sex,color,coat_type,dob,price,list_price,deposit,status,registry,sire,dam,owner_email"
     )
     .ilike("owner_email", email)
     .order("created_at", { ascending: false })
@@ -1510,6 +1518,38 @@ async function fileSignedPackageDocument(
   };
 }
 
+function buildWriterMergeData(
+  context: PackageContext,
+  item: PreparedPackage,
+  submission: PackageFormSubmission | DocumentLikeFormSubmission | null
+) {
+  const profile = buildChiChiBuyerDealProfile({
+    buyer: context.buyer || undefined,
+    puppy: context.puppy || undefined,
+    pickupRequest: context.pickupRequest || undefined,
+    forms: context.forms,
+    packageId: item.packageId,
+    portalRecordId: submission?.id ?? null,
+    agreementDate: new Date().toISOString().slice(0, 10),
+    finance: {
+      apr: context.buyer?.finance_rate ?? null,
+      months: context.buyer?.finance_months ?? null,
+      monthlyPayment: context.buyer?.finance_monthly_amount ?? null,
+      firstPaymentDueDate: context.buyer?.finance_next_due_date ?? null,
+      downPayment: context.buyer?.deposit_amount ?? null,
+      totalSalePrice:
+        context.buyer?.sale_price ?? context.puppy?.price ?? context.puppy?.list_price ?? null,
+    },
+  });
+
+  const mergeData = buildChiChiDocumentMergeData(profile, item.definition.key);
+
+  return {
+    ...item.prefill,
+    ...mergeData,
+  };
+}
+
 async function launchPreparedPackage(
   admin: SupabaseClient,
   context: PackageContext,
@@ -1586,10 +1626,12 @@ async function launchPreparedPackage(
     }
 
     if (!workflow.zoho?.sign_request_id || force) {
+      const mergeData = buildWriterMergeData(context, item, submission);
+
       const zohoLaunch = await createZohoWriterSignRequest({
         packageKey: item.definition.key,
         filename: buildPackageFileName(item.definition, context),
-        mergeData: item.prefill,
+        mergeData,
         recipientEmail: buyerEmail,
         recipientName: buyerName,
         privateNotes: force
