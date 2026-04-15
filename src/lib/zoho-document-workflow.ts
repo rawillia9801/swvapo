@@ -38,9 +38,20 @@ export type ZohoSignRequestDetails = {
   raw: Record<string, unknown> | null;
 };
 
+export type ZohoWriterMergeData = Record<string, unknown>;
+
 type ZohoTokenCache = {
   accessToken: string;
   expiresAt: number;
+};
+
+type SellerProfile = {
+  businessName: string;
+  sellerName: string;
+  sellerAddress: string;
+  sellerPhone: string;
+  sellerEmail: string;
+  sellerWebsite: string;
 };
 
 let tokenCache: ZohoTokenCache | null = null;
@@ -88,6 +99,280 @@ function buildApiBaseUrl(base: string, suffix: string) {
   const trimmed = trimTrailingSlash(base);
   if (!trimmed) return "";
   return `${trimmed}${suffix.startsWith("/") ? suffix : `/${suffix}`}`;
+}
+
+function pickFirst(source: Record<string, unknown>, ...keys: string[]) {
+  for (const key of keys) {
+    const value = source[key];
+    if (normalizeString(value)) return value;
+  }
+  return "";
+}
+
+function pickNumber(source: Record<string, unknown>, ...keys: string[]) {
+  for (const key of keys) {
+    const raw = source[key];
+    if (raw === null || raw === undefined || raw === "") continue;
+    const numeric =
+      typeof raw === "number"
+        ? raw
+        : Number(String(raw).replace(/[^0-9.-]/g, ""));
+    if (Number.isFinite(numeric)) return numeric;
+  }
+  return null;
+}
+
+function roundMoney(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+function buildDateString(value: unknown, includeTime = false) {
+  const text = normalizeString(value);
+  if (!text) return "";
+
+  const date = value instanceof Date ? value : new Date(text);
+  if (Number.isNaN(date.getTime())) return text;
+
+  const months = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = months[date.getMonth()];
+  const year = String(date.getFullYear());
+
+  if (!includeTime) {
+    return `${day}-${month}-${year}`;
+  }
+
+  let hours = date.getHours();
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const meridiem = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+
+  return `${day}-${month}-${year} ${String(hours).padStart(2, "0")}:${minutes} ${meridiem}`;
+}
+
+function buildAddressLine(source: Record<string, unknown>) {
+  const direct = pickFirst(
+    source,
+    "buyer_address",
+    "applicant_address",
+    "address",
+    "street_address",
+    "address_1"
+  );
+  if (direct) return normalizeString(direct);
+
+  const street = pickFirst(source, "street_address", "address_1", "buyer_address_1");
+  const city = pickFirst(source, "city", "buyer_city");
+  const state = pickFirst(source, "state", "buyer_state");
+  const zip = pickFirst(source, "zip", "zip_code", "zipcode", "buyer_zip");
+
+  const cityStateZip = [city, state, zip].filter((part) => normalizeString(part)).join(", ");
+  return [street, cityStateZip].filter((part) => normalizeString(part)).join(", ");
+}
+
+function buildSellerProfile(source: Record<string, unknown>): SellerProfile {
+  return {
+    businessName:
+      normalizeString(
+        pickFirst(
+          source,
+          "seller_business_name",
+          "business_name"
+        )
+      ) ||
+      readOptionalEnv(
+        "CHICHI_SELLER_BUSINESS_NAME",
+        "SELLER_BUSINESS_NAME",
+        "NEXT_PUBLIC_BUSINESS_NAME"
+      ) ||
+      "Southwest Virginia Chihuahua",
+    sellerName:
+      normalizeString(pickFirst(source, "seller_name")) ||
+      readOptionalEnv("CHICHI_SELLER_NAME", "SELLER_NAME", "NEXT_PUBLIC_SELLER_NAME"),
+    sellerAddress:
+      normalizeString(pickFirst(source, "seller_address")) ||
+      readOptionalEnv("CHICHI_SELLER_ADDRESS", "SELLER_ADDRESS", "NEXT_PUBLIC_SELLER_ADDRESS"),
+    sellerPhone:
+      normalizeString(pickFirst(source, "seller_phone")) ||
+      readOptionalEnv("CHICHI_SELLER_PHONE", "SELLER_PHONE", "NEXT_PUBLIC_SELLER_PHONE"),
+    sellerEmail:
+      normalizeString(pickFirst(source, "seller_email")) ||
+      readOptionalEnv("CHICHI_SELLER_EMAIL", "SELLER_EMAIL", "NEXT_PUBLIC_SELLER_EMAIL"),
+    sellerWebsite:
+      normalizeString(pickFirst(source, "seller_website")) ||
+      readOptionalEnv("CHICHI_SELLER_WEBSITE", "SELLER_WEBSITE", "NEXT_PUBLIC_SITE_URL") ||
+      "https://swvachihuahua.com",
+  };
+}
+
+function buildDepositAgreementMergeData(source: Record<string, unknown>): ZohoWriterMergeData {
+  const seller = buildSellerProfile(source);
+
+  const agreementDate =
+    buildDateString(pickFirst(source, "agreement_date", "sale_date", "application_date", "created_at")) ||
+    buildDateString(new Date());
+
+  const packageId = normalizeString(
+    pickFirst(source, "package_id", "packageId", "workflow_package_id")
+  );
+
+  const portalRecordId = normalizeString(
+    pickFirst(source, "portal_record_id", "portalRecordId", "submission_id", "id")
+  );
+
+  const buyerFullName = normalizeString(
+    pickFirst(source, "buyer_full_name", "full_name", "buyer_name", "name", "applicant_full_name")
+  );
+
+  const buyerAddress = buildAddressLine(source);
+
+  const buyerPhone = normalizeString(
+    pickFirst(source, "buyer_phone", "phone", "applicant_phone")
+  );
+
+  const buyerEmail = normalizeString(
+    pickFirst(source, "buyer_email", "email", "user_email", "applicant_email")
+  );
+
+  const puppyCallName = normalizeString(
+    pickFirst(source, "puppy_call_name", "puppy_name", "call_name", "name")
+  );
+
+  const puppyRegisteredName = normalizeString(
+    pickFirst(source, "puppy_registered_name", "registered_name")
+  );
+
+  const puppyDob = buildDateString(pickFirst(source, "puppy_dob", "dob"));
+
+  const puppySex = normalizeString(
+    pickFirst(source, "puppy_sex", "sex")
+  );
+
+  const puppyColor = normalizeString(
+    pickFirst(source, "puppy_color", "color")
+  );
+
+  const puppyCoatType = normalizeString(
+    pickFirst(source, "puppy_coat_type", "coat_type")
+  );
+
+  const puppyRegistry = normalizeString(
+    pickFirst(source, "puppy_registry", "registry")
+  );
+
+  const depositAmount =
+    pickNumber(source, "deposit_amount", "deposit", "deposit_paid_amount") ?? 250;
+
+  const estimatedPurchasePrice =
+    pickNumber(source, "estimated_purchase_price", "purchase_price", "sale_price", "price", "list_price") ??
+    null;
+
+  const taxRate =
+    pickNumber(source, "sales_tax_rate", "tax_rate") ?? 0.053;
+
+  const estimatedTax =
+    pickNumber(source, "estimated_tax", "sales_tax", "tax_amount") ??
+    (estimatedPurchasePrice !== null ? roundMoney(estimatedPurchasePrice * taxRate) : null);
+
+  const estimatedDeliveryFee =
+    pickNumber(source, "estimated_delivery_fee", "delivery_fee", "transport_fee", "delivery_charge") ?? 0;
+
+  const estimatedBalanceDue =
+    pickNumber(source, "estimated_balance_due", "balance_due") ??
+    (estimatedPurchasePrice !== null
+      ? roundMoney(
+          estimatedPurchasePrice +
+            (estimatedTax ?? 0) +
+            estimatedDeliveryFee -
+            depositAmount
+        )
+      : null);
+
+  const reservationType =
+    normalizeString(pickFirst(source, "reservation_type")) ||
+    (puppyCallName ? "Specific puppy reservation" : "Future litter reservation");
+
+  const interestType =
+    normalizeString(pickFirst(source, "interest_type")) ||
+    (puppyCallName ? "Current Puppy" : "Future Puppy");
+
+  return {
+    ...source,
+    agreement_date: agreementDate,
+    package_id: packageId,
+    portal_record_id: portalRecordId,
+
+    seller_business_name: seller.businessName,
+    seller_name: seller.sellerName,
+    seller_address: seller.sellerAddress,
+    seller_phone: seller.sellerPhone,
+    seller_email: seller.sellerEmail,
+    seller_website: seller.sellerWebsite,
+
+    buyer_full_name: buyerFullName,
+    buyer_address: buyerAddress,
+    buyer_phone: buyerPhone,
+    buyer_email: buyerEmail,
+
+    puppy_call_name: puppyCallName,
+    puppy_registered_name: puppyRegisteredName,
+    puppy_dob: puppyDob,
+    puppy_sex: puppySex,
+    puppy_color: puppyColor,
+    puppy_coat_type: puppyCoatType,
+    puppy_registry: puppyRegistry,
+
+    reservation_type: reservationType,
+    interest_type: interestType,
+
+    deposit_amount: depositAmount,
+    deposit_paid_date: buildDateString(
+      pickFirst(source, "deposit_paid_date", "deposit_date", "submitted_at", "created_at")
+    ),
+    deposit_payment_method: normalizeString(
+      pickFirst(source, "deposit_payment_method", "payment_preference", "payment_method")
+    ),
+
+    estimated_purchase_price: estimatedPurchasePrice ?? "",
+    estimated_tax: estimatedTax ?? "",
+    estimated_delivery_fee: estimatedDeliveryFee ?? "",
+    estimated_balance_due: estimatedBalanceDue ?? "",
+
+    vet_exam_window:
+      normalizeString(pickFirst(source, "vet_exam_window")) || "10 days",
+
+    seller_signature: normalizeString(pickFirst(source, "seller_signature")),
+    seller_signed_at: buildDateString(pickFirst(source, "seller_signed_at"), true),
+    buyer_signature: normalizeString(pickFirst(source, "buyer_signature")),
+    buyer_signed_at: buildDateString(pickFirst(source, "buyer_signed_at"), true),
+  };
+}
+
+export function buildZohoWriterMergeData(
+  packageKey: string,
+  mergeData: Record<string, unknown>
+): ZohoWriterMergeData {
+  switch (String(packageKey || "").trim()) {
+    case "deposit-agreement":
+      return buildDepositAgreementMergeData(mergeData);
+    default:
+      return mergeData;
+  }
 }
 
 function getZohoDocumentConfig() {
@@ -353,12 +638,17 @@ export async function createZohoWriterSignRequest(params: {
     throw new Error("Zoho Writer/Sign is not configured for this document package.");
   }
 
+  const preparedMergeData = buildZohoWriterMergeData(
+    params.packageKey,
+    params.mergeData
+  );
+
   const config = getZohoDocumentConfig();
   const formData = new FormData();
 
   formData.set("service_name", "zohosign");
   formData.set("filename", params.filename);
-  formData.set("merge_data", JSON.stringify({ data: [params.mergeData] }));
+  formData.set("merge_data", JSON.stringify({ data: [preparedMergeData] }));
   formData.set(
     "signer_data",
     JSON.stringify([
