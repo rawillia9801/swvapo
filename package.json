@@ -19,11 +19,12 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "recharts": "^3.7.0",
-    "resend": "^6.10.0"
+    "resend": "^6.10.0",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^20.19.39",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
