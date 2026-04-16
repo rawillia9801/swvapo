@@ -531,6 +531,28 @@ function buildAccountInsight(
   };
 }
 
+function buildBuyerCardMeta(
+  summary: BalanceSummary | undefined,
+  insight: AccountInsight | undefined,
+  account: BuyerAccount
+) {
+  const parts = [
+    `${fmtMoney(summary?.balance || 0)} balance`,
+    insight?.nextDueLabel || "No due date saved",
+    `${Math.round(insight?.percentPaid || 0)}% paid`,
+  ];
+
+  if (summary?.financeEnabled) parts.push("Financing");
+  if (insight?.hasZoho) parts.push("Zoho");
+  if (account.adjustments.length) {
+    parts.push(
+      `${account.adjustments.length} adjustment${account.adjustments.length === 1 ? "" : "s"}`
+    );
+  }
+
+  return parts.join(" • ");
+}
+
 async function fetchPaymentAccounts(accessToken: string) {
   if (!accessToken) return [] as BuyerAccount[];
 
@@ -1259,62 +1281,57 @@ export default function AdminPortalPaymentsPage() {
                   const insight = ledger?.insight;
 
                   return (
-                    <AdminListCard
-                      key={account.key}
-                      selected={selectedKey === account.key}
-                      onClick={() => setSelectedKey(account.key)}
-                      title={buyerDisplayName(account)}
-                      subtitle={`${account.buyer.email || "No email"} • ${puppyName(account.puppy)}`}
-                      meta={
-                        <div className="space-y-2">
-                          <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-[var(--portal-text-soft)]">
-                            <span>{fmtMoney(summary?.balance || 0)} balance</span>
-                            <span>•</span>
-                            <span>{insight?.nextDueLabel || "No due date saved"}</span>
-                          </div>
+                    <div key={account.key} className="space-y-2">
+                      <AdminListCard
+                        selected={selectedKey === account.key}
+                        onClick={() => setSelectedKey(account.key)}
+                        title={buyerDisplayName(account)}
+                        subtitle={`${account.buyer.email || "No email"} • ${puppyName(account.puppy)}`}
+                        meta={buildBuyerCardMeta(summary, insight, account)}
+                        badge={
+                          <span
+                            className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(
+                              account.puppy?.status || account.buyer.status
+                            )}`}
+                          >
+                            {account.puppy?.status || account.buyer.status || "pending"}
+                          </span>
+                        }
+                      />
 
-                          <div className="h-2 overflow-hidden rounded-full bg-[#efe4d5]">
-                            <div
-                              className="h-full rounded-full bg-[linear-gradient(90deg,#d3a056_0%,#b5752f_100%)] transition-all"
-                              style={{ width: `${insight?.percentPaid || 0}%` }}
-                            />
-                          </div>
-
-                          <div className="flex flex-wrap gap-2">
-                            <span
-                              className={[
-                                "inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]",
-                                insight?.collectionTone ||
-                                  "border-[var(--portal-border)] bg-white text-[var(--portal-text-soft)]",
-                              ].join(" ")}
-                            >
-                              {insight?.statusLabel || "Stable"}
-                            </span>
-
-                            {summary?.financeEnabled ? (
-                              <span className="inline-flex rounded-full border border-[rgba(92,123,214,0.2)] bg-[rgba(243,246,255,0.95)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#5c7bd6]">
-                                Financing
-                              </span>
-                            ) : null}
-
-                            {insight?.hasZoho ? (
-                              <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
-                                Zoho
-                              </span>
-                            ) : null}
-                          </div>
+                      <div className="px-2">
+                        <div className="h-2 overflow-hidden rounded-full bg-[#efe4d5]">
+                          <div
+                            className="h-full rounded-full bg-[linear-gradient(90deg,#d3a056_0%,#b5752f_100%)] transition-all"
+                            style={{ width: `${insight?.percentPaid || 0}%` }}
+                          />
                         </div>
-                      }
-                      badge={
-                        <span
-                          className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(
-                            account.puppy?.status || account.buyer.status
-                          )}`}
-                        >
-                          {account.puppy?.status || account.buyer.status || "pending"}
-                        </span>
-                      }
-                    />
+
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <span
+                            className={[
+                              "inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]",
+                              insight?.collectionTone ||
+                                "border-[var(--portal-border)] bg-white text-[var(--portal-text-soft)]",
+                            ].join(" ")}
+                          >
+                            {insight?.statusLabel || "Stable"}
+                          </span>
+
+                          {summary?.financeEnabled ? (
+                            <span className="inline-flex rounded-full border border-[rgba(92,123,214,0.2)] bg-[rgba(243,246,255,0.95)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#5c7bd6]">
+                              Financing
+                            </span>
+                          ) : null}
+
+                          {insight?.hasZoho ? (
+                            <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                              Zoho
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
                   );
                 })
               ) : (
@@ -1333,10 +1350,7 @@ export default function AdminPortalPaymentsPage() {
                 subtitle="A clean read of the selected buyer's pricing, financing, payments, due-date pressure, and manual ledger adjustments."
               >
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-                  <AdminInfoTile
-                    label="Buyer"
-                    value={buyerDisplayName(selectedAccount)}
-                  />
+                  <AdminInfoTile label="Buyer" value={buyerDisplayName(selectedAccount)} />
                   <AdminInfoTile label="My Puppy" value={puppyName(selectedAccount.puppy)} />
                   <AdminInfoTile
                     label="Payments"
@@ -1378,7 +1392,8 @@ export default function AdminPortalPaymentsPage() {
                       Zoho Receipts
                     </div>
                     <div className="mt-2 text-lg font-semibold text-[#275f47]">
-                      {countZohoPayments(selectedAccount)} synced payment{countZohoPayments(selectedAccount) === 1 ? "" : "s"}
+                      {countZohoPayments(selectedAccount)} synced payment
+                      {countZohoPayments(selectedAccount) === 1 ? "" : "s"}
                     </div>
                     <div className="mt-2 text-sm leading-6 text-[#3f735a]">
                       Payments completed through Zoho and written back into this buyer ledger.
@@ -1426,6 +1441,34 @@ export default function AdminPortalPaymentsPage() {
                     />
                   </div>
                 </div>
+
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <div className="rounded-[20px] border border-[var(--portal-border)] bg-[#fffaf5] px-4 py-4">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                      Last Zoho Receipt
+                    </div>
+                    <div className="mt-2 text-lg font-semibold text-[var(--portal-text)]">
+                      {latestZohoPaymentDate(selectedAccount)
+                        ? fmtDate(latestZohoPaymentDate(selectedAccount) || "")
+                        : "No Zoho receipt yet"}
+                    </div>
+                    <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
+                      Helps verify the most recent synced payment for this buyer ledger.
+                    </div>
+                  </div>
+
+                  <div className="rounded-[20px] border border-[var(--portal-border)] bg-[#fffaf5] px-4 py-4">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                      Portal Link Status
+                    </div>
+                    <div className="mt-2 text-lg font-semibold text-[var(--portal-text)]">
+                      {accountInsight.hasPortalLinkedZoho ? "Portal-linked payments found" : "No portal-linked Zoho note found"}
+                    </div>
+                    <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
+                      This checks payment notes for the portal-linked Zoho payment marker.
+                    </div>
+                  </div>
+                </div>
               </AdminPanel>
 
               <section className="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,1.05fr)_420px]">
@@ -1465,12 +1508,16 @@ export default function AdminPortalPaymentsPage() {
                       <PaymentSelect
                         label="Financing Enabled"
                         value={form.finance_enabled}
-                        onChange={(value) => setForm((prev) => ({ ...prev, finance_enabled: value }))}
+                        onChange={(value) =>
+                          setForm((prev) => ({ ...prev, finance_enabled: value }))
+                        }
                       />
                       <PaymentSelect
                         label="Admin Fee"
                         value={form.finance_admin_fee}
-                        onChange={(value) => setForm((prev) => ({ ...prev, finance_admin_fee: value }))}
+                        onChange={(value) =>
+                          setForm((prev) => ({ ...prev, finance_admin_fee: value }))
+                        }
                       />
                       <PaymentField
                         label="APR / Rate"
@@ -1480,17 +1527,23 @@ export default function AdminPortalPaymentsPage() {
                       <PaymentField
                         label="Finance Months"
                         value={form.finance_months}
-                        onChange={(value) => setForm((prev) => ({ ...prev, finance_months: value }))}
+                        onChange={(value) =>
+                          setForm((prev) => ({ ...prev, finance_months: value }))
+                        }
                       />
                       <PaymentField
                         label="Monthly Amount"
                         value={form.finance_monthly_amount}
-                        onChange={(value) => setForm((prev) => ({ ...prev, finance_monthly_amount: value }))}
+                        onChange={(value) =>
+                          setForm((prev) => ({ ...prev, finance_monthly_amount: value }))
+                        }
                       />
                       <PaymentDateField
                         label="Next Due Date"
                         value={form.finance_next_due_date}
-                        onChange={(value) => setForm((prev) => ({ ...prev, finance_next_due_date: value }))}
+                        onChange={(value) =>
+                          setForm((prev) => ({ ...prev, finance_next_due_date: value }))
+                        }
                       />
                     </div>
 
@@ -1523,7 +1576,8 @@ export default function AdminPortalPaymentsPage() {
                                   {entry.title} • {fmtMoney(entry.amount)}
                                 </div>
                                 <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
-                                  {fmtDate(entry.date)} • {entry.kind === "payment" ? "payment entry" : "manual adjustment"}
+                                  {fmtDate(entry.date)} •{" "}
+                                  {entry.kind === "payment" ? "payment entry" : "manual adjustment"}
                                 </div>
                               </div>
                               <span
@@ -1582,7 +1636,7 @@ export default function AdminPortalPaymentsPage() {
                     <div className="grid gap-2 sm:grid-cols-2">
                       <EntryModeButton
                         active={entryMode === "payment"}
-                                                label="Add Payment"
+                        label="Add Payment"
                         onClick={() => setEntryModeAndReset("payment")}
                       />
                       <EntryModeButton
@@ -1807,7 +1861,7 @@ export default function AdminPortalPaymentsPage() {
                         detail="Manual fees and transportation charges recorded to the account."
                       />
                       <AdminInfoTile
-                        label="Manual Credits"
+                                                label="Manual Credits"
                         value={fmtMoney(balanceSummary.adjustmentCredits)}
                         detail="Credits or discounts recorded separately from payments."
                       />
@@ -1969,4 +2023,4 @@ function EntryModeButton({
       {label}
     </button>
   );
-} 
+}
