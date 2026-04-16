@@ -158,6 +158,38 @@ type IntegrationStatusGroup = {
   missing: string[];
 };
 
+type FilterMode =
+  | "all"
+  | "financing"
+  | "with-balance"
+  | "overdue"
+  | "due-soon"
+  | "zoho"
+  | "manual-only";
+
+type SortMode =
+  | "balance-desc"
+  | "balance-asc"
+  | "name-asc"
+  | "last-payment-desc"
+  | "next-due-asc";
+
+type AccountInsight = {
+  statusTone: "emerald" | "amber" | "rose" | "slate";
+  statusLabel: string;
+  collectionTone: string;
+  collectionLabel: string;
+  isOverdue: boolean;
+  isDueSoon: boolean;
+  daysPastDue: number | null;
+  daysUntilDue: number | null;
+  percentPaid: number;
+  hasZoho: boolean;
+  hasPortalLinkedZoho: boolean;
+  nextDueLabel: string;
+  accountHeadline: string;
+};
+
 function firstValue(...values: Array<string | null | undefined>) {
   for (const value of values) {
     const trimmed = String(value || "").trim();
@@ -183,6 +215,15 @@ function toYesNo(value: boolean | null | undefined) {
 
 function puppyName(puppy: PuppyRow | null) {
   return firstValue(puppy?.call_name, puppy?.puppy_name, puppy?.name, "Pending Match");
+}
+
+function buyerDisplayName(account: BuyerAccount) {
+  return firstValue(
+    account.buyer.full_name,
+    account.buyer.name,
+    account.buyer.email,
+    `Buyer #${account.buyer.id}`
+  );
 }
 
 function paymentCountsTowardBalance(status: string | null | undefined) {
@@ -248,19 +289,23 @@ function calculateBalanceSummary(account: BuyerAccount, form: EditForm): Balance
     toNumberOrNull(form.price) ?? account.puppy?.price ?? account.buyer.sale_price ?? 0;
   const deposit =
     toNumberOrNull(form.deposit) ?? account.puppy?.deposit ?? account.buyer.deposit_amount ?? 0;
+
   const paymentsApplied = account.payments
     .filter((payment) => paymentCountsTowardBalance(payment.status))
     .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+
   const principalAfterDeposit = Math.max(0, price - deposit);
   const financeEnabled = form.finance_enabled === "yes";
   const adminFeeEnabled = form.finance_admin_fee === "yes";
   const apr = toNumberOrNull(form.finance_rate);
   const monthlyAmount = toNumberOrNull(form.finance_monthly_amount);
   const financeMonths = toNumberOrNull(form.finance_months);
+
   const rawPlanTotal =
     financeEnabled && monthlyAmount !== null && financeMonths !== null
       ? monthlyAmount * financeMonths
       : null;
+
   const planTotal = rawPlanTotal !== null ? Math.max(principalAfterDeposit, rawPlanTotal) : null;
   const financeBaseTotal =
     planTotal !== null ? Math.max(principalAfterDeposit, planTotal) : principalAfterDeposit;
@@ -322,7 +367,9 @@ function adjustmentTitle(adjustment: BuyerAdjustment) {
 }
 
 function isZohoPayment(payment: BuyerPayment) {
-  const haystack = [payment.method, payment.note].map((value) => String(value || "").toLowerCase()).join(" ");
+  const haystack = [payment.method, payment.note]
+    .map((value) => String(value || "").toLowerCase())
+    .join(" ");
   return haystack.includes("zoho");
 }
 
@@ -387,6 +434,103 @@ function buildAccountActivity(account: BuyerAccount): AccountActivity[] {
   });
 }
 
+function dateDiffInDays(baseDate: string) {
+  const target = new Date(baseDate);
+  const now = new Date();
+  const utcTarget = Date.UTC(target.getFullYear(), target.getMonth(), target.getDate());
+  const utcNow = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.floor((utcTarget - utcNow) / (1000 * 60 * 60 * 24));
+}
+
+function clampPercent(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, value));
+}
+
+function buildAccountInsight(
+  account: BuyerAccount,
+  balanceSummary: BalanceSummary
+): AccountInsight {
+  const dueDate = balanceSummary.nextDueDate;
+  const daysUntilDue = dueDate ? dateDiffInDays(dueDate) : null;
+  const isOverdue = balanceSummary.balance > 0 && daysUntilDue !== null && daysUntilDue < 0;
+  const isDueSoon =
+    balanceSummary.balance > 0 && daysUntilDue !== null && daysUntilDue >= 0 && daysUntilDue <= 7;
+
+  const percentPaid =
+    balanceSummary.totalCharges > 0
+      ? clampPercent((balanceSummary.totalCredits / balanceSummary.totalCharges) * 100)
+      : 100;
+
+  const hasZoho = countZohoPayments(account) > 0;
+  const hasPortalLinkedZoho = account.payments.some((payment) => isPortalLinkedPayment(payment));
+
+  let statusTone: AccountInsight["statusTone"] = "slate";
+  let statusLabel = "Stable";
+  let collectionLabel = "Monitor";
+
+  if (balanceSummary.balance <= 0) {
+    statusTone = "emerald";
+    statusLabel = "Paid Off";
+    collectionLabel = "Closed";
+  } else if (isOverdue) {
+    statusTone = "rose";
+    statusLabel = "Overdue";
+    collectionLabel = "Collections Risk";
+  } else if (isDueSoon) {
+    statusTone = "amber";
+    statusLabel = "Due Soon";
+    collectionLabel = "Reminder Window";
+  } else if (balanceSummary.balance > 0 && balanceSummary.financeEnabled) {
+    statusTone = "amber";
+    statusLabel = "Active Plan";
+    collectionLabel = "Plan Monitoring";
+  }
+
+  const nextDueLabel =
+    dueDate && daysUntilDue !== null
+      ? isOverdue
+        ? `${Math.abs(daysUntilDue)} day${Math.abs(daysUntilDue) === 1 ? "" : "s"} past due`
+        : daysUntilDue === 0
+          ? "Due today"
+          : `${daysUntilDue} day${daysUntilDue === 1 ? "" : "s"} until due`
+      : "No due date saved";
+
+  let accountHeadline = "Ledger looks routine.";
+  if (balanceSummary.balance <= 0) {
+    accountHeadline = "Buyer account is fully satisfied.";
+  } else if (isOverdue) {
+    accountHeadline = "Action recommended: balance is overdue and should be reviewed for follow-up.";
+  } else if (isDueSoon) {
+    accountHeadline = "Payment window is approaching soon.";
+  } else if (balanceSummary.financeEnabled) {
+    accountHeadline = "Financing terms are active and should be monitored.";
+  }
+
+  return {
+    statusTone,
+    statusLabel,
+    collectionTone:
+      statusTone === "rose"
+        ? "border-rose-200 bg-rose-50 text-rose-700"
+        : statusTone === "amber"
+          ? "border-amber-200 bg-amber-50 text-amber-700"
+          : statusTone === "emerald"
+            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+            : "border-[var(--portal-border)] bg-white text-[var(--portal-text-soft)]",
+    collectionLabel,
+    isOverdue,
+    isDueSoon,
+    daysPastDue: isOverdue && daysUntilDue !== null ? Math.abs(daysUntilDue) : null,
+    daysUntilDue,
+    percentPaid,
+    hasZoho,
+    hasPortalLinkedZoho,
+    nextDueLabel,
+    accountHeadline,
+  };
+}
+
 async function fetchPaymentAccounts(accessToken: string) {
   if (!accessToken) return [] as BuyerAccount[];
 
@@ -438,6 +582,9 @@ export default function AdminPortalPaymentsPage() {
   const [handledQuerySelection, setHandledQuerySelection] = useState("");
   const [requestedBuyerId, setRequestedBuyerId] = useState("");
   const [entryMode, setEntryMode] = useState<EntryMode>("payment");
+  const [filterMode, setFilterMode] = useState<FilterMode>("all");
+  const [sortMode, setSortMode] = useState<SortMode>("balance-desc");
+  const [showOnlyOpenBalances, setShowOnlyOpenBalances] = useState(false);
   const [form, setForm] = useState<EditForm>({
     price: "",
     deposit: "",
@@ -507,7 +654,10 @@ export default function AdminPortalPaymentsPage() {
         setAccounts(nextAccounts);
         setIntegrationGroups(nextGroups);
         setSelectedKey(
-          (prev) => nextAccounts.find((account) => account.key === prev)?.key || nextAccounts[0]?.key || ""
+          (prev) =>
+            nextAccounts.find((account) => account.key === prev)?.key ||
+            nextAccounts[0]?.key ||
+            ""
         );
       } else {
         setAccounts([]);
@@ -524,28 +674,141 @@ export default function AdminPortalPaymentsPage() {
     };
   }, []);
 
+  const accountLedgerMap = useMemo(() => {
+    return new Map(
+      accounts.map((account) => {
+        const syntheticForm: EditForm = {
+          price:
+            account.puppy?.price !== null && account.puppy?.price !== undefined
+              ? String(account.puppy.price)
+              : account.buyer.sale_price !== null && account.buyer.sale_price !== undefined
+                ? String(account.buyer.sale_price)
+                : "",
+          deposit:
+            account.puppy?.deposit !== null && account.puppy?.deposit !== undefined
+              ? String(account.puppy.deposit)
+              : account.buyer.deposit_amount !== null && account.buyer.deposit_amount !== undefined
+                ? String(account.buyer.deposit_amount)
+                : "",
+          balance:
+            account.puppy?.balance !== null && account.puppy?.balance !== undefined
+              ? String(account.puppy.balance)
+              : "",
+          puppy_status: account.puppy?.status || "",
+          finance_enabled: toYesNo(account.buyer.finance_enabled),
+          finance_admin_fee: toYesNo(account.buyer.finance_admin_fee),
+          finance_rate:
+            account.buyer.finance_rate !== null && account.buyer.finance_rate !== undefined
+              ? String(account.buyer.finance_rate)
+              : "",
+          finance_months:
+            account.buyer.finance_months !== null && account.buyer.finance_months !== undefined
+              ? String(account.buyer.finance_months)
+              : "",
+          finance_monthly_amount:
+            account.buyer.finance_monthly_amount !== null &&
+            account.buyer.finance_monthly_amount !== undefined
+              ? String(account.buyer.finance_monthly_amount)
+              : "",
+          finance_next_due_date: account.buyer.finance_next_due_date || "",
+        };
+
+        const balanceSummary = calculateBalanceSummary(account, syntheticForm);
+        const insight = buildAccountInsight(account, balanceSummary);
+        return [account.key, { balanceSummary, insight }] as const;
+      })
+    );
+  }, [accounts]);
+
   const filteredAccounts = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return accounts;
 
-    return accounts.filter((account) =>
-      [
+    let next = accounts.filter((account) => {
+      const haystack = [
         account.buyer.full_name,
         account.buyer.name,
         account.buyer.email,
+        account.buyer.phone,
         account.buyer.status,
         puppyName(account.puppy),
       ]
         .map((value) => String(value || "").toLowerCase())
-        .join(" ")
-        .includes(q)
-    );
-  }, [accounts, search]);
+        .join(" ");
+
+      if (q && !haystack.includes(q)) return false;
+
+      const ledger = accountLedgerMap.get(account.key);
+      const summary = ledger?.balanceSummary;
+      const insight = ledger?.insight;
+
+      if (!summary || !insight) return true;
+
+      if (showOnlyOpenBalances && summary.balance <= 0) return false;
+
+      switch (filterMode) {
+        case "financing":
+          return summary.financeEnabled;
+        case "with-balance":
+          return summary.balance > 0;
+        case "overdue":
+          return insight.isOverdue;
+        case "due-soon":
+          return insight.isDueSoon;
+        case "zoho":
+          return insight.hasZoho;
+        case "manual-only":
+          return !insight.hasZoho;
+        case "all":
+        default:
+          return true;
+      }
+    });
+
+    next = [...next].sort((left, right) => {
+      const leftLedger = accountLedgerMap.get(left.key);
+      const rightLedger = accountLedgerMap.get(right.key);
+
+      const leftSummary = leftLedger?.balanceSummary;
+      const rightSummary = rightLedger?.balanceSummary;
+      const leftInsight = leftLedger?.insight;
+      const rightInsight = rightLedger?.insight;
+
+      switch (sortMode) {
+        case "balance-asc":
+          return (leftSummary?.balance || 0) - (rightSummary?.balance || 0);
+        case "balance-desc":
+          return (rightSummary?.balance || 0) - (leftSummary?.balance || 0);
+        case "name-asc":
+          return buyerDisplayName(left).localeCompare(buyerDisplayName(right));
+        case "last-payment-desc": {
+          const leftTime = new Date(left.lastPaymentAt || 0).getTime();
+          const rightTime = new Date(right.lastPaymentAt || 0).getTime();
+          return rightTime - leftTime;
+        }
+        case "next-due-asc": {
+          const leftDue =
+            leftInsight?.daysUntilDue !== null && leftInsight?.daysUntilDue !== undefined
+              ? leftInsight.daysUntilDue
+              : Number.POSITIVE_INFINITY;
+          const rightDue =
+            rightInsight?.daysUntilDue !== null && rightInsight?.daysUntilDue !== undefined
+              ? rightInsight.daysUntilDue
+              : Number.POSITIVE_INFINITY;
+          return leftDue - rightDue;
+        }
+        default:
+          return 0;
+      }
+    });
+
+    return next;
+  }, [accountLedgerMap, accounts, filterMode, search, showOnlyOpenBalances, sortMode]);
 
   const selectedAccount =
     filteredAccounts.find((account) => account.key === selectedKey) ||
     accounts.find((account) => account.key === selectedKey) ||
     null;
+
   const requestedAccountKey = useMemo(() => {
     if (!requestedBuyerId) return "";
     return accounts.find((account) => String(account.buyer.id) === requestedBuyerId)?.key || "";
@@ -612,16 +875,43 @@ export default function AdminPortalPaymentsPage() {
     [form, selectedAccount]
   );
 
+  const accountInsight = useMemo(() => {
+    if (!selectedAccount || !balanceSummary) return null;
+    return buildAccountInsight(selectedAccount, balanceSummary);
+  }, [balanceSummary, selectedAccount]);
+
   const accountActivity = useMemo(
     () => (selectedAccount ? buildAccountActivity(selectedAccount) : []),
     [selectedAccount]
   );
 
+  const collectionStats = useMemo(() => {
+    let overdue = 0;
+    let dueSoon = 0;
+    let outstanding = 0;
+    let paidOff = 0;
+
+    for (const account of accounts) {
+      const ledger = accountLedgerMap.get(account.key);
+      if (!ledger) continue;
+
+      if (ledger.balanceSummary.balance > 0) outstanding += 1;
+      if (ledger.balanceSummary.balance <= 0) paidOff += 1;
+      if (ledger.insight.isOverdue) overdue += 1;
+      if (ledger.insight.isDueSoon) dueSoon += 1;
+    }
+
+    return { overdue, dueSoon, outstanding, paidOff };
+  }, [accountLedgerMap, accounts]);
+
   async function refreshAccounts(nextSelectedKey?: string) {
     const nextAccounts = await fetchPaymentAccounts(accessToken);
     setAccounts(nextAccounts);
     setSelectedKey(
-      nextSelectedKey || nextAccounts.find((account) => account.key === selectedKey)?.key || nextAccounts[0]?.key || ""
+      nextSelectedKey ||
+        nextAccounts.find((account) => account.key === selectedKey)?.key ||
+        nextAccounts[0]?.key ||
+        ""
     );
   }
 
@@ -783,8 +1073,8 @@ export default function AdminPortalPaymentsPage() {
       <div className="space-y-6 pb-12">
         <AdminPageHero
           eyebrow="Payments"
-          title="Every buyer payment, fee, credit, and transportation charge stays in one account workspace."
-          description="Review balances, edit financing, log manual payments, add fees or credits, and keep the buyer-facing ledger clear and consistent."
+          title="Financial control center for buyer balances, financing, collections, and ledger activity."
+          description="Review account health, surface overdue families, adjust terms, record payments, and keep the buyer-facing ledger accurate and court-ready."
           actions={
             <>
               <AdminHeroPrimaryAction href="/admin/portal/buyers">Open Buyers</AdminHeroPrimaryAction>
@@ -799,13 +1089,41 @@ export default function AdminPortalPaymentsPage() {
                 detail="All buyer accounts available for financial review."
               />
               <AdminInfoTile
-                label="Payment Plans"
-                value={String(accounts.filter((account) => account.buyer.finance_enabled).length)}
-                detail="Buyer accounts currently using a financing plan."
+                label="Outstanding"
+                value={String(collectionStats.outstanding)}
+                detail="Accounts with an open balance still remaining."
               />
             </div>
           }
         />
+
+        <AdminPanel
+          title="Collections Overview"
+          subtitle="This turns the payments page into a real operating surface by showing which accounts need attention first."
+        >
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <AdminInfoTile
+              label="Overdue"
+              value={String(collectionStats.overdue)}
+              detail="Accounts whose next due date has already passed and still carry an open balance."
+            />
+            <AdminInfoTile
+              label="Due Soon"
+              value={String(collectionStats.dueSoon)}
+              detail="Accounts due within the next 7 days."
+            />
+            <AdminInfoTile
+              label="Outstanding"
+              value={String(collectionStats.outstanding)}
+              detail="Total buyer ledgers with money still owed."
+            />
+            <AdminInfoTile
+              label="Paid Off"
+              value={String(collectionStats.paidOff)}
+              detail="Accounts whose ledger currently shows no remaining balance."
+            />
+          </div>
+        </AdminPanel>
 
         <AdminPanel
           title="Integration Status"
@@ -854,7 +1172,7 @@ export default function AdminPortalPaymentsPage() {
 
         <AdminPanel
           title="Finance Bench"
-          subtitle="The buyer ledger should surface collection workload, plan management, and manual entry volume at a glance."
+          subtitle="The buyer ledger should surface collection workload, plan management, risk visibility, and manual entry volume at a glance."
         >
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <AdminInfoTile
@@ -880,72 +1198,144 @@ export default function AdminPortalPaymentsPage() {
           </div>
         </AdminPanel>
 
-        <section className="grid grid-cols-1 gap-6 xl:grid-cols-[400px_minmax(0,1fr)]">
+        <section className="grid grid-cols-1 gap-6 xl:grid-cols-[430px_minmax(0,1fr)]">
           <AdminPanel
             title="Buyer Payment Cards"
-            subtitle="Search by buyer or puppy name. Each card keeps one buyer account together."
+            subtitle="Search, filter, and sort by balance risk, due dates, financing, Zoho usage, and collection urgency."
           >
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search buyers or puppies..."
-              className="w-full rounded-[20px] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3 text-sm text-[var(--portal-text)] outline-none focus:border-[#c8a884]"
-            />
+            <div className="space-y-3">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search buyers, email, phone, or puppy..."
+                className="w-full rounded-[20px] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3 text-sm text-[var(--portal-text)] outline-none focus:border-[#c8a884]"
+              />
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <PaymentSelect
+                  label="Filter"
+                  value={filterMode}
+                  onChange={(value) => setFilterMode(value as FilterMode)}
+                  options={[
+                    { value: "all", label: "All Accounts" },
+                    { value: "financing", label: "Financing" },
+                    { value: "with-balance", label: "With Balance" },
+                    { value: "overdue", label: "Overdue" },
+                    { value: "due-soon", label: "Due Soon" },
+                    { value: "zoho", label: "Zoho Payments" },
+                    { value: "manual-only", label: "Manual Only" },
+                  ]}
+                />
+                <PaymentSelect
+                  label="Sort"
+                  value={sortMode}
+                  onChange={(value) => setSortMode(value as SortMode)}
+                  options={[
+                    { value: "balance-desc", label: "Balance High to Low" },
+                    { value: "balance-asc", label: "Balance Low to High" },
+                    { value: "name-asc", label: "Buyer Name" },
+                    { value: "last-payment-desc", label: "Latest Payment" },
+                    { value: "next-due-asc", label: "Next Due Date" },
+                  ]}
+                />
+              </div>
+
+              <label className="flex items-center gap-3 rounded-[18px] border border-[var(--portal-border)] bg-[#fffaf5] px-4 py-3 text-sm font-medium text-[var(--portal-text)]">
+                <input
+                  type="checkbox"
+                  checked={showOnlyOpenBalances}
+                  onChange={(e) => setShowOnlyOpenBalances(e.target.checked)}
+                  className="h-4 w-4 rounded border-[var(--portal-border)] text-[#b5752f] focus:ring-[#d3a056]"
+                />
+                Show only accounts with an open balance
+              </label>
+            </div>
 
             <div className="mt-4 space-y-3">
               {filteredAccounts.length ? (
-                filteredAccounts.map((account) => (
-                  <AdminListCard
-                    key={account.key}
-                    selected={selectedKey === account.key}
-                    onClick={() => setSelectedKey(account.key)}
-                    title={firstValue(
-                      account.buyer.full_name,
-                      account.buyer.name,
-                      account.buyer.email,
-                      `Buyer #${account.buyer.id}`
-                    )}
-                    subtitle={`${account.buyer.email || "No email"} - ${puppyName(account.puppy)}`}
-                    meta={`${fmtMoney(account.totalPaid)} paid - ${account.adjustments.length} fee/credit entr${account.adjustments.length === 1 ? "y" : "ies"}${
-                      countZohoPayments(account)
-                        ? ` - ${countZohoPayments(account)} Zoho receipt${countZohoPayments(account) === 1 ? "" : "s"}`
-                        : ""
-                    }`}
-                    badge={
-                      <span
-                        className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(
-                          account.puppy?.status || account.buyer.status
-                        )}`}
-                      >
-                        {account.puppy?.status || account.buyer.status || "pending"}
-                      </span>
-                    }
-                  />
-                ))
+                filteredAccounts.map((account) => {
+                  const ledger = accountLedgerMap.get(account.key);
+                  const summary = ledger?.balanceSummary;
+                  const insight = ledger?.insight;
+
+                  return (
+                    <AdminListCard
+                      key={account.key}
+                      selected={selectedKey === account.key}
+                      onClick={() => setSelectedKey(account.key)}
+                      title={buyerDisplayName(account)}
+                      subtitle={`${account.buyer.email || "No email"} • ${puppyName(account.puppy)}`}
+                      meta={
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-[var(--portal-text-soft)]">
+                            <span>{fmtMoney(summary?.balance || 0)} balance</span>
+                            <span>•</span>
+                            <span>{insight?.nextDueLabel || "No due date saved"}</span>
+                          </div>
+
+                          <div className="h-2 overflow-hidden rounded-full bg-[#efe4d5]">
+                            <div
+                              className="h-full rounded-full bg-[linear-gradient(90deg,#d3a056_0%,#b5752f_100%)] transition-all"
+                              style={{ width: `${insight?.percentPaid || 0}%` }}
+                            />
+                          </div>
+
+                          <div className="flex flex-wrap gap-2">
+                            <span
+                              className={[
+                                "inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]",
+                                insight?.collectionTone ||
+                                  "border-[var(--portal-border)] bg-white text-[var(--portal-text-soft)]",
+                              ].join(" ")}
+                            >
+                              {insight?.statusLabel || "Stable"}
+                            </span>
+
+                            {summary?.financeEnabled ? (
+                              <span className="inline-flex rounded-full border border-[rgba(92,123,214,0.2)] bg-[rgba(243,246,255,0.95)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#5c7bd6]">
+                                Financing
+                              </span>
+                            ) : null}
+
+                            {insight?.hasZoho ? (
+                              <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                                Zoho
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                      }
+                      badge={
+                        <span
+                          className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(
+                            account.puppy?.status || account.buyer.status
+                          )}`}
+                        >
+                          {account.puppy?.status || account.buyer.status || "pending"}
+                        </span>
+                      }
+                    />
+                  );
+                })
               ) : (
                 <AdminEmptyState
-                  title="No buyer payment records matched your search"
-                  description="Try a different buyer name, email, or puppy name."
+                  title="No buyer payment records matched your filters"
+                  description="Try another buyer name, puppy name, email, filter, or sort combination."
                 />
               )}
             </div>
           </AdminPanel>
 
-          {selectedAccount && balanceSummary ? (
+          {selectedAccount && balanceSummary && accountInsight ? (
             <div className="space-y-6">
               <AdminPanel
                 title="Financial Snapshot"
-                subtitle="A clean read of the selected buyer's pricing, financing, payments, and manual account adjustments."
+                subtitle="A clean read of the selected buyer's pricing, financing, payments, due-date pressure, and manual ledger adjustments."
               >
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
                   <AdminInfoTile
                     label="Buyer"
-                    value={firstValue(
-                      selectedAccount.buyer.full_name,
-                      selectedAccount.buyer.name,
-                      selectedAccount.buyer.email,
-                      "Buyer"
-                    )}
+                    value={buyerDisplayName(selectedAccount)}
                   />
                   <AdminInfoTile label="My Puppy" value={puppyName(selectedAccount.puppy)} />
                   <AdminInfoTile
@@ -970,7 +1360,19 @@ export default function AdminPortalPaymentsPage() {
                   />
                 </div>
 
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <div className="mt-4 grid gap-4 lg:grid-cols-3">
+                  <div className="rounded-[20px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,#fffdfb_0%,#f8efe4_100%)] px-4 py-4">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                      Account Health
+                    </div>
+                    <div className="mt-2 text-lg font-semibold text-[var(--portal-text)]">
+                      {accountInsight.statusLabel}
+                    </div>
+                    <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
+                      {accountInsight.accountHeadline}
+                    </div>
+                  </div>
+
                   <div className="rounded-[20px] border border-[rgba(47,143,103,0.18)] bg-[linear-gradient(180deg,rgba(246,253,249,0.98)_0%,rgba(240,249,245,0.94)_100%)] px-4 py-4">
                     <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#4d8a6d]">
                       Zoho Receipts
@@ -985,16 +1387,43 @@ export default function AdminPortalPaymentsPage() {
 
                   <div className="rounded-[20px] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4">
                     <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
-                      Last Zoho Receipt
+                      Next Due
                     </div>
                     <div className="mt-2 text-lg font-semibold text-[var(--portal-text)]">
-                      {latestZohoPaymentDate(selectedAccount)
-                        ? fmtDate(latestZohoPaymentDate(selectedAccount) || "")
-                        : "No Zoho receipt yet"}
+                      {accountInsight.nextDueLabel}
                     </div>
                     <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
-                      This helps confirm the most recent portal-synced customer payment for this account.
+                      {balanceSummary.nextDueDate
+                        ? `Saved next due date: ${fmtDate(balanceSummary.nextDueDate)}`
+                        : "No due date is currently saved for this account."}
                     </div>
+                  </div>
+                </div>
+
+                <div className="mt-5 rounded-[22px] border border-[var(--portal-border)] bg-white px-4 py-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                        Payment Progress
+                      </div>
+                      <div className="mt-1 text-sm font-semibold text-[var(--portal-text)]">
+                        {accountInsight.percentPaid.toFixed(0)}% satisfied
+                      </div>
+                    </div>
+                    <div
+                      className={[
+                        "inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]",
+                        accountInsight.collectionTone,
+                      ].join(" ")}
+                    >
+                      {accountInsight.collectionLabel}
+                    </div>
+                  </div>
+                  <div className="mt-4 h-3 overflow-hidden rounded-full bg-[#efe4d5]">
+                    <div
+                      className="h-full rounded-full bg-[linear-gradient(90deg,#d3a056_0%,#b5752f_100%)] transition-all"
+                      style={{ width: `${accountInsight.percentPaid}%` }}
+                    />
                   </div>
                 </div>
               </AdminPanel>
@@ -1079,7 +1508,7 @@ export default function AdminPortalPaymentsPage() {
 
                   <AdminPanel
                     title="Itemized Account Activity"
-                    subtitle="Payments, fees, credits, and transportation charges stay together in one chronological record."
+                    subtitle="Payments, fees, credits, and transportation charges stay together in one chronological record with source visibility."
                   >
                     <div className="space-y-3">
                       {accountActivity.length ? (
@@ -1091,10 +1520,10 @@ export default function AdminPortalPaymentsPage() {
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <div>
                                 <div className="text-sm font-semibold text-[var(--portal-text)]">
-                                  {entry.title} - {fmtMoney(entry.amount)}
+                                  {entry.title} • {fmtMoney(entry.amount)}
                                 </div>
                                 <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
-                                  {fmtDate(entry.date)} - {entry.kind === "payment" ? "payment entry" : "manual adjustment"}
+                                  {fmtDate(entry.date)} • {entry.kind === "payment" ? "payment entry" : "manual adjustment"}
                                 </div>
                               </div>
                               <span
@@ -1105,6 +1534,7 @@ export default function AdminPortalPaymentsPage() {
                                 {entry.status}
                               </span>
                             </div>
+
                             <div className="mt-3 flex flex-wrap gap-2">
                               <span className="inline-flex rounded-full border border-[var(--portal-border)] bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
                                 {entry.sourceLabel}
@@ -1120,13 +1550,17 @@ export default function AdminPortalPaymentsPage() {
                                 </span>
                               ) : null}
                             </div>
+
                             {entry.referenceNumber ? (
                               <div className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
                                 Ref: {entry.referenceNumber}
                               </div>
                             ) : null}
+
                             {entry.detail ? (
-                              <div className="mt-3 text-sm leading-6 text-[var(--portal-text-soft)]">{entry.detail}</div>
+                              <div className="mt-3 text-sm leading-6 text-[var(--portal-text-soft)]">
+                                {entry.detail}
+                              </div>
                             ) : null}
                           </div>
                         ))
@@ -1148,7 +1582,7 @@ export default function AdminPortalPaymentsPage() {
                     <div className="grid gap-2 sm:grid-cols-2">
                       <EntryModeButton
                         active={entryMode === "payment"}
-                        label="Add Payment"
+                                                label="Add Payment"
                         onClick={() => setEntryModeAndReset("payment")}
                       />
                       <EntryModeButton
@@ -1178,12 +1612,16 @@ export default function AdminPortalPaymentsPage() {
                       <PaymentDateField
                         label={entryMode === "payment" ? "Payment Date" : "Entry Date"}
                         value={entryForm.entry_date}
-                        onChange={(value) => setEntryForm((prev) => ({ ...prev, entry_date: value }))}
+                        onChange={(value) =>
+                          setEntryForm((prev) => ({ ...prev, entry_date: value }))
+                        }
                       />
                       <PaymentField
                         label="Amount"
                         value={entryForm.amount}
-                        onChange={(value) => setEntryForm((prev) => ({ ...prev, amount: value }))}
+                        onChange={(value) =>
+                          setEntryForm((prev) => ({ ...prev, amount: value }))
+                        }
                       />
 
                       {entryMode === "payment" ? (
@@ -1191,12 +1629,16 @@ export default function AdminPortalPaymentsPage() {
                           <PaymentField
                             label="Payment Type"
                             value={entryForm.payment_type}
-                            onChange={(value) => setEntryForm((prev) => ({ ...prev, payment_type: value }))}
+                            onChange={(value) =>
+                              setEntryForm((prev) => ({ ...prev, payment_type: value }))
+                            }
                           />
                           <PaymentField
                             label="Method"
                             value={entryForm.method}
-                            onChange={(value) => setEntryForm((prev) => ({ ...prev, method: value }))}
+                            onChange={(value) =>
+                              setEntryForm((prev) => ({ ...prev, method: value }))
+                            }
                           />
                         </>
                       ) : (
@@ -1225,7 +1667,9 @@ export default function AdminPortalPaymentsPage() {
                           <PaymentField
                             label="Label"
                             value={entryForm.label}
-                            onChange={(value) => setEntryForm((prev) => ({ ...prev, label: value }))}
+                            onChange={(value) =>
+                              setEntryForm((prev) => ({ ...prev, label: value }))
+                            }
                           />
                         </>
                       )}
@@ -1233,7 +1677,9 @@ export default function AdminPortalPaymentsPage() {
                       <PaymentField
                         label="Status"
                         value={entryForm.status}
-                        onChange={(value) => setEntryForm((prev) => ({ ...prev, status: value }))}
+                        onChange={(value) =>
+                          setEntryForm((prev) => ({ ...prev, status: value }))
+                        }
                       />
                       <PaymentField
                         label="Reference Number"
@@ -1242,6 +1688,7 @@ export default function AdminPortalPaymentsPage() {
                           setEntryForm((prev) => ({ ...prev, reference_number: value }))
                         }
                       />
+
                       <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
                         {entryMode === "payment" ? "Note" : "Description"}
                         <textarea
@@ -1290,7 +1737,7 @@ export default function AdminPortalPaymentsPage() {
 
                   <AdminPanel
                     title="Financing Breakdown"
-                    subtitle="This card shows exactly how the buyer balance is being calculated."
+                    subtitle="This shows exactly how the selected buyer balance is being calculated, including plan totals, fees, credits, and payment progress."
                   >
                     <div className="grid gap-4">
                       <AdminInfoTile
@@ -1301,19 +1748,19 @@ export default function AdminPortalPaymentsPage() {
                       <AdminInfoTile
                         label="Deposit"
                         value={fmtMoney(balanceSummary.deposit)}
-                        detail="Deposit already applied before plan terms and payments."
+                        detail="Deposit already applied before financing and later payments."
                       />
                       <AdminInfoTile
                         label="Principal After Deposit"
                         value={fmtMoney(balanceSummary.principalAfterDeposit)}
-                        detail="Base principal after subtracting the deposit."
+                        detail="Base principal remaining after subtracting the deposit."
                       />
                       <AdminInfoTile
                         label="Plan Base Total"
                         value={fmtMoney(balanceSummary.financeBaseTotal)}
                         detail={
                           balanceSummary.financeEnabled
-                            ? "Financing-adjusted total before fees, transportation, and credits."
+                            ? "Financing-adjusted total before manual fees, transportation, and credits."
                             : "Base total before manual fees, transportation, and credits."
                         }
                       />
@@ -1326,8 +1773,10 @@ export default function AdminPortalPaymentsPage() {
                         }
                         detail={
                           balanceSummary.financeEnabled
-                            ? `${balanceSummary.apr !== null ? `${balanceSummary.apr}% APR` : "APR not listed"}${balanceSummary.adminFeeEnabled ? " - admin fee marked on." : "."}`
-                            : "No financing uplift is being added."
+                            ? `${balanceSummary.apr !== null ? `${balanceSummary.apr}% APR` : "APR not listed"}${
+                                balanceSummary.adminFeeEnabled ? " • admin fee enabled." : "."
+                              }`
+                            : "No financing uplift is currently being added."
                         }
                       />
                       <AdminInfoTile
@@ -1342,6 +1791,15 @@ export default function AdminPortalPaymentsPage() {
                             ? `${balanceSummary.financeMonths} month plan`
                             : "Plan length not listed"
                         }
+                      />
+                      <AdminInfoTile
+                        label="Plan Total"
+                        value={
+                          balanceSummary.planTotal !== null
+                            ? fmtMoney(balanceSummary.planTotal)
+                            : "Not calculated"
+                        }
+                        detail="The total plan amount based on the financing terms saved on this account."
                       />
                       <AdminInfoTile
                         label="Manual Fees & Transportation"
@@ -1367,6 +1825,15 @@ export default function AdminPortalPaymentsPage() {
                             : "No next due date saved"
                         }
                       />
+                      <AdminInfoTile
+                        label="Last Payment"
+                        value={
+                          selectedAccount.lastPaymentAt
+                            ? fmtDate(selectedAccount.lastPaymentAt)
+                            : "No payment recorded"
+                        }
+                        detail="Most recent payment date found on this buyer account."
+                      />
                     </div>
                   </AdminPanel>
                 </div>
@@ -1376,7 +1843,7 @@ export default function AdminPortalPaymentsPage() {
             <AdminPanel title="Financial Snapshot" subtitle="Choose a buyer card to begin.">
               <AdminEmptyState
                 title="No buyer selected"
-                description="Choose a buyer card from the left to review payment settings, account entries, and balance details."
+                description="Choose a buyer card from the left to review payment settings, collection status, account entries, and financing details."
               />
             </AdminPanel>
           )}
@@ -1502,5 +1969,4 @@ function EntryModeButton({
       {label}
     </button>
   );
-}
-
+} 
