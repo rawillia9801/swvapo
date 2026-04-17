@@ -76,7 +76,7 @@ const ADMIN_NAV: AdminNavSection[] = [
       {
         href: "/admin/portal/messages",
         label: "Messages",
-        helper: "Inbox, replies, follow-up",
+        helper: "Inbox, Resend templates, follow-up",
         icon: <MessageSquareText className="h-4 w-4" />,
       },
       {

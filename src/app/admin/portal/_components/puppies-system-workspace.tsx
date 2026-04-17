@@ -27,17 +27,17 @@ import {
 } from "@/components/admin/luxury-admin-shell";
 import {
   PUPPIES_SYSTEM_TABS,
+  type PuppiesSystemSnapshot,
   isCurrentPuppyStatus,
   isPastPuppyStatus,
   type BuyerWorkspaceRecord,
   type ChecklistTemplateRecord,
   type MessageTemplateRecord,
-  type PuppiesSystemResponse,
-  type PuppiesSystemSnapshot,
   type PuppiesSystemTab,
   type PuppyWorkspaceRecord,
   type WorkflowSettingRecord,
 } from "@/lib/admin-puppies-system";
+import { fetchAdminPuppiesSnapshot } from "@/lib/admin-puppies-client";
 import { usePortalAdminSession } from "@/lib/use-portal-admin-session";
 import { buildPuppyPhotoUrl, fmtDate } from "@/lib/utils";
 
@@ -243,7 +243,9 @@ export function PuppiesSystemWorkspace({
   const [activeTab, setActiveTab] = useState<PuppiesSystemTab>(defaultTab);
   const [search, setSearch] = useState("");
   const [loadingSnapshot, setLoadingSnapshot] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [errorText, setErrorText] = useState("");
+  const [warningText, setWarningText] = useState("");
   const [feedback, setFeedback] = useState("");
   const [selectedTemplateKey, setSelectedTemplateKey] = useState("");
   const [selectedWorkflowKey, setSelectedWorkflowKey] = useState("");
@@ -257,25 +259,34 @@ export function PuppiesSystemWorkspace({
   const [isPending, startTransition] = useTransition();
   const deferredSearch = useDeferredValue(search);
 
-  const loadSnapshot = useEffectEvent(async () => {
+  const loadSnapshot = useEffectEvent(async (background = false) => {
     if (!accessToken) return;
-    setLoadingSnapshot(true);
-    setErrorText("");
+    if (background && snapshot) setRefreshing(true);
+    else setLoadingSnapshot(true);
+    if (!background) {
+      setErrorText("");
+      setWarningText("");
+    }
     try {
-      const response = await fetch("/api/admin/portal/puppies-system", {
-        headers: { Authorization: `Bearer ${accessToken}` },
-        cache: "no-store",
-      });
-      const payload = (await response.json()) as PuppiesSystemResponse;
-      if (!response.ok || !payload.snapshot) throw new Error(payload.error || "Could not load the Puppies system.");
+      const payload = await fetchAdminPuppiesSnapshot(accessToken);
+      if (!payload.snapshot) {
+        const message = payload.error || "Could not load the Puppies system.";
+        if (snapshot) setWarningText(message);
+        else setErrorText(message);
+        return;
+      }
       setSnapshot(payload.snapshot);
+      setWarningText(payload.error || "");
       if (!selectedTemplateKey && payload.snapshot.messageTemplates[0]) setSelectedTemplateKey(payload.snapshot.messageTemplates[0].templateKey);
       if (!selectedWorkflowKey && payload.snapshot.workflowSettings[0]) setSelectedWorkflowKey(payload.snapshot.workflowSettings[0].workflowKey);
       if (!selectedChecklistKey && payload.snapshot.checklistTemplates[0]) setSelectedChecklistKey(payload.snapshot.checklistTemplates[0].key);
     } catch (error) {
-      setErrorText(error instanceof Error ? error.message : "Could not load the Puppies system.");
+      const message = error instanceof Error ? error.message : "Could not load the Puppies system.";
+      if (snapshot) setWarningText(message);
+      else setErrorText(message);
     } finally {
       setLoadingSnapshot(false);
+      setRefreshing(false);
     }
   });
 
@@ -291,9 +302,9 @@ export function PuppiesSystemWorkspace({
   }
 
   useEffect(() => {
-    if (!loading && accessToken && isAdmin) void loadSnapshot();
+    if (!loading && accessToken && isAdmin) void loadSnapshot(false);
     else if (!loading) setLoadingSnapshot(false);
-  }, [accessToken, isAdmin, loading]);
+  }, [accessToken, isAdmin, loading, loadSnapshot]);
 
   const selectedTemplate = snapshot?.messageTemplates.find((template) => template.templateKey === selectedTemplateKey) || null;
   const selectedWorkflow = snapshot?.workflowSettings.find((workflow) => workflow.workflowKey === selectedWorkflowKey) || null;
@@ -341,24 +352,31 @@ export function PuppiesSystemWorkspace({
     new Set([...extractTokens(templateDraft.subject), ...extractTokens(templateDraft.body)])
   );
 
-  if (loading || loadingSnapshot) {
+  const initialLoading = (loading || loadingSnapshot) && !snapshot;
+
+  if (initialLoading) {
     return (
       <AdminPageShell>
         <div className="flex min-h-[60vh] items-center justify-center">
-          <div className="flex items-center gap-3 rounded-full border border-[var(--portal-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--portal-text-soft)] shadow-[var(--portal-shadow-sm)]">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading the Puppies system...
+          <div className="grid w-full gap-6">
+            <div className="h-40 animate-pulse rounded-[1.8rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)]" />
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={`puppies-overview-skeleton-${index}`} className="h-28 animate-pulse rounded-[1.4rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)]" />
+              ))}
+            </div>
+            <div className="h-96 animate-pulse rounded-[1.8rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)]" />
           </div>
         </div>
       </AdminPageShell>
     );
   }
 
-  if (!user) {
+  if (!loading && !user) {
     return <AdminRestrictedState title="Sign in to access the Puppies system." details="This workspace is reserved for the Southwest Virginia Chihuahua owner accounts." />;
   }
 
-  if (!isAdmin) {
+  if (!loading && user && !isAdmin) {
     return <AdminRestrictedState title="This workspace is limited to approved owner accounts." details="Only approved owner accounts can manage breeding operations, buyer workflows, and ChiChi admin controls." />;
   }
 
@@ -379,9 +397,9 @@ export function PuppiesSystemWorkspace({
           description="The overview layer for puppy operations, readiness, buyer linkage, documents, messaging templates, automations, and ChiChi context."
           actions={
             <>
-              <button type="button" onClick={() => void loadSnapshot()} className={secondaryButtonClass}>
-                <RefreshCcw className="h-4 w-4" />
-                Refresh
+              <button type="button" onClick={() => void loadSnapshot(true)} className={secondaryButtonClass}>
+                {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                {refreshing ? "Refreshing" : "Refresh"}
               </button>
               <Link href="/admin/portal/puppies/current" className={primaryButtonClass}>
                 <PawPrint className="h-4 w-4" />
@@ -404,6 +422,8 @@ export function PuppiesSystemWorkspace({
             </div>
           }
         />
+
+        {warningText ? <div className="rounded-[1.25rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{warningText}</div> : null}
 
         <div className={cardClassName("p-5")}>
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">

@@ -12,23 +12,49 @@ export type PortalAdminSessionState = {
   isAdmin: boolean;
 };
 
+type SessionCache = {
+  initialized: boolean;
+  user: User | null;
+  accessToken: string;
+};
+
+const sessionCache: SessionCache = {
+  initialized: false,
+  user: null,
+  accessToken: "",
+};
+
+function updateSessionCache(user: User | null, accessToken: string) {
+  sessionCache.initialized = true;
+  sessionCache.user = user;
+  sessionCache.accessToken = accessToken;
+}
+
 export function usePortalAdminSession(): PortalAdminSessionState {
-  const [user, setUser] = useState<User | null>(null);
-  const [accessToken, setAccessToken] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(sessionCache.initialized ? sessionCache.user : null);
+  const [accessToken, setAccessToken] = useState(sessionCache.initialized ? sessionCache.accessToken : "");
+  const [loading, setLoading] = useState(!sessionCache.initialized);
 
   useEffect(() => {
     let mounted = true;
 
     async function bootstrap() {
+      if (sessionCache.initialized) {
+        setUser(sessionCache.user);
+        setAccessToken(sessionCache.accessToken);
+        setLoading(false);
+        return;
+      }
+
       try {
         const {
           data: { session },
         } = await sb.auth.getSession();
 
         if (!mounted) return;
-        setUser(session?.user ?? null);
-        setAccessToken(session?.access_token || "");
+        updateSessionCache(session?.user ?? null, session?.access_token || "");
+        setUser(sessionCache.user);
+        setAccessToken(sessionCache.accessToken);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -38,8 +64,9 @@ export function usePortalAdminSession(): PortalAdminSessionState {
 
     const { data: authListener } = sb.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return;
-      setUser(session?.user ?? null);
-      setAccessToken(session?.access_token || "");
+      updateSessionCache(session?.user ?? null, session?.access_token || "");
+      setUser(sessionCache.user);
+      setAccessToken(sessionCache.accessToken);
       setLoading(false);
     });
 

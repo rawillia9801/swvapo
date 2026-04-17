@@ -114,6 +114,7 @@ export default function AdminPortalDocumentsPage() {
   const { user, accessToken, loading, isAdmin } = usePortalAdminSession();
   const [records, setRecords] = useState<DocumentWorkspaceRecord[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [statusText, setStatusText] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -124,9 +125,10 @@ export default function AdminPortalDocumentsPage() {
   const [replacementFile, setReplacementFile] = useState<File | null>(null);
   const [workingAction, setWorkingAction] = useState("");
 
-  const loadWorkspace = useEffectEvent(async () => {
+  const loadWorkspace = useEffectEvent(async (background = false) => {
     if (!accessToken) return;
-    setLoadingData(true);
+    if (background && records.length) setRefreshing(true);
+    else setLoadingData(true);
     try {
       const response = await fetch("/api/admin/portal/buyer-documents", {
         headers: {
@@ -149,11 +151,12 @@ export default function AdminPortalDocumentsPage() {
       setSelectedKey((current) =>
         nextRecords.some((record) => record.key === current) ? current : nextRecords[0]?.key || ""
       );
-      setStatusText("");
+      if (!background) setStatusText("");
     } catch (error) {
       setStatusText(error instanceof Error ? error.message : "Could not load the document workspace.");
     } finally {
       setLoadingData(false);
+      setRefreshing(false);
     }
   });
 
@@ -162,7 +165,7 @@ export default function AdminPortalDocumentsPage() {
       setLoadingData(false);
       return;
     }
-    void loadWorkspace();
+    void loadWorkspace(false);
   }, [accessToken, isAdmin, loadWorkspace]);
 
   const filteredRecords = useMemo(() => {
@@ -249,7 +252,7 @@ export default function AdminPortalDocumentsPage() {
               ? "Document archived."
               : "Document override saved."
       );
-      await loadWorkspace();
+      await loadWorkspace(true);
     } catch (error) {
       setStatusText(error instanceof Error ? error.message : "Could not update the document record.");
     } finally {
@@ -288,7 +291,7 @@ export default function AdminPortalDocumentsPage() {
 
       setReplacementFile(null);
       setStatusText("Replacement document uploaded.");
-      await loadWorkspace();
+      await loadWorkspace(true);
     } catch (error) {
       setStatusText(error instanceof Error ? error.message : "Could not upload the replacement document.");
     } finally {
@@ -306,11 +309,7 @@ export default function AdminPortalDocumentsPage() {
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
-  if (loading || loadingData) {
-    return <div className="py-20 text-center text-sm font-semibold text-[#7b5f46]">Loading document workspace...</div>;
-  }
-
-  if (!user) {
+  if (!loading && !user) {
     return (
       <AdminRestrictedState
         title="Sign in to access documents."
@@ -319,7 +318,7 @@ export default function AdminPortalDocumentsPage() {
     );
   }
 
-  if (!isAdmin) {
+  if (!loading && user && !isAdmin) {
     return (
       <AdminRestrictedState
         title="This document workspace is limited to approved owner accounts."
@@ -331,6 +330,7 @@ export default function AdminPortalDocumentsPage() {
   const signedNotFiled = records.filter((record) => record.status === "signed" && !record.filedDate).length;
   const needsReview = records.filter((record) => record.status === "needs_review").length;
   const filed = records.filter((record) => record.status === "filed").length;
+  const initialLoading = (loading || loadingData) && !records.length;
 
   return (
     <AdminPageShell>
@@ -350,57 +350,62 @@ export default function AdminPortalDocumentsPage() {
               </Link>
               <button
                 type="button"
-                onClick={() => void loadWorkspace()}
+                onClick={() => void loadWorkspace(true)}
+                disabled={refreshing}
                 className="inline-flex items-center gap-2 rounded-2xl bg-[linear-gradient(135deg,#d3a056_0%,#b5752f_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(181,117,47,0.24)] transition hover:brightness-105"
               >
-                <RefreshCw className="h-4 w-4" />
-                Refresh Records
+                {refreshing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                {refreshing ? "Refreshing" : "Refresh Records"}
               </button>
             </div>
           </div>
         </section>
 
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <SummaryStat label="Total records" value={String(records.length)} detail="Submissions and standalone filed documents." />
-          <SummaryStat label="Needs review" value={String(needsReview)} detail="Overrides, incomplete records, or flagged packages." />
-          <SummaryStat label="Signed not filed" value={String(signedNotFiled)} detail="Ready for filing or scanned-copy replacement." />
-          <SummaryStat label="Filed" value={String(filed)} detail="Records already finalized into the buyer file." />
-        </div>
-
-        {statusText ? (
-          <div className="rounded-[1.2rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm font-semibold text-[var(--portal-text-soft)]">
-            {statusText}
-          </div>
-        ) : null}
-
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_430px]">
-          <AdminPanel title="Submission ledger" subtitle="Click a row to open the operational detail workspace for that submission or filed record.">
-            <div className="flex flex-col gap-3 border-b border-[var(--portal-border)] pb-4 lg:flex-row">
-              <label className="relative flex-1">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--portal-text-muted)]" />
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search buyer, puppy, document type, signer..."
-                  className="w-full rounded-2xl border border-[var(--portal-border)] bg-white py-3 pl-11 pr-4 text-sm text-[var(--portal-text)] outline-none transition focus:border-[var(--portal-border-strong)]"
-                />
-              </label>
-              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm text-[var(--portal-text)] outline-none">
-                <option value="all">All statuses</option>
-                <option value="needs_review">Needs review</option>
-                <option value="submitted">Submitted</option>
-                <option value="signed">Signed</option>
-                <option value="filed">Filed</option>
-                <option value="archived">Archived</option>
-              </select>
-              <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)} className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm text-[var(--portal-text)] outline-none">
-                {sourceOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+        {initialLoading ? (
+          <DocumentsSkeleton />
+        ) : (
+          <>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <SummaryStat label="Total records" value={String(records.length)} detail="Submissions and standalone filed documents." />
+              <SummaryStat label="Needs review" value={String(needsReview)} detail="Overrides, incomplete records, or flagged packages." />
+              <SummaryStat label="Signed not filed" value={String(signedNotFiled)} detail="Ready for filing or scanned-copy replacement." />
+              <SummaryStat label="Filed" value={String(filed)} detail="Records already finalized into the buyer file." />
             </div>
+
+            {statusText ? (
+              <div className="rounded-[1.2rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm font-semibold text-[var(--portal-text-soft)]">
+                {statusText}
+              </div>
+            ) : null}
+
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_430px]">
+              <AdminPanel title="Submission ledger" subtitle="Click a row to open the operational detail workspace for that submission or filed record.">
+                <div className="flex flex-col gap-3 border-b border-[var(--portal-border)] pb-4 lg:flex-row">
+                  <label className="relative flex-1">
+                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--portal-text-muted)]" />
+                    <input
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="Search buyer, puppy, document type, signer..."
+                      className="w-full rounded-2xl border border-[var(--portal-border)] bg-white py-3 pl-11 pr-4 text-sm text-[var(--portal-text)] outline-none transition focus:border-[var(--portal-border-strong)]"
+                    />
+                  </label>
+                  <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm text-[var(--portal-text)] outline-none">
+                    <option value="all">All statuses</option>
+                    <option value="needs_review">Needs review</option>
+                    <option value="submitted">Submitted</option>
+                    <option value="signed">Signed</option>
+                    <option value="filed">Filed</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                  <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)} className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm text-[var(--portal-text)] outline-none">
+                    {sourceOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
             <div className="mt-4 overflow-x-auto">
               <table className="min-w-full border-separate border-spacing-0 text-left">
@@ -458,7 +463,7 @@ export default function AdminPortalDocumentsPage() {
               </table>
             </div>
           </AdminPanel>
-          <div className="space-y-6 xl:sticky xl:top-24 xl:self-start">
+              <div className="space-y-6 xl:sticky xl:top-24 xl:self-start">
             {selectedRecord ? (
               <>
                 <AdminPanel title={selectedRecord.documentType} subtitle="Selected record detail and next actions.">
@@ -567,8 +572,10 @@ export default function AdminPortalDocumentsPage() {
                 <AdminEmptyState title="No record selected" description="Select a submission or filed document to view signer, payload, filed copy, and record actions." />
               </AdminPanel>
             )}
-          </div>
-        </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </AdminPageShell>
   );
@@ -699,5 +706,24 @@ function JsonPanel({ title, value }: { title: string; value: Record<string, unkn
         )}
       </div>
     </details>
+  );
+}
+
+function DocumentsSkeleton() {
+  return (
+    <>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div
+            key={`document-stat-skeleton-${index}`}
+            className="min-h-[126px] animate-pulse rounded-[1.4rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)]"
+          />
+        ))}
+      </div>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_430px]">
+        <div className="min-h-[520px] animate-pulse rounded-[1.5rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)]" />
+        <div className="min-h-[520px] animate-pulse rounded-[1.5rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)]" />
+      </div>
+    </>
   );
 }
