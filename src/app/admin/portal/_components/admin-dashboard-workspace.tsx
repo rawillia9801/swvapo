@@ -342,7 +342,7 @@ export function AdminDashboardWorkspace() {
                   <QuickLink href="/admin/portal/buyers" label="Open Buyers" detail="View linkage, balances, documents, and placement progress." />
                   <QuickLink href="/admin/portal/documents" label="Open Documents" detail="Work filing, resend, override, and buyer submission records." />
                   <QuickLink href="/admin/portal/messages" label="Open Messages" detail="Review the buyer inbox and message follow-through." />
-                  <QuickLink href="/admin/portal/messages?tab=templates" label="Open Messaging Templates" detail="Edit Resend-backed breeder templates without leaving the admin UI." />
+                  <QuickLink href="/admin/portal/resend-templates" label="Open Resend Templates" detail="Edit automatic payment, due-date, and reminder emails in the admin UI." />
                   <QuickLink href="/admin/portal/assistant" label="Open ChiChi" detail="Ask for blockers, drafts, reminders, and next actions." />
                 </div>
               </AdminPanel>

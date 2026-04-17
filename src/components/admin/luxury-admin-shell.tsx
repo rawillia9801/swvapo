@@ -11,6 +11,7 @@ import {
   Files,
   LayoutDashboard,
   Layers3,
+  Mail,
   MapPinned,
   MessageSquareText,
   PawPrint,
@@ -76,8 +77,14 @@ const ADMIN_NAV: AdminNavSection[] = [
       {
         href: "/admin/portal/messages",
         label: "Messages",
-        helper: "Inbox, Resend templates, follow-up",
+        helper: "Buyer inbox, replies, follow-up",
         icon: <MessageSquareText className="h-4 w-4" />,
+      },
+      {
+        href: "/admin/portal/resend-templates",
+        label: "Resend Templates",
+        helper: "Automatic payment and reminder emails",
+        icon: <Mail className="h-4 w-4" />,
       },
       {
         href: "/admin/portal/documents",
