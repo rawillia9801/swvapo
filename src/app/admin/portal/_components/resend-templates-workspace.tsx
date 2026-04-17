@@ -4,17 +4,19 @@ import React, { useEffect, useEffectEvent, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Activity,
+  AlertTriangle,
+  CheckCircle2,
   Eye,
   Loader2,
   Mail,
   Plus,
   RefreshCcw,
+  RotateCcw,
   Save,
   Search,
   Sparkles,
 } from "lucide-react";
 import {
-  AdminEmptyState,
   AdminHeroPrimaryAction,
   AdminHeroSecondaryAction,
   AdminInfoTile,
@@ -100,6 +102,7 @@ type StarterTemplate = {
 
 const primaryButtonClass =
   "inline-flex items-center justify-center gap-2 rounded-[1rem] bg-[linear-gradient(135deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[var(--portal-shadow-md)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60";
+
 const secondaryButtonClass =
   "inline-flex items-center justify-center gap-2 rounded-[1rem] border border-[var(--portal-border)] bg-white/92 px-4 py-3 text-sm font-semibold text-[var(--portal-text)] shadow-[var(--portal-shadow-sm)] transition hover:bg-[var(--portal-surface-muted)] disabled:cursor-not-allowed disabled:opacity-60";
 
@@ -224,6 +227,21 @@ Southwest Virginia Chihuahua`,
   },
 ];
 
+function blankTemplateDraft(): TemplateDraft {
+  return {
+    id: null,
+    templateKey: "",
+    category: "payments",
+    label: "",
+    description: "",
+    subject: "",
+    body: "",
+    previewPayload: "{}",
+    automationEnabled: true,
+    isActive: true,
+  };
+}
+
 function templateDraftFromRecord(template: MessageTemplateRecord | null): TemplateDraft {
   return {
     id: template?.id ?? null,
@@ -254,23 +272,16 @@ function templateDraftFromStarter(template: StarterTemplate): TemplateDraft {
   };
 }
 
-function blankTemplateDraft(): TemplateDraft {
-  return {
-    id: null,
-    templateKey: "",
-    category: "payments",
-    label: "",
-    description: "",
-    subject: "",
-    body: "",
-    previewPayload: "{}",
-    automationEnabled: true,
-    isActive: true,
-  };
-}
-
 function text(value: unknown) {
   return String(value || "").trim();
+}
+
+function normalizePayloadText(value: string) {
+  try {
+    return JSON.stringify(JSON.parse(value || "{}"), null, 2);
+  } catch {
+    return value;
+  }
 }
 
 function previewText(template: string, payloadText: string) {
@@ -288,7 +299,9 @@ function previewText(template: string, payloadText: string) {
 }
 
 function extractTokens(value: string) {
-  return Array.from(new Set(String(value || "").match(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g) || []))
+  return Array.from(
+    new Set(String(value || "").match(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g) || [])
+  )
     .map((token) => token.replace(/[{}]/g, "").trim())
     .filter(Boolean);
 }
@@ -307,6 +320,25 @@ function prettyNoticeKind(value: string | null | undefined) {
 
 function cardClassName(extra = "") {
   return `rounded-[1.5rem] border border-[var(--portal-border)] bg-[var(--portal-surface)] shadow-[var(--portal-shadow-sm)] ${extra}`.trim();
+}
+
+function parsePreviewPayload(payloadText: string) {
+  try {
+    JSON.parse(payloadText || "{}");
+    return { valid: true, error: "" };
+  } catch (error) {
+    return {
+      valid: false,
+      error: error instanceof Error ? error.message : "Invalid JSON",
+    };
+  }
+}
+
+function draftSignature(draft: TemplateDraft) {
+  return JSON.stringify({
+    ...draft,
+    previewPayload: normalizePayloadText(draft.previewPayload),
+  });
 }
 
 export function ResendTemplatesWorkspace() {
@@ -369,6 +401,7 @@ export function ResendTemplatesWorkspace() {
       setMissingStorage(Boolean(payload.missingStorage));
       setWebhookConfigured(Boolean(payload.webhookConfigured));
       setWarningText(payload.warning || "");
+
       setStatusText((current) => {
         if (current.toLowerCase().includes("saved")) return current;
         return "";
@@ -378,7 +411,7 @@ export function ResendTemplatesWorkspace() {
         if (current && nextTemplates.some((template) => template.templateKey === current)) {
           return current;
         }
-        return nextTemplates[0]?.templateKey || current;
+        return nextTemplates[0]?.templateKey || "";
       });
     } catch (error) {
       const message =
@@ -440,6 +473,7 @@ export function ResendTemplatesWorkspace() {
         template.category,
         template.description,
         template.subject,
+        template.provider,
       ]
         .map((value) => String(value || "").toLowerCase())
         .join(" ")
@@ -460,35 +494,32 @@ export function ResendTemplatesWorkspace() {
     [templateDraft.body, templateDraft.subject]
   );
 
-  const paymentTemplateCount = templates.filter((template) => template.category === "payments").length;
+  const paymentTemplateCount = templates.filter(
+    (template) => template.category === "payments"
+  ).length;
   const activeTemplateCount = templates.filter((template) => template.isActive).length;
-   const automationTemplateCount = templates.filter(
+  const automationTemplateCount = templates.filter(
     (template) => template.automationEnabled
   ).length;
   const trackedActivityCount = recentActivity.filter(
     (activity) => activity.lastEventType
   ).length;
 
+  const jsonState = useMemo(
+    () => parsePreviewPayload(templateDraft.previewPayload),
+    [templateDraft.previewPayload]
+  );
+
   const hasDraftChanges = useMemo(() => {
     if (!selectedTemplate) {
-      return (
-        text(templateDraft.templateKey).length > 0 ||
-        text(templateDraft.label).length > 0 ||
-        text(templateDraft.description).length > 0 ||
-        text(templateDraft.subject).length > 0 ||
-        text(templateDraft.body).length > 0 ||
-        text(templateDraft.previewPayload) !== "{}" ||
-        !templateDraft.automationEnabled ||
-        !templateDraft.isActive
-      );
+      return draftSignature(templateDraft) !== draftSignature(templateDraftFromStarter(STARTER_TEMPLATES[0]));
     }
 
-    const baseline = templateDraftFromRecord(selectedTemplate);
-    return JSON.stringify(baseline) !== JSON.stringify(templateDraft);
+    return draftSignature(templateDraft) !== draftSignature(templateDraftFromRecord(selectedTemplate));
   }, [selectedTemplate, templateDraft]);
 
   async function handleSave() {
-    if (!accessToken) return;
+    if (!accessToken || !jsonState.valid) return;
 
     setSaving(true);
     setStatusText("");
@@ -500,7 +531,10 @@ export function ResendTemplatesWorkspace() {
           Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(templateDraft),
+        body: JSON.stringify({
+          ...templateDraft,
+          previewPayload: normalizePayloadText(templateDraft.previewPayload),
+        }),
       });
 
       const payload = (await response.json()) as { ok?: boolean; error?: string };
@@ -611,7 +645,7 @@ export function ResendTemplatesWorkspace() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search automatic templates by key, label, category, or subject..."
+                placeholder="Search automatic templates by key, label, category, provider, or subject..."
                 className="w-full rounded-[1rem] border border-[var(--portal-border)] bg-white py-3 pl-11 pr-4 text-sm text-[var(--portal-text)] outline-none transition focus:border-[var(--portal-accent)]"
               />
             </div>
@@ -678,48 +712,54 @@ export function ResendTemplatesWorkspace() {
                 </div>
               ) : null}
 
-              {initializing || (loadingWorkspace && !hasLoadedOnce) ? (
-                <div className="space-y-3">
-                  {Array.from({ length: 5 }).map((_, index) => (
-                    <div
-                      key={`template-skeleton-${index}`}
-                      className="h-[84px] animate-pulse rounded-[1rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)]"
-                    />
-                  ))}
-                </div>
-              ) : filteredTemplates.length ? (
-                <div className="space-y-3">
-                  {filteredTemplates.map((template) => (
-                    <AdminListCard
-                      key={template.templateKey}
-                      selected={selectedTemplateKey === template.templateKey}
-                      onClick={() => {
-                        setSelectedTemplateKey(template.templateKey);
-                        setStatusText("");
-                      }}
-                      title={template.label}
-                      subtitle={template.description || template.subject}
-                      meta={`${template.category} | ${template.templateKey}`}
-                      badge={
-                        <span
-                          className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${
-                            template.isActive
-                              ? adminStatusBadge("active")
-                              : "border-amber-200 bg-amber-50 text-amber-700"
-                          }`}
-                        >
-                          {template.isActive ? "active" : "inactive"}
-                        </span>
-                      }
-                    />
-                  ))}
-                </div>
-              ) : (
-                <AdminEmptyState
-                  title="No templates matched your search"
-                  description="Try a different payment, reminder, credit, or document keyword."
-                />
-              )}
+              <div className="min-h-[520px]">
+                {initializing || (loadingWorkspace && !hasLoadedOnce) ? (
+                  <div className="space-y-3">
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <div
+                        key={`template-skeleton-${index}`}
+                        className="h-[84px] animate-pulse rounded-[1rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)]"
+                      />
+                    ))}
+                  </div>
+                ) : filteredTemplates.length ? (
+                  <div className="space-y-3">
+                    {filteredTemplates.map((template) => (
+                      <AdminListCard
+                        key={template.templateKey}
+                        selected={selectedTemplateKey === template.templateKey}
+                        onClick={() => {
+                          setSelectedTemplateKey(template.templateKey);
+                          setStatusText("");
+                        }}
+                        title={template.label}
+                        subtitle={template.description || template.subject}
+                        meta={`${template.category} | ${template.templateKey}`}
+                        badge={
+                          <span
+                            className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${
+                              template.isActive
+                                ? adminStatusBadge("active")
+                                : "border-amber-200 bg-amber-50 text-amber-700"
+                            }`}
+                          >
+                            {template.isActive ? "active" : "inactive"}
+                          </span>
+                        }
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-[1.25rem] border border-dashed border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-5 py-5 text-sm text-[var(--portal-text-soft)]">
+                    <div className="font-semibold text-[var(--portal-text)]">
+                      No templates matched your search.
+                    </div>
+                    <div className="mt-1">
+                      Clear the search or choose a starter template to keep working.
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </AdminPanel>
 
@@ -728,23 +768,43 @@ export function ResendTemplatesWorkspace() {
               title="Template Editor"
               subtitle="Edit the actual subject, body, variables, and automation flags for breeder-facing outbound emails."
               action={
-                <button
-                  type="button"
-                  onClick={() => void handleSave()}
-                  className={primaryButtonClass}
-                  disabled={
-                    saving ||
-                    missingStorage ||
-                    !text(templateDraft.templateKey) ||
-                    !text(templateDraft.label) ||
-                    !text(templateDraft.subject) ||
-                    !text(templateDraft.body) ||
-                    !hasDraftChanges
-                  }
-                >
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  {saving ? "Saving" : "Save Template"}
-                </button>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedTemplate) {
+                        setTemplateDraft(templateDraftFromRecord(selectedTemplate));
+                      } else {
+                        setTemplateDraft(blankTemplateDraft());
+                      }
+                      setStatusText("");
+                    }}
+                    className={secondaryButtonClass}
+                    disabled={saving}
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Reset Draft
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => void handleSave()}
+                    className={primaryButtonClass}
+                    disabled={
+                      saving ||
+                      missingStorage ||
+                      !jsonState.valid ||
+                      !text(templateDraft.templateKey) ||
+                      !text(templateDraft.label) ||
+                      !text(templateDraft.subject) ||
+                      !text(templateDraft.body) ||
+                      !hasDraftChanges
+                    }
+                  >
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    {saving ? "Saving" : "Save Template"}
+                  </button>
+                </div>
               }
             >
               <div className="grid gap-4 md:grid-cols-2">
@@ -808,6 +868,21 @@ export function ResendTemplatesWorkspace() {
                   }
                   rows={7}
                 />
+                <div className="mt-2 flex items-center gap-2 text-xs">
+                  {jsonState.valid ? (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      <span className="text-emerald-700">Preview payload JSON is valid.</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      <span className="text-amber-700">
+                        Preview payload JSON is invalid: {jsonState.error}
+                      </span>
+                    </>
+                  )}
+                </div>
               </div>
 
               <div className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -988,14 +1063,16 @@ export function ResendTemplatesWorkspace() {
                   ))}
                 </div>
               ) : (
-                 <AdminEmptyState
-                  title="No tracked automatic email activity yet"
-                  description={
-                    webhookConfigured
+                <div className="rounded-[1.25rem] border border-dashed border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-5 py-5 text-sm text-[var(--portal-text-soft)]">
+                  <div className="font-semibold text-[var(--portal-text)]">
+                    No tracked automatic email activity yet.
+                  </div>
+                  <div className="mt-1">
+                    {webhookConfigured
                       ? "The log will begin to populate after the next automatic send and webhook event."
-                      : "Automatic sends can still go out, but open and delivery tracking needs the Resend webhook secret."
-                  }
-                />
+                      : "Automatic sends can still go out, but open and delivery tracking needs the Resend webhook secret."}
+                  </div>
+                </div>
               )}
             </AdminPanel>
           </div>
