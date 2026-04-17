@@ -1,396 +1,693 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import type { User } from "@supabase/supabase-js";
+import Link from "next/link";
+import React, { useEffect, useEffectEvent, useMemo, useState } from "react";
+import {
+  ArrowUpRight,
+  Archive,
+  Download,
+  FileText,
+  RefreshCw,
+  Search,
+  Send,
+  ShieldAlert,
+  Upload,
+} from "lucide-react";
 import {
   AdminEmptyState,
-  AdminHeroPrimaryAction,
-  AdminHeroSecondaryAction,
-  AdminInfoTile,
-  AdminListCard,
-  AdminPageHero,
   AdminPageShell,
   AdminPanel,
   AdminRestrictedState,
   adminStatusBadge,
 } from "@/components/admin/luxury-admin-shell";
-import { fetchAdminAccounts, type AdminPortalAccount, type AdminFormRecord } from "@/lib/admin-portal";
-import { fmtDate, sb } from "@/lib/utils";
-import { isPortalAdminEmail } from "@/lib/portal-admin";
+import { fmtDate } from "@/lib/utils";
+import { usePortalAdminSession } from "@/lib/use-portal-admin-session";
 
-type PortalDocument = {
-  id: string;
-  title?: string | null;
-  description?: string | null;
-  category?: string | null;
-  status?: string | null;
-  created_at?: string | null;
-  source_table?: string | null;
-  file_name?: string | null;
-  file_url?: string | null;
-  signed_at?: string | null;
-  user_id?: string | null;
-  buyer_id?: number | null;
+type DocumentWorkspaceRecord = {
+  key: string;
+  recordType: "submission" | "document";
+  submissionId: number | null;
+  documentId: string | null;
+  buyerId: number | null;
+  buyerName: string;
+  buyerEmail: string | null;
+  buyerStatus: string | null;
+  puppyId: number | null;
+  puppyName: string | null;
+  puppyStatus: string | null;
+  documentType: string;
+  status: string;
+  statusLabel: string;
+  source: string;
+  signerName: string | null;
+  signedDate: string | null;
+  filedDate: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  fileUrl: string | null;
+  fileName: string | null;
+  launchUrl: string | null;
+  visibleToUser: boolean | null;
+  summary: string | null;
+  payload: Record<string, unknown> | null;
+  portalFormData: Record<string, unknown> | null;
+  attachments: Array<{
+    id: string;
+    label: string;
+    fileName: string | null;
+    url: string | null;
+  }>;
+  filedDocuments: Array<{
+    id: string;
+    label: string;
+    fileName: string | null;
+    url: string | null;
+    createdAt: string | null;
+    signedAt: string | null;
+    status: string | null;
+  }>;
+  workflow: {
+    package_id?: string | null;
+    package_key?: string | null;
+    package_title?: string | null;
+    review_note?: string | null;
+  } | null;
+  timeline: Array<{
+    id: string;
+    label: string;
+    at: string | null;
+    detail: string | null;
+  }>;
+  actionSupport: {
+    canView: boolean;
+    canResend: boolean;
+    canOverride: boolean;
+    canReplace: boolean;
+    canMarkFiled: boolean;
+    canDownload: boolean;
+    canOpenBuyer: boolean;
+    canOpenPuppy: boolean;
+  };
 };
 
-type DocumentAccount = AdminPortalAccount & {
-  documents: PortalDocument[];
-};
+function prettyLabel(value: string | null | undefined) {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "Unspecified";
+  return normalized.replace(/[_-]+/g, " ").replace(/\b\w/g, (match) => match.toUpperCase());
+}
 
-function toLabel(value: string | null | undefined) {
-  const text = String(value || "").trim();
-  if (!text) return "Untitled";
-  return text.replace(/[_-]+/g, " ").replace(/\b\w/g, (match) => match.toUpperCase());
+function detailHref(base: string, id: number | null) {
+  return id ? `${base}?id=${id}` : base;
+}
+
+function selectStatusOptions(record: DocumentWorkspaceRecord | null) {
+  if (!record) return [];
+  return [
+    { value: "needs_review", label: "Needs review" },
+    { value: "signed", label: "Signed" },
+    { value: "filed", label: "Filed" },
+    { value: "archived", label: "Archived" },
+  ];
 }
 
 export default function AdminPortalDocumentsPage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, accessToken, loading, isAdmin } = usePortalAdminSession();
+  const [records, setRecords] = useState<DocumentWorkspaceRecord[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+  const [statusText, setStatusText] = useState("");
   const [search, setSearch] = useState("");
-  const [accounts, setAccounts] = useState<DocumentAccount[]>([]);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
   const [selectedKey, setSelectedKey] = useState("");
+  const [overrideStatus, setOverrideStatus] = useState("needs_review");
+  const [overrideNote, setOverrideNote] = useState("");
+  const [replacementFile, setReplacementFile] = useState<File | null>(null);
+  const [workingAction, setWorkingAction] = useState("");
+
+  const loadWorkspace = useEffectEvent(async () => {
+    if (!accessToken) return;
+    setLoadingData(true);
+    try {
+      const response = await fetch("/api/admin/portal/buyer-documents", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+        records?: DocumentWorkspaceRecord[];
+      };
+
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || "Could not load the document workspace.");
+      }
+
+      const nextRecords = Array.isArray(payload.records) ? payload.records : [];
+      setRecords(nextRecords);
+      setSelectedKey((current) =>
+        nextRecords.some((record) => record.key === current) ? current : nextRecords[0]?.key || ""
+      );
+      setStatusText("");
+    } catch (error) {
+      setStatusText(error instanceof Error ? error.message : "Could not load the document workspace.");
+    } finally {
+      setLoadingData(false);
+    }
+  });
 
   useEffect(() => {
-    let mounted = true;
-
-    async function bootstrap() {
-      try {
-        const {
-          data: { session },
-        } = await sb.auth.getSession();
-
-        if (!mounted) return;
-        const currentUser = session?.user ?? null;
-        setUser(currentUser);
-
-        if (currentUser && isPortalAdminEmail(currentUser.email)) {
-          const nextAccounts = await loadDocumentAccounts(session?.access_token || "");
-          setAccounts(nextAccounts);
-          setSelectedKey(nextAccounts[0]?.key || "");
-        }
-      } finally {
-        if (mounted) setLoading(false);
-      }
+    if (!accessToken || !isAdmin) {
+      setLoadingData(false);
+      return;
     }
+    void loadWorkspace();
+  }, [accessToken, isAdmin, loadWorkspace]);
 
-    void bootstrap();
-
-    const { data: authListener } = sb.auth.onAuthStateChange(async (_event, session) => {
-      if (!mounted) return;
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-
-      if (currentUser && isPortalAdminEmail(currentUser.email)) {
-        const nextAccounts = await loadDocumentAccounts(session?.access_token || "");
-        setAccounts(nextAccounts);
-        setSelectedKey((prev) =>
-          nextAccounts.find((account) => account.key === prev)?.key || nextAccounts[0]?.key || ""
-        );
-      } else {
-        setAccounts([]);
-        setSelectedKey("");
-      }
-
-      setLoading(false);
-    });
-
-    return () => {
-      mounted = false;
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
-
-  async function loadDocumentAccounts(token: string) {
-    const [baseAccounts, documentsRes] = await Promise.all([
-      fetchAdminAccounts(token),
-      sb
-        .from("portal_documents")
-        .select("id,title,description,category,status,created_at,source_table,file_name,file_url,signed_at,user_id,buyer_id")
-        .order("created_at", { ascending: false }),
-    ]);
-
-    const documents = (documentsRes.data || []) as PortalDocument[];
-
-    return baseAccounts
-      .map((account) => {
-        const buyerId = account.buyer?.id || null;
-        const docs = documents.filter((doc) => {
-          const docBuyerId = Number(doc.buyer_id || 0);
-          if (docBuyerId > 0) {
-            return buyerId ? docBuyerId === buyerId : false;
-          }
-          return Boolean(account.userId && doc.user_id === account.userId);
-        });
-
-        return {
-          ...account,
-          documents: docs,
-        };
-      })
-      .filter((account) => account.forms.length > 0 || account.documents.length > 0)
-      .sort((a, b) => {
-        const aTotal = a.forms.length + a.documents.length;
-        const bTotal = b.forms.length + b.documents.length;
-        if (aTotal !== bTotal) return bTotal - aTotal;
-        return a.displayName.localeCompare(b.displayName);
-      });
-  }
-
-  const filteredAccounts = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return accounts;
-    return accounts.filter((account) =>
-      [
-        account.displayName,
-        account.email,
-        account.buyer?.status,
-        account.forms.map((form) => form.form_title || form.form_key).join(" "),
-        account.documents.map((doc) => doc.title || doc.category || doc.file_name).join(" "),
+  const filteredRecords = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return records.filter((record) => {
+      if (statusFilter !== "all" && record.status !== statusFilter) return false;
+      if (sourceFilter !== "all" && record.source !== sourceFilter) return false;
+      if (!query) return true;
+      return [
+        record.buyerName,
+        record.buyerEmail,
+        record.puppyName,
+        record.documentType,
+        record.statusLabel,
+        record.source,
+        record.signerName,
       ]
         .map((value) => String(value || "").toLowerCase())
         .join(" ")
-        .includes(q)
-    );
-  }, [accounts, search]);
+        .includes(query);
+    });
+  }, [records, search, sourceFilter, statusFilter]);
 
-  const selectedAccount = useMemo(
+  const selectedRecord =
+    filteredRecords.find((record) => record.key === selectedKey) ||
+    records.find((record) => record.key === selectedKey) ||
+    null;
+
+  useEffect(() => {
+    if (!selectedRecord) return;
+    setOverrideStatus(selectedRecord.status === "filed" ? "filed" : "needs_review");
+    setOverrideNote(selectedRecord.workflow?.review_note || "");
+    setReplacementFile(null);
+  }, [selectedRecord]);
+
+  const sourceOptions = useMemo(
     () =>
-      filteredAccounts.find((account) => account.key === selectedKey) ||
-      accounts.find((account) => account.key === selectedKey) ||
-      null,
-    [accounts, filteredAccounts, selectedKey]
+      ["all", ...new Set(records.map((record) => record.source).filter(Boolean))].map((value) => ({
+        value,
+        label: value === "all" ? "All sources" : prettyLabel(value),
+      })),
+    [records]
   );
 
-  if (loading) {
-    return <div className="py-20 text-center text-sm font-semibold text-[#7b5f46]">Loading documents...</div>;
+  async function runAction(action: string, extra: Record<string, unknown> = {}) {
+    if (!selectedRecord || !accessToken) return;
+    setWorkingAction(action);
+    setStatusText("");
+    try {
+      const response = await fetch("/api/admin/portal/buyer-documents", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          action,
+          record_type: selectedRecord.recordType,
+          submission_id: selectedRecord.submissionId,
+          document_id: selectedRecord.documentId,
+          buyer_id: selectedRecord.buyerId,
+          package_key: selectedRecord.workflow?.package_key || null,
+          ...extra,
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+        launchUrl?: string | null;
+      };
+
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || "Could not update the document record.");
+      }
+
+      if (payload.launchUrl) window.open(payload.launchUrl, "_blank", "noopener,noreferrer");
+      setStatusText(
+        action === "resend_package"
+          ? "Document package resent."
+          : action === "mark_filed"
+            ? "Document marked filed."
+            : action === "archive_record"
+              ? "Document archived."
+              : "Document override saved."
+      );
+      await loadWorkspace();
+    } catch (error) {
+      setStatusText(error instanceof Error ? error.message : "Could not update the document record.");
+    } finally {
+      setWorkingAction("");
+    }
+  }
+
+  async function uploadReplacement() {
+    if (!selectedRecord || !replacementFile || !accessToken || !selectedRecord.buyerId) return;
+    setWorkingAction("replace_document");
+    setStatusText("");
+    try {
+      const formData = new FormData();
+      formData.set("buyer_id", String(selectedRecord.buyerId));
+      formData.set("file", replacementFile);
+      formData.set("title", selectedRecord.documentType);
+      formData.set("description", selectedRecord.summary || "");
+      formData.set("category", selectedRecord.source);
+      formData.set("visible_to_user", String(selectedRecord.visibleToUser ?? true));
+      if (selectedRecord.workflow?.package_id) formData.set("package_id", selectedRecord.workflow.package_id);
+      if (selectedRecord.workflow?.package_key) formData.set("package_key", selectedRecord.workflow.package_key);
+      if (selectedRecord.signedDate) formData.set("signed_at", selectedRecord.signedDate);
+
+      const response = await fetch("/api/admin/portal/buyer-documents", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: formData,
+      });
+
+      const payload = (await response.json()) as { ok?: boolean; error?: string };
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || "Could not upload the replacement document.");
+      }
+
+      setReplacementFile(null);
+      setStatusText("Replacement document uploaded.");
+      await loadWorkspace();
+    } catch (error) {
+      setStatusText(error instanceof Error ? error.message : "Could not upload the replacement document.");
+    } finally {
+      setWorkingAction("");
+    }
+  }
+
+  function openRecordUrl(kind: "view" | "download") {
+    if (!selectedRecord) return;
+    const url =
+      (kind === "download" ? selectedRecord.fileUrl : null) ||
+      selectedRecord.fileUrl ||
+      selectedRecord.launchUrl;
+    if (!url) return;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  if (loading || loadingData) {
+    return <div className="py-20 text-center text-sm font-semibold text-[#7b5f46]">Loading document workspace...</div>;
   }
 
   if (!user) {
     return (
       <AdminRestrictedState
         title="Sign in to access documents."
-        details="This page is reserved for the Southwest Virginia Chihuahua owner accounts."
+        details="This workspace is reserved for Southwest Virginia Chihuahua owner accounts."
       />
     );
   }
 
-  if (!isPortalAdminEmail(user.email)) {
+  if (!isAdmin) {
     return (
       <AdminRestrictedState
         title="This document workspace is limited to approved owner accounts."
-        details="Only the approved owner emails can manage grouped buyer forms and portal documents here."
+        details="Only approved owner emails can review submissions, filed records, and buyer document workflows here."
       />
     );
   }
 
-  const totalForms = accounts.reduce((sum, account) => sum + account.forms.length, 0);
-  const totalDocuments = accounts.reduce((sum, account) => sum + account.documents.length, 0);
-  const openForms = accounts.reduce(
-    (sum, account) =>
-      sum +
-      account.forms.filter((form) => !["signed", "completed"].includes(String(form.status || "").toLowerCase())).length,
-    0
-  );
-  const openDocuments = accounts.reduce(
-    (sum, account) =>
-      sum +
-      account.documents.filter((doc) => !["signed", "completed", "archived"].includes(String(doc.status || "").toLowerCase())).length,
-    0
-  );
+  const signedNotFiled = records.filter((record) => record.status === "signed" && !record.filedDate).length;
+  const needsReview = records.filter((record) => record.status === "needs_review").length;
+  const filed = records.filter((record) => record.status === "filed").length;
 
   return (
     <AdminPageShell>
       <div className="space-y-6 pb-12">
-        <AdminPageHero
-          eyebrow="Documents"
-          title="Forms and uploads are grouped by buyer so this tab stays usable."
-          description="Instead of stacking a long flat list of records from one user, this page keeps buyer cards searchable and lets you open one buyer’s document set at a time."
-          actions={
-            <>
-              <AdminHeroPrimaryAction href="/admin/portal/messages">Open Messages</AdminHeroPrimaryAction>
-              <AdminHeroSecondaryAction href="/admin/users">Open Users</AdminHeroSecondaryAction>
-            </>
-          }
-          aside={
-            <div className="space-y-4">
-              <AdminInfoTile label="Buyer Document Cards" value={String(accounts.length)} detail="Each card groups one buyer’s forms and portal files." />
-              <AdminInfoTile label="Total Records" value={String(totalForms + totalDocuments)} detail="Combined form submissions and portal documents." />
+        <section className="rounded-[2rem] border border-[var(--portal-border)] bg-[linear-gradient(135deg,rgba(255,250,243,0.96)_0%,rgba(247,239,227,0.94)_100%)] px-6 py-6 shadow-[0_18px_40px_rgba(106,76,45,0.08)]">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+            <div className="max-w-3xl">
+              <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--portal-text-muted)]">Documents</div>
+              <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.04em] text-[var(--portal-text)]">Submission records workspace</h1>
+              <p className="mt-3 text-sm leading-7 text-[var(--portal-text-soft)]">
+                This screen is built to process document submissions, not summarize them. Use the left table to open a specific submission immediately, then work the signer, payload, filed copy, and follow-up actions from the detail pane.
+              </p>
             </div>
-          }
-        />
-
-        <AdminPanel
-          title="Document Bench"
-          subtitle="The document tab should surface review load, signature gaps, and grouped family records instead of generic counters."
-        >
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <AdminInfoTile
-              label="Family Record Sets"
-              value={String(accounts.length)}
-              detail="Each card keeps one buyer or portal family's forms and uploads together."
-            />
-            <AdminInfoTile
-              label="Open Forms"
-              value={String(openForms)}
-              detail={`${totalForms} total form submissions, including drafts and unsigned records still needing breeder visibility.`}
-            />
-            <AdminInfoTile
-              label="Open Documents"
-              value={String(openDocuments)}
-              detail={`${totalDocuments} uploaded documents tracked across contracts, records, and supporting files.`}
-            />
-            <AdminInfoTile
-              label="Current Search"
-              value={String(filteredAccounts.length)}
-              detail="Filtered buyer document groups so you can work one subset without losing the full archive."
-            />
+            <div className="flex flex-wrap gap-3">
+              <Link href="/admin/portal/buyers" className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]">
+                Open Buyers
+              </Link>
+              <button
+                type="button"
+                onClick={() => void loadWorkspace()}
+                className="inline-flex items-center gap-2 rounded-2xl bg-[linear-gradient(135deg,#d3a056_0%,#b5752f_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(181,117,47,0.24)] transition hover:brightness-105"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Refresh Records
+              </button>
+            </div>
           </div>
-        </AdminPanel>
+        </section>
 
-        <section className="grid grid-cols-1 gap-6 xl:grid-cols-[390px_minmax(0,1fr)]">
-          <AdminPanel
-            title="Buyer Document Cards"
-            subtitle="Search by buyer, email, form, or document title. Each card keeps a buyer’s records together."
-          >
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search buyer documents..."
-              className="w-full rounded-[20px] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3 text-sm text-[var(--portal-text)] outline-none focus:border-[#c8a884]"
-            />
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <SummaryStat label="Total records" value={String(records.length)} detail="Submissions and standalone filed documents." />
+          <SummaryStat label="Needs review" value={String(needsReview)} detail="Overrides, incomplete records, or flagged packages." />
+          <SummaryStat label="Signed not filed" value={String(signedNotFiled)} detail="Ready for filing or scanned-copy replacement." />
+          <SummaryStat label="Filed" value={String(filed)} detail="Records already finalized into the buyer file." />
+        </div>
 
-            <div className="mt-4 space-y-3">
-              {filteredAccounts.length ? (
-                filteredAccounts.map((account) => (
-                  <AdminListCard
-                    key={account.key}
-                    selected={selectedKey === account.key}
-                    onClick={() => setSelectedKey(account.key)}
-                    title={account.displayName || "Buyer"}
-                    subtitle={account.email || "No email on file"}
-                    meta={`${account.forms.length} form${account.forms.length === 1 ? "" : "s"} • ${account.documents.length} document${account.documents.length === 1 ? "" : "s"}`}
-                    badge={
-                      <span
-                        className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(
-                          account.buyer?.status || account.application?.status
-                        )}`}
-                      >
-                        {account.buyer?.status || account.application?.status || "active"}
-                      </span>
-                    }
-                  />
-                ))
-              ) : (
-                <AdminEmptyState
-                  title="No document groups matched your search"
-                  description="Try a different buyer name, email, form title, or document title."
+        {statusText ? (
+          <div className="rounded-[1.2rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm font-semibold text-[var(--portal-text-soft)]">
+            {statusText}
+          </div>
+        ) : null}
+
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_430px]">
+          <AdminPanel title="Submission ledger" subtitle="Click a row to open the operational detail workspace for that submission or filed record.">
+            <div className="flex flex-col gap-3 border-b border-[var(--portal-border)] pb-4 lg:flex-row">
+              <label className="relative flex-1">
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--portal-text-muted)]" />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search buyer, puppy, document type, signer..."
+                  className="w-full rounded-2xl border border-[var(--portal-border)] bg-white py-3 pl-11 pr-4 text-sm text-[var(--portal-text)] outline-none transition focus:border-[var(--portal-border-strong)]"
                 />
-              )}
+              </label>
+              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm text-[var(--portal-text)] outline-none">
+                <option value="all">All statuses</option>
+                <option value="needs_review">Needs review</option>
+                <option value="submitted">Submitted</option>
+                <option value="signed">Signed</option>
+                <option value="filed">Filed</option>
+                <option value="archived">Archived</option>
+              </select>
+              <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)} className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm text-[var(--portal-text)] outline-none">
+                {sourceOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-full border-separate border-spacing-0 text-left">
+                <thead>
+                  <tr className="text-[11px] uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+                    <th className="px-3 py-3">Buyer</th>
+                    <th className="px-3 py-3">Puppy</th>
+                    <th className="px-3 py-3">Document Type</th>
+                    <th className="px-3 py-3">Status</th>
+                    <th className="px-3 py-3">Signed Date</th>
+                    <th className="px-3 py-3">Filed Date</th>
+                    <th className="px-3 py-3">Source</th>
+                    <th className="px-3 py-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRecords.length ? (
+                    filteredRecords.map((record) => (
+                      <tr key={record.key} className={`cursor-pointer transition ${selectedKey === record.key ? "bg-[rgba(241,230,214,0.58)]" : "hover:bg-[rgba(247,240,230,0.52)]"}`} onClick={() => setSelectedKey(record.key)}>
+                        <td className="border-t border-[var(--portal-border)] px-3 py-4">
+                          <div className="font-semibold text-[var(--portal-text)]">{record.buyerName}</div>
+                          <div className="mt-1 text-xs text-[var(--portal-text-soft)]">{record.buyerEmail || "No buyer email"}</div>
+                        </td>
+                        <td className="border-t border-[var(--portal-border)] px-3 py-4 text-sm text-[var(--portal-text-soft)]">{record.puppyName || "Not linked"}</td>
+                        <td className="border-t border-[var(--portal-border)] px-3 py-4">
+                          <div className="font-semibold text-[var(--portal-text)]">{record.documentType}</div>
+                          <div className="mt-1 text-xs text-[var(--portal-text-soft)]">{record.signerName ? `Signer: ${record.signerName}` : "No signer yet"}</div>
+                        </td>
+                        <td className="border-t border-[var(--portal-border)] px-3 py-4">
+                          <span className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(record.status)}`}>{record.statusLabel}</span>
+                        </td>
+                        <td className="border-t border-[var(--portal-border)] px-3 py-4 text-sm text-[var(--portal-text-soft)]">{record.signedDate ? fmtDate(record.signedDate) : "-"}</td>
+                        <td className="border-t border-[var(--portal-border)] px-3 py-4 text-sm text-[var(--portal-text-soft)]">{record.filedDate ? fmtDate(record.filedDate) : "-"}</td>
+                        <td className="border-t border-[var(--portal-border)] px-3 py-4 text-sm text-[var(--portal-text-soft)]">{prettyLabel(record.source)}</td>
+                        <td className="border-t border-[var(--portal-border)] px-3 py-4">
+                          <div className="flex flex-wrap gap-2">
+                            <button type="button" onClick={(event) => { event.stopPropagation(); setSelectedKey(record.key); }} className="rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2 text-xs font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]">
+                              Open
+                            </button>
+                            <button type="button" disabled={!record.actionSupport.canView} onClick={(event) => { event.stopPropagation(); window.open(record.fileUrl || record.launchUrl || "", "_blank", "noopener,noreferrer"); }} className="rounded-xl border border-[var(--portal-border)] bg-white px-3 py-2 text-xs font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)] disabled:cursor-not-allowed disabled:opacity-45">
+                              View
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={8} className="px-0 py-8">
+                        <AdminEmptyState title="No document records matched your filters" description="Adjust the search, status, or source filters to reopen the full records list." />
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </AdminPanel>
+          <div className="space-y-6 xl:sticky xl:top-24 xl:self-start">
+            {selectedRecord ? (
+              <>
+                <AdminPanel title={selectedRecord.documentType} subtitle="Selected record detail and next actions.">
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">{prettyLabel(selectedRecord.source)}</div>
+                        <div className="mt-2 text-base font-semibold text-[var(--portal-text)]">{selectedRecord.buyerName}</div>
+                        <div className="mt-1 text-sm text-[var(--portal-text-soft)]">{selectedRecord.summary || "No extra summary has been saved for this record yet."}</div>
+                      </div>
+                      <span className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(selectedRecord.status)}`}>{selectedRecord.statusLabel}</span>
+                    </div>
 
-          {selectedAccount ? (
-            <div className="space-y-6">
-              <AdminPanel
-                title="Buyer Document Snapshot"
-                subtitle="This panel is intentionally grouped by buyer so one user does not flood the screen with scattered records."
-              >
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  <AdminInfoTile label="Buyer" value={selectedAccount.displayName || "Buyer"} />
-                  <AdminInfoTile label="Email" value={selectedAccount.email || "-"} />
-                  <AdminInfoTile label="Forms" value={String(selectedAccount.forms.length)} />
-                  <AdminInfoTile label="Documents" value={String(selectedAccount.documents.length)} />
-                </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <MiniField label="Signer" value={selectedRecord.signerName || "Not signed"} />
+                      <MiniField label="Created" value={selectedRecord.createdAt ? fmtDate(selectedRecord.createdAt) : "Unknown"} />
+                      <MiniField label="Signed" value={selectedRecord.signedDate ? fmtDate(selectedRecord.signedDate) : "Not signed"} />
+                      <MiniField label="Filed" value={selectedRecord.filedDate ? fmtDate(selectedRecord.filedDate) : "Not filed"} />
+                    </div>
+
+                    <div className="grid gap-3">
+                      <LinkedRow label="Buyer" href={selectedRecord.actionSupport.canOpenBuyer ? detailHref("/admin/portal/buyers", selectedRecord.buyerId) : null} value={selectedRecord.buyerName} />
+                      <LinkedRow label="Puppy" href={selectedRecord.actionSupport.canOpenPuppy ? detailHref("/admin/portal/puppies", selectedRecord.puppyId) : null} value={selectedRecord.puppyName || "Not linked"} />
+                    </div>
+
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <ActionButton icon={<ArrowUpRight className="h-4 w-4" />} disabled={!selectedRecord.actionSupport.canView} onClick={() => openRecordUrl("view")}>View</ActionButton>
+                      <ActionButton icon={<Send className="h-4 w-4" />} disabled={!selectedRecord.actionSupport.canResend || workingAction === "resend_package"} onClick={() => void runAction("resend_package")}>Resend</ActionButton>
+                      <ActionButton icon={<Download className="h-4 w-4" />} disabled={!selectedRecord.actionSupport.canDownload} onClick={() => openRecordUrl("download")}>Download PDF</ActionButton>
+                      <ActionButton icon={<FileText className="h-4 w-4" />} disabled={!selectedRecord.actionSupport.canOpenBuyer} href={detailHref("/admin/portal/buyers", selectedRecord.buyerId)}>Open Buyer</ActionButton>
+                    </div>
+                  </div>
+                </AdminPanel>
+
+                <AdminPanel title="Timeline" subtitle="Submission, signature, filing, and override history for this record.">
+                  <div className="space-y-3">
+                    {selectedRecord.timeline.length ? (
+                      selectedRecord.timeline.map((item) => (
+                        <div key={item.id} className="rounded-[1.1rem] border border-[var(--portal-border)] bg-white px-4 py-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="text-sm font-semibold text-[var(--portal-text)]">{item.label}</div>
+                              {item.detail ? <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">{item.detail}</div> : null}
+                            </div>
+                            <div className="text-xs font-semibold text-[var(--portal-text-muted)]">{item.at ? fmtDate(item.at) : "-"}</div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <AdminEmptyState title="No timeline entries yet" description="New timeline activity will appear here once the record is submitted, signed, or filed." />
+                    )}
+                  </div>
+                </AdminPanel>
+
+                <AdminPanel title="Files and payload" subtitle="Attached files, filed copies, portal form payload, and admin override controls.">
+                  <div className="space-y-5">
+                    <DocumentFileSection title="Filed documents" files={selectedRecord.filedDocuments} empty="No filed copy is attached yet." />
+                    <DocumentFileSection title="Submission attachments" files={selectedRecord.attachments} empty="No attachment files were included with this submission." />
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                        Override status
+                        <select value={overrideStatus} onChange={(event) => setOverrideStatus(event.target.value)} className="mt-2 w-full rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm text-[var(--portal-text)] outline-none">
+                          {selectStatusOptions(selectedRecord).map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                        Replace filed copy
+                        <input type="file" onChange={(event) => setReplacementFile(event.target.files?.[0] || null)} className="mt-2 w-full rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm text-[var(--portal-text)]" />
+                      </label>
+                    </div>
+
+                    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                      Override note
+                      <textarea value={overrideNote} onChange={(event) => setOverrideNote(event.target.value)} rows={4} className="mt-2 w-full rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm text-[var(--portal-text)] outline-none" />
+                    </label>
+
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <ActionButton icon={<ShieldAlert className="h-4 w-4" />} disabled={!selectedRecord.actionSupport.canOverride || workingAction === "override_status"} onClick={() => void runAction("override_status", { status: overrideStatus, note: overrideNote })}>Override</ActionButton>
+                      <ActionButton icon={<FileText className="h-4 w-4" />} disabled={!selectedRecord.actionSupport.canMarkFiled || workingAction === "mark_filed"} onClick={() => void runAction("mark_filed", { note: overrideNote, filed_document_id: selectedRecord.filedDocuments[0]?.id || null })}>Mark Filed</ActionButton>
+                      <ActionButton icon={<Upload className="h-4 w-4" />} disabled={!selectedRecord.actionSupport.canReplace || !replacementFile || workingAction === "replace_document"} onClick={() => void uploadReplacement()}>Replace</ActionButton>
+                      <ActionButton icon={<Archive className="h-4 w-4" />} disabled={workingAction === "archive_record"} onClick={() => void runAction("archive_record", { note: overrideNote })}>Archive</ActionButton>
+                    </div>
+
+                    <JsonPanel title="Portal form data" value={selectedRecord.portalFormData} />
+                    <JsonPanel title="Submission payload" value={selectedRecord.payload} />
+                  </div>
+                </AdminPanel>
+              </>
+            ) : (
+              <AdminPanel title="Document detail" subtitle="Choose a record from the left table to inspect it.">
+                <AdminEmptyState title="No record selected" description="Select a submission or filed document to view signer, payload, filed copy, and record actions." />
               </AdminPanel>
-
-              <section className="grid grid-cols-1 gap-6 2xl:grid-cols-2">
-                <AdminPanel
-                  title="Submitted Forms"
-                  subtitle="Portal form submissions for the selected buyer."
-                >
-                  <div className="space-y-3">
-                    {selectedAccount.forms.length ? (
-                      selectedAccount.forms.map((form: AdminFormRecord) => (
-                        <DocumentRow
-                          key={`form-${form.id}`}
-                          label={toLabel(form.status)}
-                          title={form.form_title || toLabel(form.form_key)}
-                          detail={[
-                            `Version ${form.form_key}`,
-                            form.submitted_at ? `Submitted ${fmtDate(form.submitted_at)}` : `Created ${fmtDate(form.created_at)}`,
-                            form.signed_name ? `Signed by ${form.signed_name}` : "Not signed yet",
-                          ].join(" • ")}
-                        />
-                      ))
-                    ) : (
-                      <AdminEmptyState
-                        title="No submitted forms"
-                        description="This buyer does not have any form submissions on file yet."
-                      />
-                    )}
-                  </div>
-                </AdminPanel>
-
-                <AdminPanel
-                  title="Portal Documents"
-                  subtitle="Shared documents or uploaded files tied to the selected buyer."
-                >
-                  <div className="space-y-3">
-                    {selectedAccount.documents.length ? (
-                      selectedAccount.documents.map((doc) => (
-                        <DocumentRow
-                          key={`doc-${doc.id}`}
-                          label={toLabel(doc.category || doc.status || doc.source_table || "document")}
-                          title={doc.title || "Portal Document"}
-                          detail={[
-                            doc.description || "No description added yet.",
-                            doc.file_name || "No file name listed",
-                            doc.created_at ? fmtDate(doc.created_at) : "Date unavailable",
-                          ].join(" • ")}
-                        />
-                      ))
-                    ) : (
-                      <AdminEmptyState
-                        title="No portal documents"
-                        description="This buyer does not have any shared portal files attached yet."
-                      />
-                    )}
-                  </div>
-                </AdminPanel>
-              </section>
-            </div>
-          ) : (
-            <AdminPanel
-              title="Buyer Document Snapshot"
-              subtitle="Choose a buyer document card to begin."
-            >
-              <AdminEmptyState
-                title="No buyer selected"
-                description="Choose a buyer card from the left to review grouped forms and documents."
-              />
-            </AdminPanel>
-          )}
-        </section>
+            )}
+          </div>
+        </div>
       </div>
     </AdminPageShell>
   );
 }
 
-function DocumentRow({
-  label,
-  title,
-  detail,
-}: {
-  label: string;
-  title: string;
-  detail: string;
-}) {
+function SummaryStat({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
-    <div className="rounded-[22px] border border-[var(--portal-border)] bg-[linear-gradient(180deg,#fffdfb_0%,#f9f2e9_100%)] p-4 shadow-[0_10px_24px_rgba(106,76,45,0.05)]">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">{label}</div>
-      <div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">{title}</div>
-      <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
+    <div className="rounded-[1.4rem] border border-[var(--portal-border)] bg-white px-5 py-4 shadow-[0_12px_28px_rgba(106,76,45,0.06)]">
+      <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">{label}</div>
+      <div className="mt-2 text-[1.45rem] font-semibold tracking-[-0.04em] text-[var(--portal-text)]">{value}</div>
+      <div className="mt-2 text-xs leading-5 text-[var(--portal-text-soft)]">{detail}</div>
     </div>
   );
 }
 
+function MiniField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3">
+      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">{label}</div>
+      <div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">{value}</div>
+    </div>
+  );
+}
+
+function LinkedRow({ label, value, href }: { label: string; value: string; href: string | null }) {
+  return (
+    <div className="flex items-center justify-between rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3">
+      <div>
+        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">{label}</div>
+        <div className="mt-1 text-sm font-semibold text-[var(--portal-text)]">{value}</div>
+      </div>
+      {href ? <Link href={href} className="text-xs font-semibold text-[#a56a37]">Open</Link> : null}
+    </div>
+  );
+}
+
+function ActionButton({
+  children,
+  icon,
+  disabled = false,
+  onClick,
+  href,
+}: {
+  children: React.ReactNode;
+  icon: React.ReactNode;
+  disabled?: boolean;
+  onClick?: () => void;
+  href?: string;
+}) {
+  const className =
+    "inline-flex items-center justify-center gap-2 rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)] disabled:cursor-not-allowed disabled:opacity-45";
+  if (href) {
+    return (
+      <Link href={href} className={className}>
+        {icon}
+        {children}
+      </Link>
+    );
+  }
+  return (
+    <button type="button" disabled={disabled} onClick={onClick} className={className}>
+      {icon}
+      {children}
+    </button>
+  );
+}
+
+function DocumentFileSection({
+  title,
+  files,
+  empty,
+}: {
+  title: string;
+  files: Array<{
+    id: string;
+    label: string;
+    fileName: string | null;
+    url: string | null;
+    createdAt?: string | null;
+    signedAt?: string | null;
+    status?: string | null;
+  }>;
+  empty: string;
+}) {
+  return (
+    <div>
+      <div className="text-sm font-semibold text-[var(--portal-text)]">{title}</div>
+      <div className="mt-3 space-y-3">
+        {files.length ? (
+          files.map((file) => (
+            <div key={file.id} className="flex items-start justify-between gap-3 rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-4">
+              <div>
+                <div className="text-sm font-semibold text-[var(--portal-text)]">{file.label}</div>
+                <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
+                  {[file.fileName, file.createdAt ? `Created ${fmtDate(file.createdAt)}` : null, file.signedAt ? `Signed ${fmtDate(file.signedAt)}` : null, file.status ? prettyLabel(file.status) : null]
+                    .filter(Boolean)
+                    .join(" | ")}
+                </div>
+              </div>
+              {file.url ? (
+                <button type="button" onClick={() => window.open(file.url || "", "_blank", "noopener,noreferrer")} className="text-xs font-semibold text-[#a56a37]">
+                  Open
+                </button>
+              ) : null}
+            </div>
+          ))
+        ) : (
+          <div className="rounded-[1rem] border border-dashed border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4 text-sm text-[var(--portal-text-soft)]">
+            {empty}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function JsonPanel({ title, value }: { title: string; value: Record<string, unknown> | null }) {
+  return (
+    <details className="rounded-[1rem] border border-[var(--portal-border)] bg-white">
+      <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-[var(--portal-text)]">{title}</summary>
+      <div className="border-t border-[var(--portal-border)] px-4 py-4">
+        {value ? (
+          <pre className="overflow-x-auto rounded-[1rem] bg-[var(--portal-surface-muted)] p-4 text-xs leading-6 text-[var(--portal-text-soft)]">
+            {JSON.stringify(value, null, 2)}
+          </pre>
+        ) : (
+          <div className="text-sm text-[var(--portal-text-soft)]">No structured data was saved for this section.</div>
+        )}
+      </div>
+    </details>
+  );
+}

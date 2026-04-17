@@ -173,11 +173,11 @@ const ROLE_OPTIONS = [
 ];
 
 const PROGRAM_TABS: Array<{ value: ProgramTab; label: string }> = [
-  { value: "overview", label: "Overview" },
-  { value: "dogs", label: "Dogs" },
+  { value: "dogs", label: "Dog Workspace" },
   { value: "pairings", label: "Pairings" },
-  { value: "timeline", label: "Calendar / Timeline" },
-  { value: "insights", label: "Reports / Insights" },
+  { value: "timeline", label: "Timeline" },
+  { value: "insights", label: "Insights" },
+  { value: "overview", label: "Program Summary" },
 ];
 
 const DOG_TABS: Array<{ value: DogTab; label: string }> = [
@@ -510,6 +510,15 @@ function recordHasReproGap(record: ProgramDogRecord) {
   }
 
   return !text(record.metadata.reproduction.fertilityNotes) && !record.litters.length;
+}
+
+function isDueSoonRecord(record: ProgramDogRecord) {
+  const dueGap = dateDiffDays(record.metadata.reproduction.dueDate);
+  const heatGap = dateDiffDays(record.metadata.reproduction.expectedNextHeat);
+  return (
+    (dueGap != null && dueGap >= -7 && dueGap <= 30) ||
+    (heatGap != null && heatGap >= -7 && heatGap <= 30)
+  );
 }
 
 function matchesRecordGap(record: ProgramDogRecord, filter: string) {
@@ -1390,7 +1399,7 @@ export default function AdminPortalBreedingProgramPage() {
   const [loadingData, setLoadingData] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<NoticeState | null>(null);
-  const [programTab, setProgramTab] = useState<ProgramTab>("overview");
+  const [programTab, setProgramTab] = useState<ProgramTab>("dogs");
   const [dogTab, setDogTab] = useState<DogTab>("profile");
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
@@ -1569,7 +1578,14 @@ export default function AdminPortalBreedingProgramPage() {
   const filteredDogs = useMemo(() => {
     return programDogs.filter((record) => {
       if (roleFilter !== "all" && record.role !== roleFilter) return false;
-      if (statusFilter !== "all" && normalizeStatusGroup(record.dog.status) !== statusFilter) {
+      if (statusFilter === "due_soon" && !isDueSoonRecord(record)) {
+        return false;
+      }
+      if (
+        statusFilter !== "all" &&
+        statusFilter !== "due_soon" &&
+        normalizeStatusGroup(record.dog.status) !== statusFilter
+      ) {
         return false;
       }
       if (registryFilter !== "all" && text(record.dog.registry) !== registryFilter) return false;
@@ -1970,7 +1986,7 @@ export default function AdminPortalBreedingProgramPage() {
         <AdminPageHero
           eyebrow="Breeding Operations"
           title="Breeding Program"
-          description="A full breeding operations command center for Southwest Virginia Chihuahua."
+          description="Run the breeding roster, pairings, timelines, and litter-linked dog records from one working console."
           actions={
             <>
               <button
@@ -2001,7 +2017,7 @@ export default function AdminPortalBreedingProgramPage() {
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1.18fr)_420px]">
               <div className="space-y-4">
                 <div className="max-w-4xl text-sm leading-7 text-[var(--portal-text-soft)]">
-                  This workspace ties together dams, sires, reproductive timing, pregnancies, litters, produced puppies, lineage, health, genetics, and financial contribution so the breeding program reads like one serious internal system instead of scattered records.
+                  The goal here is to work the program, not admire it. Use the roster to open a dog, update the reproductive timeline, review pairings and litter output, and keep health, lineage, and breeder notes in one place.
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -2150,70 +2166,26 @@ export default function AdminPortalBreedingProgramPage() {
           </div>
         ) : null}
 
-        <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6">
+        <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <ProgramMetricTile
-            label="Active Dams"
-            value={String(activeDams)}
-            detail={`${pregnantDogs} pregnant and ${onGroundLitters.length} litters on ground`}
+            label="Active Roster"
+            value={`${activeDams + activeSires}`}
+            detail={`${activeDams} dams, ${activeSires} sires, ${retiredDogs} retired`}
           />
           <ProgramMetricTile
-            label="Active Sires"
-            value={String(activeSires)}
-            detail={`${prospects} prospects and ${retiredDogs} retired dogs tracked`}
-          />
-          <ProgramMetricTile
-            label="Puppy Flow"
-            value={`${workspace?.summary.availableCount || 0} available`}
-            detail={`${retainedProgramPuppies} retained and ${workspace?.summary.completedCount || 0} completed`}
-          />
-          <ProgramMetricTile
-            label="Litters This Year"
-            value={String(totalLittersThisYear)}
-            detail={`${averageLitterSize ? averageLitterSize.toFixed(1) : "0.0"} average litter size`}
-          />
-          <ProgramMetricTile
-            label="Avg Puppies Surviving"
-            value={averageSurvivingPuppies ? averageSurvivingPuppies.toFixed(1) : "0.0"}
-            detail="Average surviving puppies per litter"
-          />
-          <ProgramMetricTile
-            label="Program Revenue"
-            value={fmtMoney(workspace?.summary.totalRevenue || 0)}
-            detail={`${fmtMoney(workspace?.summary.totalProfit || 0)} estimated total profit`}
-          />
-          <ProgramMetricTile
-            label="Avg Revenue / Litter"
-            value={fmtMoney(averageRevenuePerLitter)}
-            detail={`${fmtMoney(workspace?.summary.averageSalePrice || 0)} average puppy sale price`}
-          />
-          <ProgramMetricTile
-            label="Due Soon"
-            value={String(dueSoonDogs.length)}
-            detail="Pregnancy or whelping windows within 30 days"
-          />
-          <ProgramMetricTile
-            label="Missing Records"
-            value={String(incompleteDogs.length)}
-            detail={`${missingHealthItems.length} dogs missing health or genetics detail`}
-          />
-          <ProgramMetricTile
-            label="Tasks Due"
+            label="Due Actions"
             value={String(breedingTasksDue)}
-            detail="Heat, due, retirement, or file-review follow-up"
+            detail={`${dueSoonDogs.length} due soon and ${incompleteDogs.length} records needing cleanup`}
           />
           <ProgramMetricTile
-            label="Retirement Reviews"
-            value={String(retirementReviews.length)}
-            detail="Dogs with retirement targets within 12 months"
+            label="Litters + Offspring"
+            value={String(totalLittersThisYear)}
+            detail={`${onGroundLitters.length} on ground, ${retainedProgramPuppies} retained, ${(workspace?.summary.completedCount || 0)} completed`}
           />
           <ProgramMetricTile
-            label="Strongest Bloodline"
-            value={bloodlineLeaderboard[0]?.label || "Not tagged"}
-            detail={
-              bloodlineLeaderboard[0]
-                ? `${bloodlineLeaderboard[0].dogs} dogs and ${bloodlineLeaderboard[0].puppies} puppies`
-                : "Add bloodline tags to compare program strength"
-            }
+            label="Program Output"
+            value={fmtMoney(workspace?.summary.totalRevenue || 0)}
+            detail={`${fmtMoney(averageRevenuePerLitter)} average revenue per litter`}
           />
         </section>
 
@@ -2228,6 +2200,28 @@ export default function AdminPortalBreedingProgramPage() {
                 />
 
                 <div className="mt-5 space-y-4">
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      {
+                        label: "All",
+                        active: roleFilter === "all" && statusFilter === "all",
+                        onClick: () => {
+                          setRoleFilter("all");
+                          setStatusFilter("all");
+                        },
+                      },
+                      { label: "Dams", active: roleFilter === "dam", onClick: () => setRoleFilter("dam") },
+                      { label: "Sires", active: roleFilter === "sire", onClick: () => setRoleFilter("sire") },
+                      { label: "Pregnant", active: statusFilter === "pregnant", onClick: () => setStatusFilter("pregnant") },
+                      { label: "Due Soon", active: statusFilter === "due_soon", onClick: () => setStatusFilter("due_soon") },
+                      { label: "Retired", active: statusFilter === "retired", onClick: () => setStatusFilter("retired") },
+                    ].map((chip) => (
+                      <TabButton key={chip.label} active={chip.active} onClick={chip.onClick}>
+                        {chip.label}
+                      </TabButton>
+                    ))}
+                  </div>
+
                   <div className="grid gap-3 sm:grid-cols-2">
                     <AdminSelectInput
                       label="Role"
@@ -2248,6 +2242,7 @@ export default function AdminPortalBreedingProgramPage() {
                         { value: "active", label: "Active" },
                         { value: "prospect", label: "Prospect" },
                         { value: "pregnant", label: "Pregnant" },
+                        { value: "due_soon", label: "Due Soon" },
                         { value: "nursing", label: "Nursing" },
                         { value: "recovering", label: "Recovering" },
                         { value: "paused", label: "Paused / Hold" },
@@ -4177,17 +4172,20 @@ function SelectedDogRail({
 
               <div className="rounded-[1.2rem] border border-[var(--portal-border)] bg-white p-4">
                 <div className="text-sm font-semibold text-[var(--portal-text)]">
-                  Quick jumps
+                  Primary actions
                 </div>
                 <div className="mt-3 space-y-2">
                   {([
-                    { tab: "profile", label: "Basic profile" },
-                    { tab: "reproduction", label: "Reproductive tracking" },
-                    { tab: "litters", label: "Litter history" },
-                    { tab: "financials", label: "Financial performance" },
-                  ] as Array<{ tab: DogTab; label: string }>).map((item) => (
+                    { tab: "reproduction", label: "Add heat cycle" },
+                    { tab: "reproduction", label: "Record pairing" },
+                    { tab: "reproduction", label: "Start pregnancy tracking" },
+                    { tab: "health", label: "Attach health record" },
+                    { tab: "profile", label: "Add note" },
+                    { tab: "profile", label: "Retire dog" },
+                    { tab: "offspring", label: "View offspring" },
+                  ] as Array<{ tab: DogTab; label: string }>).map((item, index) => (
                     <button
-                      key={item.tab}
+                      key={`${item.tab}-${index}`}
                       type="button"
                       onClick={() => onOpenDogTab(item.tab)}
                       className="flex w-full items-center justify-between rounded-[1rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-3 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)] hover:bg-white"
@@ -4196,6 +4194,13 @@ function SelectedDogRail({
                       <span className="text-[#a56a37]">Open</span>
                     </button>
                   ))}
+                  <Link
+                    href="/admin/portal/litters"
+                    className="flex w-full items-center justify-between rounded-[1rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-3 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)] hover:bg-white"
+                  >
+                    Create litter
+                    <span className="text-[#a56a37]">Open</span>
+                  </Link>
                 </div>
               </div>
             </div>
