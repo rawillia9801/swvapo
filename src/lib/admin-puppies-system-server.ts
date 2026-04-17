@@ -253,8 +253,62 @@ function isMissingTableError(error: unknown) {
     message.includes("does not exist") ||
     message.includes("relation") ||
     message.includes("schema cache") ||
-    message.includes("could not find the table")
+    message.includes("could not find the table") ||
+    message.includes("could not find the '") ||
+    message.includes("column") ||
+    message.includes("no such column")
   );
+}
+
+type LineageWorkspace = Awaited<ReturnType<typeof loadAdminLineageWorkspace>>;
+
+function emptyLineageWorkspace(): LineageWorkspace {
+  return {
+    summary: {
+      totalPuppies: 0,
+      availableCount: 0,
+      reservedCount: 0,
+      completedCount: 0,
+      soldCount: 0,
+      unsoldCount: 0,
+      totalRevenue: 0,
+      contractedRevenue: 0,
+      projectedRevenue: 0,
+      realizedRevenue: 0,
+      reservedRevenue: 0,
+      totalDeposits: 0,
+      totalPayments: 0,
+      averageSalePrice: 0,
+      totalCosts: 0,
+      projectedCosts: 0,
+      reservedCosts: 0,
+      realizedCosts: 0,
+      totalProfit: 0,
+      projectedProfit: 0,
+      reservedProfit: 0,
+      realizedProfit: 0,
+      averageProfit: 0,
+      totalLitters: 0,
+      totalDams: 0,
+      totalSires: 0,
+    },
+    dogs: [],
+    litters: [],
+    puppies: [],
+    buyers: [],
+  };
+}
+
+async function safeLineageWorkspace(service: SupabaseClient): Promise<LineageWorkspace> {
+  try {
+    return await loadAdminLineageWorkspace(service);
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      console.warn("Admin puppies snapshot fell back to empty lineage workspace:", error);
+      return emptyLineageWorkspace();
+    }
+    throw error;
+  }
 }
 
 async function safeRows<T>(
@@ -811,12 +865,14 @@ function buildProgramContext(
     customerCapabilities: [
       "Answer account-aware buyer questions when the user is signed in.",
       "Explain puppy status, payments, documents, pickup, transport, and portal next steps.",
-      "Answer general Chihuahua care and breeding-program questions in a clear, natural way.",
+      "Answer vaccination, deworming, milestone, go-home, and support questions in a clear, natural way.",
+      "Stay helpful on normal buyer questions instead of over-restricting when the account context already supports the answer.",
     ],
     adminCapabilities: [
       "Summarize puppies missing care updates, photos, copy, buyer linkage, portal readiness, or documents.",
       "Help draft buyer communication, payment reminders, and progress updates.",
-      "Surface broader breeding-program issues across litters, breeding dogs, buyers, and readiness workflows.",
+      "Surface broader breeding-program issues across litters, breeding dogs, buyers, readiness workflows, and overdue payment situations.",
+      "Support safe task workflows by proposing, confirming, and then executing authorized admin actions.",
     ],
   };
 }
@@ -824,7 +880,7 @@ export async function loadPuppiesSystemSnapshot(
   service: SupabaseClient = createServiceSupabase(),
   ownerEmail: string | null = null
 ): Promise<PuppiesSystemSnapshot> {
-  const lineage = await loadAdminLineageWorkspace(service);
+  const lineage = await safeLineageWorkspace(service);
 
   const [
     authUsers,

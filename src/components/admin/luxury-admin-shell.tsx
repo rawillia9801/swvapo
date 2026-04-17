@@ -9,6 +9,7 @@ import {
   Dog,
   FileCheck2,
   Files,
+  LayoutDashboard,
   Layers3,
   MapPinned,
   MessageSquareText,
@@ -41,9 +42,15 @@ const ADMIN_NAV: AdminNavSection[] = [
     items: [
       {
         href: "/admin/portal",
+        label: "Dashboard",
+        helper: "Program command center and alerts",
+        icon: <LayoutDashboard className="h-4 w-4" />,
+      },
+      {
+        href: "/admin/portal/puppies",
         label: "Puppies",
-        helper: "Overview, current, past, care, readiness",
-        aliases: ["/admin/portal/puppies"],
+        helper: "Overview, current puppies, past puppies",
+        aliases: ["/admin/portal/puppies/current", "/admin/portal/puppies/past"],
         icon: <PawPrint className="h-4 w-4" />,
       },
       {
@@ -170,12 +177,32 @@ const SUPPRESSED_ADMIN_PANEL_TITLES = new Set([
   "Review Bench",
 ]);
 
+const PUPPIES_SUBNAV = [
+  {
+    href: "/admin/portal/puppies",
+    label: "Overview",
+  },
+  {
+    href: "/admin/portal/puppies/current",
+    label: "Current Puppies",
+  },
+  {
+    href: "/admin/portal/puppies/past",
+    label: "Past Puppies",
+  },
+] as const;
+
+function matchesSectionPath(pathname: string | null, href: string) {
+  return pathname === href || pathname?.startsWith(`${href}/`);
+}
+
 export function AdminPageShell({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const showPuppiesSubnav = matchesSectionPath(pathname, "/admin/portal/puppies");
   let currentItem:
     | (AdminNavItem & {
         section: string;
@@ -305,6 +332,28 @@ export function AdminPageShell({
                   </div>
                 </div>
               </div>
+
+              {showPuppiesSubnav ? (
+                <div className="mb-4 flex flex-wrap gap-2">
+                  {PUPPIES_SUBNAV.map((item) => {
+                    const active = pathname === item.href;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={[
+                          "inline-flex items-center rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] transition",
+                          active
+                            ? "border-transparent bg-[linear-gradient(90deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] text-white shadow-[var(--portal-shadow-sm)]"
+                            : "border-[var(--portal-border)] bg-white text-[var(--portal-text-soft)] hover:border-[var(--portal-border-strong)] hover:text-[var(--portal-text)]",
+                        ].join(" ")}
+                      >
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              ) : null}
 
               <div className="space-y-4">{children}</div>
             </div>

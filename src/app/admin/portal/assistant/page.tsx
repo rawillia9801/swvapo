@@ -77,19 +77,19 @@ type QuickLane = {
 
 const QUICK_LANES: QuickLane[] = [
   {
-    title: "Public Intelligence",
-    detail: "Exact website chat transcripts, visitor behavior, and live public conversation pulls.",
-    icon: <Radar className="h-4 w-4" />,
+    title: "Breeding Ops",
+    detail: "Puppies, litters, breeding dogs, buyer linkage, care gaps, and readiness blockers.",
+    icon: <BrainCircuit className="h-4 w-4" />,
   },
   {
-    title: "CRM Work Queue",
-    detail: "Follow-ups due now, admin digests, leads, and what needs outreach next.",
+    title: "Buyer Follow-Through",
+    detail: "Documents, overdue balances, portal gaps, transport questions, and outreach drafts.",
     icon: <MessageSquareText className="h-4 w-4" />,
   },
   {
-    title: "Buyer Records",
-    detail: "Balances, financing, linked puppies, delivery context, and placement detail.",
-    icon: <BrainCircuit className="h-4 w-4" />,
+    title: "Public Intelligence",
+    detail: "Website conversations, visitor patterns, and live public-facing activity when needed.",
+    icon: <Radar className="h-4 w-4" />,
   },
   {
     title: "Payment Ops",
@@ -99,12 +99,12 @@ const QUICK_LANES: QuickLane[] = [
 ];
 
 const COMMAND_DOCK_PROMPTS = [
-  "How many dams and sires do I have?",
-  "Show breeding program summary",
-  "Show puppy financing accounts",
-  "Show recent portal users",
-  "Show exact public chat transcripts",
-  "Show recent customer payment alerts",
+  "Which puppies need weights updated this week?",
+  "Show puppies missing vaccine records",
+  "Which buyers still need documents signed?",
+  "Which puppies are ready for website but not portal?",
+  "Draft a payment reminder for overdue accounts",
+  "Summarize all puppies needing attention today",
   "Create Zoho payment link for Jane Doe for $500 deposit",
 ];
 
@@ -531,11 +531,11 @@ export default function AdminAssistantPage() {
                   ChiChi Core
                 </span>
                 <h1 className="mt-4 text-[1.8rem] font-semibold leading-[1.02] tracking-[-0.05em] text-[var(--portal-text)] [font-family:var(--font-merriweather)] md:text-[2.55rem]">
-                  ChiChi autonomous ops for buyers, financing, CRM, public chats, and payments.
+                  ChiChi for breeding operations, buyer follow-through, financing, and live support work.
                 </h1>
                 <p className="mt-3 max-w-4xl text-sm leading-7 text-[var(--portal-text-soft)] md:text-[15px]">
                   Pull, decide, and act from one command surface. ChiChi is wired into the live
-                  records, payment events, follow-up queues, and public conversation stream.
+                  breeding records, buyer workflows, payment events, follow-up queues, and public conversation stream.
                 </p>
               </div>
 
@@ -675,8 +675,8 @@ export default function AdminAssistantPage() {
                 </div>
 
                 <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <div className="text-xs leading-6 text-[var(--portal-text-muted)]">
-                    ChiChi answers from the live records tied to this breeding hub.
+                <div className="text-xs leading-6 text-[var(--portal-text-muted)]">
+                    ChiChi answers from the live records tied to this breeding hub and can help move operational work forward.
                   </div>
                   <div className="flex flex-wrap gap-3">
                     <button

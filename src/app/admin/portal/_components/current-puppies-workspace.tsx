@@ -362,7 +362,30 @@ function populateForm(puppy: PuppyRecord | null): PuppyForm {
 
 function isCurrentPuppyStatus(status: string | null | undefined) {
   const normalized = String(status || "").trim().toLowerCase();
-  return normalized.includes("available") || normalized.includes("expected");
+  if (!normalized) return true;
+  return [
+    "available",
+    "expected",
+    "reserved",
+    "matched",
+    "hold",
+    "pending",
+    "active",
+  ].some((token) => normalized.includes(token));
+}
+
+function isPastPuppyStatus(status: string | null | undefined) {
+  const normalized = String(status || "").trim().toLowerCase();
+  return ["sold", "completed", "placed", "archived", "gone home"].some((token) =>
+    normalized.includes(token)
+  );
+}
+
+function matchesWorkspaceStatus(
+  status: string | null | undefined,
+  mode: "current" | "past"
+) {
+  return mode === "past" ? isPastPuppyStatus(status) : isCurrentPuppyStatus(status);
 }
 
 function hasValue(value: unknown) {
@@ -1393,7 +1416,11 @@ function CurrentPuppyDrawer({
   );
 }
 
-export function CurrentPuppiesWorkspace() {
+export function CurrentPuppiesWorkspace({
+  mode = "current",
+}: {
+  mode?: "current" | "past";
+}) {
   const { user, accessToken, loading, isAdmin } = usePortalAdminSession();
   const [puppies, setPuppies] = useState<PuppyRecord[]>([]);
   const [buyers, setBuyers] = useState<BuyerOption[]>([]);
@@ -1419,14 +1446,14 @@ export function CurrentPuppiesWorkspace() {
   const [postingUpdate, setPostingUpdate] = useState(false);
   const [pageFeedback, setPageFeedback] = useState<{ tone: FeedbackTone; text: string } | null>(null);
 
-  const currentPuppies = useMemo(
-    () => puppies.filter((puppy) => isCurrentPuppyStatus(puppy.status)),
-    [puppies]
+  const workspacePuppies = useMemo(
+    () => puppies.filter((puppy) => matchesWorkspaceStatus(puppy.status, mode)),
+    [mode, puppies]
   );
 
   const filteredPuppies = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return currentPuppies.filter((puppy) => {
+    return workspacePuppies.filter((puppy) => {
       if (!query) return true;
       return [
         puppyName(puppy),
@@ -1442,13 +1469,13 @@ export function CurrentPuppiesWorkspace() {
         .join(" ")
         .includes(query);
     });
-  }, [currentPuppies, search]);
+  }, [search, workspacePuppies]);
 
   const selectedPuppy =
     createMode
       ? null
       : puppies.find((puppy) => String(puppy.id) === selectedId) ||
-        currentPuppies.find((puppy) => String(puppy.id) === selectedId) ||
+        workspacePuppies.find((puppy) => String(puppy.id) === selectedId) ||
         null;
 
   async function refresh(preferredId?: string, nextCreateMode = false) {
@@ -1461,7 +1488,7 @@ export function CurrentPuppiesWorkspace() {
     setCreateMode(nextCreateMode);
 
     const availableIds = payload.puppies
-      .filter((puppy) => isCurrentPuppyStatus(puppy.status))
+      .filter((puppy) => matchesWorkspaceStatus(puppy.status, mode))
       .map((puppy) => String(puppy.id));
 
     setSelectedId((current) => {
@@ -1493,8 +1520,8 @@ export function CurrentPuppiesWorkspace() {
         setBuyers(payload.buyers);
         setLitters(payload.litters);
         setDogs(payload.breedingDogs);
-        const firstCurrent = payload.puppies.find((puppy) => isCurrentPuppyStatus(puppy.status));
-        setSelectedId(String(firstCurrent?.id || payload.puppies[0]?.id || ""));
+        const firstVisible = payload.puppies.find((puppy) => matchesWorkspaceStatus(puppy.status, mode));
+        setSelectedId(String(firstVisible?.id || payload.puppies[0]?.id || ""));
       } catch (error) {
         if (!active) return;
         setPageFeedback({
@@ -1510,7 +1537,7 @@ export function CurrentPuppiesWorkspace() {
     return () => {
       active = false;
     };
-  }, [accessToken, isAdmin]);
+  }, [accessToken, isAdmin, mode]);
 
   useEffect(() => {
     if (createMode) {
@@ -1653,15 +1680,17 @@ export function CurrentPuppiesWorkspace() {
       await refresh(nextId, false);
 
       const nextStatus = String(payload.saved?.status || form.status || "").toLowerCase();
-      const stillCurrent = isCurrentPuppyStatus(nextStatus);
+      const stillInWorkspace = matchesWorkspaceStatus(nextStatus, mode);
 
       setStatusTone("success");
       setStatusText(
         createMode
           ? "Puppy created successfully."
-          : stillCurrent
+          : stillInWorkspace
             ? "Puppy record updated."
-            : "Puppy record updated and moved out of Current Puppies because the status is no longer available."
+            : mode === "current"
+              ? "Puppy record updated and moved out of Current Puppies because the status is no longer current."
+              : "Puppy record updated and moved out of Past Puppies because the status is no longer historical."
       );
 
       if (createMode) {
@@ -1669,11 +1698,14 @@ export function CurrentPuppiesWorkspace() {
         setSelectedId(nextId);
       }
 
-      if (!stillCurrent) {
+      if (!stillInWorkspace) {
         setDrawerOpen(false);
         setPageFeedback({
           tone: "success",
-          text: "Puppy saved and removed from the Current Puppies board because it is no longer available.",
+          text:
+            mode === "current"
+              ? "Puppy saved and removed from Current Puppies because the status is no longer current."
+              : "Puppy saved and removed from Past Puppies because the status is no longer historical.",
         });
       }
     } catch (error) {
@@ -1891,9 +1923,9 @@ export function CurrentPuppiesWorkspace() {
     );
   }
 
-  const buyerLinkedCount = currentPuppies.filter((puppy) => puppy.buyer_id || puppy.owner_email).length;
-  const photoReadyCount = currentPuppies.filter((puppy) => puppy.photo_url || puppy.image_url).length;
-  const descriptionReadyCount = currentPuppies.filter((puppy) => puppy.description).length;
+  const buyerLinkedCount = workspacePuppies.filter((puppy) => puppy.buyer_id || puppy.owner_email).length;
+  const photoReadyCount = workspacePuppies.filter((puppy) => puppy.photo_url || puppy.image_url).length;
+  const descriptionReadyCount = workspacePuppies.filter((puppy) => puppy.description).length;
 
   return (
     <AdminPageShell>
@@ -1902,15 +1934,26 @@ export function CurrentPuppiesWorkspace() {
 
         <Surface className="p-6 md:p-7">
           <SurfaceHeader
-            eyebrow="Current Puppies"
-            title="Current Puppies"
-            subtitle="A clean board for the puppies that are still actively being worked, marketed, and updated for buyers."
+            eyebrow={mode === "past" ? "Past Puppies" : "Current Puppies"}
+            title={mode === "past" ? "Past Puppies" : "Current Puppies"}
+            subtitle={
+              mode === "past"
+                ? "Historical puppy records with the same detailed drawer so you can review buyer linkage, care history, notes, and archived readiness."
+                : "A clean board for the puppies that are still actively being worked, marketed, and updated for buyers."
+            }
             action={
               <>
-                <button type="button" onClick={openCreateDrawer} className={primaryButtonClass}>
-                  <Plus className="h-4 w-4" />
-                  Add Puppy
-                </button>
+                {mode === "current" ? (
+                  <button type="button" onClick={openCreateDrawer} className={primaryButtonClass}>
+                    <Plus className="h-4 w-4" />
+                    Add Puppy
+                  </button>
+                ) : (
+                  <Link href="/admin/portal/puppies/current" className={primaryButtonClass}>
+                    <PawPrint className="h-4 w-4" />
+                    Open Current Puppies
+                  </Link>
+                )}
                 <button
                   type="button"
                   onClick={() => void refresh(selectedId, createMode)}
@@ -1928,24 +1971,40 @@ export function CurrentPuppiesWorkspace() {
 
           <div className="mt-6 grid gap-4 md:grid-cols-4">
             <MetricPill
-              label="Available Board"
-              value={String(currentPuppies.length)}
-              detail="The current puppy board only shows available and expected puppies."
+              label={mode === "past" ? "Historical Board" : "Current Board"}
+              value={String(workspacePuppies.length)}
+              detail={
+                mode === "past"
+                  ? "This workspace focuses on completed, placed, sold, and archived puppy records."
+                  : "This workspace focuses on puppies still moving through care, readiness, and placement."
+              }
             />
             <MetricPill
               label="Buyer Attached"
               value={String(buyerLinkedCount)}
-              detail="Attach buyers here when the puppy is reserved or matched."
+              detail={
+                mode === "past"
+                  ? "Historical buyer linkage stays visible here for placement review and follow-up."
+                  : "Attach buyers here when the puppy is reserved or matched."
+              }
             />
             <MetricPill
-              label="Photo Ready"
+              label={mode === "past" ? "Photo On File" : "Photo Ready"}
               value={String(photoReadyCount)}
-              detail="Cards with photos are ready for the public site and buyer portal."
+              detail={
+                mode === "past"
+                  ? "Past records still show whether photos remain attached for archives and reference."
+                  : "Cards with photos are ready for the public site and buyer portal."
+              }
             />
             <MetricPill
-              label="Website Copy Ready"
+              label={mode === "past" ? "History Notes Ready" : "Website Copy Ready"}
               value={String(descriptionReadyCount)}
-              detail="Descriptions are saved and ready to publish to the website."
+              detail={
+                mode === "past"
+                  ? "Descriptions and notes stay available for archive review and historical context."
+                  : "Descriptions are saved and ready to publish to the website."
+              }
             />
           </div>
         </Surface>
@@ -1956,14 +2015,19 @@ export function CurrentPuppiesWorkspace() {
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search current puppies, litter, dam, buyer..."
+              placeholder={
+                mode === "past"
+                  ? "Search past puppies, buyer, litter, dam, sire..."
+                  : "Search current puppies, litter, dam, buyer..."
+              }
               className="w-full rounded-[1.2rem] border border-[rgba(187,160,132,0.22)] bg-white/92 py-3 pl-11 pr-4 text-sm text-[var(--portal-text)] shadow-sm outline-none transition placeholder:text-[var(--portal-text-muted)] focus:border-[rgba(166,103,51,0.45)] focus:ring-4 focus:ring-[rgba(200,140,82,0.12)]"
             />
           </label>
 
           <div className="flex items-center gap-3 rounded-full border border-[rgba(187,160,132,0.18)] bg-white/90 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--portal-text-muted)] shadow-sm">
             <PawPrint className="h-4 w-4 text-[#a56733]" />
-            {filteredPuppies.length} current {filteredPuppies.length === 1 ? "puppy" : "puppies"}
+            {filteredPuppies.length} {mode === "past" ? "past" : "current"}{" "}
+            {filteredPuppies.length === 1 ? "puppy" : "puppies"}
           </div>
         </div>
 
@@ -1976,8 +2040,12 @@ export function CurrentPuppiesWorkspace() {
         ) : (
           <Surface className="p-10">
             <AdminEmptyState
-              title="No current puppies match this search"
-              description="Try a different search or create a new puppy record."
+              title={`No ${mode === "past" ? "past" : "current"} puppies match this search`}
+              description={
+                mode === "past"
+                  ? "Try a different search or return to the current puppy workspace."
+                  : "Try a different search or create a new puppy record."
+              }
             />
           </Surface>
         )}

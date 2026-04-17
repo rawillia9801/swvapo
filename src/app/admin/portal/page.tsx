@@ -1,5 +1,5 @@
-import { PuppiesSystemWorkspace } from "@/app/admin/portal/_components/puppies-system-workspace";
+import { AdminDashboardWorkspace } from "@/app/admin/portal/_components/admin-dashboard-workspace";
 
 export default function AdminPortalPage() {
-  return <PuppiesSystemWorkspace />;
+  return <AdminDashboardWorkspace />;
 }

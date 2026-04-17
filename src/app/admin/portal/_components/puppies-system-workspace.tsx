@@ -182,8 +182,11 @@ function buyerAttentionLabel(buyer: BuyerWorkspaceRecord) {
 
 function PuppyQuickCard({ puppy }: { puppy: PuppyWorkspaceRecord }) {
   const photo = puppy.photoUrl ? buildPuppyPhotoUrl(puppy.photoUrl) : "";
+  const detailHref = isPastPuppyStatus(puppy.status)
+    ? `/admin/portal/puppies/past?puppy=${puppy.id}`
+    : `/admin/portal/puppies/current?puppy=${puppy.id}`;
   return (
-    <Link href={`/admin/portal/puppies?puppy=${puppy.id}`} className="group overflow-hidden rounded-[1.4rem] border border-[var(--portal-border)] bg-white shadow-[var(--portal-shadow-sm)] transition hover:-translate-y-1 hover:shadow-[var(--portal-shadow-lg)]">
+    <Link href={detailHref} className="group overflow-hidden rounded-[1.4rem] border border-[var(--portal-border)] bg-white shadow-[var(--portal-shadow-sm)] transition hover:-translate-y-1 hover:shadow-[var(--portal-shadow-lg)]">
       <div className="relative h-36 bg-[linear-gradient(135deg,#efe0cf_0%,#dbb894_100%)]">
         {photo ? <Image src={photo} alt={puppy.displayName} fill className="object-cover transition duration-500 group-hover:scale-105" sizes="320px" /> : <div className="flex h-full items-center justify-center text-[#8f6a48]"><PawPrint className="h-10 w-10" /></div>}
       </div>
@@ -372,17 +375,17 @@ export function PuppiesSystemWorkspace({
       <div className="space-y-6 pb-10">
         <AdminPageHero
           eyebrow="Puppies"
-          title="Breeding-program command center"
-          description="One main Puppies workspace for overview, care, readiness, matching, documents, messaging, automations, and ChiChi operational context."
+          title="Puppies system overview"
+          description="The overview layer for puppy operations, readiness, buyer linkage, documents, messaging templates, automations, and ChiChi context."
           actions={
             <>
               <button type="button" onClick={() => void loadSnapshot()} className={secondaryButtonClass}>
                 <RefreshCcw className="h-4 w-4" />
                 Refresh
               </button>
-              <Link href="/admin/portal/puppies" className={primaryButtonClass}>
+              <Link href="/admin/portal/puppies/current" className={primaryButtonClass}>
                 <PawPrint className="h-4 w-4" />
-                Open Current Puppies
+                Open Current Manager
               </Link>
             </>
           }
@@ -416,6 +419,7 @@ export function PuppiesSystemWorkspace({
             <div className="flex flex-wrap gap-3 text-sm text-[var(--portal-text-soft)]">
               <Link href="/admin/portal/litters" className={secondaryButtonClass}>Open Litters</Link>
               <Link href="/admin/portal/buyers" className={secondaryButtonClass}>Open Buyers</Link>
+              <Link href="/admin/portal/puppies/past" className={secondaryButtonClass}>Open Past Puppies</Link>
               <Link href="/admin/portal/assistant" className={secondaryButtonClass}>Open ChiChi</Link>
             </div>
           </div>
@@ -623,7 +627,7 @@ export function PuppiesSystemWorkspace({
               <div>Puppy</div><div>Website</div><div>Portal</div><div>Documents</div><div>Placement</div><div>Go-home</div>
             </div>
             {currentPuppies.map((puppy) => (
-              <Link key={puppy.id} href={`/admin/portal/puppies?puppy=${puppy.id}`} className="grid grid-cols-[1.1fr_repeat(5,minmax(0,0.7fr))] gap-3 border-b border-[var(--portal-border)] px-5 py-4 hover:bg-[var(--portal-surface-muted)]">
+              <Link key={puppy.id} href={`/admin/portal/puppies/current?puppy=${puppy.id}`} className="grid grid-cols-[1.1fr_repeat(5,minmax(0,0.7fr))] gap-3 border-b border-[var(--portal-border)] px-5 py-4 hover:bg-[var(--portal-surface-muted)]">
                 <div><div className="font-semibold text-[var(--portal-text)]">{puppy.displayName}</div><div className="text-sm text-[var(--portal-text-soft)]">{puppy.buyerName || "No buyer linked"}</div></div>
                 <ReadinessBadge score={puppy.readiness.website.score} />
                 <ReadinessBadge score={puppy.readiness.portal.score} />
@@ -639,7 +643,7 @@ export function PuppiesSystemWorkspace({
           <div className="grid gap-6 xl:grid-cols-2">
             <div className={cardClassName("p-5")}>
               <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--portal-text)]"><Users className="h-5 w-5 text-[var(--portal-accent)]" />Unmatched puppies</div>
-              <div className="space-y-3">{unmatchedPuppies.length ? unmatchedPuppies.map((puppy) => <Link key={puppy.id} href={`/admin/portal/puppies?puppy=${puppy.id}`} className="block rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3 text-sm text-[var(--portal-text)]"><div className="font-semibold">{puppy.displayName}</div><div className="mt-1 text-[var(--portal-text-soft)]">{puppy.litterName || "No litter linked"} • {puppy.readiness.placement.missing[0] || "Ready for matching review"}</div></Link>) : <div className="rounded-[1rem] border border-dashed border-[var(--portal-border)] px-4 py-6 text-sm text-[var(--portal-text-soft)]">Every current puppy is linked to a buyer right now.</div>}</div>
+              <div className="space-y-3">{unmatchedPuppies.length ? unmatchedPuppies.map((puppy) => <Link key={puppy.id} href={`/admin/portal/puppies/current?puppy=${puppy.id}`} className="block rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3 text-sm text-[var(--portal-text)]"><div className="font-semibold">{puppy.displayName}</div><div className="mt-1 text-[var(--portal-text-soft)]">{puppy.litterName || "No litter linked"} • {puppy.readiness.placement.missing[0] || "Ready for matching review"}</div></Link>) : <div className="rounded-[1rem] border border-dashed border-[var(--portal-border)] px-4 py-6 text-sm text-[var(--portal-text-soft)]">Every current puppy is linked to a buyer right now.</div>}</div>
             </div>
             <div className={cardClassName("p-5")}>
               <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--portal-text)]"><Users className="h-5 w-5 text-[var(--portal-accent)]" />Buyer records needing follow-through</div>

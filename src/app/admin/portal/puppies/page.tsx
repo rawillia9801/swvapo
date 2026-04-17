@@ -1,7 +1,7 @@
 "use client";
 
-import { CurrentPuppiesWorkspace } from "@/app/admin/portal/_components/current-puppies-workspace";
+import { PuppiesSystemWorkspace } from "@/app/admin/portal/_components/puppies-system-workspace";
 
 export default function AdminPortalPuppiesPage() {
-  return <CurrentPuppiesWorkspace />;
+  return <PuppiesSystemWorkspace defaultTab="overview" />;
 }
