@@ -488,7 +488,17 @@ export default function AdminPortalDocumentsPage() {
                       <ActionButton icon={<ArrowUpRight className="h-4 w-4" />} disabled={!selectedRecord.actionSupport.canView} onClick={() => openRecordUrl("view")}>View</ActionButton>
                       <ActionButton icon={<Send className="h-4 w-4" />} disabled={!selectedRecord.actionSupport.canResend || workingAction === "resend_package"} onClick={() => void runAction("resend_package")}>Resend</ActionButton>
                       <ActionButton icon={<Download className="h-4 w-4" />} disabled={!selectedRecord.actionSupport.canDownload} onClick={() => openRecordUrl("download")}>Download PDF</ActionButton>
-                      <ActionButton icon={<FileText className="h-4 w-4" />} disabled={!selectedRecord.actionSupport.canOpenBuyer} href={detailHref("/admin/portal/buyers", selectedRecord.buyerId)}>Open Buyer</ActionButton>
+                      <ActionButton
+                        icon={<FileText className="h-4 w-4" />}
+                        disabled={!selectedRecord.actionSupport.canOpenBuyer}
+                        href={
+                          selectedRecord.actionSupport.canOpenBuyer
+                            ? detailHref("/admin/portal/buyers", selectedRecord.buyerId)
+                            : undefined
+                        }
+                      >
+                        Open Buyer
+                      </ActionButton>
                     </div>
                   </div>
                 </AdminPanel>

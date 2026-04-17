@@ -494,7 +494,11 @@ async function loadDocumentWorkspace(service: ReturnType<typeof createServiceSup
     const status = workflow
       ? resolveChiChiDocumentPackageStatus({
           workflow,
-          submission,
+          submission: {
+            status: submission.status || "",
+            signed_at: submission.signed_at || null,
+            submitted_at: submission.submitted_at || null,
+          },
           signedCopy: primaryFiledDocument,
         })
       : normalizeWorkspaceStatus(submission.status);
@@ -524,7 +528,11 @@ async function loadDocumentWorkspace(service: ReturnType<typeof createServiceSup
       puppyStatus: text(puppy?.status) || null,
       documentType: firstValue(workflow?.package_title, submission.form_title, submission.form_key ? titleize(submission.form_key) : null) || "Portal submission",
       status,
-      statusLabel: workflow ? formatChiChiDocumentPackageStatus(status) : formatWorkspaceStatus(status),
+      statusLabel: workflow
+        ? formatChiChiDocumentPackageStatus(
+            status as Parameters<typeof formatChiChiDocumentPackageStatus>[0]
+          )
+        : formatWorkspaceStatus(status),
       source: firstValue(workflow?.active_flow, workflow?.preferred_flow, submission.form_key, "portal_submission"),
       signerName: firstValue(submission.signed_name) || null,
       signedDate,
@@ -534,7 +542,9 @@ async function loadDocumentWorkspace(service: ReturnType<typeof createServiceSup
       fileUrl: text(primaryFiledDocument?.file_url) || text(workflow?.final_document_url) || text(workflow?.zoho?.sign_completed_document_url) || null,
       fileName: text(primaryFiledDocument?.file_name) || text(workflow?.final_document_name) || text(workflow?.zoho?.sign_completed_document_name) || null,
       launchUrl: text(workflow?.launch_url) || text(workflow?.zoho?.sign_embed_url) || text(workflow?.zoho?.forms_url) || null,
-      visibleToUser: primaryFiledDocument?.visible_to_user ?? null,
+      visibleToUser:
+        filedDocuments.find((document) => document.id === primaryFiledDocument?.id)?.visible_to_user ??
+        null,
       summary: firstValue(workflow?.review_note, submission.form_title, submission.form_key ? titleize(submission.form_key) : null) || null,
       payload: submission.payload || null,
       portalFormData: submission.data || null,
