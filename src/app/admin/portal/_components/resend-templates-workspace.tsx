@@ -99,9 +99,9 @@ type StarterTemplate = {
 };
 
 const primaryButtonClass =
-  "inline-flex items-center justify-center gap-2 rounded-[1rem] bg-[linear-gradient(135deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[var(--portal-shadow-md)] transition hover:-translate-y-0.5 disabled:opacity-60";
+  "inline-flex items-center justify-center gap-2 rounded-[1rem] bg-[linear-gradient(135deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[var(--portal-shadow-md)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60";
 const secondaryButtonClass =
-  "inline-flex items-center justify-center gap-2 rounded-[1rem] border border-[var(--portal-border)] bg-white/92 px-4 py-3 text-sm font-semibold text-[var(--portal-text)] shadow-[var(--portal-shadow-sm)] transition hover:bg-[var(--portal-surface-muted)] disabled:opacity-60";
+  "inline-flex items-center justify-center gap-2 rounded-[1rem] border border-[var(--portal-border)] bg-white/92 px-4 py-3 text-sm font-semibold text-[var(--portal-text)] shadow-[var(--portal-shadow-sm)] transition hover:bg-[var(--portal-surface-muted)] disabled:cursor-not-allowed disabled:opacity-60";
 
 const STARTER_TEMPLATES: StarterTemplate[] = [
   {
@@ -254,6 +254,21 @@ function templateDraftFromStarter(template: StarterTemplate): TemplateDraft {
   };
 }
 
+function blankTemplateDraft(): TemplateDraft {
+  return {
+    id: null,
+    templateKey: "",
+    category: "payments",
+    label: "",
+    description: "",
+    subject: "",
+    body: "",
+    previewPayload: "{}",
+    automationEnabled: true,
+    isActive: true,
+  };
+}
+
 function text(value: unknown) {
   return String(value || "").trim();
 }
@@ -296,28 +311,42 @@ function cardClassName(extra = "") {
 
 export function ResendTemplatesWorkspace() {
   const { user, accessToken, loading, isAdmin } = usePortalAdminSession();
+
   const [templates, setTemplates] = useState<MessageTemplateRecord[]>([]);
   const [recentActivity, setRecentActivity] = useState<RecentDeliveryActivity[]>([]);
-  const [loadingWorkspace, setLoadingWorkspace] = useState(true);
+
+  const [initializing, setInitializing] = useState(true);
+  const [loadingWorkspace, setLoadingWorkspace] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
+
   const [statusText, setStatusText] = useState("");
   const [warningText, setWarningText] = useState("");
   const [missingStorage, setMissingStorage] = useState(false);
   const [webhookConfigured, setWebhookConfigured] = useState(false);
+
   const [search, setSearch] = useState("");
   const [selectedTemplateKey, setSelectedTemplateKey] = useState("");
   const [templateDraft, setTemplateDraft] = useState<TemplateDraft>(
     templateDraftFromStarter(STARTER_TEMPLATES[0])
   );
 
+  const hasLoadedOnce = templates.length > 0 || recentActivity.length > 0;
+
   const loadWorkspace = useEffectEvent(async (background = false) => {
-    if (!accessToken) return;
-    if (background && templates.length) setRefreshing(true);
-    else setLoadingWorkspace(true);
-    if (!background) {
-      setStatusText("");
-      setWarningText("");
+    if (!accessToken) {
+      setInitializing(false);
+      setLoadingWorkspace(false);
+      setRefreshing(false);
+      return;
+    }
+
+    if (background) {
+      setRefreshing(true);
+    } else if (!hasLoadedOnce) {
+      setLoadingWorkspace(true);
+    } else {
+      setRefreshing(true);
     }
 
     try {
@@ -325,6 +354,7 @@ export function ResendTemplatesWorkspace() {
         headers: { Authorization: `Bearer ${accessToken}` },
         cache: "no-store",
       });
+
       const payload = (await response.json()) as TemplatesWorkspaceResponse;
 
       if (!response.ok || payload.ok === false) {
@@ -332,22 +362,37 @@ export function ResendTemplatesWorkspace() {
       }
 
       const nextTemplates = payload.templates || [];
+      const nextActivity = payload.recentActivity || [];
+
       setTemplates(nextTemplates);
-      setRecentActivity(payload.recentActivity || []);
+      setRecentActivity(nextActivity);
       setMissingStorage(Boolean(payload.missingStorage));
       setWebhookConfigured(Boolean(payload.webhookConfigured));
       setWarningText(payload.warning || "");
+      setStatusText((current) => {
+        if (current.toLowerCase().includes("saved")) return current;
+        return "";
+      });
+
       setSelectedTemplateKey((current) => {
-        if (nextTemplates.some((template) => template.templateKey === current)) return current;
+        if (current && nextTemplates.some((template) => template.templateKey === current)) {
+          return current;
+        }
         return nextTemplates[0]?.templateKey || current;
       });
     } catch (error) {
-      setStatusText(
+      const message =
         error instanceof Error
           ? error.message
-          : "Could not load the automatic email templates."
-      );
+          : "Could not load the automatic email templates.";
+
+      if (!hasLoadedOnce) {
+        setStatusText(message);
+      } else {
+        setWarningText(message);
+      }
     } finally {
+      setInitializing(false);
       setLoadingWorkspace(false);
       setRefreshing(false);
     }
@@ -356,8 +401,13 @@ export function ResendTemplatesWorkspace() {
   useEffect(() => {
     if (!loading && accessToken && isAdmin) {
       void loadWorkspace(false);
-    } else if (!loading) {
+      return;
+    }
+
+    if (!loading) {
+      setInitializing(false);
       setLoadingWorkspace(false);
+      setRefreshing(false);
     }
   }, [accessToken, isAdmin, loading, loadWorkspace]);
 
@@ -370,14 +420,19 @@ export function ResendTemplatesWorkspace() {
       return;
     }
 
-    if (!templates.length) {
-      setTemplateDraft(templateDraftFromStarter(STARTER_TEMPLATES[0]));
+    if (!templates.length && !selectedTemplateKey) {
+      setTemplateDraft((current) =>
+        current.templateKey || current.label || current.subject || current.body
+          ? current
+          : templateDraftFromStarter(STARTER_TEMPLATES[0])
+      );
     }
-  }, [selectedTemplate, templates.length]);
+  }, [selectedTemplate, selectedTemplateKey, templates.length]);
 
   const filteredTemplates = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return templates;
+
     return templates.filter((template) =>
       [
         template.label,
@@ -407,10 +462,27 @@ export function ResendTemplatesWorkspace() {
 
   const paymentTemplateCount = templates.filter((template) => template.category === "payments").length;
   const activeTemplateCount = templates.filter((template) => template.isActive).length;
-  const automationTemplateCount = templates.filter((template) => template.automationEnabled).length;
-  const trackedActivityCount = recentActivity.filter((activity) => activity.lastEventType).length;
+   const automationTemplateCount = templates.filter(
+    (template) => template.automationEnabled
+  ).length;
+  const trackedActivityCount = recentActivity.filter(
+    (activity) => activity.lastEventType
+  ).length;
+
   const hasDraftChanges = useMemo(() => {
-    if (!selectedTemplate) return true;
+    if (!selectedTemplate) {
+      return (
+        text(templateDraft.templateKey).length > 0 ||
+        text(templateDraft.label).length > 0 ||
+        text(templateDraft.description).length > 0 ||
+        text(templateDraft.subject).length > 0 ||
+        text(templateDraft.body).length > 0 ||
+        text(templateDraft.previewPayload) !== "{}" ||
+        !templateDraft.automationEnabled ||
+        !templateDraft.isActive
+      );
+    }
+
     const baseline = templateDraftFromRecord(selectedTemplate);
     return JSON.stringify(baseline) !== JSON.stringify(templateDraft);
   }, [selectedTemplate, templateDraft]);
@@ -430,6 +502,7 @@ export function ResendTemplatesWorkspace() {
         },
         body: JSON.stringify(templateDraft),
       });
+
       const payload = (await response.json()) as { ok?: boolean; error?: string };
 
       if (!response.ok || payload.ok === false) {
@@ -466,39 +539,17 @@ export function ResendTemplatesWorkspace() {
     );
   }
 
-  if ((loading || loadingWorkspace) && !templates.length && !statusText) {
-    return (
-      <AdminPageShell>
-        <div className="grid gap-6">
-          <div className="h-40 animate-pulse rounded-[1.8rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)]" />
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {Array.from({ length: 4 }).map((_, index) => (
-              <div
-                key={`resend-template-skeleton-${index}`}
-                className="h-28 animate-pulse rounded-[1.4rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)]"
-              />
-            ))}
-          </div>
-          <div className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
-            <div className="min-h-[620px] animate-pulse rounded-[1.6rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)]" />
-            <div className="min-h-[620px] animate-pulse rounded-[1.6rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)]" />
-          </div>
-        </div>
-      </AdminPageShell>
-    );
-  }
-
   return (
     <AdminPageShell>
       <div className="space-y-6 pb-10">
         <AdminPageHero
           eyebrow="Resend Templates"
           title="Automatic email templates and delivery tracking"
-          description="Buyer replies stay in Messages. This screen is only for automatic outbound Resend emails such as receipts, reminders, overdue notices, defaults, credits, and other breeder-triggered automations."
+          description="This workspace is for automatic outbound Resend emails only, including receipts, reminders, overdue notices, default notices, credits, and other breeder automation content. Buyer conversations and replies stay in Portal Messages."
           actions={
             <>
               <AdminHeroPrimaryAction href="/admin/portal/messages">
-                Open Buyer Messages
+                Open Portal Messages
               </AdminHeroPrimaryAction>
               <AdminHeroSecondaryAction href="/admin/portal/puppy-financing">
                 Open Financing
@@ -570,6 +621,7 @@ export function ResendTemplatesWorkspace() {
                 type="button"
                 onClick={() => void loadWorkspace(true)}
                 className={secondaryButtonClass}
+                disabled={refreshing || loadingWorkspace}
               >
                 {refreshing ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -578,24 +630,16 @@ export function ResendTemplatesWorkspace() {
                 )}
                 {refreshing ? "Refreshing" : "Refresh"}
               </button>
+
               <button
                 type="button"
                 onClick={() => {
                   setSelectedTemplateKey("");
-                  setTemplateDraft({
-                    id: null,
-                    templateKey: "",
-                    category: "payments",
-                    label: "",
-                    description: "",
-                    subject: "",
-                    body: "",
-                    previewPayload: "{}",
-                    automationEnabled: true,
-                    isActive: true,
-                  });
+                  setTemplateDraft(blankTemplateDraft());
+                  setStatusText("");
                 }}
                 className={secondaryButtonClass}
+                disabled={saving}
               >
                 <Plus className="h-4 w-4" />
                 New Blank Template
@@ -607,7 +651,7 @@ export function ResendTemplatesWorkspace() {
         <section className="grid grid-cols-1 gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
           <AdminPanel
             title="Automatic Templates"
-            subtitle="This is the editable library for outbound Resend automation content. Buyer messages and inbox replies stay on the Messages screen."
+            subtitle="This is the editable library for outbound Resend automation content. Portal Messages remains the buyer inbox and reply surface."
           >
             <div className="space-y-4">
               {visibleStarterTemplates.length ? (
@@ -616,12 +660,13 @@ export function ResendTemplatesWorkspace() {
                     Quick Starters
                   </div>
                   <div className="mt-3 grid gap-2">
-                    {visibleStarterTemplates.slice(0, 4).map((template) => (
+                    {visibleStarterTemplates.slice(0, 5).map((template) => (
                       <button
                         key={template.templateKey}
                         type="button"
                         onClick={() => {
                           setSelectedTemplateKey("");
+                          setStatusText("");
                           setTemplateDraft(templateDraftFromStarter(template));
                         }}
                         className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-3 py-3 text-left text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]"
@@ -633,13 +678,25 @@ export function ResendTemplatesWorkspace() {
                 </div>
               ) : null}
 
-              <div className="space-y-3">
-                {filteredTemplates.length ? (
-                  filteredTemplates.map((template) => (
+              {initializing || (loadingWorkspace && !hasLoadedOnce) ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 5 }).map((_, index) => (
+                    <div
+                      key={`template-skeleton-${index}`}
+                      className="h-[84px] animate-pulse rounded-[1rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)]"
+                    />
+                  ))}
+                </div>
+              ) : filteredTemplates.length ? (
+                <div className="space-y-3">
+                  {filteredTemplates.map((template) => (
                     <AdminListCard
                       key={template.templateKey}
                       selected={selectedTemplateKey === template.templateKey}
-                      onClick={() => setSelectedTemplateKey(template.templateKey)}
+                      onClick={() => {
+                        setSelectedTemplateKey(template.templateKey);
+                        setStatusText("");
+                      }}
                       title={template.label}
                       subtitle={template.description || template.subject}
                       meta={`${template.category} | ${template.templateKey}`}
@@ -655,14 +712,14 @@ export function ResendTemplatesWorkspace() {
                         </span>
                       }
                     />
-                  ))
-                ) : (
-                  <AdminEmptyState
-                    title="No templates matched your search"
-                    description="Try a different payment, reminder, credit, or document keyword."
-                  />
-                )}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <AdminEmptyState
+                  title="No templates matched your search"
+                  description="Try a different payment, reminder, credit, or document keyword."
+                />
+              )}
             </div>
           </AdminPanel>
 
@@ -849,8 +906,7 @@ export function ResendTemplatesWorkspace() {
 
               {missingStorage ? (
                 <div className="mt-4 rounded-[1rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                  Template storage is not installed yet, so saving is disabled until the
-                  migration is applied.
+                  Template storage is not installed yet, so saving is disabled until the migration is applied.
                 </div>
               ) : null}
             </AdminPanel>
@@ -869,6 +925,7 @@ export function ResendTemplatesWorkspace() {
                     <div>Event</div>
                     <div>Tracking</div>
                   </div>
+
                   {recentActivity.map((activity) => (
                     <div
                       key={activity.id}
@@ -882,6 +939,7 @@ export function ResendTemplatesWorkspace() {
                           {activity.createdAt ? fmtDate(activity.createdAt) : "Recent send"}
                         </div>
                       </div>
+
                       <div className="min-w-0">
                         <div className="font-semibold text-[var(--portal-text)]">
                           {activity.puppyName || "Not linked"}
@@ -890,6 +948,7 @@ export function ResendTemplatesWorkspace() {
                           {activity.subject}
                         </div>
                       </div>
+
                       <div className="min-w-0">
                         <div className="font-semibold text-[var(--portal-text)]">
                           {prettyNoticeKind(activity.noticeKind)}
@@ -898,9 +957,11 @@ export function ResendTemplatesWorkspace() {
                           {activity.providerMessageId || "No provider id"}
                         </div>
                       </div>
+
                       <div className="truncate font-medium text-[var(--portal-text-soft)]">
                         {activity.recipientEmail}
                       </div>
+
                       <div>
                         <span
                           className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(
@@ -915,6 +976,7 @@ export function ResendTemplatesWorkspace() {
                             : "Waiting on next event"}
                         </div>
                       </div>
+
                       <div className="space-y-1 text-xs text-[var(--portal-text-soft)]">
                         <div>Delivered: {activity.deliveredAt ? fmtDate(activity.deliveredAt) : "-"}</div>
                         <div>Opened: {activity.openedAt ? fmtDate(activity.openedAt) : "-"}</div>
@@ -926,7 +988,7 @@ export function ResendTemplatesWorkspace() {
                   ))}
                 </div>
               ) : (
-                <AdminEmptyState
+                 <AdminEmptyState
                   title="No tracked automatic email activity yet"
                   description={
                     webhookConfigured
@@ -955,24 +1017,26 @@ export function ResendTemplatesWorkspace() {
                   and breeder automation content.
                 </div>
               </div>
+
               <div className="rounded-[1.2rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] p-4">
                 <div className="flex items-center gap-2 text-sm font-semibold text-[var(--portal-text)]">
                   <Activity className="h-4 w-4 text-[var(--portal-accent)]" />
-                  Buyer Messages
+                  Portal Messages
                 </div>
                 <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
-                  Actual inbox conversations and manual breeder replies from the buyer portal.
+                  Actual inbox conversations, buyer portal threads, and manual breeder replies.
                 </div>
               </div>
             </div>
           </AdminPanel>
+
           <AdminPanel
             title="Operational Shortcuts"
             subtitle="Move straight from the template editor into the related workflow surfaces."
           >
             <div className="grid gap-3 md:grid-cols-2">
               <Link href="/admin/portal/messages" className={secondaryButtonClass}>
-                Open Buyer Inbox
+                Open Portal Messages
               </Link>
               <Link href="/admin/portal/puppy-financing" className={secondaryButtonClass}>
                 Open Financing Accounts
