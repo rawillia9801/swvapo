@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import {
   createServiceSupabase,
   describeRouteError,
+  firstValue,
   verifyOwner,
 } from "@/lib/admin-api";
 
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
-const MIGRATION_PATH = "supabase/migrations/20260416_puppy_operations_workspace.sql";
+const TEMPLATE_MIGRATION_PATH = "supabase/migrations/20260416_puppy_operations_workspace.sql";
+const NOTICE_TRACKING_MIGRATION_PATH = "supabase/migrations/20260417_resend_notice_tracking.sql";
 
 type MessageTemplateRow = {
   id: number;
@@ -22,6 +24,39 @@ type MessageTemplateRow = {
   is_active?: boolean | null;
   preview_payload?: Record<string, unknown> | null;
   updated_at?: string | null;
+};
+
+type NoticeLogRow = {
+  id: number;
+  created_at?: string | null;
+  buyer_id?: number | null;
+  puppy_id?: number | null;
+  notice_kind?: string | null;
+  recipient_email?: string | null;
+  subject?: string | null;
+  status?: string | null;
+  provider_message_id?: string | null;
+  last_event_type?: string | null;
+  last_event_at?: string | null;
+  delivered_at?: string | null;
+  opened_at?: string | null;
+  clicked_at?: string | null;
+  open_count?: number | null;
+  click_count?: number | null;
+};
+
+type BuyerRow = {
+  id: number;
+  full_name?: string | null;
+  name?: string | null;
+  email?: string | null;
+};
+
+type PuppyRow = {
+  id: number;
+  call_name?: string | null;
+  puppy_name?: string | null;
+  name?: string | null;
 };
 
 function text(value: unknown) {
@@ -58,14 +93,23 @@ function jsonObject(value: unknown) {
   }
 }
 
+function errorText(error: unknown) {
+  return (error instanceof Error ? error.message : String(error || "")).toLowerCase();
+}
+
 function isMissingTableError(error: unknown) {
-  const message = (error instanceof Error ? error.message : String(error || "")).toLowerCase();
+  const message = errorText(error);
   return (
     message.includes("does not exist") ||
     message.includes("relation") ||
     message.includes("schema cache") ||
     message.includes("could not find the table")
   );
+}
+
+function isMissingColumnError(error: unknown) {
+  const message = errorText(error);
+  return message.includes("column") || message.includes("schema cache");
 }
 
 function toTemplate(row: MessageTemplateRow) {
@@ -89,6 +133,151 @@ function toTemplate(row: MessageTemplateRow) {
   };
 }
 
+async function loadRecentActivity(service = createServiceSupabase()) {
+  const trackedSelect = [
+    "id",
+    "created_at",
+    "buyer_id",
+    "puppy_id",
+    "notice_kind",
+    "recipient_email",
+    "subject",
+    "status",
+    "provider_message_id",
+    "last_event_type",
+    "last_event_at",
+    "delivered_at",
+    "opened_at",
+    "clicked_at",
+    "open_count",
+    "click_count",
+  ].join(",");
+
+  const fallbackSelect = [
+    "id",
+    "created_at",
+    "buyer_id",
+    "puppy_id",
+    "notice_kind",
+    "recipient_email",
+    "subject",
+    "status",
+    "provider_message_id",
+  ].join(",");
+
+  let noticeResult = await service
+    .from("buyer_payment_notice_logs")
+    .select(trackedSelect)
+    .order("created_at", { ascending: false })
+    .limit(25)
+    .returns<NoticeLogRow[]>();
+
+  let trackingColumnsReady = true;
+  if (noticeResult.error && isMissingColumnError(noticeResult.error)) {
+    trackingColumnsReady = false;
+    noticeResult = await service
+      .from("buyer_payment_notice_logs")
+      .select(fallbackSelect)
+      .order("created_at", { ascending: false })
+      .limit(25)
+      .returns<NoticeLogRow[]>();
+  }
+
+  if (noticeResult.error) {
+    if (isMissingTableError(noticeResult.error)) {
+      return {
+        recentActivity: [],
+        trackingColumnsReady: false,
+        warning: `Payment email activity is not installed yet. Apply ${NOTICE_TRACKING_MIGRATION_PATH} to enable delivery tracking.`,
+      };
+    }
+    throw noticeResult.error;
+  }
+
+  const rows = (noticeResult.data || []) as NoticeLogRow[];
+  if (!rows.length) {
+    return {
+      recentActivity: [],
+      trackingColumnsReady,
+      warning: trackingColumnsReady
+        ? ""
+        : `Email activity tracking columns are not installed yet. Apply ${NOTICE_TRACKING_MIGRATION_PATH} to capture open and delivery events.`,
+    };
+  }
+
+  const buyerIds = Array.from(
+    new Set(rows.map((row) => Number(row.buyer_id || 0)).filter((value) => value > 0))
+  );
+  const puppyIds = Array.from(
+    new Set(rows.map((row) => Number(row.puppy_id || 0)).filter((value) => value > 0))
+  );
+
+  const [buyersResult, puppiesResult] = await Promise.all([
+    buyerIds.length
+      ? service
+          .from("buyers")
+          .select("id,full_name,name,email")
+          .in("id", buyerIds)
+          .returns<BuyerRow[]>()
+      : Promise.resolve({ data: [] as BuyerRow[], error: null }),
+    puppyIds.length
+      ? service
+          .from("puppies")
+          .select("id,call_name,puppy_name,name")
+          .in("id", puppyIds)
+          .returns<PuppyRow[]>()
+      : Promise.resolve({ data: [] as PuppyRow[], error: null }),
+  ]);
+
+  if (buyersResult.error) throw buyersResult.error;
+  if (puppiesResult.error) throw puppiesResult.error;
+
+  const buyerMap = new Map<number, BuyerRow>(
+    (buyersResult.data || []).map((buyer) => [buyer.id, buyer])
+  );
+  const puppyMap = new Map<number, PuppyRow>(
+    (puppiesResult.data || []).map((puppy) => [puppy.id, puppy])
+  );
+
+  return {
+    recentActivity: rows.map((row) => {
+      const buyerId = Number(row.buyer_id || 0) || null;
+      const puppyId = Number(row.puppy_id || 0) || null;
+      const buyer = buyerId ? buyerMap.get(buyerId) || null : null;
+      const puppy = puppyId ? puppyMap.get(puppyId) || null : null;
+
+      return {
+        id: Number(row.id),
+        buyerId,
+        buyerName:
+          firstValue(buyer?.full_name, buyer?.name, buyer?.email, buyerId ? `Buyer #${buyerId}` : "") ||
+          "Buyer",
+        puppyId,
+        puppyName:
+          firstValue(puppy?.call_name, puppy?.puppy_name, puppy?.name, puppyId ? `Puppy #${puppyId}` : "") ||
+          "",
+        noticeKind: text(row.notice_kind) || "notice",
+        recipientEmail: text(row.recipient_email),
+        subject: text(row.subject),
+        status: text(row.status) || "sent",
+        providerMessageId: text(row.provider_message_id) || null,
+        lastEventType: text(row.last_event_type) || null,
+        lastEventAt: row.last_event_at || null,
+        deliveredAt: row.delivered_at || null,
+        openedAt: row.opened_at || null,
+        clickedAt: row.clicked_at || null,
+        openCount: Number(row.open_count || 0),
+        clickCount: Number(row.click_count || 0),
+        createdAt: row.created_at || null,
+      };
+    }),
+    trackingColumnsReady,
+    warning: trackingColumnsReady
+      ? ""
+      : `Email activity tracking columns are not installed yet. Apply ${NOTICE_TRACKING_MIGRATION_PATH} to capture open and delivery events.`,
+  };
+}
+
 export async function GET(req: Request) {
   try {
     const owner = await verifyOwner(req);
@@ -97,6 +286,10 @@ export async function GET(req: Request) {
     }
 
     const service = createServiceSupabase();
+    const webhookConfigured = Boolean(
+      text(process.env.RESEND_WEBHOOK_SECRET) || text(process.env.RESEND_WEBHOOK_SIGNING_SECRET)
+    );
+
     const result = await service
       .from("admin_message_templates")
       .select(
@@ -111,8 +304,10 @@ export async function GET(req: Request) {
           {
             ok: true,
             templates: [],
+            recentActivity: [],
             missingStorage: true,
-            warning: `Template storage is not installed yet. Apply ${MIGRATION_PATH} to enable admin_message_templates.`,
+            webhookConfigured,
+            warning: `Template storage is not installed yet. Apply ${TEMPLATE_MIGRATION_PATH} to enable admin_message_templates.`,
           },
           { headers: NO_STORE_HEADERS }
         );
@@ -120,11 +315,20 @@ export async function GET(req: Request) {
       throw result.error;
     }
 
+    const activity = await loadRecentActivity(service);
+    const warnings = [activity.warning];
+    if (!webhookConfigured) {
+      warnings.push("Add RESEND_WEBHOOK_SECRET to capture open, click, bounce, and delivery events.");
+    }
+
     return NextResponse.json(
       {
         ok: true,
         templates: (result.data || []).map(toTemplate),
+        recentActivity: activity.recentActivity,
         missingStorage: false,
+        webhookConfigured,
+        warning: warnings.filter(Boolean).join(" "),
       },
       { headers: NO_STORE_HEADERS }
     );
@@ -182,7 +386,7 @@ export async function PATCH(req: Request) {
         return NextResponse.json(
           {
             ok: false,
-            error: `Template storage is not installed yet. Apply ${MIGRATION_PATH} to enable admin_message_templates.`,
+            error: `Template storage is not installed yet. Apply ${TEMPLATE_MIGRATION_PATH} to enable admin_message_templates.`,
           },
           { status: 409 }
         );

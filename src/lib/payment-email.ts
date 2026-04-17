@@ -110,6 +110,30 @@ type NoticeContext = {
   buyerLabel: string;
 };
 
+type StoredMessageTemplateRow = {
+  template_key?: string | null;
+  subject?: string | null;
+  body?: string | null;
+  is_active?: boolean | null;
+};
+
+type NoticePresentation = {
+  subject: string;
+  preview: string;
+  messageLead: string;
+  supportingCopy: string;
+  amountLabel?: string;
+  dueDateLabel?: string;
+  balanceLabel?: string;
+  monthlyAmountLabel?: string;
+  paymentMethodLabel?: string;
+  referenceLabel?: string;
+  actionLabel?: string;
+  actionHref?: string;
+  footerNote?: string;
+  templateKey?: string | null;
+};
+
 type SendNoticeEmailResult = {
   ok: boolean;
   sent: boolean;
@@ -551,11 +575,126 @@ function buildPortalPaymentsUrl() {
   return new URL("/portal/payments", baseUrl).toString();
 }
 
+function templateKeyForNoticeKind(kind: PaymentPlanEmailKind) {
+  if (kind === "receipt") return "payment_receipt";
+  if (kind === "due_reminder") return "payment_reminder";
+  if (kind === "late_notice") return "payment_overdue";
+  return "payment_default_notice";
+}
+
+function renderTemplateTokens(
+  template: string,
+  payload: Record<string, string | number | null | undefined>
+) {
+  return String(template || "").replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, key) => {
+    const value = payload[key];
+    return value == null ? "" : String(value);
+  });
+}
+
+function buildTemplatePayload(input: {
+  context: NoticeContext;
+  kind: PaymentPlanEmailKind;
+  payment?: PaymentRow | null;
+  presentation: NoticePresentation;
+}) {
+  const { context, kind, payment, presentation } = input;
+  return {
+    buyer_name: context.buyerLabel,
+    puppy_name: context.puppyLabel,
+    puppy_label: context.puppyLabel,
+    due_date: presentation.dueDateLabel || "",
+    balance: presentation.balanceLabel || formatMoney(context.balance),
+    monthly_amount: presentation.monthlyAmountLabel || "",
+    payment_amount: payment ? formatMoney(payment.amount) : "",
+    payment_date: payment?.payment_date ? formatLongDate(payment.payment_date) : "",
+    payment_method: firstString(payment?.method, presentation.paymentMethodLabel),
+    reference_number: firstString(payment?.reference_number, payment?.id, presentation.referenceLabel),
+    notice_kind: kind,
+  } satisfies Record<string, string | number | null | undefined>;
+}
+
+function splitTemplateBody(body: string, fallback: NoticePresentation) {
+  const paragraphs = String(body || "")
+    .split(/\n{2,}/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  if (!paragraphs.length) {
+    return {
+      messageLead: fallback.messageLead,
+      supportingCopy: fallback.supportingCopy,
+    };
+  }
+
+  return {
+    messageLead: paragraphs[0],
+    supportingCopy: paragraphs.slice(1).join("\n\n") || fallback.supportingCopy,
+  };
+}
+
+async function loadStoredMessageTemplate(
+  admin: SupabaseClient,
+  kind: PaymentPlanEmailKind
+) {
+  const result = await admin
+    .from("admin_message_templates")
+    .select("template_key,subject,body,is_active")
+    .eq("template_key", templateKeyForNoticeKind(kind))
+    .limit(1)
+    .maybeSingle<StoredMessageTemplateRow>();
+
+  if (result.error) {
+    if (isMissingTableError(result.error)) return null;
+    throw new Error(result.error.message);
+  }
+
+  if (!result.data || result.data.is_active === false) return null;
+  return result.data;
+}
+
+async function applyStoredTemplateToPresentation(input: {
+  admin: SupabaseClient;
+  kind: PaymentPlanEmailKind;
+  context: NoticeContext;
+  payment?: PaymentRow | null;
+  presentation: NoticePresentation;
+}) {
+  const stored = await loadStoredMessageTemplate(input.admin, input.kind);
+  if (!stored) {
+    return {
+      ...input.presentation,
+      templateKey: templateKeyForNoticeKind(input.kind),
+    } satisfies NoticePresentation;
+  }
+
+  const payload = buildTemplatePayload({
+    context: input.context,
+    kind: input.kind,
+    payment: input.payment,
+    presentation: input.presentation,
+  });
+  const renderedSubject = renderTemplateTokens(
+    normalizeText(stored.subject) || input.presentation.subject,
+    payload
+  );
+  const renderedBody = renderTemplateTokens(normalizeText(stored.body), payload).trim();
+  const bodyParts = splitTemplateBody(renderedBody, input.presentation);
+
+  return {
+    ...input.presentation,
+    subject: renderedSubject || input.presentation.subject,
+    messageLead: bodyParts.messageLead,
+    supportingCopy: bodyParts.supportingCopy,
+    templateKey: normalizeText(stored.template_key) || templateKeyForNoticeKind(input.kind),
+  } satisfies NoticePresentation;
+}
+
 function buildNoticePresentation(input: {
   kind: PaymentPlanEmailKind;
   context: NoticeContext;
   payment?: PaymentRow | null;
-}) {
+}): NoticePresentation {
   const dueDateLabel = input.context.dueDate ? formatLongDate(input.context.dueDate) : "";
   const monthlyAmountLabel = input.context.monthlyAmount
     ? formatMoney(input.context.monthlyAmount)
@@ -740,16 +879,26 @@ async function sendNoticeEmail(input: {
     }
   }
 
-  const presentation = buildNoticePresentation({ kind, context, payment });
+  const basePresentation = buildNoticePresentation({ kind, context, payment });
+  const presentation = await applyStoredTemplateToPresentation({
+    admin,
+    kind,
+    context,
+    payment,
+    presentation: basePresentation,
+  });
   const resend = getResendClient();
   const replyTo = normalizeOptionalText(
-    process.env.PAYMENT_NOTICES_REPLY_TO || process.env.PAYMENT_NOTICES_FROM_EMAIL
+    process.env.PAYMENT_NOTICES_REPLY_TO ||
+      process.env.PAYMENT_NOTICES_FROM_EMAIL ||
+      process.env.RESEND_FROM_EMAIL
   );
   const bcc = parsePaymentNoticeCcEmails(process.env.PAYMENT_NOTICES_BCC_EMAILS || "");
 
   const sendResult = await resend.emails.send({
     from:
       normalizeText(process.env.PAYMENT_NOTICES_FROM_EMAIL) ||
+      normalizeText(process.env.RESEND_FROM_EMAIL) ||
       "Southwest Virginia Chihuahua <billing@noreply.swvachihuahua.com>",
     to: recipientEmail,
     cc: context.settings.cc_emails.length ? context.settings.cc_emails : undefined,
@@ -798,6 +947,7 @@ async function sendNoticeEmail(input: {
       monthly_amount: context.monthlyAmount,
       due_date: context.dueDate,
       payment_id: payment?.id || null,
+      template_key: presentation.templateKey || null,
     },
   });
 
@@ -828,6 +978,7 @@ async function sendNoticeEmail(input: {
       recipient_email: recipientEmail,
       due_date: context.dueDate,
       payment_id: payment?.id || null,
+      template_key: presentation.templateKey || null,
     },
   });
 

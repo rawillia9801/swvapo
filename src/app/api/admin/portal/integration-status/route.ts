@@ -61,8 +61,8 @@ export async function GET(req: Request) {
     buildGroup(
       "payment_notices",
       "Payment Notice Emails",
-      ["RESEND_API_KEY", "PAYMENT_NOTICES_FROM_EMAIL"],
-      "Payment receipts, due reminders, late notices, and default notices."
+      ["RESEND_API_KEY", "PAYMENT_NOTICES_FROM_EMAIL", "RESEND_WEBHOOK_SECRET"],
+      "Payment receipts, due reminders, late notices, default notices, and Resend event tracking."
     ),
     buildGroup(
       "cron_notices",
