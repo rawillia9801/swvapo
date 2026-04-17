@@ -1,5 +1,5 @@
-import { CurrentPuppiesWorkspace } from "@/app/admin/portal/_components/current-puppies-workspace";
+import { PuppiesSystemWorkspace } from "@/app/admin/portal/_components/puppies-system-workspace";
 
 export default function AdminPortalPage() {
-  return <CurrentPuppiesWorkspace />;
+  return <PuppiesSystemWorkspace />;
 }

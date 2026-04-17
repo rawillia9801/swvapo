@@ -1,51 +1,47 @@
 @import "tailwindcss";
 
 @theme {
-  --color-portal-stone-50: #f8f9ff;
-  --color-portal-stone-100: #f1f4fb;
-  --color-portal-stone-200: #e6ebf5;
-  --color-portal-stone-300: #d7def0;
-  --color-portal-stone-400: #a0aac2;
-  --color-portal-stone-500: #6e7894;
-  --color-portal-stone-600: #55607c;
-  --color-portal-stone-700: #414c66;
-  --color-portal-stone-800: #2e3954;
-  --color-portal-stone-900: #1f2940;
-  --color-portal-amber-300: #ffc857;
-  --color-portal-amber-400: #ffb629;
-  --color-portal-amber-500: #ff9f0a;
-  --color-portal-amber-700: #f97316;
+  --color-portal-cream-50: #f8f2e8;
+  --color-portal-cream-100: #f2e7d7;
+  --color-portal-cream-200: #e8d7bf;
+  --color-portal-camel-300: #d1b08a;
+  --color-portal-camel-400: #bd9367;
+  --color-portal-bronze-500: #a56d3f;
+  --color-portal-bronze-600: #875533;
+  --color-portal-cocoa-700: #6d4730;
+  --color-portal-cocoa-800: #533524;
+  --color-portal-cocoa-900: #3f281c;
 
   --font-sans: var(--font-open-sans), sans-serif;
-  --font-serif: var(--font-open-sans), sans-serif;
+  --font-serif: var(--font-merriweather), serif;
 }
 
 @layer base {
   :root {
-    --portal-bg: #f6f8fe;
-    --portal-bg-alt: #eef2fb;
-    --portal-bg-elevated: #ffffff;
-    --portal-surface: rgba(255, 255, 255, 0.94);
-    --portal-surface-strong: rgba(255, 255, 255, 0.99);
-    --portal-surface-muted: rgba(246, 248, 253, 0.98);
-    --portal-surface-tint: rgba(240, 243, 251, 0.92);
-    --portal-border: rgba(228, 233, 245, 0.98);
-    --portal-border-strong: rgba(211, 219, 238, 0.98);
-    --portal-text: #25324a;
-    --portal-text-soft: #5c6784;
-    --portal-text-muted: #96a0bb;
-    --portal-accent: #5a8ef5;
-    --portal-accent-strong: #9d4edd;
-    --portal-accent-soft: rgba(112, 92, 255, 0.1);
-    --portal-success: #22c55e;
-    --portal-success-soft: rgba(34, 197, 94, 0.12);
-    --portal-warning: #ff9800;
-    --portal-warning-soft: rgba(255, 152, 0, 0.12);
-    --portal-danger: #be123c;
-    --portal-danger-soft: rgba(244, 63, 94, 0.12);
-    --portal-shadow-lg: 0 24px 48px -18px rgba(96, 110, 148, 0.18);
-    --portal-shadow-md: 0 18px 36px -20px rgba(96, 110, 148, 0.15);
-    --portal-shadow-sm: 0 12px 28px -16px rgba(96, 110, 148, 0.12);
+    --portal-bg: #f6efe6;
+    --portal-bg-alt: #efe4d8;
+    --portal-bg-elevated: #fffaf4;
+    --portal-surface: rgba(255, 251, 246, 0.92);
+    --portal-surface-strong: rgba(255, 252, 248, 0.97);
+    --portal-surface-muted: rgba(247, 239, 229, 0.9);
+    --portal-surface-tint: rgba(242, 232, 219, 0.84);
+    --portal-border: rgba(216, 197, 174, 0.82);
+    --portal-border-strong: rgba(194, 163, 129, 0.86);
+    --portal-text: #533524;
+    --portal-text-soft: #765540;
+    --portal-text-muted: #9c7a60;
+    --portal-accent: #b17743;
+    --portal-accent-strong: #8b5a35;
+    --portal-accent-soft: rgba(177, 119, 67, 0.12);
+    --portal-success: #2f7a52;
+    --portal-success-soft: rgba(47, 122, 82, 0.12);
+    --portal-warning: #b96f1f;
+    --portal-warning-soft: rgba(185, 111, 31, 0.14);
+    --portal-danger: #a14242;
+    --portal-danger-soft: rgba(161, 66, 66, 0.12);
+    --portal-shadow-lg: 0 28px 60px -28px rgba(96, 63, 36, 0.28);
+    --portal-shadow-md: 0 22px 44px -24px rgba(96, 63, 36, 0.22);
+    --portal-shadow-sm: 0 14px 30px -18px rgba(96, 63, 36, 0.16);
   }
 
   * {
@@ -57,8 +53,8 @@
     margin: 0;
     min-height: 100%;
     background:
-      radial-gradient(circle at top left, rgba(114, 94, 255, 0.1), transparent 24%),
-      radial-gradient(circle at top right, rgba(255, 80, 170, 0.08), transparent 24%),
+      radial-gradient(circle at top left, rgba(214, 177, 138, 0.18), transparent 26%),
+      radial-gradient(circle at top right, rgba(168, 111, 68, 0.12), transparent 22%),
       linear-gradient(180deg, var(--portal-bg) 0%, var(--portal-bg-alt) 100%);
     color: var(--portal-text);
   }
@@ -85,29 +81,30 @@
 
 @layer utilities {
   .glass-nav {
-    background: rgba(255, 255, 255, 0.9);
+    background: rgba(255, 251, 246, 0.84);
     backdrop-filter: blur(20px);
-    border-bottom: 1px solid rgba(228, 233, 245, 0.95);
+    border-bottom: 1px solid rgba(216, 197, 174, 0.86);
   }
 
   .premium-card {
-    background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
-    border: 1px solid rgba(228, 233, 245, 0.9);
-    box-shadow: 0 12px 28px -16px rgba(96, 110, 148, 0.16);
+    background:
+      linear-gradient(180deg, rgba(255, 252, 248, 0.98) 0%, rgba(250, 242, 233, 0.96) 100%);
+    border: 1px solid rgba(216, 197, 174, 0.84);
+    box-shadow: 0 18px 38px -24px rgba(96, 63, 36, 0.2);
   }
 
   .bg-texturePaper {
     background:
-      radial-gradient(circle at top left, rgba(114, 94, 255, 0.08), transparent 28%),
-      radial-gradient(circle at top right, rgba(255, 80, 170, 0.06), transparent 26%),
+      radial-gradient(circle at top left, rgba(214, 177, 138, 0.14), transparent 28%),
+      radial-gradient(circle at top right, rgba(168, 111, 68, 0.1), transparent 24%),
       linear-gradient(180deg, var(--portal-bg) 0%, var(--portal-bg-alt) 100%);
   }
 
   .portal-grid-bg {
     background-image:
-      linear-gradient(rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0.52)),
-      linear-gradient(rgba(225, 230, 244, 0.5) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(225, 230, 244, 0.5) 1px, transparent 1px);
+      linear-gradient(rgba(255, 251, 246, 0.58), rgba(255, 251, 246, 0.58)),
+      linear-gradient(rgba(216, 197, 174, 0.34) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(216, 197, 174, 0.34) 1px, transparent 1px);
     background-size:
       100% 100%,
       32px 32px,
@@ -118,17 +115,17 @@
   .portal-hairline {
     background: linear-gradient(
       90deg,
-      rgba(90, 142, 245, 0.2) 0%,
+      rgba(177, 119, 67, 0.24) 0%,
       rgba(255, 255, 255, 0) 48%,
-      rgba(211, 219, 238, 0.42) 100%
+      rgba(194, 163, 129, 0.42) 100%
     );
   }
 
   .hero-glow {
     background:
-      radial-gradient(circle at top left, rgba(90, 142, 245, 0.14), transparent 28%),
-      radial-gradient(circle at bottom right, rgba(228, 82, 184, 0.12), transparent 26%),
-      linear-gradient(to bottom, rgba(247, 249, 255, 0.96), rgba(255, 255, 255, 1));
+      radial-gradient(circle at top left, rgba(214, 177, 138, 0.18), transparent 30%),
+      radial-gradient(circle at bottom right, rgba(168, 111, 68, 0.12), transparent 28%),
+      linear-gradient(to bottom, rgba(251, 246, 240, 0.96), rgba(255, 252, 248, 1));
   }
 
   .scroller::-webkit-scrollbar {
@@ -141,19 +138,19 @@
   }
 
   .scroller::-webkit-scrollbar-thumb {
-    background-color: rgba(214, 211, 209, 1);
+    background-color: rgba(189, 147, 103, 0.9);
     border-radius: 999px;
     border: 2px solid transparent;
     background-clip: content-box;
   }
 
   .card-luxury {
-    background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
+    background: linear-gradient(180deg, rgba(255, 252, 248, 0.98) 0%, rgba(249, 239, 228, 0.96) 100%);
     border: 1px solid var(--portal-border);
     border-radius: 32px;
     box-shadow: var(--portal-shadow-lg);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
   }
 
   .status-pill {
@@ -170,26 +167,26 @@
   }
 
   .status-success {
-    background: rgba(34, 197, 94, 0.1);
-    color: #15803d;
-    border-color: rgba(34, 197, 94, 0.18);
+    background: rgba(47, 122, 82, 0.1);
+    color: #2f7a52;
+    border-color: rgba(47, 122, 82, 0.18);
   }
 
   .status-pending {
-    background: rgba(112, 92, 255, 0.1);
-    color: #7c3aed;
-    border-color: rgba(112, 92, 255, 0.16);
+    background: rgba(177, 119, 67, 0.12);
+    color: #8b5a35;
+    border-color: rgba(177, 119, 67, 0.16);
   }
 
   .status-neutral {
-    background: rgba(247, 249, 255, 0.98);
-    color: #55607c;
-    border-color: rgba(228, 233, 245, 0.95);
+    background: rgba(247, 239, 229, 0.9);
+    color: #765540;
+    border-color: rgba(216, 197, 174, 0.84);
   }
 
   .status-danger {
-    background: rgba(244, 63, 94, 0.1);
-    color: #be123c;
-    border-color: rgba(244, 63, 94, 0.18);
+    background: rgba(161, 66, 66, 0.1);
+    color: #a14242;
+    border-color: rgba(161, 66, 66, 0.16);
   }
 }

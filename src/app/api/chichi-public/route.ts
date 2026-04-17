@@ -10,6 +10,7 @@ import {
   buildPublicChiChiSystemPrompt,
   publicChiChiLocalFallback,
 } from "@/lib/chichi-public-agent";
+import { loadChiChiProgramContext } from "@/lib/admin-puppies-system-server";
 import { loadBreedingGeneticsPromptContext } from "@/lib/breeding-genetics";
 
 // ─────────────────────────────────────────────
@@ -449,8 +450,12 @@ function analyzeLead(message: string): LeadAnalysis {
 // System Prompt — strong Chihuahua knowledge + business grounding
 // ─────────────────────────────────────────────
 
-function buildSystemPrompt(memories?: string, geneticsContext?: string): string {
-  return buildPublicChiChiSystemPrompt(memories, geneticsContext);
+function buildSystemPrompt(
+  programContext?: Awaited<ReturnType<typeof loadChiChiProgramContext>>,
+  memories?: string,
+  geneticsContext?: string
+): string {
+  return buildPublicChiChiSystemPrompt(programContext, memories, geneticsContext);
   return `
 You are ChiChi — the warm, knowledgeable assistant for Southwest Virginia Chihuahua in Marion, Virginia.
 
@@ -546,9 +551,10 @@ When the user asks a question, answer the actual question first, then add any he
 function localFallback(
   message: string,
   history: { role: ChatRole; content: string }[] = [],
-  memories = ""
+  memories = "",
+  programContext?: Awaited<ReturnType<typeof loadChiChiProgramContext>>
 ): string {
-  return publicChiChiLocalFallback(message, history, memories);
+  return publicChiChiLocalFallback(message, history, memories, programContext);
   const q = cleanText(message);
   const recent = recentHistory(history).map((m) => `${m.role}: ${m.content.toLowerCase()}`).join("\n");
   const memoryText = String(memories || "").toLowerCase();
@@ -996,13 +1002,14 @@ async function generateChiChiReply(
   message: string,
   conversationHistory: { role: ChatRole; content: string }[],
   memories: string,
-  geneticsContext = ""
+  geneticsContext = "",
+  programContext?: Awaited<ReturnType<typeof loadChiChiProgramContext>>
 ) {
   const apiKey = getAnthropicApiKey();
   const model = getAnthropicModel();
 
   if (!apiKey) {
-    return localFallback(message, conversationHistory, memories);
+    return localFallback(message, conversationHistory, memories, programContext);
   }
 
   try {
@@ -1016,22 +1023,22 @@ async function generateChiChiReply(
       body: JSON.stringify({
         model,
         max_tokens: 900,
-        system: buildSystemPrompt(memories, geneticsContext),
+        system: buildSystemPrompt(programContext, memories, geneticsContext),
         messages: conversationHistory,
       }),
     });
 
     if (!response.ok) {
       console.error("Anthropic API error:", response.status, await response.text());
-      return localFallback(message, conversationHistory, memories);
+      return localFallback(message, conversationHistory, memories, programContext);
     }
 
     const data = await response.json();
     const text = String(data?.content?.[0]?.text || "").trim();
-    return text || localFallback(message, conversationHistory, memories);
+    return text || localFallback(message, conversationHistory, memories, programContext);
   } catch (error) {
     console.error("Anthropic request failed:", error);
-    return localFallback(message, conversationHistory, memories);
+    return localFallback(message, conversationHistory, memories, programContext);
   }
 }
 
@@ -1086,6 +1093,7 @@ export async function POST(req: Request) {
       limit: 12,
     });
     const memoryContext = formatChiChiMemories(memoryRecords);
+    const programContext = await loadChiChiProgramContext(admin);
     const geneticsContext = await loadBreedingGeneticsPromptContext(admin);
 
     await insertMessage(admin, {
@@ -1114,7 +1122,8 @@ export async function POST(req: Request) {
       message,
       conversationHistory,
       memoryContext,
-      geneticsContext
+      geneticsContext,
+      programContext
     );
 
     await insertMessage(admin, {

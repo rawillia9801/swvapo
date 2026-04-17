@@ -39,6 +39,8 @@ import { createPortalZohoPaymentLink } from "@/lib/portal-zoho-payments";
 import { loadAdminLineageWorkspace } from "@/lib/admin-lineage";
 import { listAllAuthUsers } from "@/lib/admin-api";
 import { loadBreedingGeneticsPromptContext } from "@/lib/breeding-genetics";
+import { loadChiChiProgramContext, loadPuppiesSystemSnapshot } from "@/lib/admin-puppies-system-server";
+import { isCurrentPuppyStatus } from "@/lib/admin-puppies-system";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -3108,6 +3110,108 @@ async function executeAdminOperationalIntelligence(
     /\bdam'?s?\b|\bsires?\b|\blitters?\b|\bbreeding dogs?\b|\bbreeding program\b|\blineage\b/.test(
       lower
     );
+  const asksPuppyOperations =
+    wantsReadback &&
+    /\bweights?\b|\bvaccines?\b|\bdeworm(?:ing)?\b|\bphotos?\b|\bwebsite copy\b|\bbuyer (?:assignment|link|linkage)\b|\bportal\b|\bdocuments?\b|\bgo-home\b|\battention\b/.test(
+      lower
+    );
+
+  if (asksPuppyOperations) {
+    const snapshot = await loadPuppiesSystemSnapshot(admin);
+    const currentPuppies = snapshot.puppies.filter((puppy) => isCurrentPuppyStatus(puppy.status));
+    const summarizePuppies = (rows: typeof snapshot.puppies, detail: (name: typeof snapshot.puppies[number]) => string) => {
+      if (!rows.length) return "None right now.";
+      return rows
+        .slice(0, 10)
+        .map((puppy, index) => `${index + 1}. ${puppy.displayName} - ${detail(puppy)}`)
+        .join("\n");
+    };
+
+    if (/\bweights?\b/.test(lower) && /\bneed|missing|due|update|updated|this week\b/.test(lower)) {
+      const rows = currentPuppies.filter((puppy) => puppy.care.weightDue);
+      return rows.length
+        ? `These puppies need weekly weight attention right now:\n\n${summarizePuppies(rows, (puppy) => puppy.care.latestWeight?.weighDate ? `last weight ${puppy.care.latestWeight.weighDate}` : "no weight logged yet")}`
+        : "No current puppies are due for weekly weight entry right now.";
+    }
+
+    if (/\bvaccines?\b/.test(lower) && /\bneed|missing|due|record|records?\b/.test(lower)) {
+      const rows = currentPuppies.filter((puppy) => puppy.care.vaccineDue);
+      return rows.length
+        ? `These puppies are missing vaccine follow-through right now:\n\n${summarizePuppies(rows, (puppy) => puppy.care.latestVaccine?.recordDate ? `last vaccine record ${puppy.care.latestVaccine.recordDate}` : "no vaccine record logged")}`
+        : "No current puppies are flagged for missing vaccine records right now.";
+    }
+
+    if (/\bdeworm(?:ing)?\b/.test(lower) && /\bneed|missing|due|record|records?\b/.test(lower)) {
+      const rows = currentPuppies.filter((puppy) => puppy.care.dewormingDue);
+      return rows.length
+        ? `These puppies are missing deworming follow-through right now:\n\n${summarizePuppies(rows, (puppy) => puppy.care.latestDeworming?.recordDate ? `last deworming record ${puppy.care.latestDeworming.recordDate}` : "no deworming record logged")}`
+        : "No current puppies are flagged for missing deworming records right now.";
+    }
+
+    if (/\bphotos?\b/.test(lower) && /\bmissing|need|needs?\b/.test(lower)) {
+      const rows = currentPuppies.filter((puppy) => !puppy.readiness.photoReady);
+      return rows.length
+        ? `These puppies still need photos before they are fully ready:\n\n${summarizePuppies(rows, (puppy) => puppy.litterName || "no litter linked")}`
+        : "No current puppies are missing photos right now.";
+    }
+
+    if ((/\bwebsite copy\b/.test(lower) || /\bcopy\b/.test(lower)) && /\bmissing|need|needs?\b/.test(lower)) {
+      const rows = currentPuppies.filter((puppy) => !puppy.readiness.copyReady);
+      return rows.length
+        ? `These puppies still need website copy:\n\n${summarizePuppies(rows, (puppy) => puppy.buyerName || puppy.litterName || "record still needs listing copy")}`
+        : "No current puppies are missing website copy right now.";
+    }
+
+    if (/\bbuyer (?:assignment|link|linkage)\b/.test(lower) || /\bmissing buyer\b/.test(lower)) {
+      const rows = currentPuppies.filter((puppy) => !puppy.buyerId);
+      return rows.length
+        ? `These puppies still need buyer linkage:\n\n${summarizePuppies(rows, (puppy) => puppy.litterName || "no litter linked")}`
+        : "Every current puppy is linked to a buyer right now.";
+    }
+
+    if (/\bdocuments?\b/.test(lower) && /\bsigned|signature|sign\b/.test(lower) && /\bbuyers?\b/.test(lower)) {
+      const rows = snapshot.buyers.filter((buyer) => buyer.unsignedForms > 0);
+      return rows.length
+        ? `These buyers still need document follow-through:\n\n${rows
+            .slice(0, 10)
+            .map((buyer, index) => `${index + 1}. ${buyer.displayName} - ${buyer.unsignedForms} unsigned form${buyer.unsignedForms === 1 ? "" : "s"} - ${buyer.linkedPuppyNames.join(", ") || "no puppy linked"}`)
+            .join("\n")}`
+        : "No buyer accounts are currently missing signed documents.";
+    }
+
+    if (/\bready for the website\b/.test(lower) && /\bnot\b.*\bportal\b/.test(lower)) {
+      const rows = currentPuppies.filter(
+        (puppy) => puppy.readiness.website.ready && !puppy.readiness.portal.ready
+      );
+      return rows.length
+        ? `These puppies are ready for the website but not the buyer portal:\n\n${summarizePuppies(rows, (puppy) => puppy.readiness.portal.missing[0] || "portal readiness still blocked")}`
+        : "No current puppies are in the state where website readiness is complete but buyer portal readiness is still blocked.";
+    }
+
+    if (/\bgo-home\b/.test(lower) && /\bmissing|need|needs?|ready\b/.test(lower)) {
+      const rows = currentPuppies.filter((puppy) => !puppy.readiness.goHome.ready);
+      return rows.length
+        ? `These puppies still have go-home blockers:\n\n${summarizePuppies(rows, (puppy) => puppy.readiness.goHome.missing[0] || puppy.readiness.goHome.blocked[0] || "go-home readiness incomplete")}`
+        : "All current puppies are marked go-home ready right now.";
+    }
+
+    if (/\battention\b/.test(lower) && (/\btoday\b/.test(lower) || /\bright now\b/.test(lower) || /\bsummary\b/.test(lower))) {
+      const rows = currentPuppies.filter((puppy) => puppy.attention.length > 0);
+      return rows.length
+        ? `Here is the current puppy attention list:\n\n${summarizePuppies(rows, (puppy) => puppy.attention.slice(0, 2).join(", "))}`
+        : "No current puppies are flagged for admin attention right now.";
+    }
+
+    if (/\boverdue payment\b/.test(lower) || (/\bpayments?\b/.test(lower) && /\boverdue\b/.test(lower))) {
+      const rows = snapshot.buyers.filter((buyer) => buyer.overdue);
+      return rows.length
+        ? `These buyer accounts are currently overdue:\n\n${rows
+            .slice(0, 10)
+            .map((buyer, index) => `${index + 1}. ${buyer.displayName} - remaining balance ${buyer.remainingBalance == null ? "not set" : `$${buyer.remainingBalance.toLocaleString()}`} - ${buyer.linkedPuppyNames.join(", ") || "no puppy linked"}`)
+            .join("\n")}`
+        : "No buyer accounts are currently flagged as overdue.";
+    }
+  }
 
   if (asksBreedingProgram) {
     const workspace = await loadAdminLineageWorkspace(admin);
@@ -6303,10 +6407,12 @@ export async function POST(req: Request) {
       email: user.email,
     });
     const breedingGeneticsContext = await loadBreedingGeneticsPromptContext(admin);
+    const chiChiProgramContext = await loadChiChiProgramContext(admin);
     const summary = canWriteCore
       ? {
           ...summaryBase,
           breeding_genetics_context: breedingGeneticsContext || null,
+          program_context: chiChiProgramContext,
           admin_capabilities: {
             live_entities: [
               "buyers",
@@ -6346,6 +6452,12 @@ export async function POST(req: Request) {
       : {
           ...summaryBase,
           breeding_genetics_context: breedingGeneticsContext || null,
+          program_context: {
+            publicAvailabilitySummary: chiChiProgramContext.publicAvailabilitySummary,
+            availablePuppies: chiChiProgramContext.availablePuppies,
+            upcomingLitters: chiChiProgramContext.upcomingLitters,
+            customerCapabilities: chiChiProgramContext.customerCapabilities,
+          },
         };
     const adminAuth: AdminAuthContext = {
       userId: user.id,

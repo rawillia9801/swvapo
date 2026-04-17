@@ -9,7 +9,6 @@ import {
   Dog,
   FileCheck2,
   Files,
-  LayoutDashboard,
   Layers3,
   MapPinned,
   MessageSquareText,
@@ -38,13 +37,14 @@ type AdminNavSection = {
 
 const ADMIN_NAV: AdminNavSection[] = [
   {
-    label: "Operations",
+    label: "Breeding Operations",
     items: [
       {
         href: "/admin/portal",
-        label: "Current Puppies",
-        helper: "Available puppies, care logs, publishing",
-        icon: <LayoutDashboard className="h-4 w-4" />,
+        label: "Puppies",
+        helper: "Overview, current, past, care, readiness",
+        aliases: ["/admin/portal/puppies"],
+        icon: <PawPrint className="h-4 w-4" />,
       },
       {
         href: "/admin/portal/buyers",
@@ -89,12 +89,6 @@ const ADMIN_NAV: AdminNavSection[] = [
   {
     label: "Breeding Hub",
     items: [
-      {
-        href: "/admin/portal/puppies",
-        label: "Puppies",
-        helper: "Profiles, placement, care",
-        icon: <PawPrint className="h-4 w-4" />,
-      },
       {
         href: "/admin/portal/litters",
         label: "Litters",
@@ -196,8 +190,8 @@ export function AdminPageShell({
     href: pathname || "/admin/portal",
     label: "Admin Workspace",
     helper: "Owner-only breeding operations",
-    icon: <LayoutDashboard className="h-4 w-4" />,
-    section: "Operations",
+    icon: <PawPrint className="h-4 w-4" />,
+    section: "Breeding Operations",
   };
 
   for (const section of ADMIN_NAV) {

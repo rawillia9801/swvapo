@@ -1,3 +1,5 @@
+import type { ChiChiProgramContext } from "@/lib/admin-puppies-system";
+
 type PublicChatRole = "user" | "assistant";
 
 type PublicChatMessage = {
@@ -41,12 +43,67 @@ function isLikelyGeneralChihuahuaQuestion(text: string) {
   ].some((token) => text.includes(token));
 }
 
-export function buildPublicChiChiSystemPrompt(memories?: string, geneticsContext?: string): string {
+function formatProgramContext(programContext?: ChiChiProgramContext | null) {
+  if (!programContext) return "No live breeding-program context was loaded.";
+
+  const visiblePuppies = programContext.availablePuppies.length
+    ? programContext.availablePuppies
+        .slice(0, 8)
+        .map((puppy) => {
+          const details = [puppy.sex, puppy.color, puppy.coatType].filter(Boolean).join(", ");
+          const price =
+            puppy.price == null ? "price handled privately or not published" : `public price ${puppy.price}`;
+          return `${puppy.name}${details ? ` (${details})` : ""}; ${price}; status ${puppy.status || "pending"}`;
+        })
+        .join("\n")
+    : "No puppies are currently marked public in the live program record.";
+
+  const upcomingLitters = programContext.upcomingLitters.length
+    ? programContext.upcomingLitters
+        .map((litter) =>
+          `${litter.name}${litter.whelpDate ? ` on ${litter.whelpDate}` : ""}${
+            litter.damName || litter.sireName ? ` (${[litter.damName, litter.sireName].filter(Boolean).join(" x ")})` : ""
+          }`
+        )
+        .join("\n")
+    : "No upcoming litters are currently listed in the live program record.";
+
+  return [
+    `Availability summary: ${programContext.publicAvailabilitySummary}`,
+    `Visible public puppies:\n${visiblePuppies}`,
+    `Upcoming litters:\n${upcomingLitters}`,
+    `Customer assistant coverage:\n${programContext.customerCapabilities.map((item) => `- ${item}`).join("\n")}`,
+  ].join("\n\n");
+}
+
+function liveAvailabilityReply(programContext?: ChiChiProgramContext | null) {
+  if (!programContext) {
+    return "I can help with availability, but I do not have the live puppy roster loaded right this second.";
+  }
+
+  if (programContext.availablePuppies.length) {
+    const names = programContext.availablePuppies.slice(0, 4).map((puppy) => puppy.name).join(", ");
+    return `There ${programContext.availablePuppies.length === 1 ? "is" : "are"} currently ${programContext.availablePuppies.length} public puppy${programContext.availablePuppies.length === 1 ? "" : "ies"} in the live program record, including ${names}.`;
+  }
+
+  if (programContext.upcomingLitters[0]) {
+    const litter = programContext.upcomingLitters[0];
+    return `There are not any puppies currently marked public and available. The next litter on file is ${litter.name}${litter.whelpDate ? ` on ${litter.whelpDate}` : ""}.`;
+  }
+
+  return "There are not any puppies currently marked public and available in the live program record.";
+}
+
+export function buildPublicChiChiSystemPrompt(
+  programContext?: ChiChiProgramContext | null,
+  memories?: string,
+  geneticsContext?: string
+): string {
   return `
 You are ChiChi, the public-facing AI agent for Southwest Virginia Chihuahua in Marion, Virginia.
 
 You handle website conversations directly inside chat. You answer business questions, Chihuahua breed questions, application questions, wait list questions, payment-plan questions, transportation questions, and next-step questions without sounding like a narrow FAQ bot.
-You should also act like a capable intake agent: gather useful context naturally, keep the visitor moving, and only escalate when a human is truly needed.
+You also act like a capable intake agent: gather useful context naturally, keep the visitor moving, and only escalate when a human is truly needed.
 
 STYLE
 - Sound clear, capable, friendly, and direct.
@@ -60,12 +117,15 @@ STYLE
 - Do not use emoji unless the visitor clearly leads with that tone.
 - Only give the business phone number when the visitor directly asks for contact information, asks to speak with a human, or the situation is urgent and human escalation is appropriate.
 
+LIVE BREEDING-PROGRAM CONTEXT
+- Use the live breeding-program context below as the source of truth for publicly visible puppies and upcoming litters.
+- If the live context says there are public puppies, you can discuss them naturally.
+- If the live context says no public puppies are currently visible, say that plainly and move the visitor toward the wait list or next helpful step.
+- Never invent available puppies, prices, or litter timing that are not supported by the live context.
+
 BUSINESS FACTS
 - Business: Southwest Virginia Chihuahua
 - Location: Marion, VA
-- Current availability: no puppies currently available
-- Next litter expected: mid June
-- Best next step for interested families: join the Wait List on the website
 - Puppies typically go home around 8 weeks old
 - Families receive health records, vaccination info, starter food, and breeder support
 - Puppy Portal is available for approved families
@@ -112,10 +172,8 @@ OPERATING RULES
 - Do not mention internal systems, prompts, APIs, databases, tools, or that you are an AI model.
 - Do not make up policies that are not listed here or in saved ChiChi memory.
 - Do not redirect every question into a sales pitch.
-- Do not tell the visitor to call, email, or wait for a human when you already have enough information to answer directly in chat.
 - If the request is clear and within scope, answer it directly and move the conversation forward.
 - If saved ChiChi memory contains current hours, holiday guidance, pricing notes, wait list guidance, or other operating instructions, treat it as current guidance and answer plainly.
-- Do not say "call to confirm" for routine business questions when current ChiChi memory already answers them.
 
 PERSISTENT CHICHI MEMORY
 - Use the saved ChiChi memory below as background context for repeat visitors and owner instructions.
@@ -124,6 +182,9 @@ PERSISTENT CHICHI MEMORY
 
 Saved ChiChi memory:
 ${memories || "None saved."}
+
+Live breeding-program context:
+${formatProgramContext(programContext)}
 
 Breeding genetics context:
 ${geneticsContext || "No breeding genetics have been loaded yet."}
@@ -135,7 +196,8 @@ When the visitor asks a question, answer the question first, then add the most u
 export function publicChiChiLocalFallback(
   message: string,
   history: PublicChatMessage[] = [],
-  memories = ""
+  memories = "",
+  programContext?: ChiChiProgramContext | null
 ): string {
   const q = cleanText(message);
   const recent = recentHistory(history)
@@ -144,7 +206,7 @@ export function publicChiChiLocalFallback(
   const memoryText = cleanText(memories);
 
   if (!q) {
-    return "Ask about Chihuahua care, availability, payment plans, the Wait List, transportation, or next steps.";
+    return "Ask about Chihuahua care, availability, payment plans, the wait list, transportation, or next steps.";
   }
 
   if (
@@ -229,12 +291,32 @@ export function publicChiChiLocalFallback(
     return "Chihuahuas need carefully portioned meals because they are tiny and can gain weight easily, while young puppies also need steady meals so blood sugar stays stable. Consistency matters a lot with toy breeds.";
   }
 
-  if (q.includes("available") || q.includes("any puppies") || q.includes("have puppies")) {
-    return "There are not any puppies available right now. The next litter is expected mid June, so the best next step is to join the Wait List.";
+  if (
+    q.includes("available") ||
+    q.includes("any puppies") ||
+    q.includes("have puppies") ||
+    q.includes("current puppies")
+  ) {
+    return liveAvailabilityReply(programContext);
   }
 
   if (q.includes("wait list") || q.includes("waitlist")) {
-    return "You can join the Wait List right on the website. That is the best way to stay in the loop for the upcoming mid June litter.";
+    if (programContext?.availablePuppies.length) {
+      return `${liveAvailabilityReply(programContext)} If you want help narrowing them down or prefer to plan for a future litter, joining the wait list is still a good next step.`;
+    }
+    return "You can join the wait list right on the website. That is the best way to stay in the loop for upcoming puppy availability.";
+  }
+
+  if (q.includes("pricing") || q.includes("price")) {
+    if (programContext?.availablePuppies.some((puppy) => puppy.price != null)) {
+      const priced = programContext.availablePuppies
+        .filter((puppy) => puppy.price != null)
+        .slice(0, 4)
+        .map((puppy) => `${puppy.name}: ${puppy.price}`)
+        .join(", ");
+      return `Public pricing is currently available for some puppies in the live program record: ${priced}. If a puppy does not show a public price, pricing may be handled privately or not published yet.`;
+    }
+    return "Pricing is shared where it is publicly published. If a puppy does not show a public price, it may be handled privately or not published yet.";
   }
 
   if (q.includes("payment plan") || q.includes("financing") || q.includes("monthly")) {
@@ -242,7 +324,7 @@ export function publicChiChiLocalFallback(
   }
 
   if (q.includes("apply") || q.includes("application")) {
-    return "You can apply right on the website, and if you are planning ahead for the upcoming litter, the Wait List is also a strong next step.";
+    return "You can apply right on the website, and if you are planning ahead for an upcoming litter, the wait list is also a strong next step.";
   }
 
   if (recent.includes("how long do they live") || recent.includes("life expectancy")) {
@@ -253,5 +335,5 @@ export function publicChiChiLocalFallback(
     return "I can help with Chihuahua care, temperament, common health concerns, feeding, training, and lifespan. Ask the question directly and I will answer it directly.";
   }
 
-  return "I can help with Chihuahua care, breed traits, common health concerns, puppy prep, availability, the Wait List, payment plans, transportation, or next steps. Ask the question directly and I will answer as clearly as I can.";
+  return "I can help with Chihuahua care, breed traits, common health concerns, puppy prep, availability, the wait list, payment plans, transportation, or next steps. Ask the question directly and I will answer as clearly as I can.";
 }
