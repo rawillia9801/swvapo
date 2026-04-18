@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { sb } from "@/lib/utils";
+import { getClientSessionWithTimeout } from "@/lib/client-session-resilience";
 import {
   PortalChiChiWidget,
   type PortalAdminAuth,
@@ -516,9 +517,9 @@ export default function PortalLayout({
     let mounted = true;
 
     async function bootstrap() {
-      const {
-        data: { session },
-      } = await sb.auth.getSession();
+      const session = await getClientSessionWithTimeout(sb, {
+        context: "src/app/portal/layout.tsx",
+      });
 
       if (!mounted) return;
       setUser((session?.user as PortalUser) ?? null);

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { HeartHandshake, ShieldCheck } from "lucide-react";
+import { getClientSessionWithTimeout } from "@/lib/client-session-resilience";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -41,10 +42,14 @@ export default function ApplicationPage() {
 
   useEffect(() => {
     async function loadUser() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) setUserId(user.id);
+      try {
+        const session = await getClientSessionWithTimeout(supabase, {
+          context: "src/app/application/page.tsx",
+        });
+        if (session?.user) setUserId(session.user.id);
+      } catch (error) {
+        console.warn("Application page session bootstrap failed; rendering public form.", error);
+      }
     }
 
     void loadUser();

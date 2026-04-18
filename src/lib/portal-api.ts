@@ -1,5 +1,9 @@
 import "server-only";
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+import {
+  getBearerToken,
+  resolveSupabaseUserFromRequest,
+} from "@/lib/supabase-auth-resilience";
 
 function getEnv(name: string) {
   const value = process.env[name];
@@ -9,13 +13,7 @@ function getEnv(name: string) {
   return value;
 }
 
-export function getBearerToken(req: Request) {
-  const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
-  if (authHeader?.startsWith("Bearer ")) {
-    return authHeader.slice(7).trim();
-  }
-  return null;
-}
+export { getBearerToken };
 
 export function createAnonSupabase(): SupabaseClient {
   return createClient(
@@ -44,15 +42,8 @@ export function createServiceSupabase(): SupabaseClient {
 }
 
 export async function verifyPortalUser(req: Request): Promise<{ user: User | null }> {
-  const accessToken = getBearerToken(req);
-  if (!accessToken) return { user: null };
-
-  const anon = createAnonSupabase();
-  const { data, error } = await anon.auth.getUser(accessToken);
-
-  if (error || !data.user) {
-    return { user: null };
-  }
-
-  return { user: data.user };
+  const { user } = await resolveSupabaseUserFromRequest(req, createAnonSupabase, {
+    context: "src/lib/portal-api.ts:verifyPortalUser",
+  });
+  return { user };
 }

@@ -30,6 +30,7 @@ import {
   type PortalPuppy,
 } from "@/lib/portal-data";
 import { usePortalSession } from "@/hooks/use-portal-session";
+import { getClientSessionWithTimeout } from "@/lib/client-session-resilience";
 import {
   PortalButton,
   PortalEmptyState,
@@ -830,9 +831,9 @@ export default function PortalPaymentsPage() {
       setBillingErrorText("");
 
       try {
-        const {
-          data: { session },
-        } = await sb.auth.getSession();
+        const session = await getClientSessionWithTimeout(sb, {
+          context: "src/app/portal/payments/page.tsx:loadPage",
+        });
         const accessToken = session?.access_token || "";
         const context = await loadPortalContext(user);
 

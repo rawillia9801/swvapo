@@ -42,6 +42,11 @@ import { listAllAuthUsers } from "@/lib/admin-api";
 import { loadBreedingGeneticsPromptContext } from "@/lib/breeding-genetics";
 import { loadChiChiProgramContext, loadPuppiesSystemSnapshot } from "@/lib/admin-puppies-system-server";
 import { isCurrentPuppyStatus } from "@/lib/admin-puppies-system";
+import {
+  normalizeAccessToken,
+  readBearerToken,
+  resolveSupabaseUserFromAccessToken,
+} from "@/lib/supabase-auth-resilience";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -672,15 +677,17 @@ function getOptionalEnv(name: string): string | null {
   return process.env[name] || null;
 }
 
-function getBearerToken(req: Request, body?: RequestBody): string | null {
-  const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
-  if (authHeader?.startsWith("Bearer ")) {
-    return authHeader.slice(7).trim();
+function getRequestAccessToken(req: Request, body?: RequestBody) {
+  const headerToken = readBearerToken(req);
+  if (headerToken.token || headerToken.reason === "malformed-bearer") {
+    return headerToken;
   }
+
   if (body?.accessToken && typeof body.accessToken === "string") {
-    return body.accessToken.trim();
+    return normalizeAccessToken(body.accessToken);
   }
-  return null;
+
+  return headerToken;
 }
 
 function createAnonSupabase(): SupabaseClient {
@@ -935,17 +942,13 @@ function extractJsonObject(text: string): Record<string, unknown> | null {
 }
 
 async function verifyUser(req: Request, body: RequestBody) {
-  const accessToken = getBearerToken(req, body);
-  if (!accessToken) return { user: null, accessToken: null };
+  const accessToken = getRequestAccessToken(req, body);
+  if (!accessToken.token) return { user: null, accessToken: null };
 
-  const anon = createAnonSupabase();
-  const { data, error } = await anon.auth.getUser(accessToken);
-
-  if (error || !data.user) {
-    return { user: null, accessToken };
-  }
-
-  return { user: data.user, accessToken };
+  const { user } = await resolveSupabaseUserFromAccessToken(accessToken.token, createAnonSupabase, {
+    context: "src/app/api/buildlio/route.ts:verifyUser",
+  });
+  return { user, accessToken: accessToken.token };
 }
 
 async function getBuyerContext(admin: SupabaseClient, userId: string) {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { resolveSupabaseUserFromRequest } from "@/lib/supabase-auth-resilience";
 
 export const runtime = "nodejs";
 
@@ -38,14 +39,6 @@ function getEnv(name: string) {
   return value;
 }
 
-function getBearerToken(req: Request) {
-  const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
-  if (authHeader?.startsWith("Bearer ")) {
-    return authHeader.slice(7).trim();
-  }
-  return null;
-}
-
 function createAnonSupabase(): SupabaseClient {
   return createClient(
     getEnv("NEXT_PUBLIC_SUPABASE_URL"),
@@ -73,17 +66,10 @@ function createServiceSupabase(): SupabaseClient {
 }
 
 async function verifyUser(req: Request) {
-  const accessToken = getBearerToken(req);
-  if (!accessToken) return { user: null };
-
-  const anon = createAnonSupabase();
-  const { data, error } = await anon.auth.getUser(accessToken);
-
-  if (error || !data.user) {
-    return { user: null };
-  }
-
-  return { user: data.user };
+  const { user } = await resolveSupabaseUserFromRequest(req, createAnonSupabase, {
+    context: "src/app/api/portal/profile/route.ts:verifyUser",
+  });
+  return { user };
 }
 
 function sanitizeFileName(name: string) {

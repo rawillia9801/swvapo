@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
+import { getClientSessionWithTimeout } from "@/lib/client-session-resilience";
 import { isPortalAdminEmail } from "@/lib/portal-admin";
 import { sb } from "@/lib/utils";
 
@@ -47,14 +48,20 @@ export function usePortalAdminSession(): PortalAdminSessionState {
       }
 
       try {
-        const {
-          data: { session },
-        } = await sb.auth.getSession();
+        const session = await getClientSessionWithTimeout(sb, {
+          context: "src/lib/use-portal-admin-session.ts",
+        });
 
         if (!mounted) return;
         updateSessionCache(session?.user ?? null, session?.access_token || "");
         setUser(sessionCache.user);
         setAccessToken(sessionCache.accessToken);
+      } catch (error) {
+        console.warn("Admin session bootstrap failed; rendering signed-out admin state.", error);
+        if (!mounted) return;
+        updateSessionCache(null, "");
+        setUser(null);
+        setAccessToken("");
       } finally {
         if (mounted) setLoading(false);
       }

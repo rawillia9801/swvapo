@@ -1,6 +1,10 @@
 import "server-only";
 import { createClient } from "@supabase/supabase-js";
 import { isPortalAdminEmail } from "@/lib/portal-admin";
+import {
+  getBearerToken,
+  resolveSupabaseUserFromRequest,
+} from "@/lib/supabase-auth-resilience";
 
 function getEnv(name: string) {
   const value = process.env[name];
@@ -20,25 +24,17 @@ export function createServiceSupabase() {
   });
 }
 
-export function getBearerToken(req: Request) {
-  const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
-  if (authHeader?.startsWith("Bearer ")) {
-    return authHeader.slice("Bearer ".length).trim();
-  }
-  return null;
-}
+export { getBearerToken };
 
 export async function verifyOwner(req: Request) {
-  const accessToken = getBearerToken(req);
-  if (!accessToken) return null;
-
-  const anon = createAnonSupabase();
-  const { data, error } = await anon.auth.getUser(accessToken);
-  if (error || !data.user || !isPortalAdminEmail(data.user.email)) {
+  const { user } = await resolveSupabaseUserFromRequest(req, createAnonSupabase, {
+    context: "src/lib/admin-api.ts:verifyOwner",
+  });
+  if (!user || !isPortalAdminEmail(user.email)) {
     return null;
   }
 
-  return data.user;
+  return user;
 }
 
 export function normalizeEmail(value: string | null | undefined) {
@@ -75,6 +71,23 @@ export function describeRouteError(error: unknown, fallback = "Unexpected admin 
   return fallback;
 }
 
+const AUTH_ADMIN_TIMEOUT_MS = 2500;
+
+async function withAuthAdminTimeout<T>(operation: Promise<T>): Promise<T | null> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<null>((resolve) => {
+        timeoutId = setTimeout(() => resolve(null), AUTH_ADMIN_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 export async function listAllAuthUsers() {
   const admin = createServiceSupabase();
   const users: Array<{
@@ -105,8 +118,22 @@ export async function listAllAuthUsers() {
   const perPage = 200;
 
   while (true) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
-    if (error) throw new Error(error.message);
+    const result = await withAuthAdminTimeout(admin.auth.admin.listUsers({ page, perPage }));
+
+    if (!result) {
+      console.warn(
+        `[auth-resilience] listAllAuthUsers page ${page} timed out after ${AUTH_ADMIN_TIMEOUT_MS}ms; continuing without Auth users.`
+      );
+      return users;
+    }
+
+    const { data, error } = result;
+    if (error) {
+      console.warn(
+        `[auth-resilience] listAllAuthUsers page ${page} failed: ${error.message}; continuing without remaining Auth users.`
+      );
+      return users;
+    }
 
     const nextUsers = (data?.users || []).map((user) => ({
       id: user.id,

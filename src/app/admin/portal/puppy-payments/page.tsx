@@ -14,6 +14,7 @@ import {
   AdminRestrictedState,
   adminStatusBadge,
 } from "@/components/admin/luxury-admin-shell";
+import { getClientSessionWithTimeout } from "@/lib/client-session-resilience";
 import { fmtMoney, sb } from "@/lib/utils";
 import { isPortalAdminEmail } from "@/lib/portal-admin";
 
@@ -492,9 +493,9 @@ export default function AdminPortalPuppyPaymentsPage() {
 
     async function bootstrap() {
       try {
-        const {
-          data: { session },
-        } = await sb.auth.getSession();
+        const session = await getClientSessionWithTimeout(sb, {
+          context: "src/app/admin/portal/puppy-payments/page.tsx",
+        });
 
         if (!mounted) return;
         const currentUser = session?.user ?? null;
