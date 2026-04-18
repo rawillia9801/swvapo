@@ -174,11 +174,37 @@ export async function GET(req: Request) {
     }
 
     const service = createServiceSupabase();
-    const breeding = await resolveBreedingWorkspace(service);
-    const buyersResolved = await resolveBuyers(service);
+    const [breeding, buyersResolved] = await Promise.all([
+      resolveBreedingWorkspace(service),
+      resolveBuyers(service),
+    ]);
     const paymentsResolved = await resolvePayments(service, {
       buyers: buyersResolved.data,
       puppies: breeding.data.resolvedPuppies,
+    });
+
+    const puppiesById = new Map<number, PuppyRow>();
+    const puppiesByBuyerId = new Map<number, PuppyRow[]>();
+    breeding.data.resolvedPuppies.forEach((puppy) => {
+      if (puppy.id === null) return;
+      const normalizedPuppy = {
+        id: Number(puppy.id || 0),
+        buyer_id: puppy.buyerId,
+        call_name: puppy.callName,
+        puppy_name: puppy.displayName,
+        name: puppy.displayName,
+        price: puppy.price,
+        deposit: puppy.deposit,
+        balance: puppy.balance,
+        status: puppy.status,
+      } satisfies PuppyRow;
+
+      puppiesById.set(normalizedPuppy.id, normalizedPuppy);
+      if (normalizedPuppy.buyer_id !== null && normalizedPuppy.buyer_id !== undefined) {
+        const group = puppiesByBuyerId.get(normalizedPuppy.buyer_id) || [];
+        group.push(normalizedPuppy);
+        puppiesByBuyerId.set(normalizedPuppy.buyer_id, group);
+      }
     });
 
     const accounts = paymentsResolved.data.resolvedBuyerFinancials
@@ -204,22 +230,18 @@ export async function GET(req: Request) {
           status: account.buyer?.status || account.planStatus || null,
         } satisfies BuyerRow;
 
-        const linkedPuppies = breeding.data.resolvedPuppies
-          .filter((puppy) => {
-            if (account.buyerId !== null && puppy.buyerId === account.buyerId) return true;
-            return account.linkedPuppyId !== null && puppy.id === account.linkedPuppyId;
-          })
-          .map((puppy) => ({
-            id: Number(puppy.id || 0),
-            buyer_id: puppy.buyerId,
-            call_name: puppy.callName,
-            puppy_name: puppy.displayName,
-            name: puppy.displayName,
-            price: puppy.price,
-            deposit: puppy.deposit,
-            balance: puppy.balance,
-            status: puppy.status,
-          })) as PuppyRow[];
+        const linkedPuppies = Array.from(
+          new Map(
+            [
+              ...(account.linkedPuppyId !== null
+                ? [[account.linkedPuppyId, puppiesById.get(account.linkedPuppyId) || null] as const]
+                : []),
+              ...(account.buyerId !== null
+                ? (puppiesByBuyerId.get(account.buyerId) || []).map((puppy) => [puppy.id, puppy] as const)
+                : []),
+            ].filter((entry): entry is readonly [number, PuppyRow] => Boolean(entry[1]))
+          ).values()
+        );
 
         const primaryPuppy = linkedPuppies[0] || null;
         const payments = account.paymentEvents

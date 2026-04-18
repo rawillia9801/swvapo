@@ -192,49 +192,48 @@ export async function loadResolverSources(
   definitions: ResolverSourceDefinition[],
   defaultLimit = DEFAULT_SOURCE_LIMIT
 ) {
-  const results: LoadedResolverSource[] = [];
+  return Promise.all(
+    definitions.map(async (definition) => {
+      try {
+        const result: any = await service
+          .from(definition.table)
+          .select("*")
+          .limit(definition.limit ?? defaultLimit);
 
-  for (const definition of definitions) {
-    try {
-      const result: any = await service
-        .from(definition.table)
-        .select("*")
-        .limit(definition.limit ?? defaultLimit);
+        if (result.error) {
+          return {
+            ...definition,
+            status: isMissingRelationError(result.error) ? "missing" : "error",
+            rowCount: 0,
+            rows: [],
+            error:
+              result.error instanceof Error
+                ? result.error.message
+                : String(result.error?.message || result.error || ""),
+          } satisfies LoadedResolverSource;
+        }
 
-      if (result.error) {
-        results.push({
+        const rows = Array.isArray(result.data)
+          ? (result.data as Array<Record<string, unknown>>)
+          : [];
+        return {
           ...definition,
-          status: isMissingRelationError(result.error) ? "missing" : "error",
+          status: rows.length ? "data" : "empty",
+          rowCount: rows.length,
+          rows,
+          error: null,
+        } satisfies LoadedResolverSource;
+      } catch (error) {
+        return {
+          ...definition,
+          status: isMissingRelationError(error) ? "missing" : "error",
           rowCount: 0,
           rows: [],
-          error:
-            result.error instanceof Error
-              ? result.error.message
-              : String(result.error?.message || result.error || ""),
-        });
-        continue;
+          error: error instanceof Error ? error.message : String(error || ""),
+        } satisfies LoadedResolverSource;
       }
-
-      const rows = Array.isArray(result.data) ? (result.data as Array<Record<string, unknown>>) : [];
-      results.push({
-        ...definition,
-        status: rows.length ? "data" : "empty",
-        rowCount: rows.length,
-        rows,
-        error: null,
-      });
-    } catch (error) {
-      results.push({
-        ...definition,
-        status: isMissingRelationError(error) ? "missing" : "error",
-        rowCount: 0,
-        rows: [],
-        error: error instanceof Error ? error.message : String(error || ""),
-      });
-    }
-  }
-
-  return results;
+    })
+  );
 }
 
 export function createResolverDiagnostics(

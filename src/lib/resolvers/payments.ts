@@ -522,30 +522,22 @@ function eventSignature(event: ResolvedPaymentEvent) {
   );
 }
 
-function matchBuyerForFinancial(
-  buyerId: number | null,
-  options: ResolvePaymentOptions
-) {
-  if (buyerId === null || !options.buyers) return null;
-  return options.buyers.find((buyer) => buyer.id === buyerId) || null;
+function groupByBuyerId<T extends { buyerId: number | null }>(rows: T[]) {
+  const groups = new Map<number, T[]>();
+  rows.forEach((row) => {
+    if (row.buyerId === null) return;
+    const existing = groups.get(row.buyerId);
+    if (existing) {
+      existing.push(row);
+      return;
+    }
+    groups.set(row.buyerId, [row]);
+  });
+  return groups;
 }
 
-function matchPuppyForFinancial(
-  puppyId: number | null,
-  buyerId: number | null,
-  options: ResolvePaymentOptions
-) {
-  if (!options.puppies) return null;
-  if (puppyId !== null) {
-    const direct = options.puppies.find((puppy) => puppy.id === puppyId) || null;
-    if (direct) return direct;
-  }
-
-  if (buyerId !== null) {
-    return options.puppies.find((puppy) => puppy.buyerId === buyerId) || null;
-  }
-
-  return null;
+function firstPuppyIdFromEvents(events: ResolvedPaymentEvent[]) {
+  return events.find((event) => event.puppyId !== null)?.puppyId ?? null;
 }
 
 async function resolvePaymentState(
@@ -648,6 +640,43 @@ async function resolvePaymentState(
   );
 
   const events = sortByRecent(Array.from(eventsByKey.values()), "eventDate");
+  const sortedNotices = sortByRecent(notices, "createdAt", "noticeDate");
+  const sortedPositions = sortByRecent(positions, "lastPaymentAt", "nextDueDate");
+  const sortedPlans = sortByRecent(plans, "nextDueDate");
+  const sortedBillingSubscriptions = sortByRecent(
+    billingSubscriptions,
+    "lastPaymentAt",
+    "nextBillingAt"
+  );
+
+  const buyerById = new Map<number, ResolvedBuyer>();
+  (options.buyers || []).forEach((buyer) => {
+    if (buyer.id === null || buyerById.has(buyer.id)) return;
+    buyerById.set(buyer.id, buyer);
+  });
+
+  const puppyById = new Map<number, ResolvedBreedingPuppy>();
+  const firstPuppyByBuyerId = new Map<number, ResolvedBreedingPuppy>();
+  (options.puppies || []).forEach((puppy) => {
+    if (puppy.id !== null && !puppyById.has(puppy.id)) {
+      puppyById.set(puppy.id, puppy);
+    }
+    if (puppy.buyerId !== null && !firstPuppyByBuyerId.has(puppy.buyerId)) {
+      firstPuppyByBuyerId.set(puppy.buyerId, puppy);
+    }
+  });
+
+  const eventsByBuyerId = groupByBuyerId(events);
+  const noticesByBuyerId = groupByBuyerId(sortedNotices);
+  const positionsByBuyerId = groupByBuyerId(sortedPositions);
+  const plansByBuyerId = groupByBuyerId(sortedPlans);
+  const billingSubscriptionsByBuyerId = groupByBuyerId(sortedBillingSubscriptions);
+  const noticeSettingsByBuyerId = new Map<number, ResolvedPaymentNoticeSettings>();
+  noticeSettings.forEach((settings) => {
+    if (settings.buyerId === null || noticeSettingsByBuyerId.has(settings.buyerId)) return;
+    noticeSettingsByBuyerId.set(settings.buyerId, settings);
+  });
+
   const buyerIds = new Set<number>();
 
   events.forEach((event) => {
@@ -674,26 +703,24 @@ async function resolvePaymentState(
 
   const resolvedBuyerFinancials = Array.from(buyerIds)
     .map((buyerId) => {
-      const buyer = matchBuyerForFinancial(buyerId, options);
-      const eventsForBuyer = events.filter((event) => event.buyerId === buyerId);
-      const noticesForBuyer = sortByRecent(
-        notices.filter((notice) => notice.buyerId === buyerId),
-        "createdAt",
-        "noticeDate"
-      );
-      const noticeSetting = noticeSettings.find((settings) => settings.buyerId === buyerId) || null;
-      const plansForBuyer = plans.filter((plan) => plan.buyerId === buyerId);
-      const positionsForBuyer = positions.filter((position) => position.buyerId === buyerId);
-      const subscriptionsForBuyer = billingSubscriptions.filter(
-        (subscription) => subscription.buyerId === buyerId
-      );
+      const buyer = buyerById.get(buyerId) || null;
+      const eventsForBuyer = eventsByBuyerId.get(buyerId) || [];
+      const noticesForBuyer = noticesByBuyerId.get(buyerId) || [];
+      const noticeSetting = noticeSettingsByBuyerId.get(buyerId) || null;
+      const plansForBuyer = plansByBuyerId.get(buyerId) || [];
+      const positionsForBuyer = positionsByBuyerId.get(buyerId) || [];
+      const subscriptionsForBuyer = billingSubscriptionsByBuyerId.get(buyerId) || [];
       const primaryPuppyId =
         buyer?.linkedPuppyId ??
-        eventsForBuyer.find((event) => event.puppyId !== null)?.puppyId ??
+        firstPuppyIdFromEvents(eventsForBuyer) ??
         plansForBuyer.find((plan) => plan.puppyId !== null)?.puppyId ??
         subscriptionsForBuyer.find((subscription) => subscription.puppyId !== null)?.puppyId ??
+        firstPuppyByBuyerId.get(buyerId)?.id ??
         null;
-      const puppy = matchPuppyForFinancial(primaryPuppyId, buyerId, options);
+      const puppy =
+        (primaryPuppyId !== null ? puppyById.get(primaryPuppyId) || null : null) ||
+        firstPuppyByBuyerId.get(buyerId) ||
+        null;
 
       const salePrice = firstPresent(buyer?.salePrice, puppy?.price, puppy?.listPrice) || 0;
       const depositPaidBase = firstPresent(buyer?.depositAmount, puppy?.deposit) || 0;
