@@ -5,6 +5,7 @@ import {
   firstValue,
   verifyOwner,
 } from "@/lib/admin-api";
+import { queryBreedingDogs } from "@/lib/admin-data-compat";
 
 type BuyerRow = {
   id: number;
@@ -311,10 +312,11 @@ async function resolveLineageFields(
   const dogIds = [damId, sireId].filter(Boolean) as string[];
   const dogs = dogIds.length
     ? await safeRows<BreedingDogRow>(
-        service
-          .from("bp_dogs")
-          .select("id,role,dog_name,name,call_name,status")
-          .in("id", dogIds)
+        queryBreedingDogs<BreedingDogRow>(
+          service,
+          "id,role,dog_name,name,call_name,status",
+          (query) => query.in("id", dogIds)
+        )
       )
     : [];
   const dogNameMap = new Map(
@@ -461,12 +463,15 @@ export async function GET(req: Request) {
           .order("created_at", { ascending: false })
       ),
       safeRows<BreedingDogRow>(
-        service
-          .from("bp_dogs")
-          .select("id,role,dog_name,name,call_name,status")
-          .order("role", { ascending: true })
-          .order("dog_name", { ascending: true })
-          .order("call_name", { ascending: true })
+        queryBreedingDogs<BreedingDogRow>(
+          service,
+          "id,role,dog_name,name,call_name,status",
+          (query) =>
+            query
+              .order("role", { ascending: true })
+              .order("dog_name", { ascending: true })
+              .order("call_name", { ascending: true })
+        )
       ),
       safeRows<PickupRequestRow>(
         service

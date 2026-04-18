@@ -2,6 +2,8 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { queryBreedingDogs } from "@/lib/admin-data-compat";
+
 type BreedingDogGeneticsRow = {
   role?: string | null;
   dog_name?: string | null;
@@ -45,8 +47,11 @@ export function isMissingBreedingGeneticsColumnError(error: unknown) {
   const lower = message.toLowerCase();
   return (
     lower.includes("bp_dogs.genetics_summary") ||
+    lower.includes("breeding_dogs.genetics_summary") ||
     lower.includes("bp_dogs.genetics_raw") ||
+    lower.includes("breeding_dogs.genetics_raw") ||
     lower.includes("bp_dogs.genetics_report_url") ||
+    lower.includes("breeding_dogs.genetics_report_url") ||
     lower.includes("column genetics_summary does not exist") ||
     lower.includes("column genetics_raw does not exist") ||
     lower.includes("column genetics_report_url does not exist")
@@ -57,23 +62,29 @@ export async function loadBreedingGeneticsPromptContext(
   service: SupabaseClient,
   limit = 16
 ) {
-  const { data, error } = await service
-    .from("bp_dogs")
-    .select(
-      "role,dog_name,name,call_name,color,coat,genetics_summary,genetics_raw,genetics_report_url,is_active"
-    )
-    .neq("is_active", false)
-    .order("role", { ascending: true })
-    .order("dog_name", { ascending: true })
-    .order("call_name", { ascending: true })
-    .limit(limit)
-    .returns<BreedingDogGeneticsRow[]>();
+  const { data, error } = await queryBreedingDogs<BreedingDogGeneticsRow>(
+    service,
+    "role,dog_name,name,call_name,color,coat,genetics_summary,genetics_raw,genetics_report_url,is_active",
+    (query) =>
+      query
+        .neq("is_active", false)
+        .order("role", { ascending: true })
+        .order("dog_name", { ascending: true })
+        .order("call_name", { ascending: true })
+        .limit(limit)
+  );
 
   if (error) {
     if (isMissingBreedingGeneticsColumnError(error)) {
       return "";
     }
-    throw new Error(`Could not load breeding genetics context: ${error.message}`);
+    const message =
+      error instanceof Error
+        ? error.message
+        : error && typeof error === "object" && "message" in error
+          ? String((error as { message?: unknown }).message || "")
+          : String(error || "Unknown error");
+    throw new Error(`Could not load breeding genetics context: ${message}`);
   }
 
   const rows = (data || []).filter(

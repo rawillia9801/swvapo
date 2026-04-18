@@ -16,6 +16,7 @@ import {
 } from "@/lib/chichi-orchestration";
 import { buildPortalChiChiSystemPrompt } from "@/lib/chichi-portal-agent";
 import { isPortalAdminEmail } from "@/lib/portal-admin";
+import { queryChiChiAdminDigests } from "@/lib/admin-data-compat";
 import {
   inferChiChiDocumentPackageKey,
   listChiChiDocumentPackages,
@@ -3703,11 +3704,11 @@ async function getWebsiteActivitySnapshot(admin: SupabaseClient) {
         .limit(200)
     ),
     safeRows<AdminDigestRecord>(() =>
-      admin
-        .from("chichi_admin_digests")
-        .select("id,digest_date,summary,priorities,stats,created_at")
-        .order("digest_date", { ascending: false })
-        .limit(1)
+      queryChiChiAdminDigests<AdminDigestRecord>(
+        admin,
+        "id,digest_date,summary,priorities,stats,created_at",
+        (query) => query.order("digest_date", { ascending: false }).limit(1)
+      )
     ),
     safeRows<PublicThreadRecord>(() =>
       admin
@@ -4719,12 +4720,18 @@ async function executeListRecords(
   }
 
   if (entity === "admin_digests") {
-    const { data, error } = await admin
-      .from("chichi_admin_digests")
-      .select("id,digest_date,summary,priorities,stats,created_at")
-      .order("digest_date", { ascending: false })
-      .limit(limit || 500);
-    if (error) throw new Error(`Could not load admin digests: ${error.message}`);
+    const { data, error } = await queryChiChiAdminDigests<AdminDigestRecord>(
+      admin,
+      "id,digest_date,summary,priorities,stats,created_at",
+      (query) => query.order("digest_date", { ascending: false }).limit(limit || 500)
+    );
+    if (error) {
+      throw new Error(
+        `Could not load admin digests: ${
+          error instanceof Error ? error.message : String(error || "")
+        }`
+      );
+    }
 
     const rows = (data || []).filter((row) => {
       return (

@@ -5,6 +5,7 @@ import {
   normalizeEmail,
   verifyOwner,
 } from "@/lib/admin-api";
+import { queryBreedingDogs } from "@/lib/admin-data-compat";
 import { resolveBreedingDogName, resolveLitterName, resolvePuppyName } from "@/lib/lineage";
 import {
   applicationCityState,
@@ -237,10 +238,11 @@ async function loadWorkspace() {
         .order("whelp_date", { ascending: false })
     ),
     safeRows<DogRow>(
-      service
-        .from("bp_dogs")
-        .select("id,role,dog_name,name,call_name,display_name,registered_name,status")
-        .order("dog_name", { ascending: true })
+      queryBreedingDogs<DogRow>(
+        service,
+        "id,role,dog_name,name,call_name,display_name,registered_name,status",
+        (query) => query.order("dog_name", { ascending: true })
+      )
     ),
     safeRows<MessageRow>(
       service

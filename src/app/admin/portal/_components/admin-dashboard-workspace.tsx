@@ -172,6 +172,7 @@ export function AdminDashboardWorkspace() {
   const recentAlerts = (snapshot?.recentActivity || []).filter((row) =>
     ["document", "message", "payment", "template", "workflow"].includes(row.kind)
   );
+  const adminAlerts = overview?.adminAlerts || [];
 
   const metrics = [
     ["Current Puppies", currentPuppies.length, "Still active in care, readiness, and placement."],
@@ -252,6 +253,112 @@ export function AdminDashboardWorkspace() {
         {warningText ? (
           <div className="rounded-[1.35rem] border border-amber-200 bg-amber-50/90 px-5 py-4 text-sm leading-6 text-amber-900">
             {warningText}
+          </div>
+        ) : null}
+
+        {overview?.latestDigest || adminAlerts.length ? (
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_420px]">
+            <AdminPanel
+              title="ChiChi Operations Digest"
+              subtitle="System-level intelligence from live admin digests, memory updates, and active alerts."
+            >
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className={card("p-4")}>
+                  <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+                    Latest Digest
+                  </div>
+                  <div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">
+                    {overview?.latestDigest?.digest_date
+                      ? fmtDate(overview.latestDigest.digest_date)
+                      : "No digest yet"}
+                  </div>
+                  <div className="mt-3 text-sm leading-6 text-[var(--portal-text-soft)]">
+                    {overview?.latestDigest?.summary ||
+                      "ChiChi has not published an admin digest yet."}
+                  </div>
+                  {overview?.latestDigest?.priorities?.length ? (
+                    <div className="mt-4 space-y-2">
+                      {overview.latestDigest.priorities.slice(0, 3).map((priority) => (
+                        <div
+                          key={priority}
+                          className="rounded-[0.95rem] border border-[var(--portal-border)] bg-white px-4 py-3 text-sm text-[var(--portal-text-soft)]"
+                        >
+                          {priority}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className={card("p-4")}>
+                  <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+                    ChiChi Activity
+                  </div>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <Signal
+                      label="Assistant messages"
+                      value={String(overview?.assistantMessages24h || 0)}
+                    />
+                    <Signal
+                      label="Memory updates"
+                      value={String(overview?.memoryUpdates24h || 0)}
+                    />
+                    <Signal
+                      label="Public chats"
+                      value={String(overview?.publicMessages24h || 0)}
+                    />
+                    <Signal
+                      label="Buyer inbox"
+                      value={String(overview?.unreadBuyerMessages || 0)}
+                    />
+                  </div>
+                </div>
+              </div>
+            </AdminPanel>
+
+            <AdminPanel
+              title="Live Admin Alerts"
+              subtitle="Recent operational alerts coming straight from ChiChi's admin alert stream."
+            >
+              <div className="space-y-3">
+                {adminAlerts.length ? (
+                  adminAlerts.map((alert) => (
+                    <div
+                      key={alert.id}
+                      className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold text-[var(--portal-text)]">
+                            {alert.title}
+                          </div>
+                          <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
+                            {[alert.alert_scope, alert.source, alert.created_at ? fmtDate(alert.created_at) : null]
+                              .filter(Boolean)
+                              .join(" | ")}
+                          </div>
+                        </div>
+                        <span
+                          className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${adminStatusBadge(
+                            alert.tone
+                          )}`}
+                        >
+                          {alert.tone}
+                        </span>
+                      </div>
+                      <div className="mt-3 text-sm leading-6 text-[var(--portal-text-soft)]">
+                        {alert.message}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <AdminEmptyState
+                    title="No active admin alerts"
+                    description="ChiChi alerts will appear here when payments, care gaps, or admin issues need attention."
+                  />
+                )}
+              </div>
+            </AdminPanel>
           </div>
         ) : null}
 

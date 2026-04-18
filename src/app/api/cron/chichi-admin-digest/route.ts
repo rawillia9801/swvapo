@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import {
+  CHICHI_ADMIN_DIGEST_TABLES,
+  chooseFirstAvailableTable,
+} from "@/lib/admin-data-compat";
 
 type LeadRow = {
   id: string | number;
@@ -257,8 +261,17 @@ export async function GET(req: Request) {
       recentBusinessMemory: businessMemorySubjects,
     };
 
+    const tableChoice = await chooseFirstAvailableTable(admin, CHICHI_ADMIN_DIGEST_TABLES);
+    if (!tableChoice.table) {
+      throw new Error(
+        tableChoice.error instanceof Error
+          ? tableChoice.error.message
+          : "No ChiChi admin digest table is available."
+      );
+    }
+
     const { data, error } = await admin
-      .from("chichi_admin_digests")
+      .from(tableChoice.table)
       .upsert(
         {
           digest_date: digestDate,

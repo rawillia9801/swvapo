@@ -4,6 +4,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import PaymentPlanEmail, {
   type PaymentPlanEmailKind,
 } from "@/emails/payment-plan-email";
+import {
+  BUYER_PAYMENT_NOTICE_LOG_TABLES,
+  chooseFirstAvailableTable,
+  queryBuyerPaymentNoticeLogs,
+} from "@/lib/admin-data-compat";
 import { getResendClient, hasResendConfiguration } from "@/lib/resend";
 
 export type BuyerPaymentNoticeSettings = {
@@ -780,12 +785,11 @@ function buildNoticePresentation(input: {
 }
 
 async function findNoticeLogByKey(admin: SupabaseClient, noticeKey: string) {
-  const result = await admin
-    .from("buyer_payment_notice_logs")
-    .select("id,notice_key")
-    .eq("notice_key", noticeKey)
-    .limit(1)
-    .maybeSingle<{ id: number; notice_key: string }>();
+  const result = await queryBuyerPaymentNoticeLogs<{ id: number; notice_key: string }>(
+    admin,
+    "id,notice_key",
+    (query) => query.eq("notice_key", noticeKey).limit(1)
+  );
 
   if (result.error) {
     if (isMissingTableError(result.error)) {
@@ -793,10 +797,10 @@ async function findNoticeLogByKey(admin: SupabaseClient, noticeKey: string) {
         "The buyer payment email notice tables are not available yet. Please apply the buyer_payment_email_notices migration first."
       );
     }
-    throw new Error(result.error.message);
+    throw new Error(result.error instanceof Error ? result.error.message : String(result.error || ""));
   }
 
-  return result.data || null;
+  return result.data?.[0] || null;
 }
 
 async function storeNoticeLog(
@@ -815,7 +819,16 @@ async function storeNoticeLog(
     meta?: Record<string, unknown>;
   }
 ) {
-  const { error } = await admin.from("buyer_payment_notice_logs").insert({
+  const tableChoice = await chooseFirstAvailableTable(admin, BUYER_PAYMENT_NOTICE_LOG_TABLES);
+  if (!tableChoice.table) {
+    throw new Error(
+      tableChoice.error instanceof Error
+        ? tableChoice.error.message
+        : "The buyer payment email notice tables are not available yet."
+    );
+  }
+
+  const { error } = await admin.from(tableChoice.table).insert({
     buyer_id: input.buyerId,
     puppy_id: input.puppyId || null,
     payment_id: input.paymentId || null,

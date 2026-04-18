@@ -62,7 +62,10 @@ type OverviewSnapshot = {
   unreadBuyerMessages?: number;
   visitors24h?: number;
   publicThreads24h?: number;
+  publicMessages24h?: number;
   openFollowUps?: number;
+  assistantMessages24h?: number;
+  memoryUpdates24h?: number;
   latestDigest?: {
     digest_date?: string | null;
     summary?: string | null;
@@ -257,6 +260,8 @@ export default function AdminAssistantPage() {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const seenAlertIdsRef = useRef<Set<string>>(new Set());
   const bootstrappedAlertsRef = useRef(false);
+  const intelAbortRef = useRef<AbortController | null>(null);
+  const intelRequestIdRef = useRef(0);
   const commandDockPrompts = useMemo(() => COMMAND_DOCK_PROMPTS, []);
 
   useEffect(() => {
@@ -267,17 +272,47 @@ export default function AdminAssistantPage() {
 
   useEffect(() => {
     let active = true;
+    let timer: number | null = null;
 
-    async function loadIntel() {
+    const clearPendingRequest = () => {
+      if (intelAbortRef.current) {
+        intelAbortRef.current.abort();
+        intelAbortRef.current = null;
+      }
+    };
+
+    const scheduleNextRefresh = (delay = 15000) => {
+      if (!active || typeof window === "undefined") return;
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        void loadIntel(true);
+      }, delay);
+    };
+
+    async function loadIntel(background = false) {
       if (!accessToken || !isAdmin) {
         if (!active) return;
+        clearPendingRequest();
         setPaymentAlerts([]);
         setZohoStatus(null);
+        setOverview(null);
         setLastIntelRefresh(null);
+        setIntelLoading(false);
         return;
       }
 
-      setIntelLoading(true);
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        scheduleNextRefresh();
+        return;
+      }
+
+      const requestId = intelRequestIdRef.current + 1;
+      intelRequestIdRef.current = requestId;
+      clearPendingRequest();
+      const controller = new AbortController();
+      intelAbortRef.current = controller;
+
+      if (!background) setIntelLoading(true);
       try {
         const headers = { Authorization: `Bearer ${accessToken}` };
 
@@ -285,14 +320,17 @@ export default function AdminAssistantPage() {
           fetch("/api/admin/portal/payment-alerts?limit=8", {
             headers,
             cache: "no-store",
+            signal: controller.signal,
           }),
           fetch("/api/admin/portal/zoho-payments", {
             headers,
             cache: "no-store",
+            signal: controller.signal,
           }),
           fetch("/api/admin/portal/overview", {
             headers,
             cache: "no-store",
+            signal: controller.signal,
           }),
         ]);
 
@@ -304,7 +342,7 @@ export default function AdminAssistantPage() {
           overview?: OverviewSnapshot;
         };
 
-        if (!active) return;
+        if (!active || intelRequestIdRef.current !== requestId) return;
 
         const nextAlerts = Array.isArray(alertsJson.alerts) ? alertsJson.alerts : [];
         setPaymentAlerts(nextAlerts);
@@ -337,6 +375,12 @@ export default function AdminAssistantPage() {
             })),
         ]);
       } catch (error) {
+        if (
+          error instanceof Error &&
+          (error.name === "AbortError" || error.message.toLowerCase().includes("aborted"))
+        ) {
+          return;
+        }
         if (!active) return;
         setStatusText(
           error instanceof Error
@@ -344,18 +388,37 @@ export default function AdminAssistantPage() {
             : "ChiChi could not refresh the live intel feed."
         );
       } finally {
-        if (active) setIntelLoading(false);
+        if (intelAbortRef.current === controller) {
+          intelAbortRef.current = null;
+        }
+        if (active) {
+          setIntelLoading(false);
+          scheduleNextRefresh();
+        }
       }
     }
 
-    void loadIntel();
-    const interval = window.setInterval(() => {
-      void loadIntel();
-    }, 15000);
+    const handleVisibilityChange = () => {
+      if (typeof document === "undefined" || document.visibilityState !== "visible") return;
+      if (timer) {
+        window.clearTimeout(timer);
+        timer = null;
+      }
+      void loadIntel(true);
+    };
+
+    void loadIntel(false);
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+    }
 
     return () => {
       active = false;
-      window.clearInterval(interval);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      }
+      if (timer) window.clearTimeout(timer);
+      clearPendingRequest();
     };
   }, [accessToken, isAdmin]);
 
@@ -512,6 +575,14 @@ export default function AdminAssistantPage() {
       detail:
         overview?.latestDigest?.summary?.trim() ||
         "ChiChi is watching site traffic, public chats, and visitor behavior in the background.",
+    },
+    {
+      label: "ChiChi Memory",
+      value: `${Number(overview?.assistantMessages24h || 0)} msgs / ${Number(overview?.memoryUpdates24h || 0)} memories`,
+      detail:
+        Number(overview?.memoryUpdates24h || 0) > 0
+          ? "Recent assistant activity is persisting fresh business memory and operational context."
+          : "ChiChi memory updates will appear here as the system learns and saves more operational context.",
     },
   ];
 

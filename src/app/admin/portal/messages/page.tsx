@@ -21,7 +21,7 @@ import {
   type AdminPortalAccount,
 } from "@/lib/admin-portal";
 import { usePortalAdminSession } from "@/lib/use-portal-admin-session";
-import { fmtDate, sb } from "@/lib/utils";
+import { fmtDate } from "@/lib/utils";
 
 type PortalMessage = {
   id: string;
@@ -50,12 +50,25 @@ function buildPreview(message: string | null | undefined) {
 }
 
 async function loadThreads(token: string) {
-  const [accounts, messagesRes] = await Promise.all([
+  const [accounts, messagesResponse] = await Promise.all([
     fetchAdminAccounts(token),
-    sb.from("portal_messages").select("*").order("created_at", { ascending: false }),
+    fetch("/api/admin/portal/messages", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }),
   ]);
 
-  const messages = (messagesRes.data || []) as PortalMessage[];
+  const payload = (await messagesResponse.json()) as {
+    ok?: boolean;
+    error?: string;
+    messages?: PortalMessage[];
+  };
+  if (!messagesResponse.ok || !payload.ok) {
+    throw new Error(payload.error || "Could not load buyer conversations.");
+  }
+
+  const messages = Array.isArray(payload.messages) ? payload.messages : [];
   const accountMap = new Map<string, ThreadAccount>();
 
   accounts.forEach((account) => {
@@ -194,6 +207,7 @@ export default function AdminPortalMessagesPage() {
 
   useEffect(() => {
     if (!selectedThread) return;
+    if (!accessToken) return;
     const unreadIds = selectedThread.messages
       .filter((entry) => entry.sender === "user" && !entry.read_by_admin)
       .map((entry) => entry.id);
@@ -203,12 +217,17 @@ export default function AdminPortalMessagesPage() {
     const markRead = async () => {
       setLoadingThread(true);
       try {
-        const { error } = await sb
-          .from("portal_messages")
-          .update({ read_by_admin: true })
-          .in("id", unreadIds);
+        const response = await fetch("/api/admin/portal/messages", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ ids: unreadIds }),
+        });
 
-        if (!error) {
+        const payload = (await response.json()) as { ok?: boolean; error?: string };
+        if (response.ok && payload.ok) {
           setThreads((prev) =>
             prev.map((thread) =>
               thread.key === selectedThread.key
@@ -229,7 +248,7 @@ export default function AdminPortalMessagesPage() {
     };
 
     void markRead();
-  }, [selectedThread]);
+  }, [accessToken, selectedThread]);
 
   async function handleSendAdminMessage(event: React.FormEvent) {
     event.preventDefault();
@@ -246,18 +265,23 @@ export default function AdminPortalMessagesPage() {
     setStatusText("");
 
     try {
-      const { error } = await sb.from("portal_messages").insert({
-        user_id: selectedThread.userId || null,
-        user_email: selectedThread.email || null,
-        subject: subject.trim() || null,
-        message: message.trim(),
-        status: "open",
-        read_by_admin: true,
-        read_by_user: false,
-        sender: "admin",
+      const response = await fetch("/api/admin/portal/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          user_id: selectedThread.userId || null,
+          user_email: selectedThread.email || null,
+          subject: subject.trim() || null,
+          message: message.trim(),
+        }),
       });
-
-      if (error) throw error;
+      const payload = (await response.json()) as { ok?: boolean; error?: string };
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || "Could not send the admin message.");
+      }
 
       setSubject("");
       setMessage("");

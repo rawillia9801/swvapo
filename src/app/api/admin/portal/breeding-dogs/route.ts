@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { createServiceSupabase, firstValue, verifyOwner } from "@/lib/admin-api";
+import {
+  BREEDING_DOG_TABLES,
+  chooseFirstAvailableTable,
+  findTableWithMatch,
+} from "@/lib/admin-data-compat";
 import { isMissingBreedingGeneticsColumnError } from "@/lib/breeding-genetics";
 import { breedingStatusIsInactive } from "@/lib/breeding-program";
 
@@ -82,8 +87,17 @@ export async function POST(req: Request) {
     }
 
     const service = createServiceSupabase();
+    const tableChoice = await chooseFirstAvailableTable(service, BREEDING_DOG_TABLES);
+    if (!tableChoice.table) {
+      throw new Error(
+        tableChoice.error instanceof Error
+          ? tableChoice.error.message
+          : "No breeding dog table is available."
+      );
+    }
+
     let { data, error } = await service
-      .from("bp_dogs")
+      .from(tableChoice.table)
       .insert({
         ...payload,
         user_id: owner.id,
@@ -93,7 +107,7 @@ export async function POST(req: Request) {
 
     if (error && isMissingBreedingGeneticsColumnError(error)) {
       const retry = await service
-        .from("bp_dogs")
+        .from(tableChoice.table)
         .insert({
           ...stripGeneticsFields(payload),
           user_id: owner.id,
@@ -152,11 +166,14 @@ export async function PATCH(req: Request) {
     }
 
     const service = createServiceSupabase();
-    let { error } = await service.from("bp_dogs").update(payload).eq("id", dogId);
+    const tableMatch = await findTableWithMatch(service, BREEDING_DOG_TABLES, "id", dogId);
+    const targetTable = tableMatch.table || BREEDING_DOG_TABLES[0];
+
+    let { error } = await service.from(targetTable).update(payload).eq("id", dogId);
 
     if (error && isMissingBreedingGeneticsColumnError(error)) {
       const retry = await service
-        .from("bp_dogs")
+        .from(targetTable)
         .update(stripGeneticsFields(payload))
         .eq("id", dogId);
       error = retry.error;

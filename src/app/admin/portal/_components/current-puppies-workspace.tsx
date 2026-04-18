@@ -1445,6 +1445,14 @@ export function CurrentPuppiesWorkspace({
   const [postingWeight, setPostingWeight] = useState(false);
   const [postingUpdate, setPostingUpdate] = useState(false);
   const [pageFeedback, setPageFeedback] = useState<{ tone: FeedbackTone; text: string } | null>(null);
+  const [requestedPuppyId, setRequestedPuppyId] = useState("");
+  const [handledRequestedPuppyId, setHandledRequestedPuppyId] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    setRequestedPuppyId(params.get("puppy") || "");
+  }, []);
 
   const workspacePuppies = useMemo(
     () => puppies.filter((puppy) => matchesWorkspaceStatus(puppy.status, mode)),
@@ -1558,14 +1566,13 @@ export function CurrentPuppiesWorkspace({
   }, [createMode, selectedPuppy]);
 
   useEffect(() => {
-    if (typeof window === "undefined" || createMode) return;
-    const params = new URLSearchParams(window.location.search);
-    const requestedPuppyId = params.get("puppy");
-    if (!requestedPuppyId) return;
+    if (createMode || !requestedPuppyId) return;
+    if (handledRequestedPuppyId === requestedPuppyId) return;
     if (!puppies.some((puppy) => String(puppy.id) === requestedPuppyId)) return;
     setSelectedId(requestedPuppyId);
     setDrawerOpen(true);
-  }, [createMode, puppies]);
+    setHandledRequestedPuppyId(requestedPuppyId);
+  }, [createMode, handledRequestedPuppyId, puppies, requestedPuppyId]);
 
   useEffect(() => {
     let active = true;

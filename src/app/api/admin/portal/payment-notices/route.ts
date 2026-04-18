@@ -4,6 +4,7 @@ import {
   describeRouteError,
   verifyOwner,
 } from "@/lib/admin-api";
+import { queryBuyerPaymentNoticeLogs } from "@/lib/admin-data-compat";
 import {
   loadBuyerPaymentNoticeSettings,
   parsePaymentNoticeCcEmails,
@@ -49,21 +50,21 @@ export async function GET(req: Request) {
     const admin = createServiceSupabase();
     const [settings, logResult] = await Promise.all([
       loadBuyerPaymentNoticeSettings(admin, buyerId),
-      admin
-        .from("buyer_payment_notice_logs")
-        .select(
-          "id,created_at,buyer_id,puppy_id,payment_id,notice_kind,notice_key,notice_date,due_date,status,recipient_email,subject,provider,provider_message_id,meta"
-        )
-        .eq("buyer_id", buyerId)
-        .order("created_at", { ascending: false })
-        .limit(12),
+      queryBuyerPaymentNoticeLogs(
+        admin,
+        "id,created_at,buyer_id,puppy_id,payment_id,notice_kind,notice_key,notice_date,due_date,status,recipient_email,subject,provider,provider_message_id,meta",
+        (query) =>
+          query.eq("buyer_id", buyerId).order("created_at", { ascending: false }).limit(12)
+      ),
     ]);
 
     if (logResult.error) {
       if (isMissingTableError(logResult.error)) {
         return NextResponse.json({ ok: true, settings, logs: [] });
       }
-      throw new Error(logResult.error.message);
+      throw new Error(
+        logResult.error instanceof Error ? logResult.error.message : String(logResult.error || "")
+      );
     }
 
     return NextResponse.json({

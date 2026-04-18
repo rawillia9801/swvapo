@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { createServiceSupabase, firstValue, verifyOwner } from "@/lib/admin-api";
+import { queryBuyerPaymentNoticeLogs } from "@/lib/admin-data-compat";
 import { sendBuyerPaymentReceiptEmail } from "@/lib/payment-email";
+import { resolveBreedingWorkspace } from "@/lib/resolvers/breeding";
+import { resolveBuyers } from "@/lib/resolvers/buyers";
+import { resolvePayments } from "@/lib/resolvers/payments";
 
 type BuyerRow = {
   id: number;
@@ -170,193 +174,147 @@ export async function GET(req: Request) {
     }
 
     const service = createServiceSupabase();
-    const [buyersRes, puppiesRes, paymentsRes, adjustmentsRes, billingRes, noticeSettingsRes, noticeLogsRes] =
-      await Promise.all([
-      service
-        .from("buyers")
-        .select(
-          "id,user_id,puppy_id,full_name,name,email,phone,sale_price,deposit_amount,finance_enabled,finance_admin_fee,finance_rate,finance_months,finance_monthly_amount,finance_day_of_month,finance_next_due_date,finance_last_payment_date,status"
-        )
-        .order("created_at", { ascending: false }),
-      service
-        .from("puppies")
-        .select("id,buyer_id,call_name,puppy_name,name,price,deposit,balance,status")
-        .order("created_at", { ascending: false }),
-      service
-        .from("buyer_payments")
-        .select(
-          "id,created_at,buyer_id,puppy_id,payment_date,amount,payment_type,method,note,status,reference_number"
-        )
-        .order("payment_date", { ascending: false })
-        .order("created_at", { ascending: false }),
-      service
-        .from("buyer_fee_credit_records")
-        .select(
-          "id,created_at,buyer_id,puppy_id,entry_date,entry_type,label,description,amount,status,reference_number"
-        )
-        .order("entry_date", { ascending: false })
-        .order("created_at", { ascending: false }),
-      service
-        .from("buyer_billing_subscriptions")
-        .select(
-          "id,buyer_id,puppy_id,provider,reference_id,customer_id,customer_email,customer_name,subscription_id,subscription_status,hostedpage_id,hostedpage_url,hostedpage_expires_at,plan_code,plan_name,recurring_price,currency_code,interval_count,interval_unit,billing_cycles,current_term_ends_at,next_billing_at,started_at,last_payment_at,last_payment_amount,card_last_four,card_expiry_month,card_expiry_year,last_event_id,last_event_type,last_event_at"
-        )
-        .eq("provider", "zoho_billing")
-        .order("updated_at", { ascending: false }),
-      service
-        .from("buyer_payment_notice_settings")
-        .select(
-          "id,buyer_id,enabled,receipt_enabled,due_reminder_enabled,due_reminder_days_before,late_notice_enabled,late_notice_days_after,default_notice_enabled,default_notice_days_after,recipient_email,cc_emails,internal_note"
-        ),
-      service
-        .from("buyer_payment_notice_logs")
-        .select(
-          "id,created_at,buyer_id,puppy_id,payment_id,notice_kind,notice_key,notice_date,due_date,status,recipient_email,subject,provider,provider_message_id,meta"
-        )
-        .order("created_at", { ascending: false })
-        .limit(300),
-    ]);
-
-    if (buyersRes.error) throw buyersRes.error;
-    if (puppiesRes.error) throw puppiesRes.error;
-    if (paymentsRes.error) throw paymentsRes.error;
-
-    const buyers = (buyersRes.data || []) as BuyerRow[];
-    const puppies = (puppiesRes.data || []) as PuppyRow[];
-    const payments = (paymentsRes.data || []) as BuyerPayment[];
-    const adjustments =
-      adjustmentsRes.error && isMissingTableError(adjustmentsRes.error)
-        ? []
-        : adjustmentsRes.error
-          ? (() => {
-              throw adjustmentsRes.error;
-            })()
-          : ((adjustmentsRes.data || []) as BuyerAdjustment[]);
-    const billingSubscriptions =
-      billingRes.error && isMissingTableError(billingRes.error)
-        ? []
-        : billingRes.error
-          ? (() => {
-              throw billingRes.error;
-            })()
-          : ((billingRes.data || []) as BuyerBillingSubscription[]);
-    const noticeSettings =
-      noticeSettingsRes.error && isMissingTableError(noticeSettingsRes.error)
-        ? []
-        : noticeSettingsRes.error
-          ? (() => {
-              throw noticeSettingsRes.error;
-            })()
-          : ((noticeSettingsRes.data || []) as BuyerPaymentNoticeSettings[]);
-    const noticeLogs =
-      noticeLogsRes.error && isMissingTableError(noticeLogsRes.error)
-        ? []
-        : noticeLogsRes.error
-          ? (() => {
-              throw noticeLogsRes.error;
-            })()
-          : ((noticeLogsRes.data || []) as BuyerPaymentNoticeLog[]);
-
-    const puppiesByBuyerId = new Map<number, PuppyRow[]>();
-    puppies.forEach((puppy) => {
-      const buyerId = Number(puppy.buyer_id || 0);
-      if (!buyerId) return;
-      const group = puppiesByBuyerId.get(buyerId) || [];
-      group.push(puppy);
-      puppiesByBuyerId.set(buyerId, group);
+    const breeding = await resolveBreedingWorkspace(service);
+    const buyersResolved = await resolveBuyers(service);
+    const paymentsResolved = await resolvePayments(service, {
+      buyers: buyersResolved.data,
+      puppies: breeding.data.resolvedPuppies,
     });
 
-    buyers.forEach((buyer) => {
-      const fallbackPuppyId = Number(buyer.puppy_id || 0);
-      if (!fallbackPuppyId) return;
-      const group = puppiesByBuyerId.get(buyer.id) || [];
-      if (group.some((puppy) => puppy.id === fallbackPuppyId)) return;
-      const fallbackPuppy = puppies.find((puppy) => puppy.id === fallbackPuppyId) || null;
-      if (fallbackPuppy) {
-        puppiesByBuyerId.set(buyer.id, [fallbackPuppy, ...group]);
-      }
-    });
+    const accounts = paymentsResolved.data.resolvedBuyerFinancials
+      .map((account) => {
+        const buyer = {
+          id: Number(account.buyerId || 0),
+          user_id: account.buyer?.userId || null,
+          puppy_id: account.linkedPuppyId,
+          full_name: account.buyer?.fullName || null,
+          name: account.buyer?.fullName || null,
+          email: account.buyer?.email || null,
+          phone: account.buyer?.phone || null,
+          sale_price: account.buyer?.salePrice ?? account.salePrice,
+          deposit_amount: account.buyer?.depositAmount ?? account.depositPaid,
+          finance_enabled: account.buyer?.financeEnabled ?? null,
+          finance_admin_fee: account.buyer?.financeAdminFee ?? null,
+          finance_rate: account.buyer?.financeRate ?? null,
+          finance_months: account.buyer?.financeMonths ?? null,
+          finance_monthly_amount: account.buyer?.financeMonthlyAmount ?? null,
+          finance_day_of_month: account.buyer?.financeDayOfMonth ?? null,
+          finance_next_due_date: account.nextDueDate,
+          finance_last_payment_date: account.lastPaymentAt,
+          status: account.buyer?.status || account.planStatus || null,
+        } satisfies BuyerRow;
 
-    const paymentsByBuyerId = new Map<number, BuyerPayment[]>();
-    payments.forEach((payment) => {
-      const buyerId = Number(payment.buyer_id || 0);
-      if (!buyerId) return;
-      const group = paymentsByBuyerId.get(buyerId) || [];
-      group.push(payment);
-      paymentsByBuyerId.set(buyerId, group);
-    });
+        const linkedPuppies = breeding.data.resolvedPuppies
+          .filter((puppy) => {
+            if (account.buyerId !== null && puppy.buyerId === account.buyerId) return true;
+            return account.linkedPuppyId !== null && puppy.id === account.linkedPuppyId;
+          })
+          .map((puppy) => ({
+            id: Number(puppy.id || 0),
+            buyer_id: puppy.buyerId,
+            call_name: puppy.callName,
+            puppy_name: puppy.displayName,
+            name: puppy.displayName,
+            price: puppy.price,
+            deposit: puppy.deposit,
+            balance: puppy.balance,
+            status: puppy.status,
+          })) as PuppyRow[];
 
-    const adjustmentsByBuyerId = new Map<number, BuyerAdjustment[]>();
-    adjustments.forEach((adjustment) => {
-      const buyerId = Number(adjustment.buyer_id || 0);
-      if (!buyerId) return;
-      const group = adjustmentsByBuyerId.get(buyerId) || [];
-      group.push(adjustment);
-      adjustmentsByBuyerId.set(buyerId, group);
-    });
-
-    const billingByBuyerId = new Map<number, BuyerBillingSubscription[]>();
-    billingSubscriptions.forEach((subscription) => {
-      const buyerId = Number(subscription.buyer_id || 0);
-      if (!buyerId) return;
-      const group = billingByBuyerId.get(buyerId) || [];
-      group.push(subscription);
-      billingByBuyerId.set(buyerId, group);
-    });
-
-    const noticeSettingsByBuyerId = new Map<number, BuyerPaymentNoticeSettings>();
-    noticeSettings.forEach((settings) => {
-      const buyerId = Number(settings.buyer_id || 0);
-      if (!buyerId || noticeSettingsByBuyerId.has(buyerId)) return;
-      noticeSettingsByBuyerId.set(buyerId, settings);
-    });
-
-    const noticeLogsByBuyerId = new Map<number, BuyerPaymentNoticeLog[]>();
-    noticeLogs.forEach((log) => {
-      const buyerId = Number(log.buyer_id || 0);
-      if (!buyerId) return;
-      const group = noticeLogsByBuyerId.get(buyerId) || [];
-      if (group.length < 8) {
-        group.push(log);
-        noticeLogsByBuyerId.set(buyerId, group);
-      }
-    });
-
-    const accounts = buyers
-      .map((buyer) => {
-        const paymentGroup = paymentsByBuyerId.get(buyer.id) || [];
-        const adjustmentGroup = adjustmentsByBuyerId.get(buyer.id) || [];
-        const linkedPuppies = puppiesByBuyerId.get(buyer.id) || [];
-        const billingGroup = billingByBuyerId.get(buyer.id) || [];
-        const noticeSetting = noticeSettingsByBuyerId.get(buyer.id) || null;
-        const noticeLogGroup = noticeLogsByBuyerId.get(buyer.id) || [];
         const primaryPuppy = linkedPuppies[0] || null;
-        const matchedBilling =
-          billingGroup.find(
-            (subscription) =>
-              Number(subscription.puppy_id || 0) &&
-              primaryPuppy &&
-              Number(subscription.puppy_id || 0) === Number(primaryPuppy.id)
-          ) ||
-          billingGroup.find((subscription) => !subscription.puppy_id) ||
-          null;
-        const totalPaid = paymentGroup
-          .filter((payment) => paymentCountsTowardBalance(payment.status))
-          .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+        const payments = account.paymentEvents
+          .filter((event) => event.eventType === "payment")
+          .map((event) => ({
+            id: event.id,
+            created_at: event.eventDate || new Date(0).toISOString(),
+            buyer_id: Number(event.buyerId || 0),
+            puppy_id: event.puppyId,
+            payment_date: event.eventDate || new Date(0).toISOString().slice(0, 10),
+            amount: event.amount,
+            payment_type: event.eventType,
+            method: event.method,
+            note: event.notes,
+            status: event.status,
+            reference_number: event.referenceNumber,
+          })) as BuyerPayment[];
+
+        const adjustments = account.paymentEvents
+          .filter((event) => event.eventType !== "payment")
+          .map((event, index) => ({
+            id: index + 1,
+            created_at: event.eventDate || new Date(0).toISOString(),
+            buyer_id: Number(event.buyerId || 0),
+            puppy_id: event.puppyId,
+            entry_date: event.eventDate || new Date(0).toISOString().slice(0, 10),
+            entry_type: event.eventType,
+            label: event.eventType,
+            description: event.notes,
+            amount: event.amount,
+            status: event.status,
+            reference_number: event.referenceNumber,
+          })) as BuyerAdjustment[];
+
+        const billingGroup = account.billingSubscriptions.map((subscription) => ({
+          id: Number(subscription.id.replace(/^\D+/g, "") || 0),
+          buyer_id: account.buyerId || 0,
+          puppy_id: subscription.puppyId,
+          provider: "resolved",
+          reference_id: subscription.id,
+          subscription_status: subscription.status,
+          plan_name: subscription.planName,
+          recurring_price: subscription.recurringPrice,
+          next_billing_at: subscription.nextBillingAt,
+          last_payment_at: subscription.lastPaymentAt,
+          last_payment_amount: subscription.lastPaymentAmount,
+          card_last_four: subscription.cardLastFour,
+        })) as BuyerBillingSubscription[];
+
+        const noticeSetting = account.noticeSettings
+          ? ({
+              buyer_id: account.buyerId || 0,
+              enabled: Boolean(account.noticeSettings.enabled),
+              receipt_enabled: Boolean(account.noticeSettings.receiptEnabled),
+              due_reminder_enabled: Boolean(account.noticeSettings.dueReminderEnabled),
+              due_reminder_days_before: Number(account.noticeSettings.dueReminderDaysBefore || 0),
+              late_notice_enabled: Boolean(account.noticeSettings.lateNoticeEnabled),
+              late_notice_days_after: Number(account.noticeSettings.lateNoticeDaysAfter || 0),
+              default_notice_enabled: Boolean(account.noticeSettings.defaultNoticeEnabled),
+              default_notice_days_after: Number(account.noticeSettings.defaultNoticeDaysAfter || 0),
+              recipient_email: account.noticeSettings.recipientEmail,
+            } satisfies BuyerPaymentNoticeSettings)
+          : null;
+
+        const noticeLogGroup = account.notices.slice(0, 8).map((notice, index) => ({
+          id: index + 1,
+          created_at: notice.createdAt || new Date(0).toISOString(),
+          buyer_id: Number(notice.buyerId || 0),
+          puppy_id: notice.puppyId,
+          payment_id: null,
+          notice_kind: notice.noticeKind || "notice",
+          notice_key: notice.id,
+          notice_date: notice.noticeDate,
+          due_date: notice.noticeDate,
+          status: notice.status || "sent",
+          recipient_email: notice.recipientEmail || "",
+          subject: notice.subject || "",
+          provider: notice.provider || "resolved",
+          provider_message_id: null,
+          meta: null,
+        })) as BuyerPaymentNoticeLog[];
 
         return {
-          key: String(buyer.id),
+          key: String(account.buyerId || account.buyerResolverKey),
           buyer,
           puppy: primaryPuppy,
           linkedPuppies,
-          payments: paymentGroup,
-          adjustments: adjustmentGroup,
+          payments,
+          adjustments,
           billing_subscriptions: billingGroup,
-          billing_subscription: matchedBilling,
+          billing_subscription: billingGroup[0] || null,
           payment_notice_settings: noticeSetting,
           payment_notice_logs: noticeLogGroup,
-          totalPaid,
-          lastPaymentAt: paymentGroup[0]?.payment_date || paymentGroup[0]?.created_at || null,
+          totalPaid: account.totalPaid,
+          lastPaymentAt: account.lastPaymentAt,
         };
       })
       .sort((a, b) =>

@@ -19,6 +19,9 @@ import {
   normalizeEmail,
   verifyOwner,
 } from "@/lib/admin-api";
+import { resolveBreedingWorkspace } from "@/lib/resolvers/breeding";
+import { resolveBuyers } from "@/lib/resolvers/buyers";
+import { resolvePortalWorkspace } from "@/lib/resolvers/portal";
 
 export const runtime = "nodejs";
 
@@ -411,40 +414,88 @@ async function updateSubmissionWorkflow(params: {
 }
 
 async function loadDocumentWorkspace(service: ReturnType<typeof createServiceSupabase>) {
-  const [buyersRes, puppiesRes, submissionsRes, documentsRes, authUsers] = await Promise.all([
-    service
-      .from("buyers")
-      .select("id,user_id,puppy_id,full_name,name,email,status")
-      .order("created_at", { ascending: false }),
-    service
-      .from("puppies")
-      .select("id,buyer_id,call_name,puppy_name,name,status")
-      .order("created_at", { ascending: false }),
-    service
-      .from("portal_form_submissions")
-      .select(
-        "id,status,data,payload,user_id,user_email,email,form_key,form_title,version,signed_name,signed_date,signed_at,submitted_at,attachments,created_at,updated_at"
-      )
-      .order("updated_at", { ascending: false })
-      .order("created_at", { ascending: false }),
-    service
-      .from("portal_documents")
-      .select(
-        "id,user_id,buyer_id,title,description,category,status,created_at,updated_at,source_table,file_name,file_url,visible_to_user,signed_at"
-      )
-      .order("created_at", { ascending: false }),
+  const [buyersResolved, breedingResolved, portalResolved, authUsers] = await Promise.all([
+    resolveBuyers(service),
+    resolveBreedingWorkspace(service),
+    resolvePortalWorkspace(service),
     listAllAuthUsers(),
   ]);
 
-  if (buyersRes.error) throw buyersRes.error;
-  if (puppiesRes.error) throw puppiesRes.error;
-  if (submissionsRes.error) throw submissionsRes.error;
-  if (documentsRes.error) throw documentsRes.error;
+  const buyers = buyersResolved.data
+    .filter((buyer): buyer is typeof buyer & { id: number } => buyer.id !== null)
+    .map(
+      (buyer): BuyerLookup => ({
+        id: buyer.id,
+        user_id: buyer.userId,
+        puppy_id: buyer.linkedPuppyId,
+        full_name: buyer.fullName,
+        name: buyer.fullName,
+        email: buyer.email,
+        status: buyer.status,
+      })
+    );
 
-  const buyers = (buyersRes.data || []) as BuyerLookup[];
-  const puppies = (puppiesRes.data || []) as PuppyLookup[];
-  const submissions = (submissionsRes.data || []) as PackageSubmissionLookup[];
-  const documents = (documentsRes.data || []) as PortalDocumentLookup[];
+  const puppies = breedingResolved.data.resolvedPuppies
+    .filter((puppy): puppy is typeof puppy & { id: number } => puppy.id !== null)
+    .map(
+      (puppy): PuppyLookup => ({
+        id: puppy.id,
+        buyer_id: puppy.buyerId,
+        call_name: puppy.callName,
+        puppy_name: puppy.displayName,
+        name: puppy.displayName,
+        status: puppy.status,
+      })
+    );
+
+  const submissions = portalResolved.data.resolvedPortalForms
+    .map((form) => {
+      const numericId = Number(form.recordId || String(form.id).split(":").pop() || 0);
+      if (!Number.isFinite(numericId) || numericId <= 0) return null;
+
+      return {
+        id: numericId,
+        status: form.status,
+        data: form.data,
+        payload: form.payload,
+        user_id: form.userId,
+        user_email: form.userEmail,
+        email: form.email,
+        form_key: form.formKey,
+        form_title: form.formTitle,
+        version: form.version,
+        signed_name: form.signedName,
+        signed_date: form.signedDate,
+        signed_at: form.signedAt,
+        submitted_at: form.submittedAt,
+        attachments: form.attachments,
+        created_at: form.createdAt,
+        updated_at: form.updatedAt,
+      } satisfies PackageSubmissionLookup;
+    })
+    .filter(Boolean) as PackageSubmissionLookup[];
+
+  const documents = portalResolved.data.resolvedPortalDocuments.map(
+    (document): PortalDocumentLookup => ({
+      id:
+        document.sourceTable === "portal_documents" && document.recordId
+          ? document.recordId
+          : `${document.sourceTable}:${document.recordId || document.id}`,
+      user_id: document.userId,
+      buyer_id: document.buyerId,
+      title: document.title || document.documentType,
+      description: document.description,
+      category: document.category,
+      status: document.status,
+      created_at: document.createdAt,
+      updated_at: document.updatedAt,
+      source_table: document.sourceFlow || document.sourceTable,
+      file_name: document.fileName,
+      file_url: document.url,
+      visible_to_user: document.visibleToUser,
+      signed_at: document.signedAt,
+    })
+  );
 
   const buyersById = new Map<number, BuyerLookup>();
   const buyersByUserId = new Map<string, BuyerLookup>();
@@ -486,7 +537,8 @@ async function loadDocumentWorkspace(service: ReturnType<typeof createServiceSup
       : [];
     const primaryFiledDocument =
       workflow?.package_id && filedDocuments.length
-        ? findChiChiPackageDocument(workflow.package_id, documents)
+        ? filedDocuments.find((document) => text(document.source_table) === "portal_documents") ||
+          findChiChiPackageDocument(workflow.package_id, documents)
         : null;
 
     filedDocuments.forEach((document) => usedDocumentIds.add(document.id));
@@ -560,11 +612,11 @@ async function loadDocumentWorkspace(service: ReturnType<typeof createServiceSup
       })),
       workflow,
       timeline: buildTimeline({ submission, workflow, filedDate }),
-      actionSupport: {
-        canView: Boolean(text(primaryFiledDocument?.file_url) || text(workflow?.final_document_url) || text(workflow?.launch_url) || text(workflow?.zoho?.sign_embed_url) || text(workflow?.zoho?.forms_url)),
-        canResend: Boolean(workflow?.package_key && buyer?.id),
-        canOverride: true,
-        canReplace: Boolean(buyer?.id),
+        actionSupport: {
+          canView: Boolean(text(primaryFiledDocument?.file_url) || text(workflow?.final_document_url) || text(workflow?.launch_url) || text(workflow?.zoho?.sign_embed_url) || text(workflow?.zoho?.forms_url)),
+          canResend: Boolean(workflow?.package_key && buyer?.id),
+          canOverride: true,
+          canReplace: Boolean(buyer?.id),
         canMarkFiled: status !== "filed",
         canDownload: Boolean(text(primaryFiledDocument?.file_url) || text(workflow?.final_document_url) || text(workflow?.zoho?.sign_completed_document_url)),
         canOpenBuyer: Boolean(buyer?.id),
@@ -579,6 +631,7 @@ async function loadDocumentWorkspace(service: ReturnType<typeof createServiceSup
       const buyer = resolveBuyerForDocument({ document, buyersById, buyersByUserId });
       const puppy = resolvePuppy({ submission: null, buyer, puppiesById, puppiesByBuyerId });
       const status = normalizeWorkspaceStatus(document.status);
+      const isWritableDocument = text(document.source_table) === "portal_documents";
 
       return {
         key: `document-${document.id}`,
@@ -625,9 +678,9 @@ async function loadDocumentWorkspace(service: ReturnType<typeof createServiceSup
         actionSupport: {
           canView: Boolean(text(document.file_url)),
           canResend: false,
-          canOverride: true,
+          canOverride: isWritableDocument,
           canReplace: Boolean(buyer?.id),
-          canMarkFiled: status !== "filed",
+          canMarkFiled: isWritableDocument && status !== "filed",
           canDownload: Boolean(text(document.file_url)),
           canOpenBuyer: Boolean(buyer?.id),
           canOpenPuppy: Boolean(puppy?.id),
@@ -635,11 +688,18 @@ async function loadDocumentWorkspace(service: ReturnType<typeof createServiceSup
       };
     });
 
-  return [...submissionRecords, ...standaloneRecords].sort((left, right) => {
-    const leftTime = new Date(left.updatedAt || left.createdAt || 0).getTime();
-    const rightTime = new Date(right.updatedAt || right.createdAt || 0).getTime();
-    return rightTime - leftTime;
-  });
+  return {
+    records: [...submissionRecords, ...standaloneRecords].sort((left, right) => {
+      const leftTime = new Date(left.updatedAt || left.createdAt || 0).getTime();
+      const rightTime = new Date(right.updatedAt || right.createdAt || 0).getTime();
+      return rightTime - leftTime;
+    }),
+    diagnostics: {
+      buyers: buyersResolved.diagnostics,
+      breeding: breedingResolved.diagnostics,
+      portal: portalResolved.diagnostics,
+    },
+  };
 }
 
 export async function GET(req: Request) {
@@ -650,11 +710,12 @@ export async function GET(req: Request) {
     }
 
     const service = createServiceSupabase();
-    const records = await loadDocumentWorkspace(service);
+    const workspace = await loadDocumentWorkspace(service);
 
     return NextResponse.json({
       ok: true,
-      records,
+      records: workspace.records,
+      diagnostics: workspace.diagnostics,
       ownerEmail: owner.email || null,
     });
   } catch (error) {

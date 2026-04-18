@@ -388,16 +388,29 @@ export default function AdminPortalPaymentsPage() {
     });
   }, [decoratedAccounts, filterMode, form.finance_enabled, search]);
 
-  const selectedBundle =
-    filteredAccounts.find(({ account }) => account.key === selectedKey) ||
-    decoratedAccounts.find(({ account }) => account.key === selectedKey) ||
-    null;
+  const selectedAccount = useMemo(
+    () => accounts.find((account) => account.key === selectedKey) || null,
+    [accounts, selectedKey]
+  );
 
   useEffect(() => {
-    if (!selectedBundle) return;
-    setForm(buildEditForm(selectedBundle.account));
+    if (!selectedAccount) return;
+    setForm(buildEditForm(selectedAccount));
+  }, [selectedAccount]);
+
+  useEffect(() => {
+    if (!selectedAccount) return;
     setEntryForm(entryFormForMode(entryMode));
-  }, [selectedBundle, entryMode]);
+  }, [entryMode, selectedAccount]);
+
+  const selectedBundle = useMemo(() => {
+    if (!selectedAccount) return null;
+    return {
+      account: selectedAccount,
+      summary: calculateAccount(selectedAccount, form),
+      activity: buildActivity(selectedAccount),
+    };
+  }, [form, selectedAccount]);
 
   async function saveTerms() {
     if (!selectedBundle || !accessToken) return;

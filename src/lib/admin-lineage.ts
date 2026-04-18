@@ -1,7 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceSupabase } from "@/lib/admin-api";
-import { isMissingBreedingGeneticsColumnError } from "@/lib/breeding-genetics";
 import {
   buildRevenueSnapshot,
   type BreedingDogRecord,
@@ -24,6 +23,9 @@ import {
   type LineagePuppyRecord,
   type RevenueSnapshot,
 } from "@/lib/lineage";
+import { resolveBreedingWorkspace } from "@/lib/resolvers/breeding";
+import { resolveBuyers } from "@/lib/resolvers/buyers";
+import { resolvePayments } from "@/lib/resolvers/payments";
 
 export type EnrichedLineagePuppy = LineagePuppyRecord & {
   displayName: string;
@@ -88,90 +90,122 @@ export async function loadAdminLineageWorkspace(service = createServiceSupabase(
 }
 
 async function loadLineageRows(service: SupabaseClient): Promise<LineageRows> {
-  const [dogs, litters, puppies, buyers, payments] = await Promise.all([
-    loadBreedingDogs(service),
-    safeRows<LitterRecord>(
-      service
-        .from("litters")
-        .select("id,litter_code,litter_name,dam_id,sire_id,whelp_date,status,notes,created_at")
-        .order("whelp_date", { ascending: false })
-        .order("created_at", { ascending: false })
-    ),
-    safeRows<LineagePuppyRecord>(
-      service
-        .from("puppies")
-        .select(
-          "id,buyer_id,litter_id,litter_name,dam_id,sire_id,call_name,puppy_name,name,sex,color,coat_type,coat,pattern,dob,status,price,list_price,deposit,balance,photo_url,image_url,description,notes,owner_email,dam,sire,tail_dock_cost,dewclaw_cost,vaccination_cost,microchip_cost,registration_cost,other_vet_cost,total_medical_cost,created_at"
-        )
-        .order("created_at", { ascending: false })
-    ),
-    safeRows<LineageBuyerRecord>(
-      service
-        .from("buyers")
-        .select(
-          "id,puppy_id,full_name,name,email,status,sale_price,deposit_amount,delivery_fee,expense_gas,expense_hotel,expense_tolls,expense_misc"
-        )
-        .order("created_at", { ascending: false })
-    ),
-    safeRows<LineagePaymentRecord>(
-      service
-        .from("buyer_payments")
-        .select("id,buyer_id,puppy_id,amount,status")
-        .order("payment_date", { ascending: false })
-        .order("created_at", { ascending: false })
-    ),
-  ]);
+  const breeding = await resolveBreedingWorkspace(service);
+  const buyersResolved = await resolveBuyers(service);
+  const paymentsResolved = await resolvePayments(service, {
+    buyers: buyersResolved.data,
+    puppies: breeding.data.resolvedPuppies,
+  });
+
+  const dogs: BreedingDogRecord[] = breeding.data.resolvedDogs.map((dog) => ({
+    id: dog.id,
+    role: dog.role,
+    displayName: dog.displayName,
+    dog_name: dog.displayName,
+    name: dog.displayName,
+    call_name: dog.callName,
+    dob: dog.dob,
+    date_of_birth: dog.dob,
+    coat: dog.coatType,
+    registry: dog.registry,
+    is_active: ["inactive", "retired", "archived"].includes(String(dog.status || "").toLowerCase())
+      ? false
+      : true,
+    display_name: dog.displayName,
+    status: dog.status,
+    color: dog.color,
+    coat_type: dog.coatType,
+    registration_no: dog.registrationNo,
+    genetics_summary: dog.geneticsSummary,
+    genetics_raw: dog.geneticsRaw,
+    genetics_report_url: dog.geneticsReportUrl,
+    notes: dog.notes,
+    created_at: null,
+  }));
+
+  const litters: LitterRecord[] = breeding.data.resolvedLitters
+    .filter((litter) => litter.id !== null)
+    .map((litter) => ({
+      id: Number(litter.id),
+      litter_code: litter.litterCode,
+      litter_name: litter.litterName,
+      dam_id: litter.damId,
+      sire_id: litter.sireId,
+      whelp_date: litter.birthDate,
+      status: litter.status,
+      notes: litter.notes,
+      created_at: null,
+    }));
+
+  const puppies: LineagePuppyRecord[] = breeding.data.resolvedPuppies
+    .filter((puppy) => puppy.id !== null)
+    .map((puppy) => ({
+      id: Number(puppy.id),
+      buyer_id: puppy.buyerId,
+      litter_id: puppy.litterId,
+      litter_name: puppy.litterName,
+      dam_id: puppy.damId,
+      sire_id: puppy.sireId,
+      call_name: puppy.callName,
+      puppy_name: puppy.displayName,
+      name: puppy.displayName,
+      sex: puppy.sex,
+      color: puppy.color,
+      coat_type: puppy.coatType,
+      coat: puppy.coatType,
+      pattern: null,
+      dob: puppy.dob,
+      status: puppy.status,
+      price: puppy.price,
+      list_price: puppy.listPrice,
+      deposit: puppy.deposit,
+      balance: puppy.balance,
+      photo_url: puppy.photoUrl,
+      image_url: puppy.photoUrl,
+      description: null,
+      notes: puppy.notes,
+      owner_email: puppy.ownerEmail,
+      dam: null,
+      sire: null,
+      tail_dock_cost: null,
+      dewclaw_cost: null,
+      vaccination_cost: null,
+      microchip_cost: null,
+      registration_cost: null,
+      other_vet_cost: null,
+      total_medical_cost: null,
+      created_at: null,
+    }));
+
+  const buyers: LineageBuyerRecord[] = buyersResolved.data
+    .filter((buyer) => buyer.id !== null)
+    .map((buyer) => ({
+      id: Number(buyer.id),
+      puppy_id: buyer.linkedPuppyId,
+      full_name: buyer.fullName,
+      name: buyer.fullName,
+      email: buyer.email,
+      status: buyer.status,
+      sale_price: buyer.salePrice,
+      deposit_amount: buyer.depositAmount,
+      delivery_fee: buyer.deliveryFee,
+      expense_gas: buyer.expenseGas,
+      expense_hotel: buyer.expenseHotel,
+      expense_tolls: buyer.expenseTolls,
+      expense_misc: buyer.expenseMisc,
+    }));
+
+  const payments: LineagePaymentRecord[] = paymentsResolved.data.resolvedPaymentEvents
+    .filter((payment) => payment.buyerId !== null && payment.eventType === "payment")
+    .map((payment) => ({
+      id: payment.id,
+      buyer_id: Number(payment.buyerId),
+      puppy_id: payment.puppyId,
+      amount: payment.amount,
+      status: payment.status,
+    }));
 
   return { dogs, litters, puppies, buyers, payments };
-}
-
-async function loadBreedingDogs(service: SupabaseClient): Promise<BreedingDogRecord[]> {
-  const geneticsSelect =
-    "id,role,dog_name,name,call_name,status,dob,date_of_birth,color,coat,registry,genetics_summary,genetics_raw,genetics_report_url,genetics_updated_at,notes,created_at,is_active";
-  const fallbackSelect =
-    "id,role,dog_name,name,call_name,status,dob,date_of_birth,color,coat,registry,notes,created_at,is_active";
-
-  try {
-    const { data, error } = await service
-      .from("bp_dogs")
-      .select(geneticsSelect)
-      .order("role", { ascending: true })
-      .order("dog_name", { ascending: true })
-      .order("call_name", { ascending: true })
-      .returns<BreedingDogRecord[]>();
-
-    if (error) {
-      if (!isMissingBreedingGeneticsColumnError(error)) return [];
-
-      const fallback = await service
-        .from("bp_dogs")
-        .select(fallbackSelect)
-        .order("role", { ascending: true })
-        .order("dog_name", { ascending: true })
-        .order("call_name", { ascending: true })
-        .returns<BreedingDogRecord[]>();
-
-      return fallback.error ? [] : fallback.data || [];
-    }
-
-    return data || [];
-  } catch (error) {
-    if (!isMissingBreedingGeneticsColumnError(error)) return [];
-
-    try {
-      const { data, error: fallbackError } = await service
-        .from("bp_dogs")
-        .select(fallbackSelect)
-        .order("role", { ascending: true })
-        .order("dog_name", { ascending: true })
-        .order("call_name", { ascending: true })
-        .returns<BreedingDogRecord[]>();
-
-      return fallbackError ? [] : data || [];
-    } catch {
-      return [];
-    }
-  }
 }
 
 export function buildAdminLineageWorkspace(rows: LineageRows): AdminLineageWorkspace {

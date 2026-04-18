@@ -7,6 +7,10 @@ import {
   normalizeEmail,
   verifyOwner,
 } from "@/lib/admin-api";
+import { BUYER_PAYMENT_NOTICE_LOG_TABLES } from "@/lib/admin-data-compat";
+import { resolveBreedingWorkspace } from "@/lib/resolvers/breeding";
+import { resolveBuyers } from "@/lib/resolvers/buyers";
+import { resolvePortalWorkspace } from "@/lib/resolvers/portal";
 
 type BuyerRow = {
   id: number;
@@ -279,124 +283,151 @@ export async function GET(req: Request) {
         .filter(([email]) => !!email)
     );
 
-    const [buyersRes, applicationsRes, formsRes, documentsRes, puppiesRes, littersRes, dogsRes] =
-      await Promise.all([
-      service
-        .from("buyers")
-        .select("id,user_id,puppy_id,full_name,name,email,phone,address_line1,address_line2,status,notes,city,state,postal_code,delivery_option,delivery_date,delivery_location,delivery_miles,delivery_fee,expense_gas,expense_hotel,expense_tolls,expense_misc,created_at")
-        .order("created_at", { ascending: false }),
-      service
-        .from("puppy_applications")
-        .select("id,user_id,full_name,email,applicant_email,phone,street_address,city_state,zip,status,created_at")
-        .order("created_at", { ascending: false }),
-      service
-        .from("portal_form_submissions")
-        .select("id,user_id,user_email,email,form_key,form_title,version,signed_name,signed_date,signed_at,status,submitted_at,created_at,updated_at,data,payload")
-        .order("created_at", { ascending: false }),
-      service
-        .from("portal_documents")
-        .select("id,user_id,buyer_id,title,description,category,status,created_at,source_table,file_name,file_url,visible_to_user,signed_at")
-        .order("created_at", { ascending: false }),
-      service
-        .from("puppies")
-        .select("id,buyer_id,litter_id,litter_name,dam_id,sire_id,call_name,puppy_name,name,sire,dam,sex,color,coat_type,coat,pattern,dob,registry,status,price,list_price,deposit,balance,photo_url,image_url,description,notes,created_at")
-        .order("created_at", { ascending: false }),
-      service
-        .from("litters")
-        .select("id,litter_code,litter_name,dam_id,sire_id"),
-      service
-        .from("bp_dogs")
-        .select("id,dog_name,name,call_name"),
+    const [breeding, buyersResolved, portalResolved] = await Promise.all([
+      resolveBreedingWorkspace(service),
+      resolveBuyers(service),
+      resolvePortalWorkspace(service),
     ]);
 
-    if (buyersRes.error) throw buyersRes.error;
-    if (applicationsRes.error) throw applicationsRes.error;
-    if (formsRes.error) throw formsRes.error;
-    if (documentsRes.error) throw documentsRes.error;
-    if (puppiesRes.error) throw puppiesRes.error;
-    if (littersRes.error) throw littersRes.error;
-    if (dogsRes.error) throw dogsRes.error;
+    const dogNameById = new Map(
+      breeding.data.resolvedDogs.map((dog) => [dog.id, dog.displayName] as const)
+    );
 
-    const buyers = (buyersRes.data || []) as BuyerRow[];
-    const applications = (applicationsRes.data || []) as ApplicationRow[];
-    const forms = (formsRes.data || []) as FormRow[];
-    const documents = (documentsRes.data || []) as DocumentRow[];
-    const puppies = (puppiesRes.data || []) as PuppyRow[];
-    const litters = (littersRes.data || []) as LitterRow[];
-    const dogs = (dogsRes.data || []) as BreedingDogRow[];
-
-    const litterById = new Map<number, LitterRow>();
-    litters.forEach((litter) => litterById.set(Number(litter.id), litter));
-    const dogNameById = new Map<string, string>();
-    dogs.forEach((dog) => {
-      dogNameById.set(
-        String(dog.id),
-        firstValue(dog.dog_name, dog.name, dog.call_name, `Dog ${String(dog.id).slice(0, 8)}`)
-      );
-    });
-
-    const resolvedPuppies = puppies.map((puppy) => {
-      const litter = litterById.get(Number(puppy.litter_id || 0)) || null;
-      const damId = litter?.dam_id || puppy.dam_id || null;
-      const sireId = litter?.sire_id || puppy.sire_id || null;
-      return {
-        ...puppy,
-        litter_name:
-          firstValue(litter?.litter_name, litter?.litter_code, puppy.litter_name) || null,
-        dam_id: damId,
-        sire_id: sireId,
-        dam: (damId ? dogNameById.get(String(damId)) : null) || puppy.dam || null,
-        sire: (sireId ? dogNameById.get(String(sireId)) : null) || puppy.sire || null,
-      };
-    });
-
-    const puppiesByBuyerId = new Map<number, PuppyRow[]>();
-    resolvedPuppies.forEach((puppy) => {
-      const buyerId = Number(puppy.buyer_id || 0);
-      if (!buyerId) return;
-      const group = puppiesByBuyerId.get(buyerId) || [];
-      group.push(puppy);
-      puppiesByBuyerId.set(buyerId, group);
-    });
-
-    const records = buyers.map((buyer) => {
+    const records = buyersResolved.data.map((buyer) => {
       const email = normalizeEmail(buyer.email);
       const authUser =
-        (buyer.user_id ? authUsers.find((candidate) => candidate.id === buyer.user_id) : null) ||
+        (buyer.userId ? authUsers.find((candidate) => candidate.id === buyer.userId) : null) ||
         (email ? authByEmail.get(email) : null) ||
         null;
 
-      const matchingApplications = applications.filter(
-        (application) =>
-          (buyer.user_id && application.user_id === buyer.user_id) ||
-          (!!email && normalizeEmail(firstValue(application.email, application.applicant_email)) === email)
-      );
-
-      const matchingForms = forms.filter(
+      const matchingForms = portalResolved.data.resolvedPortalForms.filter(
         (form) =>
-          (buyer.user_id && form.user_id === buyer.user_id) ||
-          (!!email &&
-            [form.user_email, form.email].some(
-              (value) => normalizeEmail(String(value || "")) === email
-            ))
+          (buyer.userId && form.userId === buyer.userId) ||
+          (!!email && normalizeEmail(form.userEmail) === email) ||
+          (buyer.id !== null && form.buyerId === buyer.id)
       );
-      const matchingDocuments = documents.filter(
+      const matchingDocuments = portalResolved.data.resolvedPortalDocuments.filter(
         (document) =>
-          (buyer.user_id && document.user_id === buyer.user_id) ||
-          (!!buyer.id && Number(document.buyer_id || 0) === buyer.id)
+          (buyer.id !== null && document.buyerId === buyer.id) ||
+          matchingForms.some((form) => form.linkedDocumentIds.includes(document.id))
       );
 
-      const linkedPuppies = [...(puppiesByBuyerId.get(buyer.id) || [])];
-      const fallbackPuppyId = Number(buyer.puppy_id || 0);
-      if (fallbackPuppyId && !linkedPuppies.some((puppy) => puppy.id === fallbackPuppyId)) {
-        const fallbackPuppy = resolvedPuppies.find((puppy) => puppy.id === fallbackPuppyId);
-        if (fallbackPuppy) linkedPuppies.unshift(fallbackPuppy);
-      }
+      const linkedPuppies = breeding.data.resolvedPuppies
+        .filter((puppy) => {
+          if (buyer.id !== null && puppy.buyerId === buyer.id) return true;
+          return buyer.linkedPuppyId !== null && puppy.id === buyer.linkedPuppyId;
+        })
+        .map((puppy) => ({
+          id: Number(puppy.id || 0),
+          buyer_id: puppy.buyerId,
+          litter_id: puppy.litterId,
+          litter_name: puppy.litterName,
+          dam_id: puppy.damId,
+          sire_id: puppy.sireId,
+          call_name: puppy.callName,
+          puppy_name: puppy.displayName,
+          name: puppy.displayName,
+          sire: puppy.sireId ? dogNameById.get(String(puppy.sireId)) || null : null,
+          dam: puppy.damId ? dogNameById.get(String(puppy.damId)) || null : null,
+          sex: puppy.sex,
+          color: puppy.color,
+          coat_type: puppy.coatType,
+          coat: puppy.coatType,
+          pattern: null,
+          dob: puppy.dob,
+          registry: null,
+          status: puppy.status,
+          price: puppy.price,
+          list_price: puppy.listPrice,
+          deposit: puppy.deposit,
+          balance: puppy.balance,
+          photo_url: puppy.photoUrl,
+          image_url: puppy.photoUrl,
+          description: null,
+          notes: puppy.notes,
+          created_at: null,
+        })) as PuppyRow[];
+
+      const buyerRow = {
+        id: Number(buyer.id || 0),
+        user_id: buyer.userId,
+        puppy_id: buyer.linkedPuppyId,
+        full_name: buyer.fullName,
+        name: buyer.fullName,
+        email: buyer.email,
+        phone: buyer.phone,
+        address_line1: buyer.addressLine1,
+        address_line2: buyer.addressLine2,
+        status: buyer.status,
+        notes: buyer.notes,
+        city: buyer.city,
+        state: buyer.state,
+        postal_code: buyer.postalCode,
+        delivery_option: buyer.deliveryOption,
+        delivery_date: buyer.deliveryDate,
+        delivery_location: buyer.deliveryLocation,
+        delivery_miles: buyer.deliveryMiles,
+        delivery_fee: buyer.deliveryFee,
+        expense_gas: buyer.expenseGas,
+        expense_hotel: buyer.expenseHotel,
+        expense_tolls: buyer.expenseTolls,
+        expense_misc: buyer.expenseMisc,
+        created_at: buyer.createdAt,
+      } satisfies BuyerRow;
+
+      const applications = buyer.applications.map((application) => ({
+        id: Number(application.id || 0),
+        user_id: buyer.userId,
+        full_name: application.fullName,
+        email: application.email,
+        applicant_email: application.email,
+        phone: application.phone,
+        street_address: null,
+        city_state: buyer.city ? [buyer.city, buyer.state].filter(Boolean).join(", ") : null,
+        zip: buyer.postalCode,
+        status: application.status,
+        created_at: application.createdAt,
+      })) as ApplicationRow[];
+
+      const forms = matchingForms.map((form) => ({
+        id: Number(form.id.replace(/^\D+/g, "") || 0),
+        user_id: form.userId,
+        user_email: form.userEmail,
+        email: form.userEmail,
+        form_key: form.formKey,
+        form_title: form.formKey,
+        version: null,
+        signed_name: null,
+        signed_date: form.signedAt,
+        signed_at: form.signedAt,
+        status: form.status,
+        submitted_at: form.submittedAt,
+        created_at: form.submittedAt,
+        updated_at: form.signedAt || form.submittedAt,
+        data: form.payload,
+        payload: form.payload,
+      })) as FormRow[];
+
+      const documents = matchingDocuments.map((document) => ({
+        id: document.id,
+        user_id: buyer.userId,
+        buyer_id: buyer.id,
+        title: document.documentType,
+        description: document.sourceFlow,
+        category: document.documentType,
+        status: document.status,
+        created_at: document.createdAt,
+        source_table: document.sourceFlow,
+        file_name: null,
+        file_url: document.url,
+        visible_to_user: null,
+        signed_at: document.signedAt,
+      })) as DocumentRow[];
 
       return {
-        key: String(buyer.id),
-        buyer,
-        displayName: firstValue(buyer.full_name, buyer.name, buyer.email, `Buyer #${buyer.id}`),
+        key: buyer.resolver_key,
+        buyer: buyerRow,
+        displayName: firstValue(buyer.fullName, buyer.email, buyer.phone, buyer.resolver_key),
         email: firstValue(buyer.email),
         phone: firstValue(buyer.phone),
         hasPortalAccount: !!authUser,
@@ -408,12 +439,12 @@ export async function GET(req: Request) {
               last_sign_in_at: authUser.last_sign_in_at || null,
             }
           : null,
-        applicationCount: matchingApplications.length,
-        latestApplication: matchingApplications[0] || null,
-        latestApplicationStatus: matchingApplications[0]?.status || null,
-        formCount: matchingForms.length,
-        forms: matchingForms,
-        documents: matchingDocuments,
+        applicationCount: applications.length,
+        latestApplication: applications[0] || null,
+        latestApplicationStatus: applications[0]?.status || null,
+        formCount: forms.length,
+        forms,
+        documents,
         linkedPuppies,
       };
     });
@@ -421,12 +452,10 @@ export async function GET(req: Request) {
     return NextResponse.json({
       ok: true,
       buyers: records,
-      puppies: resolvedPuppies.map((puppy) => ({
+      puppies: breeding.data.resolvedPuppies.map((puppy) => ({
         ...puppy,
         buyerName:
-          buyers.find((buyer) => buyer.id === puppy.buyer_id)?.full_name ||
-          buyers.find((buyer) => buyer.id === puppy.buyer_id)?.name ||
-          null,
+          buyersResolved.data.find((buyer) => buyer.id === puppy.buyerId)?.fullName || null,
       })),
       ownerEmail: owner.email || null,
     });
@@ -582,10 +611,31 @@ export async function DELETE(req: Request) {
         .from("buyer_billing_subscriptions")
         .select("id", { count: "exact", head: true })
         .eq("buyer_id", buyerId),
-      service
-        .from("buyer_payment_notice_logs")
-        .select("id", { count: "exact", head: true })
-        .eq("buyer_id", buyerId),
+      (async () => {
+        const primary = await service
+          .from(BUYER_PAYMENT_NOTICE_LOG_TABLES[0])
+          .select("id", { count: "exact", head: true })
+          .eq("buyer_id", buyerId);
+
+        if (!primary.error && Number(primary.count || 0) > 0) {
+          return primary;
+        }
+
+        if (primary.error && !isMissingTableError(primary.error)) {
+          return primary;
+        }
+
+        const fallback = await service
+          .from(BUYER_PAYMENT_NOTICE_LOG_TABLES[1])
+          .select("id", { count: "exact", head: true })
+          .eq("buyer_id", buyerId);
+
+        if (!fallback.error && Number(fallback.count || 0) > 0) {
+          return fallback;
+        }
+
+        return primary.error ? fallback : primary;
+      })(),
       service
         .from("buyer_payment_notice_settings")
         .select("id", { count: "exact", head: true })

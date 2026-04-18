@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceSupabase, describeRouteError } from "@/lib/admin-api";
+import { queryBuyerPaymentNoticeLogs } from "@/lib/admin-data-compat";
 import { getResendClient } from "@/lib/resend";
 
 export const runtime = "nodejs";
@@ -172,13 +173,15 @@ export async function POST(request: NextRequest) {
     }
 
     const service = createServiceSupabase();
-    const existingResult = await service
-      .from("buyer_payment_notice_logs")
-      .select("id,meta,open_count,click_count")
-      .eq("provider_message_id", providerMessageId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle<NoticeLogRow>();
+    const existingResult = await queryBuyerPaymentNoticeLogs<NoticeLogRow>(
+      service,
+      "id,meta,open_count,click_count",
+      (query) =>
+        query
+          .eq("provider_message_id", providerMessageId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+    );
 
     if (existingResult.error) {
       if (isSchemaError(existingResult.error)) {
@@ -187,7 +190,9 @@ export async function POST(request: NextRequest) {
       throw existingResult.error;
     }
 
-    if (!existingResult.data) {
+    const existingLog = existingResult.data?.[0] || null;
+
+    if (!existingLog || !existingResult.table) {
       return NextResponse.json({
         ok: true,
         ignored: true,
@@ -196,14 +201,14 @@ export async function POST(request: NextRequest) {
     }
 
     const trackedUpdate = buildTrackedUpdate({
-      existing: existingResult.data,
+      existing: existingLog,
       verified,
     });
 
     const trackedResult = await service
-      .from("buyer_payment_notice_logs")
+      .from(existingResult.table)
       .update(trackedUpdate)
-      .eq("id", existingResult.data.id);
+      .eq("id", existingLog.id);
 
     if (trackedResult.error) {
       if (!isSchemaError(trackedResult.error)) {
@@ -211,14 +216,14 @@ export async function POST(request: NextRequest) {
       }
 
       const fallbackResult = await service
-        .from("buyer_payment_notice_logs")
+        .from(existingResult.table)
         .update(
           buildFallbackUpdate({
-            existing: existingResult.data,
+            existing: existingLog,
             verified,
           })
         )
-        .eq("id", existingResult.data.id);
+        .eq("id", existingLog.id);
 
       if (fallbackResult.error) throw fallbackResult.error;
     }

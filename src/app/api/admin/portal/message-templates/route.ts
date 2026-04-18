@@ -5,6 +5,7 @@ import {
   firstValue,
   verifyOwner,
 } from "@/lib/admin-api";
+import { queryBuyerPaymentNoticeLogs } from "@/lib/admin-data-compat";
 
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 const TEMPLATE_MIGRATION_PATH = "supabase/migrations/20260416_puppy_operations_workspace.sql";
@@ -165,22 +166,20 @@ async function loadRecentActivity(service = createServiceSupabase()) {
     "provider_message_id",
   ].join(",");
 
-  let noticeResult = await service
-    .from("buyer_payment_notice_logs")
-    .select(trackedSelect)
-    .order("created_at", { ascending: false })
-    .limit(25)
-    .returns<NoticeLogRow[]>();
+  let noticeResult = await queryBuyerPaymentNoticeLogs<NoticeLogRow>(
+    service,
+    trackedSelect,
+    (query) => query.order("created_at", { ascending: false }).limit(25)
+  );
 
   let trackingColumnsReady = true;
   if (noticeResult.error && isMissingColumnError(noticeResult.error)) {
     trackingColumnsReady = false;
-    noticeResult = await service
-      .from("buyer_payment_notice_logs")
-      .select(fallbackSelect)
-      .order("created_at", { ascending: false })
-      .limit(25)
-      .returns<NoticeLogRow[]>();
+    noticeResult = await queryBuyerPaymentNoticeLogs<NoticeLogRow>(
+      service,
+      fallbackSelect,
+      (query) => query.order("created_at", { ascending: false }).limit(25)
+    );
   }
 
   if (noticeResult.error) {

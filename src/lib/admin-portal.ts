@@ -131,6 +131,21 @@ export type AdminDigestBrief = {
   stats?: Record<string, unknown> | null;
 };
 
+export type AdminAlertBrief = {
+  id: number;
+  created_at: string | null;
+  event_type?: string | null;
+  alert_scope?: string | null;
+  title: string;
+  message: string;
+  tone: string;
+  buyer_id?: number | null;
+  puppy_id?: number | null;
+  reference_id?: string | null;
+  source?: string | null;
+  meta?: Record<string, unknown> | null;
+};
+
 export type AdminPublicConversationSummary = {
   id: string;
   title: string;
@@ -187,6 +202,8 @@ export type AdminOverviewStats = {
   returningVisitors24h: number;
   publicThreads24h: number;
   publicMessages24h: number;
+  assistantMessages24h?: number;
+  memoryUpdates24h?: number;
   openFollowUps: number;
   hotLeads: number;
   warmLeads: number;
@@ -194,6 +211,7 @@ export type AdminOverviewStats = {
   totalRevenue: number;
   lineage: AdminLineageOverview | null;
   latestDigest: AdminDigestBrief | null;
+  adminAlerts?: AdminAlertBrief[];
   publicConversationSummaries: AdminPublicConversationSummary[];
   buyerConversationSummaries: AdminBuyerConversationSummary[];
 };
@@ -441,6 +459,7 @@ export async function fetchAdminAccounts(accessToken: string): Promise<AdminPort
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
+      cache: "no-store",
     });
 
     if (!response.ok) {
@@ -462,6 +481,7 @@ export async function fetchAdminOverview(accessToken: string): Promise<AdminOver
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
+      cache: "no-store",
     });
 
     if (!response.ok) {
@@ -485,6 +505,7 @@ export async function fetchAdminLineageWorkspace(
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
+      cache: "no-store",
     });
 
     if (!response.ok) {
@@ -508,6 +529,7 @@ export async function fetchAdminApplicationsWorkspace(
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
+      cache: "no-store",
     });
 
     if (!response.ok) {

@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { createServiceSupabase, firstValue, verifyOwner } from "@/lib/admin-api";
+import { resolveBreedingWorkspace } from "@/lib/resolvers/breeding";
+import { resolveBuyers } from "@/lib/resolvers/buyers";
+import { resolveTransportWorkspace } from "@/lib/resolvers/transport";
 
 type PickupRequestRow = {
   id: number;
@@ -60,44 +63,76 @@ export async function GET(req: Request) {
     }
 
     const service = createServiceSupabase();
-    const [requestsRes, buyersRes, puppiesRes] = await Promise.all([
-      service
-        .from("portal_pickup_requests")
-        .select(
-          "id,created_at,user_id,puppy_id,request_date,request_type,miles,location_text,address_text,notes,status"
-        )
-        .order("created_at", { ascending: false }),
-      service
-        .from("buyers")
-        .select("id,user_id,full_name,name,email,phone,status,city,state"),
-      service
-        .from("puppies")
-        .select("id,buyer_id,call_name,puppy_name,name,status")
-        .order("created_at", { ascending: false }),
+    const [transportResolved, buyersResolved, breedingResolved] = await Promise.all([
+      resolveTransportWorkspace(service),
+      resolveBuyers(service),
+      resolveBreedingWorkspace(service),
     ]);
 
-    if (requestsRes.error) throw requestsRes.error;
-    if (buyersRes.error) throw buyersRes.error;
-    if (puppiesRes.error) throw puppiesRes.error;
-
-    const buyers = (buyersRes.data || []) as BuyerRow[];
-    const puppies = (puppiesRes.data || []) as PuppyRow[];
-    const buyersByUserId = new Map(
-      buyers
-        .filter((buyer) => buyer.user_id)
-        .map((buyer) => [String(buyer.user_id), buyer] as const)
-    );
+    const buyers = buyersResolved.data
+      .filter((buyer): buyer is typeof buyer & { id: number } => buyer.id !== null)
+      .map(
+        (buyer): BuyerRow => ({
+          id: buyer.id,
+          user_id: buyer.userId,
+          full_name: buyer.fullName,
+          name: buyer.fullName,
+          email: buyer.email,
+          phone: buyer.phone,
+          status: buyer.status,
+          city: buyer.city,
+          state: buyer.state,
+        })
+      );
+    const puppies = breedingResolved.data.resolvedPuppies
+      .filter((puppy): puppy is typeof puppy & { id: number } => puppy.id !== null)
+      .map(
+        (puppy): PuppyRow => ({
+          id: puppy.id,
+          buyer_id: puppy.buyerId,
+          call_name: puppy.callName,
+          puppy_name: puppy.displayName,
+          name: puppy.displayName,
+          status: puppy.status,
+        })
+      );
     const puppiesById = new Map(puppies.map((puppy) => [puppy.id, puppy] as const));
 
-    const requests = ((requestsRes.data || []) as PickupRequestRow[]).map((request) => ({
-      ...request,
-      buyer: request.user_id ? buyersByUserId.get(String(request.user_id)) || null : null,
-      puppy: request.puppy_id ? puppiesById.get(request.puppy_id) || null : null,
-    }));
+    const requests = transportResolved.data.resolvedTransportRequests
+      .filter((request) => request.sourceTable === "portal_pickup_requests")
+      .map((request): PickupRequestRow & { buyer: BuyerRow | null; puppy: PuppyRow | null } => {
+        const requestId = Number(request.recordId || 0);
+        const puppy = request.puppyId ? puppiesById.get(request.puppyId) || null : null;
+        const buyer =
+          (request.buyerId !== null
+            ? buyers.find((entry) => entry.id === request.buyerId) || null
+            : null) ||
+          (puppy?.buyer_id ? buyers.find((entry) => entry.id === puppy.buyer_id) || null : null);
+        return {
+          id: Number.isFinite(requestId) && requestId > 0 ? requestId : 0,
+          created_at: request.createdAt || request.scheduledAt,
+          user_id: request.userId || buyer?.user_id || null,
+          puppy_id: request.puppyId,
+          request_date: request.requestDate || request.scheduledAt,
+          request_type: request.deliveryMethod,
+          miles: request.miles,
+          location_text: request.locationText,
+          address_text: request.addressText,
+          notes: request.notes,
+          status: request.status,
+          buyer,
+          puppy,
+        };
+      });
 
     return NextResponse.json({
       ok: true,
       requests,
+      diagnostics: {
+        transport: transportResolved.diagnostics,
+        buyers: buyersResolved.diagnostics,
+        breeding: breedingResolved.diagnostics,
+      },
       ownerEmail: owner.email || null,
     });
   } catch (error) {
