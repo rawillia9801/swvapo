@@ -16,6 +16,7 @@ export type AuthResolutionReason =
   | "expired-token"
   | "invalid-signature"
   | "invalid-claims"
+  | "misconfigured-jwt-secret"
   | "auth-timeout"
   | "auth-error"
   | "verified";
@@ -76,6 +77,28 @@ function base64UrlEncode(buffer: Buffer) {
     .replace(/=/g, "")
     .replace(/\+/g, "-")
     .replace(/\//g, "_");
+}
+
+function readJwtSecret() {
+  const secret = String(process.env.SUPABASE_JWT_SECRET || "").trim();
+  if (!secret) {
+    return {
+      secret: null,
+      reason: "missing-jwt-secret" as const,
+      message: "SUPABASE_JWT_SECRET is not configured.",
+    };
+  }
+
+  if (secret.split(".").length === 3) {
+    return {
+      secret: null,
+      reason: "misconfigured-jwt-secret" as const,
+      message:
+        "SUPABASE_JWT_SECRET appears to be a JWT key, not the raw Supabase JWT signing secret.",
+    };
+  }
+
+  return { secret, reason: null, message: null };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -176,11 +199,10 @@ function buildUserFromClaims(claims: SupabaseJwtClaims): User | null {
     app_metadata: isRecord(claims.app_metadata) ? claims.app_metadata : {},
     user_metadata: isRecord(claims.user_metadata) ? claims.user_metadata : {},
     identities: [],
-    factors: null,
     created_at: "",
     updated_at: "",
     last_sign_in_at: undefined,
-  } as User;
+  } as unknown as User;
 }
 
 function verifyJwtLocally(accessToken: string): SupabaseAuthResolution {
@@ -199,13 +221,13 @@ function verifyJwtLocally(accessToken: string): SupabaseAuthResolution {
     return unauthorized("unsupported-algorithm", "Only HS256 Supabase access tokens are supported.");
   }
 
-  const secret = process.env.SUPABASE_JWT_SECRET;
-  if (!secret) {
-    return unauthorized("missing-jwt-secret", "SUPABASE_JWT_SECRET is not configured.");
+  const jwtSecret = readJwtSecret();
+  if (!jwtSecret.secret) {
+    return unauthorized(jwtSecret.reason || "missing-jwt-secret", jwtSecret.message);
   }
 
   const expectedSignature = base64UrlEncode(
-    createHmac("sha256", secret).update(`${parts[0]}.${parts[1]}`).digest()
+    createHmac("sha256", jwtSecret.secret).update(`${parts[0]}.${parts[1]}`).digest()
   );
 
   const provided = Buffer.from(parts[2]);
@@ -233,7 +255,10 @@ function verifyJwtLocally(accessToken: string): SupabaseAuthResolution {
 }
 
 function canFallbackToSupabaseAuth(localResolution: SupabaseAuthResolution) {
-  return localResolution.reason === "missing-jwt-secret";
+  return (
+    localResolution.reason === "missing-jwt-secret" ||
+    localResolution.reason === "misconfigured-jwt-secret"
+  );
 }
 
 async function getUserFromSupabaseAuth(
@@ -286,7 +311,7 @@ export async function resolveSupabaseUserFromAccessToken(
 ): Promise<SupabaseAuthResolution> {
   const normalized = normalizeAccessToken(accessToken);
   if (!normalized.token) {
-    const result = unauthorized(normalized.reason);
+    const result = unauthorized(normalized.reason || "missing-token");
     logAuthResolution(options.context, result);
     return result;
   }
@@ -313,7 +338,7 @@ export async function resolveSupabaseUserFromAccessToken(
 
   if (options.context) {
     console.warn(
-      `[auth-resilience] ${options.context} is falling back to Supabase Auth /user because SUPABASE_JWT_SECRET is not configured.`
+      `[auth-resilience] ${options.context} is falling back to Supabase Auth /user because local JWT verification is unavailable (${localResolution.reason}).`
     );
   }
 
@@ -334,7 +359,7 @@ export async function resolveSupabaseUserFromRequest(
 ): Promise<SupabaseAuthResolution> {
   const bearer = readBearerToken(req);
   if (!bearer.token) {
-    const result = unauthorized(bearer.reason);
+    const result = unauthorized(bearer.reason || "missing-token");
     logAuthResolution(options.context, result);
     return result;
   }
