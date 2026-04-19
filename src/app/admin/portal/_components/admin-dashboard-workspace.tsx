@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import React, { useEffect, useEffectEvent, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarClock,
   FileText,
@@ -73,11 +73,18 @@ export function AdminDashboardWorkspace() {
   const [errorText, setErrorText] = useState("");
 
   const hasWorkspaceData = Boolean(snapshot || overview);
+  const hasWorkspaceDataRef = useRef(hasWorkspaceData);
+  const initialLoadKeyRef = useRef("");
 
-  const loadWorkspace = useEffectEvent(async (background = false) => {
+  useEffect(() => {
+    hasWorkspaceDataRef.current = hasWorkspaceData;
+  }, [hasWorkspaceData]);
+
+  const loadWorkspace = useCallback(async (background = false) => {
     if (!accessToken) return;
+    const hasLoadedData = hasWorkspaceDataRef.current;
 
-    if (background && hasWorkspaceData) setRefreshing(true);
+    if (background && hasLoadedData) setRefreshing(true);
     else setLoadingData(true);
 
     if (!background) {
@@ -112,7 +119,7 @@ export function AdminDashboardWorkspace() {
       if (nextSnapshot) setSnapshot(nextSnapshot);
       if (nextOverview) setOverview(nextOverview);
 
-      if (!nextSnapshot && !nextOverview && !hasWorkspaceData) {
+      if (!nextSnapshot && !nextOverview && !hasLoadedData) {
         setErrorText("The breeding-program dashboard could not load right now.");
       } else {
         setErrorText("");
@@ -124,18 +131,21 @@ export function AdminDashboardWorkspace() {
         error instanceof Error
           ? error.message
           : "The breeding-program dashboard could not load right now.";
-      if (!hasWorkspaceData) setErrorText(message);
+      if (!hasLoadedData) setErrorText(message);
       else setWarningText(message);
     } finally {
       setLoadingData(false);
       setRefreshing(false);
     }
-  });
+  }, [accessToken]);
 
   useEffect(() => {
     if (!loading && accessToken && isAdmin) {
+      if (initialLoadKeyRef.current === accessToken) return;
+      initialLoadKeyRef.current = accessToken;
       void loadWorkspace(false);
     } else if (!loading) {
+      initialLoadKeyRef.current = "";
       setLoadingData(false);
     }
   }, [accessToken, isAdmin, loading, loadWorkspace]);

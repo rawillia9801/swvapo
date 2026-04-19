@@ -216,9 +216,12 @@ function collectResolverWarnings(
   warnings: string[]
 ) {
   const sourceWarnings = diagnostics?.warnings || [];
-  sourceWarnings.slice(0, 4).forEach((warning) => {
-    warnings.push(`${label}: ${warning}`);
-  });
+  sourceWarnings
+    .filter((warning) => !warning.toLowerCase().includes("conflict on"))
+    .slice(0, 4)
+    .forEach((warning) => {
+      warnings.push(`${label}: ${warning}`);
+    });
 }
 
 function asBuyerPayload(body: Record<string, unknown>) {
