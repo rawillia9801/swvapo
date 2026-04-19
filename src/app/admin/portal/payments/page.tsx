@@ -401,7 +401,7 @@ export default function AdminPortalPaymentsPage() {
         .join(" ")
         .includes(query);
     });
-  }, [decoratedAccounts, filterMode, form.finance_enabled, search]);
+  }, [decoratedAccounts, filterMode, form.finance_enabled, search, selectedKey]);
 
   const selectedAccount = useMemo(
     () => accounts.find((account) => account.key === selectedKey) || null,

@@ -279,7 +279,7 @@ type ActivityItem = {
 };
 
 type BuyerModalMode = "create" | "edit" | null;
-type FeedbackTone = "success" | "error";
+type FeedbackTone = "success" | "error" | "warning";
 type BuyerDirectoryFilter = "active" | "financing" | "completed";
 type FuelEstimate = {
   requestedMonth: string;
@@ -538,43 +538,80 @@ function buildActivityItems(
   ].sort((left, right) => new Date(right.date || 0).getTime() - new Date(left.date || 0).getTime());
 }
 
+async function fetchWorkspaceJson<T>(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  fallbackError: string
+) {
+  try {
+    const response = await fetch(input, init);
+    const payload = (await response.json().catch(() => ({}))) as T & {
+      ok?: boolean;
+      error?: string;
+    };
+
+    return {
+      ok: response.ok && payload.ok !== false,
+      payload,
+      error: payload.error || fallbackError,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      payload: {} as T,
+      error: error instanceof Error ? error.message : fallbackError,
+    };
+  }
+}
+
 async function fetchBuyerWorkspace(accessToken: string) {
-  const [buyersRes, accountsRes, transportationRes] = await Promise.all([
-    fetch("/api/admin/portal/buyers", {
-      headers: { Authorization: `Bearer ${accessToken}` },
-      cache: "no-store",
-    }),
-    fetch("/api/admin/portal/payments", {
-      headers: { Authorization: `Bearer ${accessToken}` },
-      cache: "no-store",
-    }),
-    fetch("/api/admin/portal/transportation", {
-      headers: { Authorization: `Bearer ${accessToken}` },
-      cache: "no-store",
-    }),
+  const requestInit = {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: "no-store" as const,
+  };
+
+  const [buyersResult, accountsResult, transportationResult] = await Promise.all([
+    fetchWorkspaceJson<{
+      buyers?: BuyerRecord[];
+      puppies?: PuppyOption[];
+      warnings?: string[];
+    }>("/api/admin/portal/buyers", requestInit, "Could not load buyers."),
+    fetchWorkspaceJson<{ accounts?: BuyerAccount[] }>(
+      "/api/admin/portal/payments",
+      requestInit,
+      "Could not load buyer payments."
+    ),
+    fetchWorkspaceJson<{ requests?: TransportationRequest[] }>(
+      "/api/admin/portal/transportation",
+      requestInit,
+      "Could not load transportation requests."
+    ),
   ]);
 
-  const buyersPayload = buyersRes.ok
-    ? ((await buyersRes.json()) as { buyers?: BuyerRecord[]; puppies?: PuppyOption[]; error?: string })
-    : { error: "Could not load buyers." };
-  const accountsPayload = accountsRes.ok
-    ? ((await accountsRes.json()) as { accounts?: BuyerAccount[]; error?: string })
-    : { error: "Could not load buyer payments." };
-  const transportationPayload = transportationRes.ok
-    ? ((await transportationRes.json()) as { requests?: TransportationRequest[]; error?: string })
-    : { error: "Could not load transportation requests." };
-
-  if (!buyersRes.ok) throw new Error(buyersPayload.error || "Could not load buyers.");
-  if (!accountsRes.ok) throw new Error(accountsPayload.error || "Could not load buyer payments.");
-  if (!transportationRes.ok) {
-    throw new Error(transportationPayload.error || "Could not load transportation requests.");
+  if (!buyersResult.ok) {
+    throw new Error(buyersResult.error || "Could not load buyers.");
   }
 
+  const warnings = [
+    ...(Array.isArray(buyersResult.payload.warnings) ? buyersResult.payload.warnings : []),
+    ...(!accountsResult.ok ? [accountsResult.error || "Buyer payment data is temporarily unavailable."] : []),
+    ...(!transportationResult.ok
+      ? [transportationResult.error || "Transportation request data is temporarily unavailable."]
+      : []),
+  ];
+
   return {
-    buyers: Array.isArray(buyersPayload.buyers) ? buyersPayload.buyers : [],
-    puppies: Array.isArray(buyersPayload.puppies) ? buyersPayload.puppies : [],
-    accounts: Array.isArray(accountsPayload.accounts) ? accountsPayload.accounts : [],
-    requests: Array.isArray(transportationPayload.requests) ? transportationPayload.requests : [],
+    buyers: Array.isArray(buyersResult.payload.buyers) ? buyersResult.payload.buyers : [],
+    puppies: Array.isArray(buyersResult.payload.puppies) ? buyersResult.payload.puppies : [],
+    accounts:
+      accountsResult.ok && Array.isArray(accountsResult.payload.accounts)
+        ? accountsResult.payload.accounts
+        : [],
+    requests:
+      transportationResult.ok && Array.isArray(transportationResult.payload.requests)
+        ? transportationResult.payload.requests
+        : [],
+    warnings: Array.from(new Set(warnings)).slice(0, 8),
   };
 }
 
@@ -636,7 +673,9 @@ function FeedbackBanner({
   const toneClass =
     tone === "success"
       ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-      : "border-rose-200 bg-rose-50 text-rose-800";
+      : tone === "warning"
+        ? "border-amber-200 bg-amber-50 text-amber-900"
+        : "border-rose-200 bg-rose-50 text-rose-800";
 
   return (
     <div className={`rounded-[1.1rem] border px-4 py-3 text-sm ${toneClass}`}>{text}</div>
@@ -680,6 +719,7 @@ export function AdminBuyersWorkspace() {
   const [requests, setRequests] = useState<TransportationRequest[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [loadWarning, setLoadWarning] = useState("");
   const [feedback, setFeedback] = useState<{ tone: FeedbackTone; text: string } | null>(null);
   const [search, setSearch] = useState("");
   const [directoryFilter, setDirectoryFilter] = useState<BuyerDirectoryFilter>("active");
@@ -699,6 +739,7 @@ export function AdminBuyersWorkspace() {
     setBuyers(payload.buyers);
     setAccounts(payload.accounts);
     setRequests(payload.requests);
+    setLoadWarning(payload.warnings.length ? `Partial data loaded. ${payload.warnings.join(" ")}` : "");
     setSelectedKey((current) => {
       if (preferredKey && payload.buyers.some((buyer) => buyer.key === preferredKey)) {
         return preferredKey;
@@ -719,6 +760,7 @@ export function AdminBuyersWorkspace() {
 
       setLoadingData(true);
       setLoadError("");
+      setLoadWarning("");
 
       try {
         const payload = await fetchBuyerWorkspace(accessToken);
@@ -726,6 +768,9 @@ export function AdminBuyersWorkspace() {
         setBuyers(payload.buyers);
         setAccounts(payload.accounts);
         setRequests(payload.requests);
+        setLoadWarning(
+          payload.warnings.length ? `Partial data loaded. ${payload.warnings.join(" ")}` : ""
+        );
         setSelectedKey(payload.buyers[0]?.key || "");
       } catch (error) {
         if (!active) return;
@@ -861,6 +906,7 @@ export function AdminBuyersWorkspace() {
   async function handleRefresh() {
     if (!selectedBuyer?.key) return;
     setLoadError("");
+    setLoadWarning("");
     setFeedback(null);
     try {
       await refreshWorkspace(selectedBuyer.key);
@@ -1045,6 +1091,7 @@ export function AdminBuyersWorkspace() {
 
         <div className="space-y-4">
           {loadError ? <FeedbackBanner tone="error" text={loadError} /> : null}
+          {!loadError && loadWarning ? <FeedbackBanner tone="warning" text={loadWarning} /> : null}
           {feedback ? <FeedbackBanner tone={feedback.tone} text={feedback.text} /> : null}
 
           {!selectedEntry ? (

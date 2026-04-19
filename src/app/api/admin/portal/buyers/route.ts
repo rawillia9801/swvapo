@@ -12,6 +12,10 @@ import { resolveBreedingWorkspace } from "@/lib/resolvers/breeding";
 import { resolveBuyers } from "@/lib/resolvers/buyers";
 import { resolvePortalWorkspace } from "@/lib/resolvers/portal";
 
+type BreedingWorkspaceResult = Awaited<ReturnType<typeof resolveBreedingWorkspace>>;
+type BuyersResolverResult = Awaited<ReturnType<typeof resolveBuyers>>;
+type PortalWorkspaceResult = Awaited<ReturnType<typeof resolvePortalWorkspace>>;
+
 type BuyerRow = {
   id: number;
   user_id?: string | null;
@@ -148,6 +152,75 @@ function isMissingTableError(error: unknown) {
   return message.toLowerCase().includes("does not exist");
 }
 
+function emptyDiagnostics(label: string, warning?: string) {
+  return {
+    sourcesChecked: [] as string[],
+    sourcesUsed: [] as string[],
+    missingTables: [] as string[],
+    rowCounts: {} as Record<string, number>,
+    mergeNotes: [] as string[],
+    warnings: warning ? [`${label}: ${warning}`] : [],
+  };
+}
+
+function emptyBreedingWorkspace(warning?: string): BreedingWorkspaceResult {
+  return {
+    data: {
+      resolvedDogs: [],
+      resolvedLitters: [],
+      resolvedPuppies: [],
+    },
+    diagnostics: emptyDiagnostics("breeding", warning),
+  };
+}
+
+function emptyBuyersWorkspace(warning?: string): BuyersResolverResult {
+  return {
+    data: [],
+    diagnostics: emptyDiagnostics("buyers", warning),
+  };
+}
+
+function emptyPortalWorkspace(warning?: string): PortalWorkspaceResult {
+  return {
+    data: {
+      resolvedPortalDocuments: [],
+      resolvedPortalForms: [],
+      resolvedPortalMessages: [],
+      resolvedPortalAssignments: [],
+      resolvedPortalPickupRequests: [],
+    },
+    diagnostics: emptyDiagnostics("portal", warning),
+  };
+}
+
+async function resolveOptional<T>(
+  label: string,
+  operation: () => Promise<T>,
+  fallback: (warning?: string) => T,
+  warnings: string[]
+) {
+  try {
+    return await operation();
+  } catch (error) {
+    const message = describeRouteError(error, `${label} data could not load.`);
+    console.warn(`[admin-buyers] ${label} resolver failed; continuing with partial data.`, error);
+    warnings.push(`${label}: ${message}`);
+    return fallback(message);
+  }
+}
+
+function collectResolverWarnings(
+  label: string,
+  diagnostics: { warnings?: string[]; missingTables?: string[] } | null | undefined,
+  warnings: string[]
+) {
+  const sourceWarnings = diagnostics?.warnings || [];
+  sourceWarnings.slice(0, 4).forEach((warning) => {
+    warnings.push(`${label}: ${warning}`);
+  });
+}
+
 function asBuyerPayload(body: Record<string, unknown>) {
   return {
     full_name: firstValue(body.full_name as string | null, body.name as string | null) || null,
@@ -276,7 +349,13 @@ export async function GET(req: Request) {
     }
 
     const service = createServiceSupabase();
-    const authUsers = await listAllAuthUsers();
+    const warnings: string[] = [];
+    const authUsers = await listAllAuthUsers().catch((error) => {
+      const message = describeRouteError(error, "Auth users could not load.");
+      console.warn("[admin-buyers] Auth user lookup failed; continuing without portal account match.", error);
+      warnings.push(`Auth users: ${message}`);
+      return [] as Awaited<ReturnType<typeof listAllAuthUsers>>;
+    });
     const authByEmail = new Map(
       authUsers
         .map((authUser) => [normalizeEmail(authUser.email), authUser] as const)
@@ -284,10 +363,24 @@ export async function GET(req: Request) {
     );
 
     const [breeding, buyersResolved, portalResolved] = await Promise.all([
-      resolveBreedingWorkspace(service),
-      resolveBuyers(service),
-      resolvePortalWorkspace(service),
+      resolveOptional(
+        "Breeding workspace",
+        () => resolveBreedingWorkspace(service),
+        emptyBreedingWorkspace,
+        warnings
+      ),
+      resolveOptional("Buyer records", () => resolveBuyers(service), emptyBuyersWorkspace, warnings),
+      resolveOptional(
+        "Portal records",
+        () => resolvePortalWorkspace(service),
+        emptyPortalWorkspace,
+        warnings
+      ),
     ]);
+
+    collectResolverWarnings("Breeding workspace", breeding.diagnostics, warnings);
+    collectResolverWarnings("Buyer records", buyersResolved.diagnostics, warnings);
+    collectResolverWarnings("Portal records", portalResolved.diagnostics, warnings);
 
     const dogNameById = new Map(
       breeding.data.resolvedDogs.map((dog) => [dog.id, dog.displayName] as const)
@@ -458,6 +551,7 @@ export async function GET(req: Request) {
           buyersResolved.data.find((buyer) => buyer.id === puppy.buyerId)?.fullName || null,
       })),
       ownerEmail: owner.email || null,
+      warnings: Array.from(new Set(warnings)).slice(0, 12),
     });
   } catch (error) {
     console.error("Admin portal buyers route error:", error);
