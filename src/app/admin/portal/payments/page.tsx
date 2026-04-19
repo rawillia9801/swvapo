@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import React, { useEffect, useEffectEvent, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BellRing,
   CalendarClock,
@@ -295,6 +295,7 @@ export default function AdminPortalPaymentsPage() {
   const { user, accessToken, loading, isAdmin } = usePortalAdminSession();
   const [accounts, setAccounts] = useState<BuyerAccount[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [refreshingData, setRefreshingData] = useState(false);
   const [statusText, setStatusText] = useState("");
   const [selectedKey, setSelectedKey] = useState("");
   const [search, setSearch] = useState("");
@@ -315,14 +316,25 @@ export default function AdminPortalPaymentsPage() {
   const [entryForm, setEntryForm] = useState<EntryForm>(entryFormForMode("payment"));
   const [workingAction, setWorkingAction] = useState("");
 
-  const loadAccounts = useEffectEvent(async () => {
-    if (!accessToken) return;
-    setLoadingData(true);
+  const loadAccounts = useCallback(async (background = false) => {
+    if (!accessToken) {
+      setLoadingData(false);
+      setRefreshingData(false);
+      return;
+    }
+
+    if (background) {
+      setRefreshingData(true);
+    } else {
+      setLoadingData(true);
+    }
+
     try {
       const response = await fetch("/api/admin/portal/payments", {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
+        cache: "no-store",
       });
 
       const payload = (await response.json()) as {
@@ -345,16 +357,19 @@ export default function AdminPortalPaymentsPage() {
       setStatusText(error instanceof Error ? error.message : "Could not load payment accounts.");
     } finally {
       setLoadingData(false);
+      setRefreshingData(false);
     }
-  });
+  }, [accessToken]);
 
   useEffect(() => {
+    if (loading) return;
     if (!accessToken || !isAdmin) {
       setLoadingData(false);
+      setRefreshingData(false);
       return;
     }
-    void loadAccounts();
-  }, [accessToken, isAdmin, loadAccounts]);
+    void loadAccounts(false);
+  }, [accessToken, isAdmin, loading, loadAccounts]);
 
   const decoratedAccounts = useMemo(
     () =>
@@ -436,7 +451,7 @@ export default function AdminPortalPaymentsPage() {
       }
 
       setStatusText("Account terms updated.");
-      await loadAccounts();
+      await loadAccounts(true);
     } catch (error) {
       setStatusText(error instanceof Error ? error.message : "Could not save the account terms.");
     } finally {
@@ -490,7 +505,7 @@ export default function AdminPortalPaymentsPage() {
 
       setEntryForm(entryFormForMode(entryMode));
       setStatusText(entryMode === "payment" ? "Payment recorded." : "Account adjustment recorded.");
-      await loadAccounts();
+      await loadAccounts(true);
     } catch (error) {
       setStatusText(error instanceof Error ? error.message : "Could not record the account entry.");
     } finally {
@@ -521,7 +536,7 @@ export default function AdminPortalPaymentsPage() {
       }
 
       setStatusText(kind === "default_notice" ? "Default notice sent." : "Payment reminder sent.");
-      await loadAccounts();
+      await loadAccounts(true);
     } catch (error) {
       setStatusText(error instanceof Error ? error.message : "Could not send the payment notice.");
     } finally {
@@ -548,8 +563,26 @@ export default function AdminPortalPaymentsPage() {
     URL.revokeObjectURL(url);
   }
 
-  if (loading || loadingData) {
-    return <div className="py-20 text-center text-sm font-semibold text-[#7b5f46]">Loading payments workspace...</div>;
+  if ((loading || loadingData) && !accounts.length) {
+    return (
+      <AdminPageShell>
+        <div className="grid min-h-[60vh] gap-6">
+          <div className="h-40 animate-pulse rounded-[2rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)]" />
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <div
+                key={`payments-skeleton-${index}`}
+                className="h-28 animate-pulse rounded-[1.4rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)]"
+              />
+            ))}
+          </div>
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_430px]">
+            <div className="h-[520px] animate-pulse rounded-[1.5rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)]" />
+            <div className="h-[520px] animate-pulse rounded-[1.5rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)]" />
+          </div>
+        </div>
+      </AdminPageShell>
+    );
   }
 
   if (!user) {
@@ -592,9 +625,9 @@ export default function AdminPortalPaymentsPage() {
               <Link href="/admin/portal/buyers" className="rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]">
                 Open Buyers
               </Link>
-              <button type="button" onClick={() => void loadAccounts()} className="inline-flex items-center gap-2 rounded-2xl bg-[linear-gradient(135deg,#d3a056_0%,#b5752f_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(181,117,47,0.24)] transition hover:brightness-105">
-                <RefreshCw className="h-4 w-4" />
-                Refresh Accounts
+              <button type="button" onClick={() => void loadAccounts(true)} disabled={refreshingData} className="inline-flex items-center gap-2 rounded-2xl bg-[linear-gradient(135deg,#d3a056_0%,#b5752f_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(181,117,47,0.24)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-65">
+                <RefreshCw className={`h-4 w-4 ${refreshingData ? "animate-spin" : ""}`} />
+                {refreshingData ? "Refreshing" : "Refresh Accounts"}
               </button>
             </div>
           </div>

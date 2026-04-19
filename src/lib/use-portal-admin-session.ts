@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { getClientSessionWithTimeout } from "@/lib/client-session-resilience";
 import { isPortalAdminEmail } from "@/lib/portal-admin";
@@ -31,19 +31,36 @@ function updateSessionCache(user: User | null, accessToken: string) {
   sessionCache.accessToken = accessToken;
 }
 
+function sessionKey(user: User | null, accessToken: string) {
+  return [user?.id || "", user?.email || "", accessToken || ""].join("|");
+}
+
 export function usePortalAdminSession(): PortalAdminSessionState {
   const [user, setUser] = useState<User | null>(sessionCache.initialized ? sessionCache.user : null);
   const [accessToken, setAccessToken] = useState(sessionCache.initialized ? sessionCache.accessToken : "");
   const [loading, setLoading] = useState(!sessionCache.initialized);
+  const sessionKeyRef = useRef(sessionKey(sessionCache.user, sessionCache.accessToken));
 
   useEffect(() => {
     let mounted = true;
 
+    function commitSession(nextUser: User | null, nextAccessToken: string) {
+      const nextKey = sessionKey(nextUser, nextAccessToken);
+      if (sessionKeyRef.current === nextKey) {
+        if (mounted) setLoading(false);
+        return;
+      }
+
+      sessionKeyRef.current = nextKey;
+      updateSessionCache(nextUser, nextAccessToken);
+      setUser(nextUser);
+      setAccessToken(nextAccessToken);
+      setLoading(false);
+    }
+
     async function bootstrap() {
       if (sessionCache.initialized) {
-        setUser(sessionCache.user);
-        setAccessToken(sessionCache.accessToken);
-        setLoading(false);
+        commitSession(sessionCache.user, sessionCache.accessToken);
         return;
       }
 
@@ -53,15 +70,11 @@ export function usePortalAdminSession(): PortalAdminSessionState {
         });
 
         if (!mounted) return;
-        updateSessionCache(session?.user ?? null, session?.access_token || "");
-        setUser(sessionCache.user);
-        setAccessToken(sessionCache.accessToken);
+        commitSession(session?.user ?? null, session?.access_token || "");
       } catch (error) {
         console.warn("Admin session bootstrap failed; rendering signed-out admin state.", error);
         if (!mounted) return;
-        updateSessionCache(null, "");
-        setUser(null);
-        setAccessToken("");
+        commitSession(null, "");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -71,10 +84,7 @@ export function usePortalAdminSession(): PortalAdminSessionState {
 
     const { data: authListener } = sb.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return;
-      updateSessionCache(session?.user ?? null, session?.access_token || "");
-      setUser(sessionCache.user);
-      setAccessToken(sessionCache.accessToken);
-      setLoading(false);
+      commitSession(session?.user ?? null, session?.access_token || "");
     });
 
     return () => {
