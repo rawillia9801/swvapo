@@ -1,15 +1,54 @@
 import { createClient } from '@supabase/supabase-js';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+type DogRow = {
+  dog_name: string | null;
+  call_name: string | null;
+  role: string | null;
+  sex: string | null;
+  color: string | null;
+  coat: string | null;
+  registry: string | null;
+  is_active: boolean | null;
+};
+
+async function loadDogs() {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  try {
+    return await Promise.race([
+      supabase
+        .from('bp_dogs')
+        .select('dog_name, call_name, role, sex, color, coat, registry, is_active')
+        .order('dog_name', { ascending: true }),
+      new Promise<{ data: DogRow[] | null; error: { message: string } }>((resolve) => {
+        timeoutId = setTimeout(
+          () =>
+            resolve({
+              data: null,
+              error: {
+                message:
+                  'The breeding dog records are taking too long to load. Please refresh in a moment.',
+              },
+            }),
+          5000
+        );
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 export default async function OurDogsPage() {
-  const { data: dogs, error } = await supabase
-    .from('bp_dogs') 
-    .select('dog_name, call_name, role, sex, color, coat, registry, is_active')
-    .order('dog_name', { ascending: true }); 
+  const { data: dogs, error } = await loadDogs();
 
   if (error) {
     return (
