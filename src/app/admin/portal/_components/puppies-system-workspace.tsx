@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import React, { useDeferredValue, useEffect, useEffectEvent, useState, useTransition } from "react";
+import React, { useCallback, useDeferredValue, useEffect, useRef, useState, useTransition } from "react";
 import {
   AlertTriangle,
   FileText,
@@ -258,10 +258,17 @@ export function PuppiesSystemWorkspace({
   const [savingChecklist, setSavingChecklist] = useState(false);
   const [isPending, startTransition] = useTransition();
   const deferredSearch = useDeferredValue(search);
+  const snapshotRef = useRef<PuppiesSystemSnapshot | null>(snapshot);
+  const initialLoadKeyRef = useRef("");
 
-  const loadSnapshot = useEffectEvent(async (background = false) => {
+  useEffect(() => {
+    snapshotRef.current = snapshot;
+  }, [snapshot]);
+
+  const loadSnapshot = useCallback(async (background = false) => {
     if (!accessToken) return;
-    if (background && snapshot) setRefreshing(true);
+    const existingSnapshot = snapshotRef.current;
+    if (background && existingSnapshot) setRefreshing(true);
     else setLoadingSnapshot(true);
     if (!background) {
       setErrorText("");
@@ -271,24 +278,24 @@ export function PuppiesSystemWorkspace({
       const payload = await fetchAdminPuppiesSnapshot(accessToken);
       if (!payload.snapshot) {
         const message = payload.error || "Could not load the Puppies system.";
-        if (snapshot) setWarningText(message);
+        if (existingSnapshot) setWarningText(message);
         else setErrorText(message);
         return;
       }
       setSnapshot(payload.snapshot);
       setWarningText(payload.error || "");
-      if (!selectedTemplateKey && payload.snapshot.messageTemplates[0]) setSelectedTemplateKey(payload.snapshot.messageTemplates[0].templateKey);
-      if (!selectedWorkflowKey && payload.snapshot.workflowSettings[0]) setSelectedWorkflowKey(payload.snapshot.workflowSettings[0].workflowKey);
-      if (!selectedChecklistKey && payload.snapshot.checklistTemplates[0]) setSelectedChecklistKey(payload.snapshot.checklistTemplates[0].key);
+      setSelectedTemplateKey((current) => current || payload.snapshot?.messageTemplates[0]?.templateKey || "");
+      setSelectedWorkflowKey((current) => current || payload.snapshot?.workflowSettings[0]?.workflowKey || "");
+      setSelectedChecklistKey((current) => current || payload.snapshot?.checklistTemplates[0]?.key || "");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not load the Puppies system.";
-      if (snapshot) setWarningText(message);
+      if (existingSnapshot) setWarningText(message);
       else setErrorText(message);
     } finally {
       setLoadingSnapshot(false);
       setRefreshing(false);
     }
-  });
+  }, [accessToken]);
 
   async function saveAction(action: string, body: Record<string, unknown>) {
     if (!accessToken) return;
@@ -302,8 +309,14 @@ export function PuppiesSystemWorkspace({
   }
 
   useEffect(() => {
-    if (!loading && accessToken && isAdmin) void loadSnapshot(false);
-    else if (!loading) setLoadingSnapshot(false);
+    if (!loading && accessToken && isAdmin) {
+      if (initialLoadKeyRef.current === accessToken) return;
+      initialLoadKeyRef.current = accessToken;
+      void loadSnapshot(false);
+    } else if (!loading) {
+      initialLoadKeyRef.current = "";
+      setLoadingSnapshot(false);
+    }
   }, [accessToken, isAdmin, loading, loadSnapshot]);
 
   const selectedTemplate = snapshot?.messageTemplates.find((template) => template.templateKey === selectedTemplateKey) || null;

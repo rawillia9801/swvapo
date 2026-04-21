@@ -247,7 +247,11 @@ export function AdminDashboardWorkspace() {
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <Signal label="Unread buyer messages" value={String(overview?.unreadBuyerMessages || 0)} />
               <Signal label="Open follow-ups" value={String(overview?.openFollowUps || 0)} />
-              <Signal label="Public chats today" value={String(overview?.publicThreads24h || 0)} />
+              <Signal
+                label="Public chats today"
+                value={String(overview?.publicThreads24h || 0)}
+                href="/admin/portal/website-chats"
+              />
               <Signal
                 label="Latest digest"
                 value={
@@ -316,6 +320,7 @@ export function AdminDashboardWorkspace() {
                     <Signal
                       label="Public chats"
                       value={String(overview?.publicMessages24h || 0)}
+                      href="/admin/portal/website-chats"
                     />
                     <Signal
                       label="Buyer inbox"
@@ -459,6 +464,7 @@ export function AdminDashboardWorkspace() {
                   <QuickLink href="/admin/portal/buyers" label="Open Buyers" detail="View linkage, balances, documents, and placement progress." />
                   <QuickLink href="/admin/portal/documents" label="Open Documents" detail="Work filing, resend, override, and buyer submission records." />
                   <QuickLink href="/admin/portal/messages" label="Open Messages" detail="Review the buyer inbox and message follow-through." />
+                  <QuickLink href="/admin/portal/website-chats" label="Open Website Chats" detail="Read public ChiChi website conversations and lead follow-up." />
                   <QuickLink href="/admin/portal/resend-templates" label="Open Resend Templates" detail="Edit automatic payment, due-date, and reminder emails in the admin UI." />
                   <QuickLink href="/admin/portal/assistant" label="Open ChiChi" detail="Ask for blockers, drafts, reminders, and next actions." />
                 </div>
@@ -613,13 +619,30 @@ export function AdminDashboardWorkspace() {
   );
 }
 
-function Signal({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[1rem] border border-[var(--portal-border)] bg-white/88 px-4 py-3">
+function Signal({ label, value, href }: { label: string; value: string; href?: string }) {
+  const content = (
+    <>
       <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
         {label}
       </div>
       <div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">{value}</div>
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className="block rounded-[1rem] border border-[var(--portal-border)] bg-white/88 px-4 py-3 transition hover:border-[var(--portal-border-strong)] hover:bg-white"
+      >
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <div className="rounded-[1rem] border border-[var(--portal-border)] bg-white/88 px-4 py-3">
+      {content}
     </div>
   );
 }

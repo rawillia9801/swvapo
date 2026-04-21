@@ -318,6 +318,36 @@ function isLikelyGeneralChihuahuaQuestion(q: string) {
 // Lead Analysis (pure local logic, no AI needed)
 // ─────────────────────────────────────────────
 
+async function withTimeout<T>(
+  operation: Promise<T>,
+  timeoutMs: number,
+  fallback: T,
+  label: string
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<T>((resolve) => {
+        timeoutId = setTimeout(() => {
+          console.warn(`[chichi-public] ${label} timed out after ${timeoutMs}ms.`);
+          resolve(fallback);
+        }, timeoutMs);
+      }),
+    ]);
+  } catch (error) {
+    console.warn(`[chichi-public] ${label} failed; continuing with fallback.`, error);
+    return fallback;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
+async function bestEffort(label: string, operation: Promise<unknown>, timeoutMs = 1800) {
+  await withTimeout(operation, timeoutMs, null, label);
+}
+
 function analyzeLead(message: string): LeadAnalysis {
   const q = cleanText(message);
   const tags = new Set<string>();
@@ -1013,6 +1043,8 @@ async function generateChiChiReply(
   }
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8500);
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -1020,6 +1052,7 @@ async function generateChiChiReply(
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
       },
+      signal: controller.signal,
       body: JSON.stringify({
         model,
         max_tokens: 900,
@@ -1027,6 +1060,7 @@ async function generateChiChiReply(
         messages: conversationHistory,
       }),
     });
+    clearTimeout(timeout);
 
     if (!response.ok) {
       console.error("Anthropic API error:", response.status, await response.text());
@@ -1071,10 +1105,14 @@ export async function OPTIONS(req: Request) {
 
 export async function POST(req: Request) {
   const origin = req.headers.get("origin");
+  let attemptedMessage = "";
+  let attemptedHistory: { role: ChatRole; content: string }[] = [];
 
   try {
     const body = (await req.json()) as PublicRequestBody;
     const message = String(body.message || "").trim();
+    attemptedMessage = message;
+    attemptedHistory = recentHistory(body.history || []);
 
     if (!message) {
       return NextResponse.json(
@@ -1083,123 +1121,199 @@ export async function POST(req: Request) {
       );
     }
 
-    const admin = createServiceSupabase();
-    const visitor = await findOrCreateVisitor(admin, req, body);
-    const thread = await findOrCreateThread(admin, visitor.id, body);
     const analysis = analyzeLead(message);
-    const memoryRecords = await loadChiChiMemories(admin, {
-      scope: "public",
-      visitorId: visitor.id,
-      limit: 12,
-    });
-    const memoryContext = formatChiChiMemories(memoryRecords);
-    const programContext = await loadChiChiProgramContext(admin);
-    const geneticsContext = await loadBreedingGeneticsPromptContext(admin);
+    let admin: SupabaseClient | null = null;
 
-    await insertMessage(admin, {
-      threadId: thread.id,
-      visitorId: visitor.id,
-      sender: "visitor",
-      content: message,
-      intent: analysis.topic,
-      topic: analysis.topic,
-      requiresFollowUp: analysis.requiresFollowUp,
-      followUpReason: analysis.followUpReason,
-      tags: analysis.tags,
-    });
+    try {
+      admin = createServiceSupabase();
+    } catch (error) {
+      console.warn("[chichi-public] Supabase service client unavailable; using local reply.", error);
+    }
+
+    if (!admin) {
+      const text = localFallback(message, recentHistory(body.history || []), "", undefined);
+      return NextResponse.json(
+        {
+          text,
+          leadStatus: analysis.leadStatus,
+          followUpNeeded: analysis.requiresFollowUp,
+          degraded: true,
+        },
+        { status: 200, headers: withCors(origin) }
+      );
+    }
+
+    const visitor = await withTimeout(
+      findOrCreateVisitor(admin, req, body),
+      1800,
+      null,
+      "visitor lookup"
+    );
+    const thread = visitor
+      ? await withTimeout(findOrCreateThread(admin, visitor.id, body), 1800, null, "thread lookup")
+      : null;
+    const memoryRecords =
+      visitor && admin
+        ? await withTimeout(
+            loadChiChiMemories(admin, {
+              scope: "public",
+              visitorId: visitor.id,
+              limit: 12,
+            }),
+            1200,
+            [],
+            "memory lookup"
+          )
+        : [];
+    const memoryContext = formatChiChiMemories(memoryRecords);
+    const [programContext, geneticsContext] = visitor
+      ? await Promise.all([
+          withTimeout(loadChiChiProgramContext(admin), 1500, null, "program context"),
+          withTimeout(loadBreedingGeneticsPromptContext(admin), 1000, "", "genetics context"),
+        ])
+      : [null, ""];
+
+    if (visitor && thread) {
+      await bestEffort(
+        "save visitor message",
+        insertMessage(admin, {
+          threadId: thread.id,
+          visitorId: visitor.id,
+          sender: "visitor",
+          content: message,
+          intent: analysis.topic,
+          topic: analysis.topic,
+          requiresFollowUp: analysis.requiresFollowUp,
+          followUpReason: analysis.followUpReason,
+          tags: analysis.tags,
+        })
+      );
+    }
 
     let conversationHistory: { role: ChatRole; content: string }[] =
       body.history && body.history.length > 0
         ? body.history
-        : await loadThreadHistory(admin, thread.id);
+        : thread
+          ? await withTimeout(loadThreadHistory(admin, thread.id), 1800, [], "thread history")
+          : [];
 
     const lastInHistory = conversationHistory[conversationHistory.length - 1];
     if (!lastInHistory || lastInHistory.role !== "user" || lastInHistory.content !== message) {
       conversationHistory = [...conversationHistory, { role: "user", content: message }];
     }
 
-    const text = await generateChiChiReply(
-      message,
-      conversationHistory,
-      memoryContext,
-      geneticsContext,
-      programContext
+    const text = await withTimeout(
+      generateChiChiReply(
+        message,
+        conversationHistory,
+        memoryContext,
+        geneticsContext,
+        programContext || undefined
+      ),
+      9000,
+      localFallback(message, conversationHistory, memoryContext, programContext || undefined),
+      "reply generation"
     );
 
-    await insertMessage(admin, {
-      threadId: thread.id,
-      visitorId: visitor.id,
-      sender: "assistant",
-      content: text,
-      topic: analysis.topic,
-      tags: analysis.tags,
-    });
+    if (visitor && thread) {
+      await bestEffort(
+        "save assistant message",
+        insertMessage(admin, {
+          threadId: thread.id,
+          visitorId: visitor.id,
+          sender: "assistant",
+          content: text,
+          topic: analysis.topic,
+          tags: analysis.tags,
+        })
+      );
 
-    const visitorProfileMemory = buildAnonymousVisitorProfileMemory(analysis);
-    await upsertChiChiMemory(admin, {
-      scope: "public",
-      kind: "context",
-      key: "visitor-profile",
-      subject: "Anonymous visitor profile",
-      content: visitorProfileMemory.content,
-      summary: visitorProfileMemory.summary,
-      visitorId: visitor.id,
-      importance: 5,
-      sourceRoute: "/api/chichi-public",
-      meta: {
-        lead_status: analysis.leadStatus,
-        topic: analysis.topic,
-        tags: analysis.tags,
-      },
-    });
+      const visitorProfileMemory = buildAnonymousVisitorProfileMemory(analysis);
+      await bestEffort(
+        "save visitor profile memory",
+        upsertChiChiMemory(admin, {
+          scope: "public",
+          kind: "context",
+          key: "visitor-profile",
+          subject: "Anonymous visitor profile",
+          content: visitorProfileMemory.content,
+          summary: visitorProfileMemory.summary,
+          visitorId: visitor.id,
+          importance: 5,
+          sourceRoute: "/api/chichi-public",
+          meta: {
+            lead_status: analysis.leadStatus,
+            topic: analysis.topic,
+            tags: analysis.tags,
+          },
+        })
+      );
 
-    const visitorPreference = extractVisitorPreferenceMemory(message);
-    if (visitorPreference) {
-      await upsertChiChiMemory(admin, {
-        scope: "public",
-        kind: "preference",
-        key: buildMemoryKey("visitor-preference", visitorPreference),
-        subject: "Anonymous visitor preference",
-        content: visitorPreference,
-        summary: summarizeMemoryText(visitorPreference, 120),
-        visitorId: visitor.id,
-        importance: 7,
-        sourceRoute: "/api/chichi-public",
-        meta: {
-          source: "public_chat",
-        },
-      });
+      const visitorPreference = extractVisitorPreferenceMemory(message);
+      if (visitorPreference) {
+        await bestEffort(
+          "save visitor preference memory",
+          upsertChiChiMemory(admin, {
+            scope: "public",
+            kind: "preference",
+            key: buildMemoryKey("visitor-preference", visitorPreference),
+            subject: "Anonymous visitor preference",
+            content: visitorPreference,
+            summary: summarizeMemoryText(visitorPreference, 120),
+            visitorId: visitor.id,
+            importance: 7,
+            sourceRoute: "/api/chichi-public",
+            meta: {
+              source: "public_chat",
+            },
+          })
+        );
+      }
+
+      const lead = await withTimeout(
+        upsertLead(admin, {
+          visitorId: visitor.id,
+          threadId: thread.id,
+          analysis,
+        }),
+        2200,
+        null,
+        "lead upsert"
+      );
+
+      if (lead) {
+        await bestEffort(
+          "save follow-up task",
+          ensureFollowUpTask(admin, {
+            leadId: lead.id,
+            threadId: thread.id,
+            visitorId: visitor.id,
+            analysis,
+          })
+        );
+      }
+
+      await bestEffort("update thread", updateThread(admin, { threadId: thread.id, analysis }));
     }
-
-    const lead = await upsertLead(admin, {
-      visitorId: visitor.id,
-      threadId: thread.id,
-      analysis,
-    });
-
-    await ensureFollowUpTask(admin, {
-      leadId: lead.id,
-      threadId: thread.id,
-      visitorId: visitor.id,
-      analysis,
-    });
-
-    await updateThread(admin, { threadId: thread.id, analysis });
 
     return NextResponse.json(
       {
         text,
-        visitorId: visitor.id,
-        threadId: thread.id,
+        visitorId: visitor?.id || null,
+        threadId: thread?.id || null,
         leadStatus: analysis.leadStatus,
         followUpNeeded: analysis.requiresFollowUp,
+        degraded: !visitor || !thread,
       },
       { status: 200, headers: withCors(origin) }
     );
   } catch (error) {
     console.error("ChiChi route error:", error);
+    const text = attemptedMessage
+      ? localFallback(attemptedMessage, attemptedHistory, "", undefined)
+      : "I am here, but I could not read that message cleanly. Send it once more and I will help.";
     return NextResponse.json(
-      { text: "Oops, something went sideways on my end! Try again in a second 🐾" },
+      { text, visitorId: null, threadId: null, degraded: true },
       { status: 200, headers: withCors(origin) }
     );
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import React, { useEffect, useEffectEvent, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUpRight,
   Archive,
@@ -124,10 +124,12 @@ export default function AdminPortalDocumentsPage() {
   const [overrideNote, setOverrideNote] = useState("");
   const [replacementFile, setReplacementFile] = useState<File | null>(null);
   const [workingAction, setWorkingAction] = useState("");
+  const hasLoadedRecordsRef = useRef(false);
+  const initialLoadKeyRef = useRef("");
 
-  const loadWorkspace = useEffectEvent(async (background = false) => {
+  const loadWorkspace = useCallback(async (background = false) => {
     if (!accessToken) return;
-    if (background && records.length) setRefreshing(true);
+    if (background && hasLoadedRecordsRef.current) setRefreshing(true);
     else setLoadingData(true);
     try {
       const response = await fetch("/api/admin/portal/buyer-documents", {
@@ -148,6 +150,7 @@ export default function AdminPortalDocumentsPage() {
 
       const nextRecords = Array.isArray(payload.records) ? payload.records : [];
       setRecords(nextRecords);
+      hasLoadedRecordsRef.current = true;
       setSelectedKey((current) =>
         nextRecords.some((record) => record.key === current) ? current : nextRecords[0]?.key || ""
       );
@@ -158,13 +161,16 @@ export default function AdminPortalDocumentsPage() {
       setLoadingData(false);
       setRefreshing(false);
     }
-  });
+  }, [accessToken]);
 
   useEffect(() => {
     if (!accessToken || !isAdmin) {
+      initialLoadKeyRef.current = "";
       setLoadingData(false);
       return;
     }
+    if (initialLoadKeyRef.current === accessToken) return;
+    initialLoadKeyRef.current = accessToken;
     void loadWorkspace(false);
   }, [accessToken, isAdmin, loadWorkspace]);
 

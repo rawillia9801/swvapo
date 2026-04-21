@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useEffectEvent, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, RefreshCcw, Send } from "lucide-react";
 import {
   AdminEmptyState,
@@ -153,15 +153,18 @@ export default function AdminPortalMessagesPage() {
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [selectedKey, setSelectedKey] = useState("");
+  const hasLoadedThreadsRef = useRef(false);
+  const initialLoadKeyRef = useRef("");
 
-  const loadInboxWorkspace = useEffectEvent(async (background = false) => {
+  const loadInboxWorkspace = useCallback(async (background = false) => {
     if (!accessToken) return;
-    if (background && threads.length) setThreadsRefreshing(true);
+    if (background && hasLoadedThreadsRef.current) setThreadsRefreshing(true);
     else setThreadsLoading(true);
 
     try {
       const nextThreads = await loadThreads(accessToken);
       setThreads(nextThreads);
+      hasLoadedThreadsRef.current = true;
       setSelectedKey((current) => nextThreads.find((thread) => thread.key === current)?.key || nextThreads[0]?.key || "");
       setStatusText("");
     } catch (error) {
@@ -170,12 +173,15 @@ export default function AdminPortalMessagesPage() {
       setThreadsLoading(false);
       setThreadsRefreshing(false);
     }
-  });
+  }, [accessToken]);
 
   useEffect(() => {
     if (!loading && accessToken && isAdmin) {
+      if (initialLoadKeyRef.current === accessToken) return;
+      initialLoadKeyRef.current = accessToken;
       void loadInboxWorkspace(false);
     } else if (!loading) {
+      initialLoadKeyRef.current = "";
       setThreadsLoading(false);
     }
   }, [accessToken, isAdmin, loading, loadInboxWorkspace]);

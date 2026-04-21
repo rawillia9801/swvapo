@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useEffectEvent, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Activity,
@@ -364,8 +364,14 @@ export function ResendTemplatesWorkspace() {
   );
 
   const hasLoadedOnce = templates.length > 0 || recentActivity.length > 0;
+  const hasLoadedOnceRef = useRef(hasLoadedOnce);
+  const initialLoadKeyRef = useRef("");
 
-  const loadWorkspace = useEffectEvent(async (background = false) => {
+  useEffect(() => {
+    hasLoadedOnceRef.current = hasLoadedOnce;
+  }, [hasLoadedOnce]);
+
+  const loadWorkspace = useCallback(async (background = false) => {
     if (!accessToken) {
       setInitializing(false);
       setLoadingWorkspace(false);
@@ -375,7 +381,7 @@ export function ResendTemplatesWorkspace() {
 
     if (background) {
       setRefreshing(true);
-    } else if (!hasLoadedOnce) {
+    } else if (!hasLoadedOnceRef.current) {
       setLoadingWorkspace(true);
     } else {
       setRefreshing(true);
@@ -419,7 +425,7 @@ export function ResendTemplatesWorkspace() {
           ? error.message
           : "Could not load the automatic email templates.";
 
-      if (!hasLoadedOnce) {
+      if (!hasLoadedOnceRef.current) {
         setStatusText(message);
       } else {
         setWarningText(message);
@@ -429,15 +435,18 @@ export function ResendTemplatesWorkspace() {
       setLoadingWorkspace(false);
       setRefreshing(false);
     }
-  });
+  }, [accessToken]);
 
   useEffect(() => {
     if (!loading && accessToken && isAdmin) {
+      if (initialLoadKeyRef.current === accessToken) return;
+      initialLoadKeyRef.current = accessToken;
       void loadWorkspace(false);
       return;
     }
 
     if (!loading) {
+      initialLoadKeyRef.current = "";
       setInitializing(false);
       setLoadingWorkspace(false);
       setRefreshing(false);

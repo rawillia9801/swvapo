@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import React, { useEffect, useEffectEvent, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BellRing, Loader2, RefreshCcw, Wallet } from "lucide-react";
 import {
   AdminEmptyState,
@@ -100,10 +100,12 @@ export function PuppyFinancingWorkspace() {
   const [statusText, setStatusText] = useState("");
   const [search, setSearch] = useState("");
   const [workingAction, setWorkingAction] = useState("");
+  const hasLoadedAccountsRef = useRef(false);
+  const initialLoadKeyRef = useRef("");
 
-  const loadAccounts = useEffectEvent(async () => {
+  const loadAccounts = useCallback(async (background = false) => {
     if (!accessToken) return;
-    setLoadingData(true);
+    if (!background || !hasLoadedAccountsRef.current) setLoadingData(true);
     setStatusText("");
 
     try {
@@ -119,6 +121,7 @@ export function PuppyFinancingWorkspace() {
 
       const financedAccounts = (payload.accounts || []).filter((account) => account.buyer.finance_enabled);
       setAccounts(financedAccounts);
+      hasLoadedAccountsRef.current = true;
       setSelectedKey((current) =>
         financedAccounts.some((account) => account.key === current) ? current : financedAccounts[0]?.key || ""
       );
@@ -127,12 +130,15 @@ export function PuppyFinancingWorkspace() {
     } finally {
       setLoadingData(false);
     }
-  });
+  }, [accessToken]);
 
   useEffect(() => {
     if (!loading && accessToken && isAdmin) {
-      void loadAccounts();
+      if (initialLoadKeyRef.current === accessToken) return;
+      initialLoadKeyRef.current = accessToken;
+      void loadAccounts(false);
     } else if (!loading) {
+      initialLoadKeyRef.current = "";
       setLoadingData(false);
     }
   }, [accessToken, isAdmin, loading, loadAccounts]);
@@ -174,7 +180,7 @@ export function PuppyFinancingWorkspace() {
         throw new Error(payload.error || "Could not send the financing notice.");
       }
       setStatusText(kind === "default_notice" ? "Default notice sent." : "Financing reminder sent.");
-      await loadAccounts();
+      await loadAccounts(true);
     } catch (error) {
       setStatusText(error instanceof Error ? error.message : "Could not send the financing notice.");
     } finally {
@@ -222,7 +228,7 @@ export function PuppyFinancingWorkspace() {
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <button type="button" onClick={() => void loadAccounts()} className="inline-flex items-center gap-2 rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-text)]">
+              <button type="button" onClick={() => void loadAccounts(true)} className="inline-flex items-center gap-2 rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-text)]">
                 <RefreshCcw className="h-4 w-4" />
                 Refresh
               </button>

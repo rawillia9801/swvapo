@@ -13,12 +13,16 @@ export async function fetchAdminPuppiesSnapshot(
   }
 
   try {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 15000);
     const response = await fetch("/api/admin/portal/puppies-system", {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
       cache: "no-store",
+      signal: controller.signal,
     });
+    window.clearTimeout(timeout);
 
     const payload = (await response.json()) as PuppiesSystemResponse;
 
@@ -36,7 +40,12 @@ export async function fetchAdminPuppiesSnapshot(
   } catch (error) {
     return {
       snapshot: null,
-      error: error instanceof Error ? error.message : "Could not load the Puppies workspace.",
+      error:
+        error instanceof DOMException && error.name === "AbortError"
+          ? "The Puppies workspace took too long to respond. Refresh to try again."
+          : error instanceof Error
+            ? error.message
+            : "Could not load the Puppies workspace.",
     };
   }
 }

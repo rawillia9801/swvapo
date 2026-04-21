@@ -26,7 +26,7 @@ const sessionCache: SessionCache = {
 };
 
 function updateSessionCache(user: User | null, accessToken: string) {
-  sessionCache.initialized = true;
+  sessionCache.initialized = Boolean(user && accessToken);
   sessionCache.user = user;
   sessionCache.accessToken = accessToken;
 }
@@ -67,6 +67,7 @@ export function usePortalAdminSession(): PortalAdminSessionState {
       try {
         const session = await getClientSessionWithTimeout(sb, {
           context: "src/lib/use-portal-admin-session.ts",
+          timeoutMs: 6000,
         });
 
         if (!mounted) return;

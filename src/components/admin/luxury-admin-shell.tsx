@@ -139,6 +139,12 @@ const ADMIN_NAV: AdminNavSection[] = [
     label: "Assistant",
     items: [
       {
+        href: "/admin/portal/website-chats",
+        label: "Website Chats",
+        helper: "Public ChiChi conversations and lead follow-up",
+        icon: <MessageSquareText className="h-4 w-4" />,
+      },
+      {
         href: "/admin/portal/assistant",
         label: "ChiChi Admin",
         helper: "Owner-side command console",
