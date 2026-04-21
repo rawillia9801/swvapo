@@ -1,17 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  CalendarClock,
+  AlertTriangle,
+  CheckCircle2,
+  Clock3,
   FileText,
-  HeartPulse,
   Loader2,
   MessageSquareText,
+  PawPrint,
   RefreshCcw,
   Sparkles,
-  Stethoscope,
-  Wallet,
 } from "lucide-react";
 import {
   AdminEmptyState,
@@ -23,181 +23,186 @@ import {
   AdminRestrictedState,
   adminStatusBadge,
 } from "@/components/admin/luxury-admin-shell";
-import type { AdminOverviewStats } from "@/lib/admin-portal";
-import { fetchAdminOverview } from "@/lib/admin-portal";
-import type {
-  ActivityFeedItem,
-  LitterWorkspaceRecord,
-  PuppiesSystemSnapshot,
-  PuppyWorkspaceRecord,
-} from "@/lib/admin-puppies-system";
-import { fetchAdminPuppiesSnapshot } from "@/lib/admin-puppies-client";
-import { isCurrentPuppyStatus, isReservedPuppyStatus } from "@/lib/admin-puppies-system";
 import { usePortalAdminSession } from "@/lib/use-portal-admin-session";
 import { fmtDate } from "@/lib/utils";
+
+type DashboardAttention = {
+  id: string;
+  title: string;
+  count: number;
+  detail: string;
+  href: string;
+  tone: string;
+};
+
+type DashboardRecentItem = {
+  id: string;
+  label: string;
+  title: string;
+  detail: string;
+  href: string;
+  occurredAt: string | null;
+};
+
+type DashboardLitter = {
+  id: string;
+  name: string;
+  status: string;
+  date: string | null;
+  puppyCount: number;
+  detail: string;
+  href: string;
+};
+
+type DashboardCareItem = {
+  id: string;
+  title: string;
+  detail: string;
+  occurredAt: string | null;
+  href: string;
+};
+
+type DashboardSummary = {
+  fetchedAt: string;
+  counts: {
+    currentPuppies: number;
+    availablePuppies: number;
+    reservedPuppies: number;
+    pastPuppies: number;
+    activeLitters: number;
+    activeBuyers: number;
+    unreadBuyerMessages: number;
+    websiteChatsToday: number;
+    websiteFollowups: number;
+    financeAccounts: number;
+    overdueFinance: number;
+    documentsNeedingAction: number;
+    puppiesNeedingAttention: number;
+  };
+  attention: DashboardAttention[];
+  readiness: {
+    missingWeights: number;
+    missingVaccines: number;
+    missingDeworming: number;
+    missingPhotos: number;
+    missingCopy: number;
+    noBuyer: number;
+    unsignedForms: number;
+    unfiledDocuments: number;
+  };
+  recentItems: DashboardRecentItem[];
+  activeLitters: DashboardLitter[];
+  latestCare: DashboardCareItem[];
+  warnings: string[];
+};
+
+type DashboardResponse = {
+  ok?: boolean;
+  error?: string;
+  summary?: DashboardSummary;
+};
+
+const EMPTY_COUNTS: DashboardSummary["counts"] = {
+  currentPuppies: 0,
+  availablePuppies: 0,
+  reservedPuppies: 0,
+  pastPuppies: 0,
+  activeLitters: 0,
+  activeBuyers: 0,
+  unreadBuyerMessages: 0,
+  websiteChatsToday: 0,
+  websiteFollowups: 0,
+  financeAccounts: 0,
+  overdueFinance: 0,
+  documentsNeedingAction: 0,
+  puppiesNeedingAttention: 0,
+};
+
+const EMPTY_READINESS: DashboardSummary["readiness"] = {
+  missingWeights: 0,
+  missingVaccines: 0,
+  missingDeworming: 0,
+  missingPhotos: 0,
+  missingCopy: 0,
+  noBuyer: 0,
+  unsignedForms: 0,
+  unfiledDocuments: 0,
+};
 
 function card(extra = "") {
   return `rounded-[1.35rem] border border-[var(--portal-border)] bg-white/94 shadow-[0_14px_30px_rgba(106,76,45,0.08)] ${extra}`.trim();
 }
 
-function names(rows: PuppyWorkspaceRecord[]) {
-  return rows.slice(0, 3).map((row) => row.displayName).join(", ") || "No matching puppies right now.";
+function countLabel(value: number, singular: string, plural = `${singular}s`) {
+  return `${value} ${value === 1 ? singular : plural}`;
 }
 
-function activityGlyph(kind: ActivityFeedItem["kind"]) {
-  if (kind === "payment") return <Wallet className="h-4 w-4" />;
-  if (kind === "document") return <FileText className="h-4 w-4" />;
-  if (kind === "message") return <MessageSquareText className="h-4 w-4" />;
-  if (kind === "weight" || kind === "health") return <HeartPulse className="h-4 w-4" />;
-  return <Sparkles className="h-4 w-4" />;
+function displayDate(value: string | null | undefined) {
+  return value ? fmtDate(value) : "No date";
 }
 
-function litterStage(litter: LitterWorkspaceRecord) {
-  if (!litter.whelpDate) return "Stage not set";
-  const ageDays = Math.floor((Date.now() - Date.parse(litter.whelpDate)) / 86400000);
-  if (!Number.isFinite(ageDays)) return "Stage not set";
-  if (ageDays < 0) return "Upcoming";
-  if (ageDays < 14) return "Neonatal";
-  if (ageDays < 28) return "Transition";
-  if (ageDays < 56) return "Socialization";
-  return "Grow-out";
+async function fetchDashboardSummary(accessToken: string) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 9000);
+
+  try {
+    const response = await fetch("/api/admin/portal/dashboard", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    const payload = (await response.json()) as DashboardResponse;
+
+    if (!response.ok || !payload.ok || !payload.summary) {
+      throw new Error(payload.error || "Could not load the dashboard summary.");
+    }
+
+    return payload.summary;
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
 export function AdminDashboardWorkspace() {
   const { user, accessToken, loading, isAdmin } = usePortalAdminSession();
-  const [snapshot, setSnapshot] = useState<PuppiesSystemSnapshot | null>(null);
-  const [overview, setOverview] = useState<AdminOverviewStats | null>(null);
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loadingData, setLoadingData] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [warningText, setWarningText] = useState("");
   const [errorText, setErrorText] = useState("");
-
-  const hasWorkspaceData = Boolean(snapshot || overview);
-  const hasWorkspaceDataRef = useRef(hasWorkspaceData);
   const initialLoadKeyRef = useRef("");
 
-  useEffect(() => {
-    hasWorkspaceDataRef.current = hasWorkspaceData;
-  }, [hasWorkspaceData]);
-
-  const loadWorkspace = useCallback(async (background = false) => {
+  const loadDashboard = useCallback(async (background = false) => {
     if (!accessToken) return;
-    const hasLoadedData = hasWorkspaceDataRef.current;
-
-    if (background && hasLoadedData) setRefreshing(true);
+    if (background && summary) setRefreshing(true);
     else setLoadingData(true);
 
-    if (!background) {
-      setWarningText("");
-      setErrorText("");
-    }
-
     try {
-      const [snapshotResult, overviewResult] = await Promise.allSettled([
-        fetchAdminPuppiesSnapshot(accessToken),
-        fetchAdminOverview(accessToken),
-      ]);
-
-      const warnings: string[] = [];
-      const nextSnapshot =
-        snapshotResult.status === "fulfilled" ? snapshotResult.value.snapshot : null;
-      const nextOverview =
-        overviewResult.status === "fulfilled" ? overviewResult.value : null;
-
-      if (snapshotResult.status === "fulfilled" && snapshotResult.value.error) {
-        warnings.push(`Puppies snapshot: ${snapshotResult.value.error}`);
-      } else if (snapshotResult.status === "rejected") {
-        warnings.push("Puppies snapshot could not load.");
-      }
-
-      if (overviewResult.status === "fulfilled" && !overviewResult.value) {
-        warnings.push("Program overview could not load.");
-      } else if (overviewResult.status === "rejected") {
-        warnings.push("Program overview could not load.");
-      }
-
-      if (nextSnapshot) setSnapshot(nextSnapshot);
-      if (nextOverview) setOverview(nextOverview);
-
-      if (!nextSnapshot && !nextOverview && !hasLoadedData) {
-        setErrorText("The breeding-program dashboard could not load right now.");
-      } else {
-        setErrorText("");
-      }
-
-      setWarningText(warnings.length ? `Partial data loaded. ${warnings.join(" ")}` : "");
+      const nextSummary = await fetchDashboardSummary(accessToken);
+      setSummary(nextSummary);
+      setErrorText("");
     } catch (error) {
       const message =
-        error instanceof Error
-          ? error.message
-          : "The breeding-program dashboard could not load right now.";
-      if (!hasLoadedData) setErrorText(message);
-      else setWarningText(message);
+        error instanceof Error ? error.message : "Could not load the dashboard summary.";
+      if (!summary) setErrorText(message);
+      else setErrorText(`Refresh issue: ${message}`);
     } finally {
       setLoadingData(false);
       setRefreshing(false);
     }
-  }, [accessToken]);
+  }, [accessToken, summary]);
 
   useEffect(() => {
     if (!loading && accessToken && isAdmin) {
       if (initialLoadKeyRef.current === accessToken) return;
       initialLoadKeyRef.current = accessToken;
-      void loadWorkspace(false);
+      void loadDashboard(false);
     } else if (!loading) {
       initialLoadKeyRef.current = "";
       setLoadingData(false);
     }
-  }, [accessToken, isAdmin, loading, loadWorkspace]);
-
-  const currentPuppies = useMemo(
-    () => (snapshot?.puppies || []).filter((row) => isCurrentPuppyStatus(row.status)),
-    [snapshot]
-  );
-  const pastPuppies = useMemo(
-    () => (snapshot?.puppies || []).filter((row) => !isCurrentPuppyStatus(row.status)),
-    [snapshot]
-  );
-  const availablePuppies = currentPuppies.filter((row) => !isReservedPuppyStatus(row.status));
-  const reservedPuppies = currentPuppies.filter((row) => isReservedPuppyStatus(row.status));
-  const activeLitters = (snapshot?.litters || []).filter(
-    (row) =>
-      row.currentPuppyCount > 0 ||
-      !["completed", "archived"].includes(String(row.status || "").toLowerCase())
-  );
-  const weightDue = currentPuppies.filter((row) => row.care.weightDue);
-  const vaccineDue = currentPuppies.filter((row) => row.care.vaccineDue);
-  const dewormDue = currentPuppies.filter((row) => row.care.dewormingDue);
-  const missingPhotos = currentPuppies.filter((row) => !row.readiness.photoReady);
-  const missingCopy = currentPuppies.filter((row) => !row.readiness.copyReady);
-  const noBuyer = currentPuppies.filter((row) => !row.buyerId);
-  const missingPortal = currentPuppies.filter((row) => !row.readiness.portal.ready);
-  const missingWebsite = currentPuppies.filter((row) => !row.readiness.website.ready);
-  const blockedGoHome = currentPuppies.filter((row) => !row.readiness.goHome.ready);
-  const overdueBuyers = (snapshot?.buyers || []).filter((row) => row.overdue);
-  const buyersMissingDocs = (snapshot?.buyers || []).filter((row) => row.unsignedForms > 0);
-  const recentCare = (snapshot?.recentActivity || []).filter((row) =>
-    ["weight", "health", "event"].includes(row.kind)
-  );
-  const recentAlerts = (snapshot?.recentActivity || []).filter((row) =>
-    ["document", "message", "payment", "template", "workflow"].includes(row.kind)
-  );
-  const adminAlerts = overview?.adminAlerts || [];
-
-  const metrics = [
-    ["Current Puppies", currentPuppies.length, "Still active in care, readiness, and placement."],
-    ["Available Puppies", availablePuppies.length, "Open for listing, inquiry, and matching."],
-    ["Reserved Puppies", reservedPuppies.length, "Linked or held and still in follow-through."],
-    ["Past Puppies", pastPuppies.length, "Placed, sold, completed, or archived."],
-    ["Active Litters", activeLitters.length, "Litters still connected to active operations."],
-    ["Active Buyers", snapshot?.buyers.length || 0, "Buyer records currently in motion."],
-    [
-      "Needs Attention",
-      currentPuppies.filter((row) => row.attention.length > 0).length,
-      "Current puppies with unresolved blockers.",
-    ],
-    ["Overdue Payments", overdueBuyers.length, "Financed accounts that need action now."],
-  ] as const;
+  }, [accessToken, isAdmin, loading, loadDashboard]);
 
   if (!loading && !user) {
     return (
@@ -217,25 +222,29 @@ export function AdminDashboardWorkspace() {
     );
   }
 
+  const counts = summary?.counts || EMPTY_COUNTS;
+  const readiness = summary?.readiness || EMPTY_READINESS;
+  const warnings = summary?.warnings || [];
+
   return (
     <AdminPageShell>
       <div className="space-y-6 pb-12">
         <AdminPageHero
           eyebrow="Dashboard"
           title="Breeding-program command center"
-          description="High-signal visibility across puppies, litters, buyers, care, readiness, documents, financing, and next operational actions."
+          description="A fast visibility screen for what needs attention now. Deep editing stays in Puppies, Buyers, Documents, Payments, and ChiChi."
           actions={
             <>
               <AdminHeroPrimaryAction href="/admin/portal/puppies/current">
                 Open Current Puppies
               </AdminHeroPrimaryAction>
-              <AdminHeroSecondaryAction href="/admin/portal/litters">
-                Open Litters
+              <AdminHeroSecondaryAction href="/admin/portal/website-chats">
+                Read Website Chats
               </AdminHeroSecondaryAction>
               <button
                 type="button"
-                onClick={() => void loadWorkspace(true)}
-                disabled={refreshing || loading}
+                onClick={() => void loadDashboard(true)}
+                disabled={refreshing || loadingData}
                 className="inline-flex items-center justify-center gap-2 rounded-[1rem] border border-[var(--portal-border)] bg-white/92 px-4 py-3 text-sm font-semibold text-[var(--portal-text)] shadow-[var(--portal-shadow-sm)] transition hover:bg-[var(--portal-surface-muted)] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
@@ -245,373 +254,255 @@ export function AdminDashboardWorkspace() {
           }
           aside={
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <Signal label="Unread buyer messages" value={String(overview?.unreadBuyerMessages || 0)} />
-              <Signal label="Open follow-ups" value={String(overview?.openFollowUps || 0)} />
               <Signal
-                label="Public chats today"
-                value={String(overview?.publicThreads24h || 0)}
-                href="/admin/portal/website-chats"
+                label="Current puppies"
+                value={String(counts?.currentPuppies ?? "-")}
+                href="/admin/portal/puppies/current"
               />
               <Signal
-                label="Latest digest"
-                value={
-                  overview?.latestDigest?.digest_date
-                    ? fmtDate(overview.latestDigest.digest_date)
-                    : "No digest"
-                }
+                label="Needs attention"
+                value={String(counts?.puppiesNeedingAttention ?? "-")}
+                href="/admin/portal/puppies/current"
+              />
+              <Signal
+                label="Buyer messages"
+                value={String(counts?.unreadBuyerMessages ?? "-")}
+                href="/admin/portal/messages"
+              />
+              <Signal
+                label="Website chats today"
+                value={String(counts?.websiteChatsToday ?? "-")}
+                href="/admin/portal/website-chats"
               />
             </div>
           }
         />
 
-        {warningText ? (
+        {errorText ? (
           <div className="rounded-[1.35rem] border border-amber-200 bg-amber-50/90 px-5 py-4 text-sm leading-6 text-amber-900">
-            {warningText}
+            {errorText}
           </div>
         ) : null}
 
-        {overview?.latestDigest || adminAlerts.length ? (
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_420px]">
-            <AdminPanel
-              title="ChiChi Operations Digest"
-              subtitle="System-level intelligence from live admin digests, memory updates, and active alerts."
-            >
-              <div className="grid gap-4 lg:grid-cols-2">
-                <div className={card("p-4")}>
-                  <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
-                    Latest Digest
-                  </div>
-                  <div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">
-                    {overview?.latestDigest?.digest_date
-                      ? fmtDate(overview.latestDigest.digest_date)
-                      : "No digest yet"}
-                  </div>
-                  <div className="mt-3 text-sm leading-6 text-[var(--portal-text-soft)]">
-                    {overview?.latestDigest?.summary ||
-                      "ChiChi has not published an admin digest yet."}
-                  </div>
-                  {overview?.latestDigest?.priorities?.length ? (
-                    <div className="mt-4 space-y-2">
-                      {overview.latestDigest.priorities.slice(0, 3).map((priority) => (
-                        <div
-                          key={priority}
-                          className="rounded-[0.95rem] border border-[var(--portal-border)] bg-white px-4 py-3 text-sm text-[var(--portal-text-soft)]"
-                        >
-                          {priority}
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className={card("p-4")}>
-                  <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
-                    ChiChi Activity
-                  </div>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <Signal
-                      label="Assistant messages"
-                      value={String(overview?.assistantMessages24h || 0)}
-                    />
-                    <Signal
-                      label="Memory updates"
-                      value={String(overview?.memoryUpdates24h || 0)}
-                    />
-                    <Signal
-                      label="Public chats"
-                      value={String(overview?.publicMessages24h || 0)}
-                      href="/admin/portal/website-chats"
-                    />
-                    <Signal
-                      label="Buyer inbox"
-                      value={String(overview?.unreadBuyerMessages || 0)}
-                    />
-                  </div>
-                </div>
-              </div>
-            </AdminPanel>
-
-            <AdminPanel
-              title="Live Admin Alerts"
-              subtitle="Recent operational alerts coming straight from ChiChi's admin alert stream."
-            >
-              <div className="space-y-3">
-                {adminAlerts.length ? (
-                  adminAlerts.map((alert) => (
-                    <div
-                      key={alert.id}
-                      className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-4"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-sm font-semibold text-[var(--portal-text)]">
-                            {alert.title}
-                          </div>
-                          <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
-                            {[alert.alert_scope, alert.source, alert.created_at ? fmtDate(alert.created_at) : null]
-                              .filter(Boolean)
-                              .join(" | ")}
-                          </div>
-                        </div>
-                        <span
-                          className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${adminStatusBadge(
-                            alert.tone
-                          )}`}
-                        >
-                          {alert.tone}
-                        </span>
-                      </div>
-                      <div className="mt-3 text-sm leading-6 text-[var(--portal-text-soft)]">
-                        {alert.message}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <AdminEmptyState
-                    title="No active admin alerts"
-                    description="ChiChi alerts will appear here when payments, care gaps, or admin issues need attention."
-                  />
-                )}
-              </div>
-            </AdminPanel>
+        {warnings.length ? (
+          <div className="rounded-[1.35rem] border border-amber-200 bg-amber-50/90 px-5 py-4 text-sm leading-6 text-amber-900">
+            Some dashboard data was skipped so the page could stay fast: {warnings.join(" ")}
           </div>
         ) : null}
 
-        {!hasWorkspaceData && (loading || loadingData) ? (
+        {!summary && (loading || loadingData) ? (
           <DashboardSkeleton />
-        ) : !hasWorkspaceData ? (
+        ) : !summary ? (
           <AdminEmptyState
-            title="The breeding-program dashboard did not load."
-            description={errorText || "Try refreshing the dashboard."}
+            title="Dashboard summary did not load."
+            description="The dashboard uses a lightweight summary endpoint now. Try refresh once; deep workspaces are still available from the sidebar."
           />
         ) : (
           <>
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              {metrics.map(([label, value, detail]) => (
-                <div key={label} className={card("px-5 py-5")}>
-                  <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
-                    {label}
+            <section className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_390px]">
+              <AdminPanel
+                title="Today's Priorities"
+                subtitle="Only items with real counts appear here. Open the workspace to do the work."
+              >
+                {summary.attention.length ? (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {summary.attention.slice(0, 6).map((item) => (
+                      <PriorityCard key={item.id} item={item} />
+                    ))}
                   </div>
-                  <div className="mt-2 text-[1.55rem] font-semibold tracking-[-0.04em] text-[var(--portal-text)]">
-                    {value}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
+                ) : (
+                  <AdminEmptyState
+                    title="No urgent blockers in the fast dashboard view"
+                    description="Weights, vaccine/deworming gaps, listing blockers, document gaps, overdue finance accounts, and public chat follow-ups are clear in this summary."
+                  />
+                )}
+              </AdminPanel>
+
+              <AdminPanel
+                title="Communication Watch"
+                subtitle="The dashboard should make message work obvious, not hide it behind counts."
+              >
+                <div className="grid gap-3">
+                  <FocusLink
+                    href="/admin/portal/messages"
+                    icon={<MessageSquareText className="h-4 w-4" />}
+                    label="Unread buyer portal messages"
+                    value={counts.unreadBuyerMessages}
+                    detail="Portal Messages is buyer-to-owner messaging only."
+                    tone={counts.unreadBuyerMessages ? "warning" : "completed"}
+                  />
+                  <FocusLink
+                    href="/admin/portal/website-chats"
+                    icon={<Sparkles className="h-4 w-4" />}
+                    label="Website chats today"
+                    value={counts.websiteChatsToday}
+                    detail={`${countLabel(counts.websiteFollowups, "chat")} flagged for follow-up.`}
+                    tone={counts.websiteFollowups ? "warning" : "completed"}
+                  />
+                  <FocusLink
+                    href="/admin/portal/resend-templates"
+                    icon={<FileText className="h-4 w-4" />}
+                    label="Resend template library"
+                    value={counts.overdueFinance}
+                    detail="Edit automatic payment, due-date, credit, and default emails."
+                    tone={counts.overdueFinance ? "danger" : "neutral"}
+                  />
                 </div>
-              ))}
+              </AdminPanel>
             </section>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_360px]">
-              <AdminPanel
-                title="Immediate Attention"
-                subtitle="These are the issues that still need breeder action, not just passive visibility."
-              >
-                <div className="grid gap-4 xl:grid-cols-2">
-                  <QueueCard
-                    title="Care Gaps"
-                    items={[
-                      ["Weights missing this week", weightDue.length, names(weightDue), "/admin/portal/puppies/current"],
-                      ["Vaccine records missing", vaccineDue.length, names(vaccineDue), "/admin/portal/puppies/current"],
-                      ["Deworming records missing", dewormDue.length, names(dewormDue), "/admin/portal/puppies/current"],
-                    ]}
-                  />
-                  <QueueCard
-                    title="Publication Blockers"
-                    items={[
-                      ["Photos missing", missingPhotos.length, names(missingPhotos), "/admin/portal/puppies/current"],
-                      ["Website copy missing", missingCopy.length, names(missingCopy), "/admin/portal/puppies/current"],
-                      ["Website readiness blocked", missingWebsite.length, names(missingWebsite), "/admin/portal/puppies"],
-                    ]}
-                  />
-                  <QueueCard
-                    title="Buyer & Placement"
-                    items={[
-                      ["No buyer linkage", noBuyer.length, names(noBuyer), "/admin/portal/puppies/current"],
-                      [
-                        "Buyers missing documents",
-                        buyersMissingDocs.length,
-                        buyersMissingDocs.slice(0, 3).map((row) => row.displayName).join(", ") || "No buyer document gaps right now.",
-                        "/admin/portal/documents",
-                      ],
-                      ["Portal readiness incomplete", missingPortal.length, names(missingPortal), "/admin/portal/puppies"],
-                    ]}
-                  />
-                  <QueueCard
-                    title="Financial & Go-Home"
-                    items={[
-                      [
-                        "Overdue payment-plan accounts",
-                        overdueBuyers.length,
-                        overdueBuyers.slice(0, 3).map((row) => row.displayName).join(", ") || "No overdue financed buyers right now.",
-                        "/admin/portal/puppy-financing",
-                      ],
-                      ["Go-home blockers", blockedGoHome.length, names(blockedGoHome), "/admin/portal/puppies"],
-                      [
-                        "Assigned puppies",
-                        currentPuppies.filter((row) => row.buyerId).length,
-                        names(currentPuppies.filter((row) => row.buyerId)),
-                        "/admin/portal/buyers",
-                      ],
-                    ]}
-                  />
-                </div>
-              </AdminPanel>
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+              <MetricCard
+                label="Available"
+                value={counts.availablePuppies}
+                detail="Current puppies not reserved or buyer-linked."
+                href="/admin/portal/puppies/current"
+              />
+              <MetricCard
+                label="Reserved"
+                value={counts.reservedPuppies}
+                detail="Reserved, held, matched, or buyer-linked."
+                href="/admin/portal/puppies/current"
+              />
+              <MetricCard
+                label="Past"
+                value={counts.pastPuppies}
+                detail="Historical puppy records."
+                href="/admin/portal/puppies/past"
+              />
+              <MetricCard
+                label="Litters"
+                value={counts.activeLitters}
+                detail="Active or open litter records."
+                href="/admin/portal/litters"
+              />
+              <MetricCard
+                label="Buyers"
+                value={counts.activeBuyers}
+                detail="Active buyer records."
+                href="/admin/portal/buyers"
+              />
+              <MetricCard
+                label="Finance"
+                value={counts.financeAccounts}
+                detail={`${countLabel(counts.overdueFinance, "overdue account")}.`}
+                href="/admin/portal/puppy-financing"
+              />
+            </section>
 
-              <AdminPanel title="Quick Actions" subtitle="Jump straight into the next admin surface.">
+            <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              <AdminPanel
+                title="Readiness Snapshot"
+                subtitle="A small set of signals that determine whether puppies, documents, and placement work can move."
+              >
                 <div className="grid gap-3">
-                  <QuickLink href="/admin/portal/puppies/current" label="Open Current Puppies" detail="Use the stronger record manager and drawer editing flow." />
-                  <QuickLink href="/admin/portal/puppies/past" label="Open Past Puppies" detail="Review historical records with the same detailed drawer." />
-                  <QuickLink href="/admin/portal/litters" label="Open Litters" detail="Track pairings, whelping, and litter blockers." />
-                  <QuickLink href="/admin/portal/buyers" label="Open Buyers" detail="View linkage, balances, documents, and placement progress." />
-                  <QuickLink href="/admin/portal/documents" label="Open Documents" detail="Work filing, resend, override, and buyer submission records." />
-                  <QuickLink href="/admin/portal/messages" label="Open Messages" detail="Review the buyer inbox and message follow-through." />
-                  <QuickLink href="/admin/portal/website-chats" label="Open Website Chats" detail="Read public ChiChi website conversations and lead follow-up." />
-                  <QuickLink href="/admin/portal/resend-templates" label="Open Resend Templates" detail="Edit automatic payment, due-date, and reminder emails in the admin UI." />
-                  <QuickLink href="/admin/portal/assistant" label="Open ChiChi" detail="Ask for blockers, drafts, reminders, and next actions." />
-                </div>
-              </AdminPanel>
-            </div>
-
-            <div className="grid gap-6 xl:grid-cols-2">
-              <AdminPanel
-                title="Care & Health"
-                subtitle="Upcoming husbandry work and the latest care signals stay together here."
-              >
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <SummaryStack
-                    title="Upcoming and overdue care"
-                    items={[
-                      ["Weights due", weightDue.length, names(weightDue)],
-                      ["Vaccines due", vaccineDue.length, names(vaccineDue)],
-                      ["Deworming due", dewormDue.length, names(dewormDue)],
-                      [
-                        "Special-care puppies",
-                        currentPuppies.filter((row) => row.profile.specialCareFlag).length,
-                        names(currentPuppies.filter((row) => row.profile.specialCareFlag)),
-                      ],
-                    ]}
+                  <ReadinessRow
+                    href="/admin/portal/puppies/current"
+                    label="Care data"
+                    value={
+                      readiness.missingWeights +
+                      readiness.missingVaccines +
+                      readiness.missingDeworming
+                    }
+                    detail={`${readiness.missingWeights} weights, ${readiness.missingVaccines} vaccines, ${readiness.missingDeworming} deworming records need review.`}
                   />
-                  <ActivityStack
-                    title="Recent care entries"
-                    icon={<CalendarClock className="h-4 w-4 text-[#a56733]" />}
-                    items={recentCare}
+                  <ReadinessRow
+                    href="/admin/portal/puppies/current"
+                    label="Website listing readiness"
+                    value={readiness.missingPhotos + readiness.missingCopy}
+                    detail={`${readiness.missingPhotos} photo gaps and ${readiness.missingCopy} copy gaps.`}
+                  />
+                  <ReadinessRow
+                    href="/admin/portal/puppies/current"
+                    label="Buyer linkage"
+                    value={readiness.noBuyer}
+                    detail="Current puppies without a buyer link."
+                  />
+                  <ReadinessRow
+                    href="/admin/portal/documents"
+                    label="Document workflow"
+                    value={readiness.unsignedForms + readiness.unfiledDocuments}
+                    detail={`${readiness.unsignedForms} unsigned forms and ${readiness.unfiledDocuments} signed documents needing filing.`}
                   />
                 </div>
               </AdminPanel>
 
               <AdminPanel
-                title="Website, Portal & Litters"
-                subtitle="Publication readiness and litter oversight stay visible without turning into a wall of filler."
+                title="Active Litters"
+                subtitle="Just enough litter context to know whether to open the litter workspace."
               >
-                <div className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <ReadinessCard
-                      title="Website Ready"
-                      ready={currentPuppies.filter((row) => row.readiness.website.ready).length}
-                      total={currentPuppies.length}
-                      blocker={`${missingPhotos.length} missing photos | ${missingCopy.length} missing descriptions`}
-                    />
-                    <ReadinessCard
-                      title="Portal Ready"
-                      ready={currentPuppies.filter((row) => row.readiness.portal.ready).length}
-                      total={currentPuppies.length}
-                      blocker={`${missingPortal.length} not portal-ready`}
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    {activeLitters.length ? (
-                      activeLitters.slice(0, 5).map((litter) => (
-                        <div key={litter.id} className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-4">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <div className="text-sm font-semibold text-[var(--portal-text)]">{litter.displayName}</div>
-                              <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
-                                {[litter.damName, litter.sireName, litter.whelpDate ? fmtDate(litter.whelpDate) : null].filter(Boolean).join(" | ")}
-                              </div>
+                {summary.activeLitters.length ? (
+                  <div className="grid gap-3">
+                    {summary.activeLitters.map((litter) => (
+                      <Link
+                        key={litter.id}
+                        href={litter.href}
+                        className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-4 transition hover:border-[var(--portal-border-strong)] hover:bg-[var(--portal-surface-muted)]"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-semibold text-[var(--portal-text)]">
+                              {litter.name}
                             </div>
-                            <span className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${adminStatusBadge(litter.status || "active")}`}>
-                              {litterStage(litter)}
-                            </span>
+                            <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
+                              {[displayDate(litter.date), countLabel(litter.puppyCount, "puppy", "puppies")]
+                                .filter(Boolean)
+                                .join(" / ")}
+                            </div>
                           </div>
-                          <div className="mt-3 text-xs leading-5 text-[var(--portal-text-soft)]">
-                            {litter.pendingTasks[0] || "No obvious litter blockers right now."}
-                          </div>
+                          <span
+                            className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${adminStatusBadge(
+                              litter.status
+                            )}`}
+                          >
+                            {litter.status}
+                          </span>
                         </div>
-                      ))
-                    ) : (
-                      <AdminEmptyState
-                        title="No active litters right now"
-                        description="Active or upcoming litters will appear here as soon as the breeding record is updated."
-                      />
-                    )}
+                      </Link>
+                    ))}
                   </div>
-                </div>
+                ) : (
+                  <AdminEmptyState
+                    title="No active litters in the fast dashboard view"
+                    description="Open Litters for full historical and lifecycle records."
+                  />
+                )}
               </AdminPanel>
-            </div>
+            </section>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_360px]">
+            <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
               <AdminPanel
-                title="Recent Activity / Alerts"
-                subtitle="Recent care, documents, messages, payments, and workflow updates stay visible here."
+                title="Recent Movement"
+                subtitle="The latest buyer messages, website chats, documents, and payment records."
               >
-                <div className="space-y-3">
-                  {overview?.latestDigest?.summary ? (
-                    <div className="rounded-[1rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4 text-sm leading-6 text-[var(--portal-text-soft)]">
-                      {overview.latestDigest.summary}
-                    </div>
-                  ) : null}
-                  {[...recentAlerts.slice(0, 4), ...recentCare.slice(0, 4)].slice(0, 8).map((item) => (
-                    <div key={item.id} className="flex items-start gap-3 rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3">
-                      <span className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[var(--portal-surface-muted)] text-[#8c6848]">
-                        {activityGlyph(item.kind)}
-                      </span>
-                      <div>
-                        <div className="text-sm font-semibold text-[var(--portal-text)]">{item.title}</div>
-                        <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
-                          {[item.detail, item.occurredAt ? fmtDate(item.occurredAt) : null].filter(Boolean).join(" | ")}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {!recentAlerts.length && !recentCare.length ? (
-                    <AdminEmptyState
-                      title="No recent operational activity"
-                      description="Recent care, document, message, and payment events will surface here."
-                    />
-                  ) : null}
-                </div>
+                {summary.recentItems.length ? (
+                  <div className="space-y-3">
+                    {summary.recentItems.map((item) => (
+                      <RecentRow key={item.id} item={item} />
+                    ))}
+                  </div>
+                ) : (
+                  <AdminEmptyState
+                    title="No recent activity in this summary"
+                    description="Recent portal activity will appear here when records are present."
+                  />
+                )}
               </AdminPanel>
 
               <AdminPanel
-                title="ChiChi & Workflow Intelligence"
-                subtitle="Use ChiChi for operational summaries, drafts, reminders, and supported task workflows."
+                title="Quick Open"
+                subtitle="The dashboard is visibility only. These are the work surfaces."
               >
-                <div className="space-y-4">
-                  <div className={card("p-4")}>
-                    <div className="text-sm font-semibold text-[var(--portal-text)]">Admin capabilities</div>
-                    <div className="mt-3 space-y-2">
-                      {(snapshot?.chichi.adminCapabilities || []).map((item) => (
-                        <div key={item} className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3 text-sm leading-6 text-[var(--portal-text-soft)]">
-                          {item}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className={card("p-4")}>
-                    <div className="text-sm font-semibold text-[var(--portal-text)]">Suggested prompts</div>
-                    <div className="mt-3 space-y-2 text-sm text-[var(--portal-text-soft)]">
-                      <div className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3">Which puppies need weights updated this week?</div>
-                      <div className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3">Show buyers still missing signed documents.</div>
-                      <div className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3">Which puppies are ready for website but not portal?</div>
-                      <div className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3">Draft a payment reminder for overdue accounts.</div>
-                    </div>
-                  </div>
-                  <Link href="/admin/portal/assistant" className="inline-flex items-center justify-center gap-2 rounded-[1rem] bg-[linear-gradient(90deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[var(--portal-shadow-md)]">
-                    <Sparkles className="h-4 w-4" />
-                    Open ChiChi Admin
-                  </Link>
+                <div className="grid gap-3">
+                  <QuickLink href="/admin/portal/puppies/current" label="Current Puppies" />
+                  <QuickLink href="/admin/portal/documents" label="Documents" />
+                  <QuickLink href="/admin/portal/messages" label="Portal Messages" />
+                  <QuickLink href="/admin/portal/website-chats" label="Website Chats" />
+                  <QuickLink href="/admin/portal/puppy-financing" label="Puppy Financing" />
+                  <QuickLink href="/admin/portal/assistant" label="ChiChi Admin" />
                 </div>
               </AdminPanel>
-            </div>
+            </section>
           </>
         )}
       </div>
@@ -619,221 +510,215 @@ export function AdminDashboardWorkspace() {
   );
 }
 
-function Signal({ label, value, href }: { label: string; value: string; href?: string }) {
-  const content = (
-    <>
+function Signal({
+  label,
+  value,
+  href,
+}: {
+  label: string;
+  value: string;
+  href: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="block rounded-[1rem] border border-[var(--portal-border)] bg-white/88 px-4 py-3 transition hover:border-[var(--portal-border-strong)] hover:bg-white"
+    >
       <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
         {label}
       </div>
       <div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">{value}</div>
-    </>
-  );
-
-  if (href) {
-    return (
-      <Link
-        href={href}
-        className="block rounded-[1rem] border border-[var(--portal-border)] bg-white/88 px-4 py-3 transition hover:border-[var(--portal-border-strong)] hover:bg-white"
-      >
-        {content}
-      </Link>
-    );
-  }
-
-  return (
-    <div className="rounded-[1rem] border border-[var(--portal-border)] bg-white/88 px-4 py-3">
-      {content}
-    </div>
+    </Link>
   );
 }
 
-function QueueCard({
-  title,
-  items,
+function MetricCard({
+  label,
+  value,
+  detail,
+  href,
 }: {
-  title: string;
-  items: Array<[string, number, string, string]>;
+  label: string;
+  value: number;
+  detail: string;
+  href: string;
 }) {
   return (
-    <div className={card("p-4")}>
-      <div className="flex items-center gap-2 text-sm font-semibold text-[var(--portal-text)]">
-        <Stethoscope className="h-4 w-4 text-[#a56733]" />
-        {title}
+    <Link href={href} className={card("block px-5 py-5 transition hover:border-[var(--portal-border-strong)]")}>
+      <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+        {label}
       </div>
-      <div className="mt-4 space-y-3">
-        {items.map(([label, count, detail, href]) => (
-          <Link
-            key={label}
-            href={href}
-            className="block rounded-[1rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 transition hover:border-[var(--portal-border-strong)] hover:bg-white"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-[var(--portal-text)]">{label}</div>
-                <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">{detail}</div>
-              </div>
-              <span
-                className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${adminStatusBadge(
-                  count ? "warning" : "completed"
-                )}`}
-              >
-                {count}
-              </span>
-            </div>
-          </Link>
-        ))}
+      <div className="mt-2 text-[1.55rem] font-semibold tracking-[-0.04em] text-[var(--portal-text)]">
+        {value}
       </div>
-    </div>
+      <div className="mt-2 text-xs leading-5 text-[var(--portal-text-soft)]">{detail}</div>
+    </Link>
   );
 }
 
-function QuickLink({
+function PriorityCard({ item }: { item: DashboardAttention }) {
+  return (
+    <Link
+      href={item.href}
+      className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-4 transition hover:border-[var(--portal-border-strong)] hover:bg-[var(--portal-surface-muted)]"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-sm font-semibold text-[var(--portal-text)]">
+            {item.tone === "danger" ? (
+              <AlertTriangle className="h-4 w-4 text-red-600" />
+            ) : (
+              <Clock3 className="h-4 w-4 text-[#a56733]" />
+            )}
+            {item.title}
+          </div>
+          <div className="mt-2 text-xs leading-5 text-[var(--portal-text-soft)]">{item.detail}</div>
+        </div>
+        <span
+          className={`shrink-0 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${adminStatusBadge(
+            item.tone
+          )}`}
+        >
+          {item.count}
+        </span>
+      </div>
+    </Link>
+  );
+}
+
+function FocusLink({
   href,
+  icon,
   label,
+  value,
   detail,
+  tone,
 }: {
   href: string;
+  icon: React.ReactNode;
   label: string;
+  value: number;
   detail: string;
+  tone: string;
 }) {
   return (
     <Link
       href={href}
       className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-4 transition hover:border-[var(--portal-border-strong)] hover:bg-[var(--portal-surface-muted)]"
     >
-      <div className="text-sm font-semibold text-[var(--portal-text)]">{label}</div>
-      <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">{detail}</div>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 text-sm font-semibold text-[var(--portal-text)]">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[var(--portal-surface-muted)] text-[#8c6848]">
+              {icon}
+            </span>
+            {label}
+          </div>
+          <div className="mt-2 text-xs leading-5 text-[var(--portal-text-soft)]">{detail}</div>
+        </div>
+        <span
+          className={`rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${adminStatusBadge(
+            tone
+          )}`}
+        >
+          {value}
+        </span>
+      </div>
     </Link>
   );
 }
 
-function SummaryStack({
-  title,
-  items,
+function ReadinessRow({
+  href,
+  label,
+  value,
+  detail,
 }: {
-  title: string;
-  items: Array<[string, number, string]>;
+  href: string;
+  label: string;
+  value: number;
+  detail: string;
 }) {
+  const clear = value === 0;
   return (
-    <div className={card("p-4")}>
-      <div className="flex items-center gap-2 text-sm font-semibold text-[var(--portal-text)]">
-        <HeartPulse className="h-4 w-4 text-[#a56733]" />
-        {title}
+    <Link
+      href={href}
+      className="flex items-start justify-between gap-4 rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-4 transition hover:border-[var(--portal-border-strong)] hover:bg-[var(--portal-surface-muted)]"
+    >
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 text-sm font-semibold text-[var(--portal-text)]">
+          {clear ? (
+            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+          ) : (
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+          )}
+          {label}
+        </div>
+        <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">{detail}</div>
       </div>
-      <div className="mt-4 space-y-3">
-        {items.map(([label, count, detail]) => (
-          <div key={label} className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-[var(--portal-text)]">{label}</div>
-                <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">{detail}</div>
-              </div>
-              <span
-                className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${adminStatusBadge(
-                  count ? "warning" : "completed"
-                )}`}
-              >
-                {count}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+      <span
+        className={`shrink-0 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${adminStatusBadge(
+          clear ? "completed" : "warning"
+        )}`}
+      >
+        {value}
+      </span>
+    </Link>
   );
 }
 
-function ActivityStack({
-  title,
-  icon,
-  items,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  items: ActivityFeedItem[];
-}) {
+function RecentRow({ item }: { item: DashboardRecentItem }) {
   return (
-    <div className={card("p-4")}>
-      <div className="flex items-center gap-2 text-sm font-semibold text-[var(--portal-text)]">
-        {icon}
-        {title}
-      </div>
-      <div className="mt-4 space-y-3">
-        {items.length ? (
-          items.slice(0, 6).map((item) => (
-            <div key={item.id} className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3">
-              <div className="text-sm font-semibold text-[var(--portal-text)]">{item.title}</div>
-              <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
-                {[item.puppyName, item.detail, item.occurredAt ? fmtDate(item.occurredAt) : null]
-                  .filter(Boolean)
-                  .join(" | ")}
-              </div>
-            </div>
-          ))
+    <Link
+      href={item.href}
+      className="flex items-start gap-3 rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3 transition hover:border-[var(--portal-border-strong)] hover:bg-[var(--portal-surface-muted)]"
+    >
+      <span className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[var(--portal-surface-muted)] text-[#8c6848]">
+        {item.label.toLowerCase().includes("message") ? (
+          <MessageSquareText className="h-4 w-4" />
+        ) : item.label.toLowerCase().includes("payment") ? (
+          <PawPrint className="h-4 w-4" />
         ) : (
-          <AdminEmptyState
-            title="No recent care activity"
-            description="Recent weight logs, care records, and milestones will surface here."
-          />
+          <FileText className="h-4 w-4" />
         )}
+      </span>
+      <div className="min-w-0">
+        <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+          {item.label} / {displayDate(item.occurredAt)}
+        </div>
+        <div className="mt-1 text-sm font-semibold text-[var(--portal-text)]">{item.title}</div>
+        <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">{item.detail}</div>
       </div>
-    </div>
+    </Link>
   );
 }
 
-function ReadinessCard({
-  title,
-  ready,
-  total,
-  blocker,
-}: {
-  title: string;
-  ready: number;
-  total: number;
-  blocker: string;
-}) {
+function QuickLink({ href, label }: { href: string; label: string }) {
   return (
-    <div className={card("p-4")}>
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-sm font-semibold text-[var(--portal-text)]">{title}</div>
-        <span
-          className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${adminStatusBadge(
-            ready === total ? "completed" : ready > 0 ? "pending" : "warning"
-          )}`}
-        >
-          {ready}/{total}
-        </span>
-      </div>
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--portal-surface-muted)]">
-        <div
-          className="h-full rounded-full bg-[linear-gradient(90deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)]"
-          style={{ width: `${total ? Math.max(0, Math.min(100, (ready / total) * 100)) : 0}%` }}
-        />
-      </div>
-      <div className="mt-3 text-xs leading-5 text-[var(--portal-text-soft)]">{blocker}</div>
-    </div>
+    <Link
+      href={href}
+      className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)] hover:bg-[var(--portal-surface-muted)]"
+    >
+      {label}
+    </Link>
   );
 }
 
 function DashboardSkeleton() {
   return (
     <>
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: 8 }).map((_, index) => (
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_390px]">
+        <div className={card("min-h-[310px] animate-pulse bg-[var(--portal-surface-muted)]/70")} />
+        <div className={card("min-h-[310px] animate-pulse bg-[var(--portal-surface-muted)]/70")} />
+      </section>
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+        {Array.from({ length: 6 }).map((_, index) => (
           <div
             key={`metric-skeleton-${index}`}
             className={card("min-h-[124px] animate-pulse bg-[var(--portal-surface-muted)]/70")}
           />
         ))}
       </section>
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_360px]">
-        <div className={card("min-h-[340px] animate-pulse bg-[var(--portal-surface-muted)]/70")} />
-        <div className={card("min-h-[340px] animate-pulse bg-[var(--portal-surface-muted)]/70")} />
-      </div>
-      <div className="grid gap-6 xl:grid-cols-2">
-        <div className={card("min-h-[280px] animate-pulse bg-[var(--portal-surface-muted)]/70")} />
-        <div className={card("min-h-[280px] animate-pulse bg-[var(--portal-surface-muted)]/70")} />
-      </div>
     </>
   );
 }

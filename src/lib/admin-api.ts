@@ -71,7 +71,7 @@ export function describeRouteError(error: unknown, fallback = "Unexpected admin 
   return fallback;
 }
 
-const AUTH_ADMIN_TIMEOUT_MS = 2500;
+const AUTH_ADMIN_TIMEOUT_MS = 8000;
 
 async function withAuthAdminTimeout<T>(operation: Promise<T>): Promise<T | null> {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;

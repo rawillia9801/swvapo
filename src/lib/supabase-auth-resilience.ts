@@ -2,8 +2,8 @@ import "server-only";
 import { createHash, createHmac, timingSafeEqual } from "crypto";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
-const DEFAULT_AUTH_TIMEOUT_MS = 1800;
-const AUTH_CACHE_TTL_MS = 30_000;
+const DEFAULT_AUTH_TIMEOUT_MS = 6500;
+const AUTH_CACHE_TTL_MS = 5 * 60_000;
 
 type AuthSource = "local-jwt" | "supabase-auth" | "none";
 
