@@ -247,8 +247,25 @@ function numberValue(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function errorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object") {
+    const details = error as Record<string, unknown>;
+    return [
+      details.message,
+      details.details,
+      details.hint,
+      details.code,
+      JSON.stringify(details),
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
+  return String(error || "");
+}
+
 function isMissingTableError(error: unknown) {
-  const message = (error instanceof Error ? error.message : String(error || "")).toLowerCase();
+  const message = errorMessage(error).toLowerCase();
   return (
     message.includes("does not exist") ||
     message.includes("relation") ||
@@ -948,8 +965,8 @@ export async function loadPuppiesSystemSnapshot(
     safeRows<PuppyWeightRow>(
       service
         .from("puppy_weights")
-        .select("id,puppy_id,weigh_date,weight_date,age_weeks,weight_oz,weight_g,notes")
-        .order("weigh_date", { ascending: false, nullsFirst: false })
+        .select("id,puppy_id,weight_date,age_weeks,weight_oz,weight_g,notes")
+        .order("weight_date", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false, nullsFirst: false })
     ),
     safeRows<PuppyHealthRow>(

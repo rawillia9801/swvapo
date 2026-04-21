@@ -211,7 +211,7 @@ type HealthRecord = {
 
 type WeightRecord = {
   id: number;
-  weigh_date: string | null;
+  weigh_date?: string | null;
   weight_date?: string | null;
   age_weeks: number | null;
   weight_oz: number | null;
@@ -1182,7 +1182,7 @@ async function getWeights(admin: SupabaseClient, puppyId: number | null) {
     .from("puppy_weights")
     .select(`
       id,
-      weigh_date,
+      weight_date,
       age_weeks,
       weight_oz,
       weight_g,
@@ -1190,7 +1190,7 @@ async function getWeights(admin: SupabaseClient, puppyId: number | null) {
       source
     `)
     .eq("puppy_id", puppyId)
-    .order("weigh_date", { ascending: true, nullsFirst: false })
+    .order("weight_date", { ascending: true, nullsFirst: false })
     .returns<WeightRecord[]>();
 
   if (error) throw new Error(`Failed to load puppy weights: ${error.message}`);
@@ -4255,15 +4255,14 @@ async function executeListRecords(
   if (entity === "weights") {
     const { data, error } = await admin
       .from("puppy_weights")
-      .select("id,weight_date,weigh_date,age_weeks,weight_oz,weight_g,notes,source")
+      .select("id,weight_date,age_weeks,weight_oz,weight_g,notes,source")
       .order("weight_date", { ascending: false })
-      .order("weigh_date", { ascending: false })
       .limit(limit || 500);
     if (error) throw new Error(`Could not load puppy weights: ${error.message}`);
 
     const rows = (data || []).filter((row) => {
       if (!queryText) return true;
-      return [row.weight_date, row.weigh_date, row.age_weeks, row.weight_oz, row.weight_g, row.notes, row.source]
+      return [row.weight_date, row.age_weeks, row.weight_oz, row.weight_g, row.notes, row.source]
         .map((value) => String(value || "").toLowerCase())
         .join(" ")
         .includes(queryText);
@@ -4289,7 +4288,7 @@ async function executeListRecords(
             : row.weight_g !== null && row.weight_g !== undefined
               ? `${row.weight_g} g`
               : "No weight";
-        return `${index + 1}. ${row.weight_date || row.weigh_date || "No date"} - ${weight} - ${row.age_weeks ?? "?"} weeks`;
+        return `${index + 1}. ${row.weight_date || "No date"} - ${weight} - ${row.age_weeks ?? "?"} weeks`;
       }),
     ].join("\n");
   }
@@ -5410,7 +5409,6 @@ async function executeAddPuppy(
   ) {
     const { error: weightError } = await admin.from("puppy_weights").insert({
       puppy_id: data.id,
-      weigh_date: intent.weight_date || intent.dob || new Date().toISOString().slice(0, 10),
       weight_date: intent.weight_date || intent.dob || new Date().toISOString().slice(0, 10),
       weight_oz:
         intent.weight_oz === null || intent.weight_oz === undefined
@@ -5788,7 +5786,7 @@ async function executeAddPuppyWeight(
 
   const payload = {
     puppy_id: puppy.id,
-    weigh_date: intent.weight_date,
+    weight_date: intent.weight_date,
     age_weeks:
       intent.age_weeks === null || intent.age_weeks === undefined
         ? null
@@ -5853,7 +5851,7 @@ async function findPuppyWeight(
   if (!puppy?.id) throw new Error("I could not find that puppy to locate the weight entry.");
 
   let query = admin.from("puppy_weights").select("*").eq("puppy_id", puppy.id).limit(50);
-  if (intent.weight_date) query = query.eq("weigh_date", intent.weight_date);
+  if (intent.weight_date) query = query.eq("weight_date", intent.weight_date);
   const { data, error } = await query;
   if (error) throw new Error(`Could not load puppy weights: ${error.message}`);
 
@@ -5890,7 +5888,7 @@ async function executeUpdatePuppyWeight(
   if (!weight?.id) throw new Error("I could not find that weight entry to update.");
 
   const payload = compactObject({
-    weigh_date: intent.new_weight_date || undefined,
+    weight_date: intent.new_weight_date || undefined,
     age_weeks: intent.age_weeks === null || intent.age_weeks === undefined ? undefined : Number(intent.age_weeks),
     weight_oz: intent.weight_oz === null || intent.weight_oz === undefined ? undefined : Number(intent.weight_oz),
     weight_g: intent.weight_g === null || intent.weight_g === undefined ? undefined : Number(intent.weight_g),

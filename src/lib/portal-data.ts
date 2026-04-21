@@ -174,7 +174,8 @@ export type PortalHealthRecord = {
 export type PortalPuppyWeight = {
   id: number;
   puppy_id?: number | null;
-  weigh_date: string;
+  weight_date?: string | null;
+  weigh_date?: string | null;
   age_weeks?: number | null;
   weight_oz?: number | null;
   weight_g?: number | null;
@@ -589,9 +590,9 @@ export async function findPuppyWeights(puppyId: number | null | undefined) {
     Promise.resolve(
       sb
         .from("puppy_weights")
-        .select("id,puppy_id,weigh_date,age_weeks,weight_oz,weight_g,notes")
+        .select("id,puppy_id,weight_date,age_weeks,weight_oz,weight_g,notes")
         .eq("puppy_id", puppyId)
-        .order("weigh_date", { ascending: false })
+        .order("weight_date", { ascending: false })
         .limit(20)
     )
   );

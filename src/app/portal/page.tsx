@@ -751,7 +751,7 @@ export default function PortalPage() {
         label: "Growth",
         title: `${state.puppyName} weight logged`,
         detail: `${formatWeight(latestWeight)}${latestWeight.age_weeks ? ` at ${latestWeight.age_weeks} weeks` : ""}${latestWeight.notes ? `, ${previewText(latestWeight.notes, 70)}` : ""}`,
-        dateText: latestDateText(latestWeight.weigh_date, "On file"),
+        dateText: latestDateText(latestWeight.weight_date || latestWeight.weigh_date, "On file"),
         href: "/portal/mypuppy",
       });
     }

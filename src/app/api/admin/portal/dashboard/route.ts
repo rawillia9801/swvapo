@@ -250,7 +250,7 @@ export async function GET(req: Request) {
     const activeBuyers = buyers.filter(activeBuyer);
     const financeBuyers = buyers.filter((row) => bool(row, "finance_enabled"));
     const overdueFinance = financeBuyers.filter(unpaidFinance);
-    const latestWeights = latestById(weights, "puppy_id", ["weigh_date", "created_at"]);
+    const latestWeights = latestById(weights, "puppy_id", ["weight_date", "weigh_date", "created_at"]);
     const latestCare = latestById(health, "puppy_id", ["record_date", "created_at"]);
 
     const eightDaysAgo = new Date();
@@ -261,7 +261,7 @@ export async function GET(req: Request) {
         ? currentPuppies.filter((puppy) => {
             const latest = latestWeights.get(text(puppy, "id"));
             const latestDate = latest
-              ? safeDate(firstText(latest, "weigh_date", "created_at"))
+              ? safeDate(firstText(latest, "weight_date", "weigh_date", "created_at"))
               : null;
             return !latestDate || latestDate.getTime() < eightDaysAgo.getTime();
           })

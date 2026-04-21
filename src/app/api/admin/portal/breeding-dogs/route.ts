@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { createServiceSupabase, firstValue, verifyOwner } from "@/lib/admin-api";
+import {
+  createServiceSupabase,
+  describeRouteError,
+  firstValue,
+  verifyOwner,
+} from "@/lib/admin-api";
 import {
   BREEDING_DOG_TABLES,
   chooseFirstAvailableTable,
@@ -8,11 +13,9 @@ import {
 import { isMissingBreedingGeneticsColumnError } from "@/lib/breeding-genetics";
 import { breedingStatusIsInactive } from "@/lib/breeding-program";
 
-function normalizeUuid(value: unknown) {
+function normalizeDogId(value: unknown) {
   const text = String(value || "").trim();
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text)
-    ? text
-    : null;
+  return text || null;
 }
 
 function asDogPayload(body: Record<string, unknown>) {
@@ -69,6 +72,99 @@ function stripGeneticsFields<T extends Record<string, unknown>>(payload: T) {
   return nextPayload;
 }
 
+function columnNameFromError(error: unknown) {
+  const message = describeRouteError(error, "").toLowerCase();
+  const quotedColumn = message.match(/['"]([a-z0-9_]+)['"] column/);
+  if (quotedColumn?.[1]) return quotedColumn[1];
+
+  const missingColumn = message.match(/column ['"]?([a-z0-9_]+)['"]? (?:of relation .* )?does not exist/);
+  if (missingColumn?.[1]) return missingColumn[1];
+
+  const schemaColumn = message.match(/could not find the ['"]([a-z0-9_]+)['"] column/);
+  if (schemaColumn?.[1]) return schemaColumn[1];
+
+  return null;
+}
+
+function stripColumn<T extends Record<string, unknown>>(payload: T, column: string) {
+  const nextPayload = { ...payload };
+  delete nextPayload[column];
+  return nextPayload;
+}
+
+async function insertDogWithSchemaFallback(
+  service: ReturnType<typeof createServiceSupabase>,
+  table: string,
+  payload: Record<string, unknown>,
+  ownerId: string
+) {
+  let nextPayload = { ...payload, user_id: ownerId };
+  const strippedColumns = new Set<string>();
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const result = await service
+      .from(table)
+      .insert(nextPayload)
+      .select("id")
+      .single<{ id: string }>();
+
+    if (!result.error) return result;
+
+    if (isMissingBreedingGeneticsColumnError(result.error)) {
+      nextPayload = stripGeneticsFields(nextPayload);
+      continue;
+    }
+
+    const missingColumn = columnNameFromError(result.error);
+    if (!missingColumn || strippedColumns.has(missingColumn)) return result;
+
+    strippedColumns.add(missingColumn);
+    nextPayload = stripColumn(nextPayload, missingColumn);
+  }
+
+  return {
+    data: null,
+    error: new Error("Could not save the breeding dog after retrying schema-compatible fields."),
+  };
+}
+
+async function updateDogWithSchemaFallback(
+  service: ReturnType<typeof createServiceSupabase>,
+  table: string,
+  dogId: string,
+  payload: Record<string, unknown>
+) {
+  let nextPayload = { ...payload };
+  const strippedColumns = new Set<string>();
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const result = await service
+      .from(table)
+      .update(nextPayload)
+      .eq("id", dogId)
+      .select("id")
+      .maybeSingle<{ id: string }>();
+
+    if (!result.error) return result;
+
+    if (isMissingBreedingGeneticsColumnError(result.error)) {
+      nextPayload = stripGeneticsFields(nextPayload);
+      continue;
+    }
+
+    const missingColumn = columnNameFromError(result.error);
+    if (!missingColumn || strippedColumns.has(missingColumn)) return result;
+
+    strippedColumns.add(missingColumn);
+    nextPayload = stripColumn(nextPayload, missingColumn);
+  }
+
+  return {
+    data: null,
+    error: new Error("Could not update the breeding dog after retrying schema-compatible fields."),
+  };
+}
+
 export async function POST(req: Request) {
   try {
     const owner = await verifyOwner(req);
@@ -96,28 +192,12 @@ export async function POST(req: Request) {
       );
     }
 
-    let { data, error } = await service
-      .from(tableChoice.table)
-      .insert({
-        ...payload,
-        user_id: owner.id,
-      })
-      .select("id")
-      .single<{ id: string }>();
-
-    if (error && isMissingBreedingGeneticsColumnError(error)) {
-      const retry = await service
-        .from(tableChoice.table)
-        .insert({
-          ...stripGeneticsFields(payload),
-          user_id: owner.id,
-        })
-        .select("id")
-        .single<{ id: string }>();
-
-      data = retry.data;
-      error = retry.error;
-    }
+    const { data, error } = await insertDogWithSchemaFallback(
+      service,
+      tableChoice.table,
+      payload,
+      owner.id
+    );
 
     if (error) throw error;
     if (!data?.id) {
@@ -134,7 +214,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         ok: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: describeRouteError(error, "Could not create the breeding dog."),
       },
       { status: 500 }
     );
@@ -149,7 +229,7 @@ export async function PATCH(req: Request) {
     }
 
     const body = (await req.json()) as Record<string, unknown>;
-    const dogId = normalizeUuid(body.id);
+    const dogId = normalizeDogId(body.id);
     if (!dogId) {
       return NextResponse.json(
         { ok: false, error: "A breeding dog id is required." },
@@ -167,19 +247,25 @@ export async function PATCH(req: Request) {
 
     const service = createServiceSupabase();
     const tableMatch = await findTableWithMatch(service, BREEDING_DOG_TABLES, "id", dogId);
-    const targetTable = tableMatch.table || BREEDING_DOG_TABLES[0];
-
-    let { error } = await service.from(targetTable).update(payload).eq("id", dogId);
-
-    if (error && isMissingBreedingGeneticsColumnError(error)) {
-      const retry = await service
-        .from(targetTable)
-        .update(stripGeneticsFields(payload))
-        .eq("id", dogId);
-      error = retry.error;
+    if (!tableMatch.table) {
+      throw new Error(
+        tableMatch.error
+          ? describeRouteError(tableMatch.error, "Could not locate the editable breeding dog record.")
+          : "Could not locate this dog in the editable breeding program tables. Refresh the roster and select the editable profile."
+      );
     }
 
+    const { data, error } = await updateDogWithSchemaFallback(
+      service,
+      tableMatch.table,
+      dogId,
+      payload
+    );
+
     if (error) throw error;
+    if (!data?.id) {
+      throw new Error("No breeding dog profile was updated. Refresh the roster and try the editable dog record.");
+    }
 
     return NextResponse.json({
       ok: true,
@@ -191,7 +277,7 @@ export async function PATCH(req: Request) {
     return NextResponse.json(
       {
         ok: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: describeRouteError(error, "Could not update the breeding dog."),
       },
       { status: 500 }
     );

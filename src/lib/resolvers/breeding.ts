@@ -310,6 +310,70 @@ function dogResolverKey(table: string, row: Record<string, unknown>) {
   )}`;
 }
 
+function dogSourcePriority(table: string | null | undefined) {
+  if (table === "bp_dogs") return 0;
+  if (table === "breeding_dogs") return 1;
+  if (table === "our_dogs") return 2;
+  return 9;
+}
+
+function dogIdentityKey(dog: ResolvedBreedingDog) {
+  const name = normalizedText(firstPresent(dog.callName, dog.displayName));
+  if (!name) return `source:${dog.resolver_key}`;
+
+  const role = normalizedText(dog.role) || "dog";
+  const dob = normalizedText(dog.dob);
+  const registration = normalizedText(dog.registrationNo || dog.registry);
+  return `identity:${role}:${name}:${dob || registration}`;
+}
+
+function mergeDogIdentityRecords(
+  dogs: ResolvedBreedingDog[],
+  diagnostics: ReturnType<typeof createResolverDiagnostics>
+) {
+  const grouped = new Map<string, ResolvedBreedingDog>();
+
+  dogs
+    .slice()
+    .sort((left, right) => dogSourcePriority(left.sourceTable) - dogSourcePriority(right.sourceTable))
+    .forEach((dog) => {
+      const key = dogIdentityKey(dog);
+      const existing = grouped.get(key);
+
+      if (!existing) {
+        grouped.set(key, dog);
+        return;
+      }
+
+      const preferred =
+        dogSourcePriority(dog.sourceTable) < dogSourcePriority(existing.sourceTable)
+          ? dog
+          : existing;
+      const supplemental = preferred === dog ? existing : dog;
+      const merged = mergeResolvedRecord(
+        preferred,
+        supplemental,
+        diagnostics,
+        `breeding dog ${preferred.displayName}`,
+        ["displayName", "sex", "dob", "status", "color", "coatType", "damId", "sireId"]
+      );
+
+      grouped.set(key, {
+        ...merged,
+        id: preferred.id,
+        resolver_key: preferred.resolver_key,
+        sourceTable: preferred.sourceTable,
+        sourceTables: Array.from(
+          new Set([...(preferred.sourceTables || []), ...(supplemental.sourceTables || [])])
+        ),
+        supportMetrics: preferred.supportMetrics || supplemental.supportMetrics || null,
+      });
+      recordDedupe(diagnostics);
+    });
+
+  return Array.from(grouped.values());
+}
+
 function litterResolverKey(table: string, row: Record<string, unknown>) {
   const id = numberValue(row, "id");
   if (id !== null) return `id:${id}`;
@@ -503,8 +567,8 @@ async function resolveWorkspaceState(service: SupabaseClient) {
     };
   });
 
-  const dogs = Array.from(dogRecords.values()).sort((left, right) =>
-    left.displayName.localeCompare(right.displayName)
+  const dogs = mergeDogIdentityRecords(Array.from(dogRecords.values()), diagnostics).sort(
+    (left, right) => left.displayName.localeCompare(right.displayName)
   );
 
   return toResolverResult<ResolvedBreedingWorkspace>(

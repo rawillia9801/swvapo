@@ -179,9 +179,9 @@ export async function GET(req: Request) {
         .limit(12),
       service
         .from("puppy_weights")
-        .select("id,puppy_id,weigh_date,age_weeks,weight_oz,weight_g,notes,source")
+        .select("id,puppy_id,weight_date,age_weeks,weight_oz,weight_g,notes,source")
         .eq("puppy_id", puppyId)
-        .order("weigh_date", { ascending: false, nullsFirst: false })
+        .order("weight_date", { ascending: false, nullsFirst: false })
         .order("id", { ascending: false })
         .limit(20),
     ]);
@@ -252,14 +252,14 @@ export async function POST(req: Request) {
         .from("puppy_weights")
         .insert({
           puppy_id: puppyId,
-          weigh_date: weighDate,
+          weight_date: weighDate,
           age_weeks: ageWeeks,
           weight_oz: weightOz,
           weight_g: weightG,
           notes,
           source,
         })
-        .select("id,puppy_id,weigh_date,age_weeks,weight_oz,weight_g,notes,source")
+        .select("id,puppy_id,weight_date,age_weeks,weight_oz,weight_g,notes,source")
         .single<PuppyWeightRow>();
 
       if (insertResult.error) throw insertResult.error;

@@ -1187,6 +1187,143 @@ function ChiChiInsightCard({ insight }: { insight: ChiChiInsight }) {
   );
 }
 
+function TopBreedingRoster({
+  dams,
+  sires,
+  selectedId,
+  createMode,
+  onSelect,
+}: {
+  dams: ProgramDogRecord[];
+  sires: ProgramDogRecord[];
+  selectedId: string;
+  createMode: boolean;
+  onSelect: (record: ProgramDogRecord) => void;
+}) {
+  return (
+    <section className="sticky top-3 z-30 rounded-[1.35rem] border border-[var(--portal-border)] bg-[rgba(252,247,240,0.94)] p-3 shadow-[0_18px_40px_rgba(106,76,45,0.14)] backdrop-blur-xl">
+      <div className="grid gap-3 xl:grid-cols-2">
+        <RosterLane
+          title="Dams"
+          count={dams.length}
+          records={dams}
+          selectedId={selectedId}
+          createMode={createMode}
+          onSelect={onSelect}
+        />
+        <RosterLane
+          title="Sires"
+          count={sires.length}
+          records={sires}
+          selectedId={selectedId}
+          createMode={createMode}
+          onSelect={onSelect}
+        />
+      </div>
+    </section>
+  );
+}
+
+function RosterLane({
+  title,
+  count,
+  records,
+  selectedId,
+  createMode,
+  onSelect,
+}: {
+  title: string;
+  count: number;
+  records: ProgramDogRecord[];
+  selectedId: string;
+  createMode: boolean;
+  onSelect: (record: ProgramDogRecord) => void;
+}) {
+  return (
+    <div className="min-w-0 rounded-[1.05rem] border border-[var(--portal-border)] bg-white/76 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+            {title}
+          </div>
+          <div className="mt-0.5 text-xs font-semibold text-[var(--portal-text-soft)]">
+            {count} unique profile{count === 1 ? "" : "s"}
+          </div>
+        </div>
+        <ListPill tone={count ? "neutral" : "warning"}>{count}</ListPill>
+      </div>
+
+      <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+        {records.length ? (
+          records.map((record) => (
+            <RosterDogButton
+              key={`${record.role}-${record.dog.id}`}
+              record={record}
+              selected={!createMode && String(record.dog.id) === selectedId}
+              onClick={() => onSelect(record)}
+            />
+          ))
+        ) : (
+          <div className="rounded-[0.95rem] border border-dashed border-[var(--portal-border)] px-4 py-3 text-xs font-semibold text-[var(--portal-text-soft)]">
+            No {title.toLowerCase()} on file.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RosterDogButton({
+  record,
+  selected,
+  onClick,
+}: {
+  record: ProgramDogRecord;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "flex min-w-[190px] items-center gap-3 rounded-[0.95rem] border px-3 py-2 text-left transition",
+        selected
+          ? "border-[var(--portal-border-strong)] bg-white shadow-[var(--portal-shadow-sm)] ring-1 ring-[rgba(182,123,67,0.2)]"
+          : "border-[var(--portal-border)] bg-[var(--portal-surface-muted)] hover:border-[var(--portal-border-strong)] hover:bg-white",
+      ].join(" ")}
+    >
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[0.8rem] bg-[rgba(236,224,210,0.7)]">
+        {record.photoUrl ? (
+          <div className="relative h-full w-full">
+            <Image
+              src={record.photoUrl}
+              alt={record.dog.displayName}
+              fill
+              unoptimized
+              sizes="40px"
+              className="object-cover"
+            />
+          </div>
+        ) : (
+          <Dog className="h-5 w-5 text-[#9b6b3c]" />
+        )}
+      </div>
+      <div className="min-w-0">
+        <div className="truncate text-sm font-semibold text-[var(--portal-text)]">
+          {record.dog.displayName}
+        </div>
+        <div className="mt-0.5 truncate text-[11px] text-[var(--portal-text-soft)]">
+          {joinMeta([
+            record.dog.status || record.stateLabel || "Active",
+            record.metadata.profile.currentProgramState,
+          ])}
+        </div>
+      </div>
+    </button>
+  );
+}
+
 function BrowserDogCard({
   record,
   maxRevenue,
@@ -1703,6 +1840,9 @@ export default function AdminPortalBreedingProgramPage() {
     [programDogs]
   );
 
+  const programDams = programDogs.filter((record) => record.role === "dam");
+  const programSires = programDogs.filter((record) => record.role === "sire");
+
   const bloodlineLeaderboard = useMemo(() => {
     const grouped = new Map<
       string,
@@ -1722,11 +1862,11 @@ export default function AdminPortalBreedingProgramPage() {
     return [...grouped.values()].sort((left, right) => right.revenue - left.revenue);
   }, [programDogs]);
 
-  const activeDams = programDogs.filter(
+  const activeDams = programDams.filter(
     (record) => record.role === "dam" && !["prospect", "retired", "deceased", "sold", "pet_home", "archived"].includes(normalizeStatusGroup(record.dog.status))
   ).length;
 
-  const activeSires = programDogs.filter(
+  const activeSires = programSires.filter(
     (record) => record.role === "sire" && !["prospect", "retired", "deceased", "sold", "pet_home", "archived"].includes(normalizeStatusGroup(record.dog.status))
   ).length;
 
@@ -2014,150 +2154,34 @@ export default function AdminPortalBreedingProgramPage() {
             </>
           }
           aside={
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.18fr)_420px]">
-              <div className="space-y-4">
-                <div className="max-w-4xl text-sm leading-7 text-[var(--portal-text-soft)]">
-                  The goal here is to work the program, not admire it. Use the roster to open a dog, update the reproductive timeline, review pairings and litter output, and keep health, lineage, and breeder notes in one place.
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <ProgramMetricTile
-                    label="Program Health"
-                    value={incompleteDogs.length || breedingTasksDue ? "Needs Attention" : "On Track"}
-                    detail={`${breedingTasksDue} due tasks and ${incompleteDogs.length} incomplete dog files`}
-                  />
-                  <ProgramMetricTile
-                    label="Top Dam"
-                    value={topDam?.dog.displayName || "No dam yet"}
-                    detail={topDam ? fmtMoney(topDam.dog.summary.totalRevenue) : "Awaiting litter output"}
-                  />
-                  <ProgramMetricTile
-                    label="Top Sire"
-                    value={topSire?.dog.displayName || "No sire yet"}
-                    detail={topSire ? fmtMoney(topSire.dog.summary.totalRevenue) : "Awaiting litter output"}
-                  />
-                  <ProgramMetricTile
-                    label="Strongest Bloodline"
-                    value={bloodlineLeaderboard[0]?.label || "Not tagged yet"}
-                    detail={
-                      bloodlineLeaderboard[0]
-                        ? `${fmtMoney(bloodlineLeaderboard[0].revenue)} across ${bloodlineLeaderboard[0].dogs} dogs`
-                        : "Add bloodline tags to compare program strength"
-                    }
-                  />
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  <CommandActionButton
-                    onClick={() => {
-                      setCreateMode(false);
-                      setProgramTab("pairings");
-                    }}
-                    icon={<GitBranch className="h-4 w-4" />}
-                    title="Open Pairings"
-                    detail="Review strongest sire and dam combinations."
-                  />
-                  <CommandActionButton
-                    onClick={() => {
-                      setCreateMode(false);
-                      setProgramTab("dogs");
-                      setDogTab("reproduction");
-                    }}
-                    icon={<Clock3 className="h-4 w-4" />}
-                    title="Log Heat"
-                    detail={
-                      selectedRecord
-                        ? `Open ${selectedRecord.dog.displayName}'s reproductive lane.`
-                        : "Select a dog first to open reproductive tracking."
-                    }
-                    disabled={!selectedRecord || createMode}
-                  />
-                  <CommandActionButton
-                    onClick={() => {
-                      setCreateMode(false);
-                      setProgramTab("dogs");
-                      setDogTab("reproduction");
-                    }}
-                    icon={<CircleAlert className="h-4 w-4" />}
-                    title="Confirm Pregnancy"
-                    detail={
-                      selectedRecord
-                        ? `Jump into ${selectedRecord.dog.displayName}'s pregnancy fields.`
-                        : "Select a dog first to review pregnancy tracking."
-                    }
-                    disabled={!selectedRecord || createMode}
-                  />
-                  <CommandActionLink
-                    href="/admin/portal/litters"
-                    icon={<Layers3 className="h-4 w-4" />}
-                    title="Create Litter"
-                    detail="Open the litter workspace for new or active records."
-                  />
-                  <CommandActionLink
-                    href="/admin/portal/litters"
-                    icon={<Layers3 className="h-4 w-4" />}
-                    title="Open Litters"
-                    detail="Review due, on-ground, and completed litters."
-                  />
-                  <CommandActionLink
-                    href="/admin/portal/puppies"
-                    icon={<PawPrint className="h-4 w-4" />}
-                    title="Open Puppies"
-                    detail="Jump into produced puppies, availability, and retention."
-                  />
-                  <CommandActionLink
-                    href="/admin/portal/documents"
-                    icon={<Dog className="h-4 w-4" />}
-                    title="Open Documents"
-                    detail="Review health tests, contracts, and breeder records."
-                  />
-                  <CommandActionButton
-                    onClick={() =>
-                      document.getElementById("breeding-chichi-panel")?.scrollIntoView({
-                        behavior: "smooth",
-                        block: "start",
-                      })
-                    }
-                    icon={<TrendingUp className="h-4 w-4" />}
-                    title="Ask ChiChi"
-                    detail={
-                      selectedRecord
-                        ? `Open ChiChi's read on ${selectedRecord.dog.displayName}.`
-                        : "Jump to the live breeding intelligence panel."
-                    }
-                  />
-                </div>
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_380px]">
+              <div className="rounded-[1.2rem] border border-[var(--portal-border)] bg-white/80 px-4 py-3 text-sm leading-6 text-[var(--portal-text-soft)]">
+                Work from the dam/sire roster first. Open a dog, update the selected profile, then move into pairings, timeline, or litter history only when needed.
               </div>
-
-              <Surface className="p-4">
-                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
-                  Command Search
-                </div>
-                <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
-                  Search dogs, litters, bloodlines, breeders, registry notes, and produced puppies from one command input.
-                </div>
-
-                <label className="relative mt-4 block">
-                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--portal-text-muted)]" />
-                  <input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search dogs, pairings, litters, bloodlines..."
-                    className="w-full rounded-2xl border border-[var(--portal-border)] bg-white py-3 pl-11 pr-4 text-sm text-[var(--portal-text)] shadow-sm outline-none transition focus:border-[var(--portal-accent)] focus:ring-4 focus:ring-[rgba(90,142,245,0.14)]"
-                  />
-                </label>
-
-                <div className="mt-4 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
-                  ChiChi briefing
-                </div>
-                <div className="mt-3 space-y-2">
-                  {programChiChiInsights.map((insight) => (
-                    <ChiChiInsightCard key={insight.title} insight={insight} />
-                  ))}
-                </div>
-              </Surface>
+              <label className="relative block">
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--portal-text-muted)]" />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search dogs, litters, bloodlines..."
+                  className="w-full rounded-2xl border border-[var(--portal-border)] bg-white py-3 pl-11 pr-4 text-sm text-[var(--portal-text)] shadow-sm outline-none transition focus:border-[var(--portal-accent)] focus:ring-4 focus:ring-[rgba(90,142,245,0.14)]"
+                />
+              </label>
             </div>
           }
+        />
+
+        <TopBreedingRoster
+          dams={programDams}
+          sires={programSires}
+          selectedId={selectedId}
+          createMode={createMode}
+          onSelect={(record) => {
+            setCreateMode(false);
+            setProgramTab("dogs");
+            setSelectedId(String(record.dog.id));
+            setNotice(null);
+          }}
         />
 
         {notice ? (
@@ -2253,6 +2277,13 @@ export default function AdminPortalBreedingProgramPage() {
                         { value: "archived", label: "Archived" },
                       ]}
                     />
+                  </div>
+
+                  <details className="rounded-[1rem] border border-[var(--portal-border)] bg-white/72 p-3">
+                    <summary className="cursor-pointer text-xs font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                      Advanced filters
+                    </summary>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <AdminSelectInput
                       label="Registry"
                       value={registryFilter}
@@ -2308,6 +2339,7 @@ export default function AdminPortalBreedingProgramPage() {
                       options={COMPLETENESS_FILTER_OPTIONS}
                     />
                   </div>
+                  </details>
 
                   <div className="flex flex-wrap gap-2">
                     <TabButton
