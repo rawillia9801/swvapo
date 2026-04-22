@@ -2,7 +2,18 @@
 
 import React, { useDeferredValue, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { FileUp, PencilLine, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
+import {
+  ChevronRight,
+  FileUp,
+  Mail,
+  MapPin,
+  PencilLine,
+  Phone,
+  Plus,
+  RefreshCw,
+  Search,
+  Trash2,
+} from "lucide-react";
 import {
   AdminEmptyState,
   AdminPageShell,
@@ -75,7 +86,7 @@ type BuyerRecord = {
     status?: string | null;
     submitted_at?: string | null;
     created_at?: string | null;
-      updated_at?: string | null;
+    updated_at?: string | null;
   }>;
   documents: Array<{
     id: string;
@@ -281,6 +292,7 @@ type ActivityItem = {
 type BuyerModalMode = "create" | "edit" | null;
 type FeedbackTone = "success" | "error" | "warning";
 type BuyerDirectoryFilter = "active" | "financing" | "completed";
+
 type FuelEstimate = {
   requestedMonth: string;
   priceMonth: string;
@@ -372,7 +384,9 @@ function formatApplicationAddress(record: BuyerRecord | null) {
 function deliveryFeeStatus(record: BuyerRecord | null) {
   const fee = toNumber(record?.buyer.delivery_fee);
   const miles = toNumber(record?.buyer.delivery_miles);
-  const option = String(record?.buyer.delivery_option || "").trim().toLowerCase();
+  const option = String(record?.buyer.delivery_option || "")
+    .trim()
+    .toLowerCase();
 
   if (!record) return "Not set";
   if (option === "pickup") return "Pickup";
@@ -382,7 +396,9 @@ function deliveryFeeStatus(record: BuyerRecord | null) {
 }
 
 function matchesPaymentPlanForm(formKey: string | null | undefined) {
-  const normalized = String(formKey || "").trim().toLowerCase();
+  const normalized = String(formKey || "")
+    .trim()
+    .toLowerCase();
   return ["puppy_payment_plan_agreement", "payment_plan_application", "credit_application"].includes(
     normalized
   );
@@ -393,19 +409,19 @@ function matchesPaymentPlanDocument(
   title: string | null | undefined,
   description: string | null | undefined
 ) {
-  const text = [category, title, description].map((value) => String(value || "").toLowerCase()).join(" ");
+  const text = [category, title, description]
+    .map((value) => String(value || "").toLowerCase())
+    .join(" ");
   return ["finance", "financing", "payment plan", "credit application"].some((token) =>
     text.includes(token)
   );
 }
 
 function isCompletedStatus(value: string | null | undefined) {
-  const normalized = String(value || "").trim().toLowerCase();
-  return (
-    normalized.includes("complete") ||
-    normalized.includes("closed") ||
-    normalized.includes("finished")
-  );
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  return normalized.includes("complete") || normalized.includes("closed") || normalized.includes("finished");
 }
 
 function fillBuyerForm(record: BuyerRecord | null): BuyerForm {
@@ -424,14 +440,11 @@ function fillBuyerForm(record: BuyerRecord | null): BuyerForm {
     delivery_option: String(record.buyer.delivery_option || ""),
     delivery_date: String(record.buyer.delivery_date || ""),
     delivery_location: String(record.buyer.delivery_location || ""),
-    delivery_miles:
-      record.buyer.delivery_miles == null ? "" : String(record.buyer.delivery_miles),
+    delivery_miles: record.buyer.delivery_miles == null ? "" : String(record.buyer.delivery_miles),
     delivery_fee: record.buyer.delivery_fee == null ? "" : String(record.buyer.delivery_fee),
     expense_gas: record.buyer.expense_gas == null ? "" : String(record.buyer.expense_gas),
-    expense_hotel:
-      record.buyer.expense_hotel == null ? "" : String(record.buyer.expense_hotel),
-    expense_tolls:
-      record.buyer.expense_tolls == null ? "" : String(record.buyer.expense_tolls),
+    expense_hotel: record.buyer.expense_hotel == null ? "" : String(record.buyer.expense_hotel),
+    expense_tolls: record.buyer.expense_tolls == null ? "" : String(record.buyer.expense_tolls),
     expense_misc: String(record.buyer.expense_misc || ""),
   };
 }
@@ -444,11 +457,19 @@ function summarizeBuyer(record: BuyerRecord, account: BuyerAccount | null): Buye
   const deposit = toNumber(account?.buyer.deposit_amount);
   const totalPaid =
     account?.payments
-      .filter((payment) => !["failed", "void", "cancelled", "canceled"].includes(String(payment.status || "").toLowerCase()))
+      .filter(
+        (payment) =>
+          !["failed", "void", "cancelled", "canceled"].includes(String(payment.status || "").toLowerCase())
+      )
       .reduce((sum, payment) => sum + toNumber(payment.amount), 0) || 0;
   const adjustments =
     account?.adjustments
-      .filter((adjustment) => !["failed", "void", "cancelled", "canceled"].includes(String(adjustment.status || "").toLowerCase()))
+      .filter(
+        (adjustment) =>
+          !["failed", "void", "cancelled", "canceled"].includes(
+            String(adjustment.status || "").toLowerCase()
+          )
+      )
       .reduce((sum, adjustment) => sum + toNumber(adjustment.amount), 0) || 0;
 
   return {
@@ -677,9 +698,7 @@ function FeedbackBanner({
         ? "border-amber-200 bg-amber-50 text-amber-900"
         : "border-rose-200 bg-rose-50 text-rose-800";
 
-  return (
-    <div className={`rounded-[1.1rem] border px-4 py-3 text-sm ${toneClass}`}>{text}</div>
-  );
+  return <div className={`rounded-[1.1rem] border px-4 py-3 text-sm ${toneClass}`}>{text}</div>;
 }
 
 function ReadField({
@@ -712,6 +731,216 @@ function ReadField({
   );
 }
 
+function SummaryPill({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+}) {
+  return (
+    <div className="rounded-[1.15rem] border border-[rgba(187,160,132,0.18)] bg-white/90 px-4 py-3 shadow-sm">
+      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+        {label}
+      </div>
+      <div className="mt-1 text-lg font-semibold tracking-[-0.03em] text-[var(--portal-text)]">
+        {value}
+      </div>
+      {detail ? <div className="mt-1 text-xs text-[var(--portal-text-soft)]">{detail}</div> : null}
+    </div>
+  );
+}
+
+function SectionTitle({
+  title,
+  detail,
+}: {
+  title: string;
+  detail?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div>
+        <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+          {title}
+        </div>
+        {detail ? <div className="mt-1 text-sm text-[var(--portal-text-soft)]">{detail}</div> : null}
+      </div>
+    </div>
+  );
+}
+
+function StatusDot({
+  tone,
+}: {
+  tone: "good" | "warn" | "neutral";
+}) {
+  const className =
+    tone === "good"
+      ? "bg-emerald-500"
+      : tone === "warn"
+        ? "bg-amber-500"
+        : "bg-[rgba(166,103,51,0.35)]";
+  return <span className={`inline-block h-2.5 w-2.5 rounded-full ${className}`} />;
+}
+
+function BuyerMetricStrip({
+  entry,
+}: {
+  entry: BuyerEntry;
+}) {
+  const linkedPuppies =
+    entry.account?.linkedPuppies?.length ? entry.account.linkedPuppies : entry.record.linkedPuppies;
+  const unsignedForms = entry.record.forms.filter((form) => {
+    const status = String(form.status || "").toLowerCase();
+    return status && !status.includes("signed") && !status.includes("complete") && !status.includes("filed");
+  }).length;
+  const documentCount = entry.record.documents.length + entry.record.forms.length;
+  const transportReady = Boolean(entry.record.buyer.delivery_option || entry.record.buyer.delivery_date);
+
+  return (
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+      <SummaryPill
+        label="Linked Puppy"
+        value={linkedPuppies.length ? `${linkedPuppies.length}` : "None"}
+        detail={linkedPuppies.length ? linkedPuppies.map((puppy) => puppyLabel(puppy)).join(", ") : "Assignment still needed"}
+      />
+      <SummaryPill
+        label="Balance"
+        value={fmtMoney(entry.summary.balance)}
+        detail={
+          entry.summary.lastPaymentAt ? `Last payment ${fmtDate(entry.summary.lastPaymentAt)}` : "No payment logged yet"
+        }
+      />
+      <SummaryPill
+        label="Documents"
+        value={`${documentCount}`}
+        detail={unsignedForms ? `${unsignedForms} still in progress` : "No open document issues"}
+      />
+      <SummaryPill
+        label="Portal"
+        value={entry.record.hasPortalAccount ? "Connected" : "Not linked"}
+        detail={
+          entry.record.portalUser?.last_sign_in_at
+            ? `Last sign-in ${fmtDate(entry.record.portalUser.last_sign_in_at)}`
+            : "No sign-in activity yet"
+        }
+      />
+      <SummaryPill
+        label="Transportation"
+        value={transportReady ? "In progress" : "Not set"}
+        detail={
+          entry.record.buyer.delivery_date
+            ? `Scheduled ${fmtDate(entry.record.buyer.delivery_date)}`
+            : "No pickup or meet-up date yet"
+        }
+      />
+    </div>
+  );
+}
+
+function BuyerWorkspaceRail({
+  entry,
+  selectedRequests,
+  activityItems,
+}: {
+  entry: BuyerEntry;
+  selectedRequests: TransportationRequest[];
+  activityItems: ActivityItem[];
+}) {
+  const linkedPuppies =
+    entry.account?.linkedPuppies?.length ? entry.account.linkedPuppies : entry.record.linkedPuppies;
+
+  const followUps = [
+    !linkedPuppies.length ? "No puppy linked yet." : "",
+    !entry.record.hasPortalAccount ? "Portal account is not connected yet." : "",
+    entry.summary.financeEnabled && !entry.summary.nextDueDate ? "Payment plan has no next due date saved." : "",
+    !entry.record.forms.length && !entry.record.documents.length ? "No buyer paperwork recorded yet." : "",
+    !entry.record.email ? "Buyer email is missing." : "",
+    !entry.record.phone ? "Buyer phone is missing." : "",
+    !selectedRequests.length && !entry.record.buyer.delivery_option ? "Transportation details are still blank." : "",
+  ].filter(Boolean);
+
+  return (
+    <div className="space-y-4">
+      <WorkspaceSurface className="p-4">
+        <SectionTitle title="Buyer Snapshot" />
+        <div className="mt-4 space-y-3">
+          <RailInfoRow label="Status" value={entry.record.buyer.status || "pending"} />
+          <RailInfoRow label="Buyer Since" value={entry.record.latestApplication?.created_at ? fmtDate(entry.record.latestApplication.created_at) : "Not available"} />
+          <RailInfoRow label="Linked Puppy" value={linkedPuppies.length ? linkedPuppies.map((puppy) => puppyLabel(puppy)).join(", ") : "No puppy linked"} />
+          <RailInfoRow label="Payment Plan" value={entry.summary.financeEnabled ? "Enabled" : "Not enabled"} />
+          <RailInfoRow label="Balance" value={fmtMoney(entry.summary.balance)} />
+          <RailInfoRow
+            label="Last Activity"
+            value={activityItems[0]?.date ? fmtDate(activityItems[0].date) : "No recent activity"}
+          />
+        </div>
+      </WorkspaceSurface>
+
+      <WorkspaceSurface className="p-4">
+        <SectionTitle title="Quick Actions" />
+        <div className="mt-4 grid gap-2">
+          <Link href={`/admin/portal/puppies?buyer=${entry.record.buyer.id}`} className={secondaryButtonClass}>
+            Open Puppies Workspace
+          </Link>
+          <Link href={`/admin/portal/payments?buyer=${entry.record.buyer.id}`} className={secondaryButtonClass}>
+            Open Payments
+          </Link>
+          <Link href={`/admin/portal/documents?buyer=${entry.record.buyer.id}`} className={secondaryButtonClass}>
+            Open Documents
+          </Link>
+          <Link href={`/admin/portal/transportation?buyer=${entry.record.buyer.id}`} className={secondaryButtonClass}>
+            Open Transportation
+          </Link>
+        </div>
+      </WorkspaceSurface>
+
+      <WorkspaceSurface className="p-4">
+        <SectionTitle title="Follow-Up" detail="What still needs attention on this buyer file." />
+        <div className="mt-4 space-y-3">
+          {followUps.length ? (
+            followUps.map((item) => (
+              <div
+                key={item}
+                className="flex items-start gap-3 rounded-[1rem] bg-[rgba(250,245,239,0.86)] px-3.5 py-3"
+              >
+                <div className="pt-1">
+                  <StatusDot tone="warn" />
+                </div>
+                <div className="text-sm leading-6 text-[var(--portal-text)]">{item}</div>
+              </div>
+            ))
+          ) : (
+            <div className="rounded-[1rem] bg-[rgba(250,245,239,0.86)] px-4 py-3 text-sm text-[var(--portal-text-soft)]">
+              This buyer file looks healthy right now.
+            </div>
+          )}
+        </div>
+      </WorkspaceSurface>
+    </div>
+  );
+}
+
+function RailInfoRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3 border-b border-[rgba(187,160,132,0.14)] pb-3 last:border-b-0 last:pb-0">
+      <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">
+        {label}
+      </div>
+      <div className="max-w-[65%] text-right text-sm font-semibold text-[var(--portal-text)]">{value}</div>
+    </div>
+  );
+}
+
 export function AdminBuyersWorkspace() {
   const { user, accessToken, isAdmin, loading } = usePortalAdminSession();
   const [buyers, setBuyers] = useState<BuyerRecord[]>([]);
@@ -724,7 +953,7 @@ export function AdminBuyersWorkspace() {
   const [search, setSearch] = useState("");
   const [directoryFilter, setDirectoryFilter] = useState<BuyerDirectoryFilter>("active");
   const [selectedKey, setSelectedKey] = useState("");
-  const [activeTab, setActiveTab] = useState<BuyerTabKey>("puppies");
+  const [activeTab, setActiveTab] = useState<BuyerTabKey>("profile");
   const [modalMode, setModalMode] = useState<BuyerModalMode>(null);
   const [modalForm, setModalForm] = useState<BuyerForm>(emptyBuyerForm());
   const [modalError, setModalError] = useState("");
@@ -802,7 +1031,7 @@ export function AdminBuyersWorkspace() {
 
   const filteredEntries = useMemo(() => {
     const query = deferredSearch.trim().toLowerCase();
-    return entries.filter(({ record }) => {
+    return entries.filter(({ record, summary }) => {
       if (!query) return true;
       return [
         record.displayName,
@@ -814,6 +1043,8 @@ export function AdminBuyersWorkspace() {
         record.buyer.state,
         record.buyer.postal_code,
         record.buyer.notes,
+        record.latestApplicationStatus,
+        summary.financeEnabled ? "financing payment plan finance" : "",
         ...record.documents.map((document) => document.title || document.file_name || ""),
         ...record.linkedPuppies.map((puppy) => puppyLabel(puppy)),
       ]
@@ -870,13 +1101,8 @@ export function AdminBuyersWorkspace() {
   const selectedBuyer = selectedEntry?.record || null;
   const selectedAccount = selectedEntry?.account || null;
   const selectedSummary = selectedEntry?.summary || null;
-  const linkedPuppies = useMemo(
-    () =>
-      selectedAccount?.linkedPuppies?.length
-        ? selectedAccount.linkedPuppies
-        : selectedBuyer?.linkedPuppies || [],
-    [selectedAccount?.linkedPuppies, selectedBuyer?.linkedPuppies]
-  );
+  const linkedPuppies =
+    selectedAccount?.linkedPuppies?.length ? selectedAccount.linkedPuppies : selectedBuyer?.linkedPuppies || [];
   const financeEnabled = Boolean(selectedSummary?.financeEnabled);
   const puppyTabLabel = linkedPuppies.length === 1 ? "Puppy" : "Puppies";
   const selectedRequests = selectedBuyer
@@ -886,7 +1112,7 @@ export function AdminBuyersWorkspace() {
 
   useEffect(() => {
     if (activeTab === "plan" && !financeEnabled) {
-      setActiveTab("puppies");
+      setActiveTab("profile");
     }
   }, [activeTab, financeEnabled]);
 
@@ -1005,11 +1231,14 @@ export function AdminBuyersWorkspace() {
   if (loading || (loadingData && !buyers.length && !loadError)) {
     return (
       <AdminPageShell>
-        <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-          <WorkspaceSurface className="h-[70vh] animate-pulse" />
-          <div className="space-y-4">
-            <WorkspaceSurface className="h-44 animate-pulse" />
-            <WorkspaceSurface className="h-[46vh] animate-pulse" />
+        <div className="grid gap-6 2xl:grid-cols-[360px_minmax(0,1fr)]">
+          <WorkspaceSurface className="h-[74vh] animate-pulse" />
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="space-y-4">
+              <WorkspaceSurface className="h-44 animate-pulse" />
+              <WorkspaceSurface className="h-[48vh] animate-pulse" />
+            </div>
+            <WorkspaceSurface className="h-[48vh] animate-pulse" />
           </div>
         </div>
       </AdminPageShell>
@@ -1027,12 +1256,12 @@ export function AdminBuyersWorkspace() {
 
   return (
     <AdminPageShell>
-      <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <WorkspaceSurface>
+      <div className="grid gap-6 2xl:grid-cols-[360px_minmax(0,1fr)]">
+        <WorkspaceSurface className="self-start">
           <SurfaceHeader
             eyebrow="Buyers"
             title="Buyer Directory"
-            subtitle="Active files, financing households, and completed placements."
+            subtitle="Active files, payment-plan households, and completed placements."
             action={
               <button type="button" onClick={openCreateModal} className={primaryButtonClass}>
                 <Plus className="h-4 w-4" />
@@ -1102,97 +1331,139 @@ export function AdminBuyersWorkspace() {
               />
             </WorkspaceSurface>
           ) : (
-            <>
-              <div className="sticky top-4 z-10">
-                <WorkspaceSurface>
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
-                        Buyer Workspace
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="space-y-4 min-w-0">
+                <div className="sticky top-4 z-10">
+                  <WorkspaceSurface>
+                    <div className="flex flex-wrap items-start justify-between gap-5">
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+                          Buyer Workspace
+                        </div>
+                        <h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-[var(--portal-text)]">
+                          {selectedBuyer?.displayName}
+                        </h1>
+
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <span
+                            className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(selectedBuyer?.buyer.status || "pending")}`}
+                          >
+                            {selectedBuyer?.buyer.status || "pending"}
+                          </span>
+
+                          {financeEnabled ? (
+                            <span className="inline-flex rounded-full border border-[rgba(166,103,51,0.16)] bg-[rgba(200,140,82,0.12)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--portal-text)]">
+                              Payment Plan
+                            </span>
+                          ) : null}
+
+                          {selectedBuyer?.hasPortalAccount ? (
+                            <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                              Portal Linked
+                            </span>
+                          ) : (
+                            <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-700">
+                              No Portal
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="mt-4 grid gap-2 text-sm text-[var(--portal-text-soft)] md:grid-cols-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Mail className="h-4 w-4 shrink-0" />
+                            <span className="truncate">{selectedBuyer?.email || "No email"}</span>
+                          </div>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Phone className="h-4 w-4 shrink-0" />
+                            <span className="truncate">{selectedBuyer?.phone || "No phone"}</span>
+                          </div>
+                          <div className="flex items-center gap-2 min-w-0 md:col-span-2">
+                            <MapPin className="h-4 w-4 shrink-0" />
+                            <span className="truncate">
+                              {formatBuyerAddress(selectedBuyer) || "No address saved yet"}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-[var(--portal-text)]">
-                        {selectedBuyer?.displayName}
-                      </h1>
-                      <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-[var(--portal-text-soft)]">
-                        <span>{selectedBuyer?.email || "No email"}</span>
-                        <span>{selectedBuyer?.phone || "No phone"}</span>
-                        <span>{fmtMoney(selectedSummary?.balance || 0)} balance</span>
-                        <span
-                          className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(selectedBuyer?.buyer.status || "pending")}`}
+
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" onClick={openEditModal} className={secondaryButtonClass}>
+                          <PencilLine className="h-4 w-4" />
+                          Edit Buyer
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteBuyer()}
+                          disabled={deletingBuyer}
+                          className={dangerButtonClass}
                         >
-                          {selectedBuyer?.buyer.status || "pending"}
-                        </span>
+                          <Trash2 className="h-4 w-4" />
+                          {deletingBuyer ? "Deleting..." : "Delete Buyer"}
+                        </button>
+                        <button type="button" onClick={() => void handleRefresh()} className={secondaryButtonClass}>
+                          <RefreshCw className="h-4 w-4" />
+                          Refresh
+                        </button>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-2">
-                      <button type="button" onClick={openEditModal} className={secondaryButtonClass}>
-                        <PencilLine className="h-4 w-4" />
-                        Edit Buyer
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleDeleteBuyer()}
-                        disabled={deletingBuyer}
-                        className={dangerButtonClass}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        {deletingBuyer ? "Deleting..." : "Delete Buyer"}
-                      </button>
-                      <button type="button" onClick={() => void handleRefresh()} className={secondaryButtonClass}>
-                        <RefreshCw className="h-4 w-4" />
-                        Refresh
-                      </button>
+                    <div className="mt-5">
+                      <BuyerMetricStrip entry={selectedEntry} />
                     </div>
-                  </div>
 
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    <TabButton active={activeTab === "profile"} onClick={() => setActiveTab("profile")} label="Profile" />
-                    <TabButton active={activeTab === "puppies"} onClick={() => setActiveTab("puppies")} label={puppyTabLabel} />
-                    <TabButton active={activeTab === "transportation"} onClick={() => setActiveTab("transportation")} label="Transportation" />
-                    <TabButton active={activeTab === "payments"} onClick={() => setActiveTab("payments")} label="Payments" />
-                    {financeEnabled ? (
-                      <TabButton active={activeTab === "plan"} onClick={() => setActiveTab("plan")} label="Puppy Payment Plan" />
-                    ) : null}
-                    <TabButton active={activeTab === "documents"} onClick={() => setActiveTab("documents")} label="Documents" />
-                    <TabButton active={activeTab === "activity"} onClick={() => setActiveTab("activity")} label="Activity" />
-                  </div>
-                </WorkspaceSurface>
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      <TabButton active={activeTab === "profile"} onClick={() => setActiveTab("profile")} label="Overview" />
+                      <TabButton active={activeTab === "puppies"} onClick={() => setActiveTab("puppies")} label={puppyTabLabel} />
+                      <TabButton active={activeTab === "transportation"} onClick={() => setActiveTab("transportation")} label="Transportation" />
+                      <TabButton active={activeTab === "payments"} onClick={() => setActiveTab("payments")} label="Payments" />
+                      {financeEnabled ? (
+                        <TabButton active={activeTab === "plan"} onClick={() => setActiveTab("plan")} label="Puppy Payment Plan" />
+                      ) : null}
+                      <TabButton active={activeTab === "documents"} onClick={() => setActiveTab("documents")} label="Documents" />
+                      <TabButton active={activeTab === "activity"} onClick={() => setActiveTab("activity")} label="Activity" />
+                    </div>
+                  </WorkspaceSurface>
+                </div>
+
+                {activeTab === "profile" ? (
+                  <ProfileTab record={selectedBuyer} account={selectedAccount} summary={selectedSummary} requests={selectedRequests} />
+                ) : null}
+                {activeTab === "puppies" ? <PuppiesTab entry={selectedEntry} /> : null}
+                {activeTab === "transportation" ? (
+                  <TransportationTab
+                    record={selectedBuyer}
+                    requests={selectedRequests}
+                    accessToken={accessToken || ""}
+                  />
+                ) : null}
+                {activeTab === "payments" ? <PaymentsTab entry={selectedEntry} /> : null}
+                {activeTab === "documents" ? (
+                  <DocumentsTab
+                    record={selectedBuyer}
+                    accessToken={accessToken || ""}
+                    onUploaded={() => void refreshWorkspace(selectedBuyer?.key)}
+                  />
+                ) : null}
+                {activeTab === "activity" ? <ActivityTab items={activityItems} /> : null}
+                {activeTab === "plan" && financeEnabled ? (
+                  <PlanTab
+                    entry={selectedEntry}
+                    accessToken={accessToken || ""}
+                    onUploaded={() => void refreshWorkspace(selectedBuyer?.key)}
+                  />
+                ) : null}
               </div>
 
-              {activeTab === "profile" ? (
-                <ProfileTab record={selectedBuyer} account={selectedAccount} />
-              ) : null}
-              {activeTab === "puppies" ? (
-                <PuppiesTab entry={selectedEntry} />
-              ) : null}
-              {activeTab === "transportation" ? (
-                <TransportationTab
-                  record={selectedBuyer}
-                  requests={selectedRequests}
-                  accessToken={accessToken || ""}
-                />
-              ) : null}
-              {activeTab === "payments" ? <PaymentsTab entry={selectedEntry} /> : null}
-              {activeTab === "documents" ? (
-                <DocumentsTab
-                  record={selectedBuyer}
-                  accessToken={accessToken || ""}
-                  onUploaded={() => void refreshWorkspace(selectedBuyer?.key)}
-                />
-              ) : null}
-              {activeTab === "activity" ? <ActivityTab items={activityItems} /> : null}
-              {activeTab === "plan" && financeEnabled ? (
-                <PlanTab
-                  entry={selectedEntry}
-                  accessToken={accessToken || ""}
-                  onUploaded={() => void refreshWorkspace(selectedBuyer?.key)}
-                />
-              ) : null}
-            </>
+              <BuyerWorkspaceRail
+                entry={selectedEntry}
+                selectedRequests={selectedRequests}
+                activityItems={activityItems}
+              />
+            </div>
           )}
         </div>
       </div>
+
       {modalMode ? (
         <BuyerModal
           mode={modalMode}
@@ -1222,7 +1493,7 @@ function DirectorySection({
 }) {
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between">
         <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
           {title}
         </div>
@@ -1230,37 +1501,82 @@ function DirectorySection({
       </div>
 
       {entries.length ? (
-        <div className="space-y-1.5">
-          {entries.map((entry) => (
-            <button
-              key={entry.record.key}
-              type="button"
-              onClick={() => onSelect(entry.record.key)}
-              className={[
-                "flex w-full items-center justify-between gap-3 rounded-[1rem] px-3 py-3 text-left transition",
-                entry.record.key === selectedKey
-                  ? "bg-[rgba(243,232,219,0.92)] text-[var(--portal-text)]"
-                  : "bg-transparent text-[var(--portal-text)] hover:bg-[rgba(248,242,234,0.78)]",
-              ].join(" ")}
-            >
-              <div className="min-w-0">
-                <div className="truncate text-sm font-semibold">{entry.record.displayName}</div>
-                <div className="mt-0.5 truncate text-xs text-[var(--portal-text-soft)]">
-                  {entry.record.linkedPuppies.length
-                    ? entry.record.linkedPuppies.map((puppy) => puppyLabel(puppy)).join(", ")
-                    : entry.record.email || "No puppy linked"}
+        <div className="space-y-2">
+          {entries.map((entry) => {
+            const isActive = entry.record.key === selectedKey;
+            const primaryPuppy = entry.record.linkedPuppies[0];
+            const documentCount = entry.record.documents.length + entry.record.forms.length;
+            return (
+              <button
+                key={entry.record.key}
+                type="button"
+                onClick={() => onSelect(entry.record.key)}
+                className={[
+                  "group w-full rounded-[1.15rem] border px-4 py-3.5 text-left transition",
+                  isActive
+                    ? "border-[rgba(166,103,51,0.18)] bg-[rgba(243,232,219,0.92)] shadow-sm"
+                    : "border-transparent bg-[rgba(250,245,239,0.6)] hover:border-[rgba(187,160,132,0.18)] hover:bg-[rgba(248,242,234,0.88)]",
+                ].join(" ")}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-[var(--portal-text)]">
+                      {entry.record.displayName}
+                    </div>
+
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--portal-text-soft)]">
+                      <span className="truncate">{entry.record.email || "No email"}</span>
+                      <span>{entry.record.phone || "No phone"}</span>
+                    </div>
+
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <span
+                        className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] ${adminStatusBadge(entry.record.buyer.status || "pending")}`}
+                      >
+                        {entry.record.buyer.status || "pending"}
+                      </span>
+
+                      {entry.summary.financeEnabled ? (
+                        <span className="inline-flex rounded-full border border-[rgba(166,103,51,0.16)] bg-[rgba(200,140,82,0.12)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text)]">
+                          Payment Plan
+                        </span>
+                      ) : null}
+
+                      {entry.record.hasPortalAccount ? (
+                        <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                          Portal
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <div className="mt-3 grid gap-1 text-xs text-[var(--portal-text-soft)]">
+                      <div className="truncate">
+                        {primaryPuppy ? `Linked: ${puppyLabel(primaryPuppy)}` : "No puppy linked yet"}
+                      </div>
+                      <div className="truncate">
+                        {documentCount
+                          ? `${documentCount} documents/forms on file`
+                          : "No documents recorded yet"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 text-right">
+                    <div className="text-sm font-semibold text-[var(--portal-text)]">
+                      {fmtMoney(entry.summary.balance)}
+                    </div>
+                    <div className="mt-1 text-[11px] text-[var(--portal-text-muted)]">
+                      {entry.summary.lastPaymentAt ? `Paid ${fmtDate(entry.summary.lastPaymentAt)}` : "No recent payment"}
+                    </div>
+                    <div className="mt-3 flex items-center justify-end gap-1 text-[11px] font-semibold text-[var(--portal-text-soft)] group-hover:text-[var(--portal-text)]">
+                      Open
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div className="shrink-0 text-right">
-                <div className="text-xs font-semibold text-[var(--portal-text)]">
-                  {fmtMoney(entry.summary.balance)}
-                </div>
-                <div className="mt-0.5 text-[11px] text-[var(--portal-text-muted)]">
-                  {entry.summary.financeEnabled ? "Plan ready" : entry.record.buyer.status || "pending"}
-                </div>
-              </div>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
       ) : (
         <div className="rounded-[1rem] px-3 py-4 text-sm text-[var(--portal-text-soft)]">
@@ -1324,72 +1640,203 @@ function TabButton({
 function ProfileTab({
   record,
   account,
+  summary,
+  requests,
 }: {
   record: BuyerRecord | null;
   account: BuyerAccount | null;
+  summary: BuyerSummary | null;
+  requests: TransportationRequest[];
 }) {
   if (!record) return null;
 
   const buyerAddress = formatBuyerAddress(record);
   const applicationAddress = formatApplicationAddress(record);
+  const linkedPuppies = account?.linkedPuppies?.length ? account.linkedPuppies : record.linkedPuppies;
+  const documentCount = record.forms.length + record.documents.length;
 
   return (
-    <WorkspaceSurface>
-      <SurfaceHeader
-        eyebrow="Profile"
-        title="Buyer Profile"
-        subtitle="Core contact details, address, notes, and portal context."
-      />
-      <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        <ReadField label="Buyer Name" value={record.displayName} />
-        <ReadField label="Email" value={record.email || "No email on file"} />
-        <ReadField
-          label="Phone"
-          value={record.phone || record.latestApplication?.phone || "No phone on file"}
-          detail={record.phone ? "Buyer profile phone" : record.latestApplication?.phone ? "Pulled from buyer application" : "No phone saved yet"}
+    <div className="space-y-4">
+      <WorkspaceSurface>
+        <SurfaceHeader
+          eyebrow="Overview"
+          title="Buyer Snapshot"
+          subtitle="Core buyer details, placement context, payment standing, and portal readiness."
         />
-        <ReadField
-          label="Street Address"
-          value={buyerAddress || "No buyer address saved"}
-          detail={applicationAddress ? `Application: ${applicationAddress}` : "Address can be added in Edit Buyer."}
-          wrap
+
+        <div className="mt-5 grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
+          <ReadField
+            label="Buyer Status"
+            value={record.buyer.status || "pending"}
+            detail={
+              record.latestApplicationStatus
+                ? `Application ${record.latestApplicationStatus}`
+                : "No application status recorded"
+            }
+          />
+          <ReadField
+            label="Linked Puppy"
+            value={linkedPuppies.length ? linkedPuppies.map((puppy) => puppyLabel(puppy)).join(", ") : "No puppy linked"}
+            detail={linkedPuppies.length ? "Placement has started" : "Assignment still needed"}
+            wrap
+          />
+          <ReadField
+            label="Payment Status"
+            value={summary ? fmtMoney(summary.balance) : fmtMoney(0)}
+            detail={
+              summary?.financeEnabled
+                ? "Buyer is on a payment plan"
+                : summary?.totalPaid
+                  ? `${fmtMoney(summary.totalPaid)} paid so far`
+                  : "No payments logged yet"
+            }
+          />
+          <ReadField
+            label="Document Progress"
+            value={`${documentCount} file${documentCount === 1 ? "" : "s"}`}
+            detail={documentCount ? "Forms and uploads are on record" : "No paperwork recorded yet"}
+          />
+        </div>
+      </WorkspaceSurface>
+
+      <WorkspaceSurface>
+        <SurfaceHeader
+          eyebrow="Buyer Profile"
+          title="Contact and household details"
+          subtitle="Profile details, application context, and portal information tied to this buyer record."
         />
-        <ReadField
-          label="Portal Access"
-          value={record.hasPortalAccount ? "Connected" : "Not connected"}
-          detail={
-            record.portalUser?.last_sign_in_at
-              ? `Last sign-in ${fmtDate(record.portalUser.last_sign_in_at)}`
-              : "No portal sign-in yet"
-          }
+        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+          <ReadField label="Buyer Name" value={record.displayName} />
+          <ReadField label="Email" value={record.email || "No email on file"} />
+          <ReadField
+            label="Phone"
+            value={record.phone || record.latestApplication?.phone || "No phone on file"}
+            detail={
+              record.phone
+                ? "Buyer profile phone"
+                : record.latestApplication?.phone
+                  ? "Pulled from buyer application"
+                  : "No phone saved yet"
+            }
+          />
+          <ReadField
+            label="Street Address"
+            value={buyerAddress || "No buyer address saved"}
+            detail={applicationAddress ? `Application: ${applicationAddress}` : "Address can be added in Edit Buyer."}
+            wrap
+          />
+          <ReadField
+            label="Portal Access"
+            value={record.hasPortalAccount ? "Connected" : "Not connected"}
+            detail={
+              record.portalUser?.last_sign_in_at
+                ? `Last sign-in ${fmtDate(record.portalUser.last_sign_in_at)}`
+                : "No portal sign-in yet"
+            }
+          />
+          <ReadField
+            label="Application"
+            value={record.latestApplicationStatus || "No application"}
+            detail={
+              record.latestApplication?.created_at
+                ? `Submitted ${fmtDate(record.latestApplication.created_at)}`
+                : `${record.applicationCount} applications`
+            }
+          />
+          <ReadField
+            label="Location"
+            value={[record.buyer.city, record.buyer.state].filter(Boolean).join(", ") || "Not set"}
+            detail={record.buyer.postal_code ? `ZIP ${record.buyer.postal_code}` : "ZIP not saved"}
+          />
+          <ReadField
+            label="Notes"
+            value={record.buyer.notes || "No notes saved yet."}
+            wrap
+          />
+        </div>
+      </WorkspaceSurface>
+
+      <WorkspaceSurface>
+        <SurfaceHeader
+          eyebrow="Placement Readiness"
+          title="Placement and coordination"
+          subtitle="Assignment status, transportation setup, and the buyer’s current readiness for next steps."
         />
-        <ReadField
-          label="Application"
-          value={record.latestApplicationStatus || "No application"}
-          detail={
-            record.latestApplication?.created_at
-              ? `Submitted ${fmtDate(record.latestApplication.created_at)}`
-              : `${record.applicationCount} applications`
-          }
-        />
-        <ReadField
-          label="Location"
-          value={[record.buyer.city, record.buyer.state].filter(Boolean).join(", ") || "Not set"}
-          detail={record.buyer.postal_code ? `ZIP ${record.buyer.postal_code}` : "ZIP not saved"}
-        />
-        <ReadField label="Notes" value={record.buyer.notes || "No notes saved yet."} wrap />
-        <ReadField
-          label="Payments"
-          value={account ? `${fmtMoney(account.totalPaid || 0)} recorded` : "No ledger synced yet"}
-          detail={
-            account?.lastPaymentAt
-              ? `Last payment ${fmtDate(account.lastPaymentAt)}`
-              : "Payments appear once recorded"
-          }
-          wrap
-        />
+
+        <div className="mt-5 grid gap-4 lg:grid-cols-3">
+          <ReadinessItem
+            label="Buyer Linked"
+            ready={true}
+            detail="Buyer file is active in the admin workspace."
+          />
+          <ReadinessItem
+            label="Puppy Assigned"
+            ready={linkedPuppies.length > 0}
+            detail={linkedPuppies.length ? linkedPuppies.map((puppy) => puppyLabel(puppy)).join(", ") : "No puppy is assigned yet."}
+          />
+          <ReadinessItem
+            label="Portal Ready"
+            ready={record.hasPortalAccount}
+            detail={
+              record.hasPortalAccount
+                ? "Buyer can view portal updates and visible documents."
+                : "Portal account has not been linked yet."
+            }
+          />
+          <ReadinessItem
+            label="Documents On File"
+            ready={documentCount > 0}
+            detail={
+              documentCount
+                ? `${documentCount} forms/uploads on this buyer record.`
+                : "No paperwork has been saved yet."
+            }
+          />
+          <ReadinessItem
+            label="Payment Standing"
+            ready={Boolean(summary && summary.totalPaid > 0) || Boolean(summary?.financeEnabled)}
+            detail={
+              summary?.financeEnabled
+                ? "Payment plan is active."
+                : summary?.totalPaid
+                  ? `${fmtMoney(summary.totalPaid)} has been paid.`
+                  : "No payment activity recorded yet."
+            }
+          />
+          <ReadinessItem
+            label="Transportation"
+            ready={Boolean(record.buyer.delivery_option || record.buyer.delivery_date || requests.length)}
+            detail={
+              record.buyer.delivery_date
+                ? `Scheduled for ${fmtDate(record.buyer.delivery_date)}.`
+                : record.buyer.delivery_option
+                  ? `${record.buyer.delivery_option} is set, but no date is scheduled.`
+                  : "Pickup or transport details still need to be added."
+            }
+          />
+        </div>
+      </WorkspaceSurface>
+    </div>
+  );
+}
+
+function ReadinessItem({
+  label,
+  ready,
+  detail,
+}: {
+  label: string;
+  ready: boolean;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-[1.15rem] border border-[rgba(187,160,132,0.18)] bg-white/92 px-4 py-4">
+      <div className="flex items-center gap-2">
+        <StatusDot tone={ready ? "good" : "warn"} />
+        <div className="text-sm font-semibold text-[var(--portal-text)]">{label}</div>
       </div>
-    </WorkspaceSurface>
+      <div className="mt-2 text-xs leading-5 text-[var(--portal-text-soft)]">{detail}</div>
+    </div>
   );
 }
 
@@ -1398,24 +1845,27 @@ function PuppiesTab({
 }: {
   entry: BuyerEntry | null;
 }) {
-  const linkedPuppies = useMemo(
-    () =>
-      entry?.account?.linkedPuppies?.length
-        ? entry.account.linkedPuppies
-        : entry?.record.linkedPuppies || [],
-    [entry]
-  );
+  const linkedPuppies = entry?.account?.linkedPuppies?.length
+    ? entry.account.linkedPuppies
+    : entry?.record.linkedPuppies || [];
+
   const [selectedPuppyId, setSelectedPuppyId] = useState("");
-  const effectiveSelectedPuppyId = linkedPuppies.some(
-    (puppy) => String(puppy.id) === selectedPuppyId
-  )
-    ? selectedPuppyId
-    : String(linkedPuppies[0]?.id || "");
+
+  useEffect(() => {
+    if (!linkedPuppies.length) {
+      setSelectedPuppyId("");
+      return;
+    }
+    if (!linkedPuppies.some((puppy) => String(puppy.id) === selectedPuppyId)) {
+      setSelectedPuppyId(String(linkedPuppies[0].id));
+    }
+  }, [linkedPuppies, selectedPuppyId]);
+
   const selectedPuppy =
-    linkedPuppies.find((puppy) => String(puppy.id) === effectiveSelectedPuppyId) ||
-    linkedPuppies[0] ||
-    null;
+    linkedPuppies.find((puppy) => String(puppy.id) === selectedPuppyId) || linkedPuppies[0] || null;
+
   if (!entry) return null;
+
   const assignmentHref = `/admin/portal/puppies?buyer=${entry.record.buyer.id}${
     selectedPuppy ? `&puppy=${selectedPuppy.id}` : ""
   }`;
@@ -1425,9 +1875,9 @@ function PuppiesTab({
   return (
     <WorkspaceSurface>
       <SurfaceHeader
-        eyebrow={entry.record.linkedPuppies.length === 1 ? "Puppy" : "Puppies"}
+        eyebrow={linkedPuppies.length === 1 ? "Puppy" : "Puppies"}
         title={linkedPuppies.length === 1 ? "Linked Puppy" : "Linked Puppies"}
-        subtitle="This tab stays buyer-specific. Use the Puppies workspace in the main navigation to assign or reassign puppy records."
+        subtitle="Buyer-specific puppy assignment, pricing context, litter details, and placement information live here."
         action={
           <Link href={assignmentHref} className={primaryButtonClass}>
             Manage Assignment
@@ -1437,7 +1887,7 @@ function PuppiesTab({
 
       <div className="mt-5 space-y-4">
         <div className="rounded-[1.2rem] bg-[rgba(250,245,239,0.82)] px-5 py-4 text-sm leading-6 text-[var(--portal-text-soft)]">
-          Buyer records stay calm and buyer-specific here. Assignment belongs in the main Puppies workspace so the kennel-wide roster only exists in one place.
+          Keep the buyer file focused on the assigned puppy relationship. Use the main Puppies workspace when you need kennel-wide editing, buyer reassignment, or deeper puppy record management.
         </div>
 
         {linkedPuppies.length > 1 ? (
@@ -1462,8 +1912,8 @@ function PuppiesTab({
 
         {selectedPuppy ? (
           <div className="overflow-hidden rounded-[1.2rem] border border-[rgba(187,160,132,0.18)] bg-white">
-            <div className="grid gap-0 md:grid-cols-[240px_minmax(0,1fr)]">
-              <div className="min-h-[240px] bg-[rgba(246,238,228,0.82)]">
+            <div className="grid gap-0 xl:grid-cols-[260px_minmax(0,1fr)]">
+              <div className="min-h-[260px] bg-[rgba(246,238,228,0.82)]">
                 {selectedPhotoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -1512,10 +1962,7 @@ function PuppiesTab({
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <ReadField
-                    label="Status"
-                    value={selectedPuppy.status || "Not set"}
-                  />
+                  <ReadField label="Status" value={selectedPuppy.status || "Not set"} />
                   <ReadField
                     label="Price"
                     value={fmtMoney(toNumber(selectedPuppy.price || selectedPuppy.list_price))}
@@ -1537,6 +1984,32 @@ function PuppiesTab({
                       .filter(Boolean)
                       .join(" | ") || "No extra details"}
                     wrap
+                  />
+                </div>
+
+                <div className="grid gap-3 lg:grid-cols-3">
+                  <ReadinessItem
+                    label="Buyer Linked"
+                    ready
+                    detail="This puppy is linked to the selected buyer record."
+                  />
+                  <ReadinessItem
+                    label="Pricing Saved"
+                    ready={Boolean(toNumber(selectedPuppy.price || selectedPuppy.list_price))}
+                    detail={
+                      toNumber(selectedPuppy.price || selectedPuppy.list_price)
+                        ? "Price exists on this puppy record."
+                        : "No price saved yet."
+                    }
+                  />
+                  <ReadinessItem
+                    label="Photo Ready"
+                    ready={Boolean(selectedPhotoUrl)}
+                    detail={
+                      selectedPhotoUrl
+                        ? "A primary puppy photo is present."
+                        : "No photo uploaded yet."
+                    }
                   />
                 </div>
 
@@ -1571,10 +2044,42 @@ function PuppiesTab({
             </div>
           </div>
         ) : (
-          <AdminEmptyState
-            title="No puppy linked yet"
-            description="This buyer does not currently have a puppy assigned. Use the Puppies workspace to assign one."
-          />
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+            <WorkspaceSurface className="p-5">
+              <AdminEmptyState
+                title="No puppy linked yet"
+                description="This buyer does not currently have a puppy assigned. Use the Puppies workspace to assign one."
+              />
+            </WorkspaceSurface>
+            <WorkspaceSurface className="p-5">
+              <SectionTitle title="Assignment Readiness" />
+              <div className="mt-4 space-y-3">
+                <ReadinessItem
+                  label="Buyer File Exists"
+                  ready
+                  detail="This buyer record is ready to receive an assignment."
+                />
+                <ReadinessItem
+                  label="Portal Status"
+                  ready={entry.record.hasPortalAccount}
+                  detail={
+                    entry.record.hasPortalAccount
+                      ? "Portal is ready once a puppy is linked."
+                      : "Portal account is not connected yet."
+                  }
+                />
+                <ReadinessItem
+                  label="Paperwork"
+                  ready={Boolean(entry.record.forms.length || entry.record.documents.length)}
+                  detail={
+                    entry.record.forms.length || entry.record.documents.length
+                      ? "There is already paperwork on this buyer file."
+                      : "No documents have been added yet."
+                  }
+                />
+              </div>
+            </WorkspaceSurface>
+          </div>
         )}
       </div>
     </WorkspaceSurface>
@@ -1701,12 +2206,24 @@ function TransportationTab({
         <ReadField
           label="Fee Status"
           value={deliveryFeeStatus(record)}
-          detail={record.buyer.delivery_fee ? `${fmtMoney(record.buyer.delivery_fee)} charged` : "No transportation fee recorded"}
+          detail={
+            record.buyer.delivery_fee
+              ? `${fmtMoney(record.buyer.delivery_fee)} charged`
+              : "No transportation fee recorded"
+          }
         />
         <ReadField
           label="Transportation Fee"
-          value={record.buyer.delivery_fee || record.buyer.delivery_fee === 0 ? fmtMoney(record.buyer.delivery_fee) : "Not set"}
-          detail={deliveryFeeStatus(record) === "Waived" ? "Marked as waived." : "Stored fee amount on the buyer record."}
+          value={
+            record.buyer.delivery_fee || record.buyer.delivery_fee === 0
+              ? fmtMoney(record.buyer.delivery_fee)
+              : "Not set"
+          }
+          detail={
+            deliveryFeeStatus(record) === "Waived"
+              ? "Marked as waived."
+              : "Stored fee amount on the buyer record."
+          }
         />
         <ReadField
           label="Mileage"
@@ -1715,16 +2232,28 @@ function TransportationTab({
         />
         <ReadField
           label="Tolls / Hotel"
-          value={`${fmtMoney(toNumber(record.buyer.expense_tolls))} / ${fmtMoney(toNumber(record.buyer.expense_hotel))}`}
+          value={`${fmtMoney(toNumber(record.buyer.expense_tolls))} / ${fmtMoney(
+            toNumber(record.buyer.expense_hotel)
+          )}`}
           detail={record.buyer.expense_misc || "No extra transportation notes saved"}
           wrap
         />
         <ReadField
           label="Estimated Gas"
-          value={fuelEstimate ? fmtMoney(fuelEstimate.estimatedFuelCost) : record.buyer.expense_gas ? fmtMoney(record.buyer.expense_gas) : "Not available yet"}
+          value={
+            fuelEstimate
+              ? fmtMoney(fuelEstimate.estimatedFuelCost)
+              : record.buyer.expense_gas
+                ? fmtMoney(record.buyer.expense_gas)
+                : "Not available yet"
+          }
           detail={
             fuelEstimate
-              ? `${fuelEstimate.miles.toFixed(0)} miles / ${fuelEstimate.assumedMpg} MPG (${fuelEstimate.assumedVehicle}) x ${fmtMoneyPrecise(fuelEstimate.pricePerGallon)} per gallon for ${fuelEstimate.priceMonth}${fuelEstimate.usedFallbackMonth ? " (closest available month)" : ""}. ${fuelEstimate.pricingSeries}.`
+              ? `${fuelEstimate.miles.toFixed(0)} miles / ${fuelEstimate.assumedMpg} MPG (${fuelEstimate.assumedVehicle}) x ${fmtMoneyPrecise(
+                  fuelEstimate.pricePerGallon
+                )} per gallon for ${fuelEstimate.priceMonth}${
+                  fuelEstimate.usedFallbackMonth ? " (closest available month)" : ""
+                }. ${fuelEstimate.pricingSeries}.`
               : fuelError || "Add a transportation date and mileage to calculate the fuel estimate automatically."
           }
           wrap
@@ -1801,10 +2330,7 @@ function PaymentsTab({ entry }: { entry: BuyerEntry | null }) {
         title="Payments"
         subtitle="Financial history for this buyer file."
         action={
-          <Link
-            href={`/admin/portal/payments?buyer=${entry.record.buyer.id}`}
-            className={secondaryButtonClass}
-          >
+          <Link href={`/admin/portal/payments?buyer=${entry.record.buyer.id}`} className={secondaryButtonClass}>
             Open Full Ledger
           </Link>
         }
@@ -1816,7 +2342,11 @@ function PaymentsTab({ entry }: { entry: BuyerEntry | null }) {
         <ReadField
           label="Balance"
           value={fmtMoney(entry.summary.balance)}
-          detail={entry.summary.lastPaymentAt ? `Last payment ${fmtDate(entry.summary.lastPaymentAt)}` : "No payment recorded yet"}
+          detail={
+            entry.summary.lastPaymentAt
+              ? `Last payment ${fmtDate(entry.summary.lastPaymentAt)}`
+              : "No payment recorded yet"
+          }
         />
       </div>
       <div className="mt-5">
@@ -1835,7 +2365,9 @@ function PaymentsTab({ entry }: { entry: BuyerEntry | null }) {
               <tbody className="divide-y divide-[rgba(187,160,132,0.14)]">
                 {ledgerRows.map((row) => (
                   <tr key={row.key}>
-                    <td className="px-4 py-3 text-[var(--portal-text-soft)]">{row.date ? fmtDate(row.date) : "No date"}</td>
+                    <td className="px-4 py-3 text-[var(--portal-text-soft)]">
+                      {row.date ? fmtDate(row.date) : "No date"}
+                    </td>
                     <td className="px-4 py-3 font-semibold text-[var(--portal-text)]">{row.type}</td>
                     <td className="px-4 py-3 text-[var(--portal-text-soft)]">{row.detail || "No detail"}</td>
                     <td className="px-4 py-3 text-[var(--portal-text)]">{fmtMoney(toNumber(row.amount))}</td>
@@ -1975,7 +2507,12 @@ function DocumentUploadPanel({
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <AdminTextInput label="Document Title" value={title} onChange={setTitle} placeholder="Signed payment plan agreement" />
+        <AdminTextInput
+          label="Document Title"
+          value={title}
+          onChange={setTitle}
+          placeholder="Signed payment plan agreement"
+        />
         <AdminSelectInput
           label="Category"
           value={category}
@@ -2029,8 +2566,16 @@ function DocumentUploadPanel({
         />
       </div>
 
-      {error ? <div className="mt-4 rounded-[1rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
-      {success ? <div className="mt-4 rounded-[1rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</div> : null}
+      {error ? (
+        <div className="mt-4 rounded-[1rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
+        </div>
+      ) : null}
+      {success ? (
+        <div className="mt-4 rounded-[1rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          {success}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2052,7 +2597,11 @@ function DocumentsTab({
         eyebrow="Documents"
         title="Documents"
         subtitle="Signed portal forms and scanned uploads attached to this buyer file."
-        action={<Link href="/admin/portal/documents" className={secondaryButtonClass}>Open Documents</Link>}
+        action={
+          <Link href="/admin/portal/documents" className={secondaryButtonClass}>
+            Open Documents
+          </Link>
+        }
       />
 
       <div className="mt-5">
@@ -2074,7 +2623,10 @@ function DocumentsTab({
           </div>
           {record.forms.length ? (
             record.forms.map((form) => (
-              <div key={`form-${form.id}`} className="rounded-[1.1rem] bg-[rgba(250,245,239,0.86)] px-4 py-4">
+              <div
+                key={`form-${form.id}`}
+                className="rounded-[1.1rem] bg-[rgba(250,245,239,0.86)] px-4 py-4"
+              >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="text-sm font-semibold text-[var(--portal-text)]">
@@ -2109,7 +2661,10 @@ function DocumentsTab({
           </div>
           {record.documents.length ? (
             record.documents.map((document) => (
-              <div key={`doc-${document.id}`} className="rounded-[1.1rem] bg-[rgba(250,245,239,0.86)] px-4 py-4">
+              <div
+                key={`doc-${document.id}`}
+                className="rounded-[1.1rem] bg-[rgba(250,245,239,0.86)] px-4 py-4"
+              >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="text-sm font-semibold text-[var(--portal-text)]">
@@ -2232,7 +2787,11 @@ function PlanTab({
       />
       <div className="mt-5 grid gap-4 lg:grid-cols-4">
         <ReadField label="Principal" value={fmtMoney(entry.summary.purchasePrice)} detail="Current financed puppy total." />
-        <ReadField label="Deposit" value={fmtMoney(entry.summary.deposit)} detail={`${fmtMoney(entry.summary.balance)} balance remaining`} />
+        <ReadField
+          label="Deposit"
+          value={fmtMoney(entry.summary.deposit)}
+          detail={`${fmtMoney(entry.summary.balance)} balance remaining`}
+        />
         <ReadField
           label="Monthly"
           value={entry.summary.monthlyAmount ? fmtMoney(entry.summary.monthlyAmount) : "Not set"}
@@ -2257,16 +2816,28 @@ function PlanTab({
         <ReadField
           label="Last Payment"
           value={entry.summary.lastPaymentAt ? fmtDate(entry.summary.lastPaymentAt) : "No payment yet"}
-          detail={entry.summary.totalPaid ? `${fmtMoney(entry.summary.totalPaid)} paid to date` : "No payment history recorded"}
+          detail={
+            entry.summary.totalPaid
+              ? `${fmtMoney(entry.summary.totalPaid)} paid to date`
+              : "No payment history recorded"
+          }
         />
         <ReadField
           label="Subscription"
           value={entry.account?.billing_subscription?.subscription_status || "Not synced"}
-          detail={entry.account?.billing_subscription?.plan_name || entry.account?.billing_subscription?.plan_code || "No billing plan synced"}
+          detail={
+            entry.account?.billing_subscription?.plan_name ||
+            entry.account?.billing_subscription?.plan_code ||
+            "No billing plan synced"
+          }
         />
         <ReadField
           label="Recurring Amount"
-          value={entry.account?.billing_subscription?.recurring_price ? fmtMoney(entry.account.billing_subscription.recurring_price) : "Not synced"}
+          value={
+            entry.account?.billing_subscription?.recurring_price
+              ? fmtMoney(entry.account.billing_subscription.recurring_price)
+              : "Not synced"
+          }
           detail={
             entry.account?.billing_subscription?.next_billing_at
               ? `Next billing ${fmtDate(entry.account.billing_subscription.next_billing_at)}`
@@ -2277,16 +2848,36 @@ function PlanTab({
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
         <ReadField
           label="Saved Method"
-          value={entry.account?.billing_subscription?.card_last_four ? `Ending ${entry.account.billing_subscription.card_last_four}` : "Not synced"}
-          detail={
-            entry.account?.billing_subscription?.customer_name || entry.record.displayName
+          value={
+            entry.account?.billing_subscription?.card_last_four
+              ? `Ending ${entry.account.billing_subscription.card_last_four}`
+              : "Not synced"
           }
+          detail={entry.account?.billing_subscription?.customer_name || entry.record.displayName}
           wrap
         />
         <ReadField
           label="Notice Settings"
           value={entry.account?.payment_notice_settings?.enabled ? "Enabled" : "Not configured"}
-          detail={entry.account?.payment_notice_settings ? `Receipts ${entry.account.payment_notice_settings.receipt_enabled ? "on" : "off"} | Due ${entry.account.payment_notice_settings.due_reminder_enabled ? `${entry.account.payment_notice_settings.due_reminder_days_before}d before` : "off"} | Late ${entry.account.payment_notice_settings.late_notice_enabled ? `${entry.account.payment_notice_settings.late_notice_days_after}d after` : "off"} | Default ${entry.account.payment_notice_settings.default_notice_enabled ? `${entry.account.payment_notice_settings.default_notice_days_after}d after` : "off"}` : "Notice defaults appear once saved"}
+          detail={
+            entry.account?.payment_notice_settings
+              ? `Receipts ${
+                  entry.account.payment_notice_settings.receipt_enabled ? "on" : "off"
+                } | Due ${
+                  entry.account.payment_notice_settings.due_reminder_enabled
+                    ? `${entry.account.payment_notice_settings.due_reminder_days_before}d before`
+                    : "off"
+                } | Late ${
+                  entry.account.payment_notice_settings.late_notice_enabled
+                    ? `${entry.account.payment_notice_settings.late_notice_days_after}d after`
+                    : "off"
+                } | Default ${
+                  entry.account.payment_notice_settings.default_notice_enabled
+                    ? `${entry.account.payment_notice_settings.default_notice_days_after}d after`
+                    : "off"
+                }`
+              : "Notice defaults appear once saved"
+          }
           wrap
         />
       </div>
@@ -2310,7 +2901,10 @@ function PlanTab({
           </div>
           {financingForms.length ? (
             financingForms.map((form) => (
-              <div key={`finance-form-${form.id}`} className="rounded-[1.1rem] bg-[rgba(250,245,239,0.86)] px-4 py-4">
+              <div
+                key={`finance-form-${form.id}`}
+                className="rounded-[1.1rem] bg-[rgba(250,245,239,0.86)] px-4 py-4"
+              >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="text-sm font-semibold text-[var(--portal-text)]">
@@ -2345,7 +2939,10 @@ function PlanTab({
           </div>
           {financingDocuments.length ? (
             financingDocuments.map((document) => (
-              <div key={`finance-doc-${document.id}`} className="rounded-[1.1rem] bg-[rgba(250,245,239,0.86)] px-4 py-4">
+              <div
+                key={`finance-doc-${document.id}`}
+                className="rounded-[1.1rem] bg-[rgba(250,245,239,0.86)] px-4 py-4"
+              >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="text-sm font-semibold text-[var(--portal-text)]">
@@ -2391,12 +2988,13 @@ function PlanTab({
         </div>
         {recentNoticeLogs.length ? (
           recentNoticeLogs.map((log) => (
-            <div key={`notice-log-${log.id}`} className="rounded-[1.1rem] bg-[rgba(250,245,239,0.86)] px-4 py-4">
+            <div
+              key={`notice-log-${log.id}`}
+              className="rounded-[1.1rem] bg-[rgba(250,245,239,0.86)] px-4 py-4"
+            >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold text-[var(--portal-text)]">
-                    {log.subject}
-                  </div>
+                  <div className="text-sm font-semibold text-[var(--portal-text)]">{log.subject}</div>
                   <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
                     {fmtDate(log.created_at)} | {log.notice_kind} | {log.recipient_email}
                     {log.due_date ? ` | Due ${fmtDate(log.due_date)}` : ""}
@@ -2525,7 +3123,11 @@ function BuyerModal({
           eyebrow={mode === "create" ? "Create Buyer" : "Edit Buyer"}
           title={mode === "create" ? "Start a new buyer file" : "Update buyer profile"}
           subtitle="Create Buyer and Edit Buyer share the same modal so the main workspace stays focused."
-          action={<button type="button" onClick={onClose} className={secondaryButtonClass}>Close</button>}
+          action={
+            <button type="button" onClick={onClose} className={secondaryButtonClass}>
+              Close
+            </button>
+          }
         />
 
         {error ? (
@@ -2536,35 +3138,150 @@ function BuyerModal({
 
         <div className="mt-6 space-y-5">
           <div className="grid gap-4 md:grid-cols-2">
-            <AdminTextInput label="Buyer Name" value={form.full_name} onChange={(value) => onChange("full_name", value)} placeholder="Whitney Suarez" />
-            <AdminTextInput label="Email" value={form.email} onChange={(value) => onChange("email", value)} placeholder="buyer@email.com" />
-            <AdminTextInput label="Phone" value={form.phone} onChange={(value) => onChange("phone", value)} placeholder="(555) 555-5555" />
-            <AdminSelectInput label="Status" value={form.status} onChange={(value) => onChange("status", value)} options={[{ value: "pending", label: "Pending" }, { value: "approved", label: "Approved" }, { value: "completed", label: "Completed" }]} />
-            <AdminTextInput label="Address Line 1" value={form.address_line1} onChange={(value) => onChange("address_line1", value)} placeholder="Street address" />
-            <AdminTextInput label="Address Line 2" value={form.address_line2} onChange={(value) => onChange("address_line2", value)} placeholder="Apartment, suite, etc." />
-            <AdminTextInput label="City" value={form.city} onChange={(value) => onChange("city", value)} placeholder="City" />
-            <AdminTextInput label="State" value={form.state} onChange={(value) => onChange("state", value)} placeholder="State" />
-            <AdminTextInput label="ZIP Code" value={form.postal_code} onChange={(value) => onChange("postal_code", value)} placeholder="ZIP" />
+            <AdminTextInput
+              label="Buyer Name"
+              value={form.full_name}
+              onChange={(value) => onChange("full_name", value)}
+              placeholder="Whitney Suarez"
+            />
+            <AdminTextInput
+              label="Email"
+              value={form.email}
+              onChange={(value) => onChange("email", value)}
+              placeholder="buyer@email.com"
+            />
+            <AdminTextInput
+              label="Phone"
+              value={form.phone}
+              onChange={(value) => onChange("phone", value)}
+              placeholder="(555) 555-5555"
+            />
+            <AdminSelectInput
+              label="Status"
+              value={form.status}
+              onChange={(value) => onChange("status", value)}
+              options={[
+                { value: "pending", label: "Pending" },
+                { value: "approved", label: "Approved" },
+                { value: "completed", label: "Completed" },
+              ]}
+            />
+            <AdminTextInput
+              label="Address Line 1"
+              value={form.address_line1}
+              onChange={(value) => onChange("address_line1", value)}
+              placeholder="Street address"
+            />
+            <AdminTextInput
+              label="Address Line 2"
+              value={form.address_line2}
+              onChange={(value) => onChange("address_line2", value)}
+              placeholder="Apartment, suite, etc."
+            />
+            <AdminTextInput
+              label="City"
+              value={form.city}
+              onChange={(value) => onChange("city", value)}
+              placeholder="City"
+            />
+            <AdminTextInput
+              label="State"
+              value={form.state}
+              onChange={(value) => onChange("state", value)}
+              placeholder="State"
+            />
+            <AdminTextInput
+              label="ZIP Code"
+              value={form.postal_code}
+              onChange={(value) => onChange("postal_code", value)}
+              placeholder="ZIP"
+            />
           </div>
 
-          <AdminTextAreaInput label="Notes" value={form.notes} onChange={(value) => onChange("notes", value)} rows={4} placeholder="Buyer notes, household context, or approval notes." />
+          <AdminTextAreaInput
+            label="Notes"
+            value={form.notes}
+            onChange={(value) => onChange("notes", value)}
+            rows={4}
+            placeholder="Buyer notes, household context, or approval notes."
+          />
 
           <div className="rounded-[1.2rem] bg-[rgba(250,245,239,0.86)] p-4">
             <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
               Transportation
             </div>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <AdminSelectInput label="Transportation Type" value={form.delivery_option} onChange={(value) => onChange("delivery_option", value)} options={[{ value: "", label: "Not set" }, { value: "pickup", label: "Pickup" }, { value: "meet", label: "Meet-Up" }, { value: "dropoff", label: "Drop-Off" }, { value: "transportation", label: "Transportation" }]} />
-              <AdminDateInput label="Transportation Date" value={form.delivery_date} onChange={(value) => onChange("delivery_date", value)} />
-              <AdminTextInput label="Location" value={form.delivery_location} onChange={(value) => onChange("delivery_location", value)} placeholder="Airport, city, or meet-up point" />
-              <AdminNumberInput label="Mileage" value={form.delivery_miles} onChange={(value) => onChange("delivery_miles", value)} placeholder="0" min={0} />
-              <AdminNumberInput label="Transportation Fee" value={form.delivery_fee} onChange={(value) => onChange("delivery_fee", value)} placeholder="0.00" min={0} step="0.01" />
-              <AdminNumberInput label="Gas Cost" value={form.expense_gas} onChange={(value) => onChange("expense_gas", value)} placeholder="0.00" min={0} step="0.01" />
-              <AdminNumberInput label="Hotel Cost" value={form.expense_hotel} onChange={(value) => onChange("expense_hotel", value)} placeholder="0.00" min={0} step="0.01" />
-              <AdminNumberInput label="Tolls" value={form.expense_tolls} onChange={(value) => onChange("expense_tolls", value)} placeholder="0.00" min={0} step="0.01" />
+              <AdminSelectInput
+                label="Transportation Type"
+                value={form.delivery_option}
+                onChange={(value) => onChange("delivery_option", value)}
+                options={[
+                  { value: "", label: "Not set" },
+                  { value: "pickup", label: "Pickup" },
+                  { value: "meet", label: "Meet-Up" },
+                  { value: "dropoff", label: "Drop-Off" },
+                  { value: "transportation", label: "Transportation" },
+                ]}
+              />
+              <AdminDateInput
+                label="Transportation Date"
+                value={form.delivery_date}
+                onChange={(value) => onChange("delivery_date", value)}
+              />
+              <AdminTextInput
+                label="Location"
+                value={form.delivery_location}
+                onChange={(value) => onChange("delivery_location", value)}
+                placeholder="Airport, city, or meet-up point"
+              />
+              <AdminNumberInput
+                label="Mileage"
+                value={form.delivery_miles}
+                onChange={(value) => onChange("delivery_miles", value)}
+                placeholder="0"
+                min={0}
+              />
+              <AdminNumberInput
+                label="Transportation Fee"
+                value={form.delivery_fee}
+                onChange={(value) => onChange("delivery_fee", value)}
+                placeholder="0.00"
+                min={0}
+                step="0.01"
+              />
+              <AdminNumberInput
+                label="Gas Cost"
+                value={form.expense_gas}
+                onChange={(value) => onChange("expense_gas", value)}
+                placeholder="0.00"
+                min={0}
+                step="0.01"
+              />
+              <AdminNumberInput
+                label="Hotel Cost"
+                value={form.expense_hotel}
+                onChange={(value) => onChange("expense_hotel", value)}
+                placeholder="0.00"
+                min={0}
+                step="0.01"
+              />
+              <AdminNumberInput
+                label="Tolls"
+                value={form.expense_tolls}
+                onChange={(value) => onChange("expense_tolls", value)}
+                placeholder="0.00"
+                min={0}
+                step="0.01"
+              />
             </div>
             <div className="mt-4">
-              <AdminTextAreaInput label="Transportation Notes" value={form.expense_misc} onChange={(value) => onChange("expense_misc", value)} rows={3} placeholder="Special route notes or miscellaneous transportation details." />
+              <AdminTextAreaInput
+                label="Transportation Notes"
+                value={form.expense_misc}
+                onChange={(value) => onChange("expense_misc", value)}
+                rows={3}
+                placeholder="Special route notes or miscellaneous transportation details."
+              />
             </div>
             <div className="mt-4 rounded-[1rem] border border-[rgba(187,160,132,0.18)] bg-white px-4 py-4 text-sm text-[var(--portal-text-soft)]">
               {fuelEstimate ? (
@@ -2573,7 +3290,10 @@ function BuyerModal({
                     Estimated gas: {fmtMoney(fuelEstimate.estimatedFuelCost)}
                   </div>
                   <div className="mt-1 leading-6">
-                    {fuelEstimate.miles.toFixed(0)} miles / {fuelEstimate.assumedMpg} MPG ({fuelEstimate.assumedVehicle}) x {fmtMoneyPrecise(fuelEstimate.pricePerGallon)} per gallon for {fuelEstimate.priceMonth}{fuelEstimate.usedFallbackMonth ? " using the closest available month." : "."} {fuelEstimate.pricingSeries}.
+                    {fuelEstimate.miles.toFixed(0)} miles / {fuelEstimate.assumedMpg} MPG ({fuelEstimate.assumedVehicle}) x{" "}
+                    {fmtMoneyPrecise(fuelEstimate.pricePerGallon)} per gallon for {fuelEstimate.priceMonth}
+                    {fuelEstimate.usedFallbackMonth ? " using the closest available month." : "."}{" "}
+                    {fuelEstimate.pricingSeries}
                   </div>
                 </div>
               ) : (
