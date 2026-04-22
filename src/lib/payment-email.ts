@@ -10,6 +10,10 @@ import {
   queryBuyerPaymentNoticeLogs,
 } from "@/lib/admin-data-compat";
 import { getResendClient, hasResendConfiguration } from "@/lib/resend";
+import {
+  LEGACY_PAYMENT_NOTICE_TEMPLATE_KEYS,
+  PAYMENT_NOTICE_TEMPLATE_KEYS,
+} from "@/lib/resend-template-defaults";
 
 export type BuyerPaymentNoticeSettings = {
   id?: number;
@@ -581,10 +585,13 @@ function buildPortalPaymentsUrl() {
 }
 
 function templateKeyForNoticeKind(kind: PaymentPlanEmailKind) {
-  if (kind === "receipt") return "payment_receipt";
-  if (kind === "due_reminder") return "payment_reminder";
-  if (kind === "late_notice") return "payment_overdue";
-  return "payment_default_notice";
+  return PAYMENT_NOTICE_TEMPLATE_KEYS[kind];
+}
+
+function templateKeysForNoticeKind(kind: PaymentPlanEmailKind) {
+  return Array.from(
+    new Set([PAYMENT_NOTICE_TEMPLATE_KEYS[kind], LEGACY_PAYMENT_NOTICE_TEMPLATE_KEYS[kind]])
+  );
 }
 
 function renderTemplateTokens(
@@ -611,6 +618,9 @@ function buildTemplatePayload(input: {
     due_date: presentation.dueDateLabel || "",
     balance: presentation.balanceLabel || formatMoney(context.balance),
     monthly_amount: presentation.monthlyAmountLabel || "",
+    amount_paid: payment ? formatMoney(payment.amount) : "",
+    amount_due: presentation.amountLabel || presentation.monthlyAmountLabel || "",
+    credit_amount: "",
     payment_amount: payment ? formatMoney(payment.amount) : "",
     payment_date: payment?.payment_date ? formatLongDate(payment.payment_date) : "",
     payment_method: firstString(payment?.method, presentation.paymentMethodLabel),
@@ -642,20 +652,26 @@ async function loadStoredMessageTemplate(
   admin: SupabaseClient,
   kind: PaymentPlanEmailKind
 ) {
+  const candidateKeys = templateKeysForNoticeKind(kind);
   const result = await admin
     .from("admin_message_templates")
     .select("template_key,subject,body,is_active")
-    .eq("template_key", templateKeyForNoticeKind(kind))
-    .limit(1)
-    .maybeSingle<StoredMessageTemplateRow>();
+    .in("template_key", candidateKeys)
+    .returns<StoredMessageTemplateRow[]>();
 
   if (result.error) {
     if (isMissingTableError(result.error)) return null;
     throw new Error(result.error.message);
   }
 
-  if (!result.data || result.data.is_active === false) return null;
-  return result.data;
+  const rows = (result.data || []).filter((row) => row.is_active !== false);
+  if (!rows.length) return null;
+
+  return (
+    candidateKeys
+      .map((key) => rows.find((row) => normalizeText(row.template_key) === key))
+      .find(Boolean) || null
+  );
 }
 
 async function applyStoredTemplateToPresentation(input: {

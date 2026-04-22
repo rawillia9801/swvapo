@@ -6,6 +6,7 @@ import {
   Activity,
   AlertTriangle,
   CheckCircle2,
+  Copy,
   Eye,
   Loader2,
   Mail,
@@ -14,19 +15,31 @@ import {
   RotateCcw,
   Save,
   Search,
+  Send,
   Sparkles,
 } from "lucide-react";
 import {
   AdminHeroPrimaryAction,
   AdminHeroSecondaryAction,
   AdminInfoTile,
-  AdminListCard,
   AdminPageHero,
   AdminPageShell,
   AdminPanel,
   AdminRestrictedState,
   adminStatusBadge,
 } from "@/components/admin/luxury-admin-shell";
+import {
+  extractTemplateVariables,
+  parseTemplatePayload,
+  renderMessageTemplate,
+} from "@/lib/message-template-renderer";
+import {
+  DEFAULT_RESEND_TEMPLATES,
+  REQUIRED_RESEND_TEMPLATE_KEYS,
+  RESEND_TEMPLATE_CATEGORIES,
+  RESEND_TEMPLATE_CATEGORY_LABELS,
+  type ResendTemplateCategory,
+} from "@/lib/resend-template-defaults";
 import { usePortalAdminSession } from "@/lib/use-portal-admin-session";
 import { fmtDate } from "@/lib/utils";
 
@@ -67,14 +80,38 @@ type RecentDeliveryActivity = {
   createdAt: string | null;
 };
 
+type RecentTestSend = {
+  id: number;
+  templateKey: string;
+  category: string;
+  label: string;
+  recipientEmail: string;
+  subject: string;
+  status: string;
+  providerMessageId: string | null;
+  lastEventType: string | null;
+  lastEventAt: string | null;
+  deliveredAt: string | null;
+  openedAt: string | null;
+  clickedAt: string | null;
+  openCount: number;
+  clickCount: number;
+  sentByEmail: string;
+  renderMode: string;
+  missingVariables: string[];
+  createdAt: string | null;
+};
+
 type TemplatesWorkspaceResponse = {
   ok?: boolean;
   error?: string;
   warning?: string;
   missingStorage?: boolean;
   webhookConfigured?: boolean;
+  testSendTrackingReady?: boolean;
   templates?: MessageTemplateRecord[];
   recentActivity?: RecentDeliveryActivity[];
+  recentTestSends?: RecentTestSend[];
 };
 
 type TemplateDraft = {
@@ -83,6 +120,7 @@ type TemplateDraft = {
   category: string;
   label: string;
   description: string;
+  provider: string;
   subject: string;
   body: string;
   previewPayload: string;
@@ -90,153 +128,62 @@ type TemplateDraft = {
   isActive: boolean;
 };
 
-type StarterTemplate = {
-  templateKey: string;
-  category: string;
-  label: string;
-  description: string;
-  subject: string;
-  body: string;
-  previewPayload: Record<string, unknown>;
-};
-
+const ALL_CATEGORIES = "all";
 const primaryButtonClass =
   "inline-flex items-center justify-center gap-2 rounded-[1rem] bg-[linear-gradient(135deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[var(--portal-shadow-md)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60";
 
 const secondaryButtonClass =
   "inline-flex items-center justify-center gap-2 rounded-[1rem] border border-[var(--portal-border)] bg-white/92 px-4 py-3 text-sm font-semibold text-[var(--portal-text)] shadow-[var(--portal-shadow-sm)] transition hover:bg-[var(--portal-surface-muted)] disabled:cursor-not-allowed disabled:opacity-60";
 
-const STARTER_TEMPLATES: StarterTemplate[] = [
-  {
-    templateKey: "payment_receipt",
-    category: "payments",
-    label: "Payment Receipt",
-    description: "Automatic receipt sent when a buyer payment is posted.",
-    subject: "Payment received for {{puppy_name}}",
-    body: `Hi {{buyer_name}},
+const subtleButtonClass =
+  "inline-flex items-center justify-center gap-2 rounded-[0.9rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-3 py-2 text-xs font-semibold text-[var(--portal-text-soft)] transition hover:bg-white hover:text-[var(--portal-text)] disabled:cursor-not-allowed disabled:opacity-60";
 
-We received your payment for {{puppy_name}}.
+function text(value: unknown) {
+  return String(value || "").trim();
+}
 
-Payment amount: {{payment_amount}}
-Payment date: {{payment_date}}
-Updated balance: {{balance}}
-
-You can review the latest account details in the portal any time.
-
-Southwest Virginia Chihuahua`,
-    previewPayload: {
-      buyer_name: "The Carter Family",
-      puppy_name: "Baby Girl Frey",
-      payment_amount: "$300.00",
-      payment_date: "April 17, 2026",
-      balance: "$1,500.00",
-    },
-  },
-  {
-    templateKey: "payment_reminder",
-    category: "payments",
-    label: "Payment Reminder",
-    description: "Friendly reminder sent before a payment plan due date.",
-    subject: "Friendly reminder: payment due {{due_date}} for {{puppy_name}}",
-    body: `Hi {{buyer_name}},
-
-This is a friendly reminder that your next payment for {{puppy_name}} is due {{due_date}}.
-
-Current monthly amount: {{monthly_amount}}
-Current balance: {{balance}}
-
-If you need help reviewing the plan or timing, just reply here and we can help.
-
-Southwest Virginia Chihuahua`,
-    previewPayload: {
-      buyer_name: "The Carter Family",
-      puppy_name: "Baby Girl Frey",
-      due_date: "May 15, 2026",
-      monthly_amount: "$300.00",
-      balance: "$1,800.00",
-    },
-  },
-  {
-    templateKey: "payment_overdue",
-    category: "payments",
-    label: "Payment Overdue",
-    description: "Operational overdue notice when an installment is past due.",
-    subject: "Payment for {{puppy_name}} is now overdue",
-    body: `Hi {{buyer_name}},
-
-Your scheduled payment for {{puppy_name}} is now overdue.
-
-Original due date: {{due_date}}
-Current balance: {{balance}}
-
-If payment has already been made, or if you need help coordinating next steps, reply here so we can review the account with you.
-
-Southwest Virginia Chihuahua`,
-    previewPayload: {
-      buyer_name: "The Carter Family",
-      puppy_name: "Baby Girl Frey",
-      due_date: "May 15, 2026",
-      balance: "$1,800.00",
-    },
-  },
-  {
-    templateKey: "payment_default_notice",
-    category: "payments",
-    label: "Payment Default Notice",
-    description: "Escalated notice for significantly overdue accounts.",
-    subject: "Important payment notice for {{puppy_name}}",
-    body: `Hi {{buyer_name}},
-
-Your payment plan for {{puppy_name}} is significantly past due and now needs direct review.
-
-Original due date: {{due_date}}
-Current balance: {{balance}}
-
-Please reply as soon as you can if you need help reviewing the account or making arrangements.
-
-Southwest Virginia Chihuahua`,
-    previewPayload: {
-      buyer_name: "The Carter Family",
-      puppy_name: "Baby Girl Frey",
-      due_date: "May 15, 2026",
-      balance: "$1,800.00",
-    },
-  },
-  {
-    templateKey: "payment_credit_applied",
-    category: "payments",
-    label: "Payment Credit Applied",
-    description: "Use when a credit or manual adjustment changes the buyer balance.",
-    subject: "Credit applied to {{puppy_name}} payment plan",
-    body: `Hi {{buyer_name}},
-
-We applied a credit to {{puppy_name}}'s payment plan.
-
-Credit amount: {{credit_amount}}
-Updated balance: {{balance}}
-
-You can review the updated account details in the portal, and you are always welcome to reply if you want us to walk through the changes with you.
-
-Southwest Virginia Chihuahua`,
-    previewPayload: {
-      buyer_name: "The Carter Family",
-      puppy_name: "Baby Girl Frey",
-      credit_amount: "$125.00",
-      balance: "$1,375.00",
-    },
-  },
-];
+function categoryLabel(value: string) {
+  return (
+    RESEND_TEMPLATE_CATEGORY_LABELS[value as ResendTemplateCategory] ||
+    value
+      .split("_")
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ") ||
+    "Other"
+  );
+}
 
 function blankTemplateDraft(): TemplateDraft {
   return {
     id: null,
     templateKey: "",
-    category: "payments",
+    category: "buyer_lifecycle",
     label: "",
     description: "",
+    provider: "resend",
     subject: "",
     body: "",
     previewPayload: "{}",
+    automationEnabled: true,
+    isActive: true,
+  };
+}
+
+function draftFromDefault(templateKey: string): TemplateDraft {
+  const template = DEFAULT_RESEND_TEMPLATES.find((entry) => entry.templateKey === templateKey);
+  if (!template) return blankTemplateDraft();
+
+  return {
+    id: null,
+    templateKey: template.templateKey,
+    category: template.category,
+    label: template.label,
+    description: template.description,
+    provider: "resend",
+    subject: template.subject,
+    body: template.body,
+    previewPayload: JSON.stringify(template.previewPayload, null, 2),
     automationEnabled: true,
     isActive: true,
   };
@@ -246,9 +193,10 @@ function templateDraftFromRecord(template: MessageTemplateRecord | null): Templa
   return {
     id: template?.id ?? null,
     templateKey: template?.templateKey || "",
-    category: template?.category || "payments",
+    category: template?.category || "buyer_lifecycle",
     label: template?.label || "",
     description: template?.description || "",
+    provider: template?.provider || "resend",
     subject: template?.subject || "",
     body: template?.body || "",
     previewPayload: JSON.stringify(template?.previewPayload || {}, null, 2),
@@ -257,53 +205,16 @@ function templateDraftFromRecord(template: MessageTemplateRecord | null): Templa
   };
 }
 
-function templateDraftFromStarter(template: StarterTemplate): TemplateDraft {
-  return {
-    id: null,
-    templateKey: template.templateKey,
-    category: template.category,
-    label: template.label,
-    description: template.description,
-    subject: template.subject,
-    body: template.body,
-    previewPayload: JSON.stringify(template.previewPayload, null, 2),
-    automationEnabled: true,
-    isActive: true,
-  };
-}
-
-function text(value: unknown) {
-  return String(value || "").trim();
-}
-
 function normalizePayloadText(value: string) {
-  try {
-    return JSON.stringify(JSON.parse(value || "{}"), null, 2);
-  } catch {
-    return value;
-  }
+  const parsed = parseTemplatePayload(value);
+  return parsed.ok ? parsed.normalized : value;
 }
 
-function previewText(template: string, payloadText: string) {
-  let payload: Record<string, unknown> = {};
-  try {
-    payload = JSON.parse(payloadText || "{}") as Record<string, unknown>;
-  } catch {
-    payload = {};
-  }
-
-  return String(template || "").replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, key) => {
-    const value = payload[key];
-    return value == null ? `{{${key}}}` : String(value);
+function draftSignature(draft: TemplateDraft) {
+  return JSON.stringify({
+    ...draft,
+    previewPayload: normalizePayloadText(draft.previewPayload),
   });
-}
-
-function extractTokens(value: string) {
-  return Array.from(
-    new Set(String(value || "").match(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g) || [])
-  )
-    .map((token) => token.replace(/[{}]/g, "").trim())
-    .filter(Boolean);
 }
 
 function formatEventLabel(value: string | null | undefined) {
@@ -318,27 +229,33 @@ function prettyNoticeKind(value: string | null | undefined) {
   return normalized.replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function cardClassName(extra = "") {
-  return `rounded-[1.5rem] border border-[var(--portal-border)] bg-[var(--portal-surface)] shadow-[var(--portal-shadow-sm)] ${extra}`.trim();
+function compactDate(value: string | null | undefined) {
+  return value ? fmtDate(value) : "-";
 }
 
-function parsePreviewPayload(payloadText: string) {
-  try {
-    JSON.parse(payloadText || "{}");
-    return { valid: true, error: "" };
-  } catch (error) {
-    return {
-      valid: false,
-      error: error instanceof Error ? error.message : "Invalid JSON",
-    };
-  }
+function templateStatusBadge(template: MessageTemplateRecord | TemplateDraft) {
+  if (!template.isActive) return "Inactive";
+  if (!template.automationEnabled) return "Manual";
+  return "Automation";
 }
 
-function draftSignature(draft: TemplateDraft) {
-  return JSON.stringify({
-    ...draft,
-    previewPayload: normalizePayloadText(draft.previewPayload),
-  });
+function categoryAccent(category: string) {
+  if (category === "payments") return "border-amber-200 bg-amber-50 text-amber-800";
+  if (category === "documents") return "border-sky-200 bg-sky-50 text-sky-800";
+  if (category === "transport") return "border-teal-200 bg-teal-50 text-teal-800";
+  if (category === "puppy_updates") return "border-rose-200 bg-rose-50 text-rose-800";
+  if (category === "relationship") return "border-emerald-200 bg-emerald-50 text-emerald-800";
+  return "border-violet-200 bg-violet-50 text-violet-800";
+}
+
+function nextDuplicateKey(baseKey: string, templates: MessageTemplateRecord[]) {
+  const existing = new Set(templates.map((template) => template.templateKey));
+  const root = `${baseKey || "resend_template"}_copy`;
+  if (!existing.has(root)) return root;
+
+  let index = 2;
+  while (existing.has(`${root}_${index}`)) index += 1;
+  return `${root}_${index}`;
 }
 
 export function ResendTemplatesWorkspace() {
@@ -346,24 +263,31 @@ export function ResendTemplatesWorkspace() {
 
   const [templates, setTemplates] = useState<MessageTemplateRecord[]>([]);
   const [recentActivity, setRecentActivity] = useState<RecentDeliveryActivity[]>([]);
+  const [recentTestSends, setRecentTestSends] = useState<RecentTestSend[]>([]);
 
   const [initializing, setInitializing] = useState(true);
   const [loadingWorkspace, setLoadingWorkspace] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
 
   const [statusText, setStatusText] = useState("");
   const [warningText, setWarningText] = useState("");
+  const [testFeedback, setTestFeedback] = useState("");
   const [missingStorage, setMissingStorage] = useState(false);
   const [webhookConfigured, setWebhookConfigured] = useState(false);
+  const [testSendTrackingReady, setTestSendTrackingReady] = useState(false);
 
   const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>(ALL_CATEGORIES);
   const [selectedTemplateKey, setSelectedTemplateKey] = useState("");
-  const [templateDraft, setTemplateDraft] = useState<TemplateDraft>(
-    templateDraftFromStarter(STARTER_TEMPLATES[0])
+  const [templateDraft, setTemplateDraft] = useState<TemplateDraft>(() =>
+    draftFromDefault("buyer_application_received")
   );
+  const [testRecipient, setTestRecipient] = useState("");
+  const [testMode, setTestMode] = useState<"draft" | "saved">("draft");
 
-  const hasLoadedOnce = templates.length > 0 || recentActivity.length > 0;
+  const hasLoadedOnce = templates.length > 0 || recentActivity.length > 0 || recentTestSends.length > 0;
   const hasLoadedOnceRef = useRef(hasLoadedOnce);
   const initialLoadKeyRef = useRef("");
 
@@ -371,71 +295,81 @@ export function ResendTemplatesWorkspace() {
     hasLoadedOnceRef.current = hasLoadedOnce;
   }, [hasLoadedOnce]);
 
-  const loadWorkspace = useCallback(async (background = false) => {
-    if (!accessToken) {
-      setInitializing(false);
-      setLoadingWorkspace(false);
-      setRefreshing(false);
-      return;
+  useEffect(() => {
+    if (!testRecipient && user?.email) {
+      setTestRecipient(user.email);
     }
+  }, [testRecipient, user?.email]);
 
-    if (background) {
-      setRefreshing(true);
-    } else if (!hasLoadedOnceRef.current) {
-      setLoadingWorkspace(true);
-    } else {
-      setRefreshing(true);
-    }
-
-    try {
-      const response = await fetch("/api/admin/portal/message-templates", {
-        headers: { Authorization: `Bearer ${accessToken}` },
-        cache: "no-store",
-      });
-
-      const payload = (await response.json()) as TemplatesWorkspaceResponse;
-
-      if (!response.ok || payload.ok === false) {
-        throw new Error(payload.error || "Could not load the automatic email templates.");
+  const loadWorkspace = useCallback(
+    async (background = false) => {
+      if (!accessToken) {
+        setInitializing(false);
+        setLoadingWorkspace(false);
+        setRefreshing(false);
+        return;
       }
 
-      const nextTemplates = payload.templates || [];
-      const nextActivity = payload.recentActivity || [];
-
-      setTemplates(nextTemplates);
-      setRecentActivity(nextActivity);
-      setMissingStorage(Boolean(payload.missingStorage));
-      setWebhookConfigured(Boolean(payload.webhookConfigured));
-      setWarningText(payload.warning || "");
-
-      setStatusText((current) => {
-        if (current.toLowerCase().includes("saved")) return current;
-        return "";
-      });
-
-      setSelectedTemplateKey((current) => {
-        if (current && nextTemplates.some((template) => template.templateKey === current)) {
-          return current;
-        }
-        return nextTemplates[0]?.templateKey || "";
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Could not load the automatic email templates.";
-
-      if (!hasLoadedOnceRef.current) {
-        setStatusText(message);
+      if (background) {
+        setRefreshing(true);
+      } else if (!hasLoadedOnceRef.current) {
+        setLoadingWorkspace(true);
       } else {
-        setWarningText(message);
+        setRefreshing(true);
       }
-    } finally {
-      setInitializing(false);
-      setLoadingWorkspace(false);
-      setRefreshing(false);
-    }
-  }, [accessToken]);
+
+      try {
+        const response = await fetch("/api/admin/portal/message-templates", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          cache: "no-store",
+        });
+
+        const payload = (await response.json()) as TemplatesWorkspaceResponse;
+
+        if (!response.ok || payload.ok === false) {
+          throw new Error(payload.error || "Could not load the automatic email templates.");
+        }
+
+        const nextTemplates = payload.templates || [];
+        setTemplates(nextTemplates);
+        setRecentActivity(payload.recentActivity || []);
+        setRecentTestSends(payload.recentTestSends || []);
+        setMissingStorage(Boolean(payload.missingStorage));
+        setWebhookConfigured(Boolean(payload.webhookConfigured));
+        setTestSendTrackingReady(Boolean(payload.testSendTrackingReady));
+        setWarningText(payload.warning || "");
+
+        setStatusText((current) => {
+          if (current.toLowerCase().includes("saved")) return current;
+          if (current.toLowerCase().includes("test")) return current;
+          return "";
+        });
+
+        setSelectedTemplateKey((current) => {
+          if (current && nextTemplates.some((template) => template.templateKey === current)) {
+            return current;
+          }
+          return nextTemplates[0]?.templateKey || "";
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Could not load the automatic email templates.";
+
+        if (!hasLoadedOnceRef.current) {
+          setStatusText(message);
+        } else {
+          setWarningText(message);
+        }
+      } finally {
+        setInitializing(false);
+        setLoadingWorkspace(false);
+        setRefreshing(false);
+      }
+    },
+    [accessToken]
+  );
 
   useEffect(() => {
     if (!loading && accessToken && isAdmin) {
@@ -459,6 +393,7 @@ export function ResendTemplatesWorkspace() {
   useEffect(() => {
     if (selectedTemplate) {
       setTemplateDraft(templateDraftFromRecord(selectedTemplate));
+      setTestFeedback("");
       return;
     }
 
@@ -466,17 +401,28 @@ export function ResendTemplatesWorkspace() {
       setTemplateDraft((current) =>
         current.templateKey || current.label || current.subject || current.body
           ? current
-          : templateDraftFromStarter(STARTER_TEMPLATES[0])
+          : draftFromDefault("buyer_application_received")
       );
     }
   }, [selectedTemplate, selectedTemplateKey, templates.length]);
 
+  const availableCategories = useMemo(() => {
+    const currentCategories = new Set<string>(RESEND_TEMPLATE_CATEGORIES);
+    templates.forEach((template) => {
+      if (template.category) currentCategories.add(template.category);
+    });
+    return Array.from(currentCategories);
+  }, [templates]);
+
   const filteredTemplates = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return templates;
+    return templates.filter((template) => {
+      const matchesCategory =
+        categoryFilter === ALL_CATEGORIES || template.category === categoryFilter;
+      if (!matchesCategory) return false;
+      if (!query) return true;
 
-    return templates.filter((template) =>
-      [
+      return [
         template.label,
         template.templateKey,
         template.category,
@@ -486,49 +432,53 @@ export function ResendTemplatesWorkspace() {
       ]
         .map((value) => String(value || "").toLowerCase())
         .join(" ")
-        .includes(query)
-    );
-  }, [search, templates]);
+        .includes(query);
+    });
+  }, [categoryFilter, search, templates]);
 
-  const visibleStarterTemplates = useMemo(() => {
+  const missingDefaultTemplates = useMemo(() => {
     const existingKeys = new Set(templates.map((template) => template.templateKey));
-    return STARTER_TEMPLATES.filter((template) => !existingKeys.has(template.templateKey));
+    return DEFAULT_RESEND_TEMPLATES.filter((template) => !existingKeys.has(template.templateKey));
   }, [templates]);
 
-  const templateTokens = useMemo(
-    () =>
-      Array.from(
-        new Set([...extractTokens(templateDraft.subject), ...extractTokens(templateDraft.body)])
-      ),
-    [templateDraft.body, templateDraft.subject]
-  );
-
-  const paymentTemplateCount = templates.filter(
-    (template) => template.category === "payments"
-  ).length;
-  const activeTemplateCount = templates.filter((template) => template.isActive).length;
-  const automationTemplateCount = templates.filter(
-    (template) => template.automationEnabled
-  ).length;
-  const trackedActivityCount = recentActivity.filter(
-    (activity) => activity.lastEventType
-  ).length;
-
-  const jsonState = useMemo(
-    () => parsePreviewPayload(templateDraft.previewPayload),
+  const payloadState = useMemo(
+    () => parseTemplatePayload(templateDraft.previewPayload),
     [templateDraft.previewPayload]
+  );
+  const renderedPreview = useMemo(
+    () =>
+      renderMessageTemplate({
+        subject: templateDraft.subject,
+        body: templateDraft.body,
+        payload: payloadState.ok ? payloadState.payload : {},
+        missingMode: "mark",
+      }),
+    [payloadState, templateDraft.body, templateDraft.subject]
+  );
+  const templateTokens = useMemo(
+    () => extractTemplateVariables(templateDraft.subject, templateDraft.body),
+    [templateDraft.body, templateDraft.subject]
   );
 
   const hasDraftChanges = useMemo(() => {
     if (!selectedTemplate) {
-      return draftSignature(templateDraft) !== draftSignature(templateDraftFromStarter(STARTER_TEMPLATES[0]));
+      return draftSignature(templateDraft) !== draftSignature(blankTemplateDraft());
     }
 
     return draftSignature(templateDraft) !== draftSignature(templateDraftFromRecord(selectedTemplate));
   }, [selectedTemplate, templateDraft]);
 
+  const activeTemplateCount = templates.filter((template) => template.isActive).length;
+  const automationTemplateCount = templates.filter((template) => template.automationEnabled).length;
+  const requiredTemplateCount = templates.filter((template) =>
+    REQUIRED_RESEND_TEMPLATE_KEYS.includes(template.templateKey)
+  ).length;
+  const trackedActivityCount =
+    recentActivity.filter((activity) => activity.lastEventType).length +
+    recentTestSends.filter((activity) => activity.lastEventType).length;
+
   async function handleSave() {
-    if (!accessToken || !jsonState.valid) return;
+    if (!accessToken || !payloadState.ok) return;
 
     setSaving(true);
     setStatusText("");
@@ -542,7 +492,7 @@ export function ResendTemplatesWorkspace() {
         },
         body: JSON.stringify({
           ...templateDraft,
-          previewPayload: normalizePayloadText(templateDraft.previewPayload),
+          previewPayload: payloadState.normalized,
         }),
       });
 
@@ -556,12 +506,81 @@ export function ResendTemplatesWorkspace() {
       await loadWorkspace(true);
       setSelectedTemplateKey(templateDraft.templateKey);
     } catch (error) {
-      setStatusText(
-        error instanceof Error ? error.message : "Could not save the template."
-      );
+      setStatusText(error instanceof Error ? error.message : "Could not save the template.");
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleSendTest() {
+    if (!accessToken || !payloadState.ok) return;
+
+    setSendingTest(true);
+    setTestFeedback("");
+
+    try {
+      const response = await fetch("/api/admin/portal/message-templates/test-send", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          mode: testMode,
+          recipientEmail: testRecipient,
+          templateKey: templateDraft.templateKey,
+          label: templateDraft.label,
+          category: templateDraft.category,
+          subject: templateDraft.subject,
+          body: templateDraft.body,
+          previewPayload: payloadState.normalized,
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+        providerMessageId?: string | null;
+        missingVariables?: string[];
+      };
+
+      if (!response.ok || payload.ok === false) {
+        throw new Error(payload.error || "Could not send the test email.");
+      }
+
+      const missing = payload.missingVariables?.length
+        ? ` Missing variables were marked: ${payload.missingVariables.join(", ")}.`
+        : "";
+      setTestFeedback(
+        `Test email sent to ${testRecipient}.${payload.providerMessageId ? ` Resend id: ${payload.providerMessageId}.` : ""}${missing}`
+      );
+      await loadWorkspace(true);
+    } catch (error) {
+      setTestFeedback(error instanceof Error ? error.message : "Could not send the test email.");
+    } finally {
+      setSendingTest(false);
+    }
+  }
+
+  function startNewTemplate() {
+    setSelectedTemplateKey("");
+    setTemplateDraft(blankTemplateDraft());
+    setStatusText("");
+    setTestFeedback("");
+  }
+
+  function duplicateCurrentTemplate() {
+    setSelectedTemplateKey("");
+    setTemplateDraft((current) => ({
+      ...current,
+      id: null,
+      templateKey: nextDuplicateKey(current.templateKey, templates),
+      label: current.label ? `${current.label} Copy` : "New Template",
+      isActive: false,
+      automationEnabled: false,
+    }));
+    setStatusText("Duplicated into a new inactive draft. Review the key, label, and content before saving.");
+    setTestFeedback("");
   }
 
   if (!loading && !user) {
@@ -577,7 +596,7 @@ export function ResendTemplatesWorkspace() {
     return (
       <AdminRestrictedState
         title="This template workspace is limited to approved owner accounts."
-        details="Only approved owner emails can manage automatic payment and reminder templates."
+        details="Only approved owner emails can manage automatic Resend templates and test sends."
       />
     );
   }
@@ -588,7 +607,7 @@ export function ResendTemplatesWorkspace() {
         <AdminPageHero
           eyebrow="Resend Templates"
           title="Automatic email templates and delivery tracking"
-          description="This workspace is for automatic outbound Resend emails only, including receipts, reminders, overdue notices, default notices, credits, and other breeder automation content. Buyer conversations and replies stay in Portal Messages."
+          description="This workspace manages outbound Resend automation content. Portal Messages remains the buyer inbox and reply surface."
           actions={
             <>
               <AdminHeroPrimaryAction href="/admin/portal/messages">
@@ -604,24 +623,24 @@ export function ResendTemplatesWorkspace() {
               <AdminInfoTile
                 label="Active Templates"
                 value={String(activeTemplateCount)}
-                detail={`${paymentTemplateCount} payment and financing templates.`}
+                detail={`${requiredTemplateCount}/${REQUIRED_RESEND_TEMPLATE_KEYS.length} core automation templates installed.`}
               />
               <AdminInfoTile
                 label="Automation Ready"
                 value={String(automationTemplateCount)}
-                detail="Templates currently enabled for operational use."
+                detail="Templates enabled for automated outbound workflow use."
               />
               <AdminInfoTile
-                label="Tracked Sends"
+                label="Tracked Events"
                 value={String(trackedActivityCount)}
-                detail="Recent sends with a tracked delivery event on file."
+                detail="Delivery, open, click, bounce, or test-send events recorded."
               />
               <AdminInfoTile
                 label="Webhook Tracking"
                 value={webhookConfigured ? "Live" : "Needs Secret"}
                 detail={
                   webhookConfigured
-                    ? "Open, click, bounce, and delivery events can be recorded."
+                    ? "Resend webhook events can update automatic and test sends."
                     : "Add the Resend webhook secret to capture opens and deliveries."
                 }
               />
@@ -630,15 +649,16 @@ export function ResendTemplatesWorkspace() {
         />
 
         {warningText ? (
-          <div className="rounded-[1.25rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="rounded-[1.15rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
             {warningText}
           </div>
         ) : null}
 
         {statusText ? (
           <div
-            className={`rounded-[1.25rem] border px-4 py-3 text-sm font-semibold ${
-              statusText.toLowerCase().includes("saved")
+            className={`rounded-[1.15rem] border px-4 py-3 text-sm font-medium ${
+              statusText.toLowerCase().includes("saved") ||
+              statusText.toLowerCase().includes("duplicated")
                 ? "border-emerald-200 bg-emerald-50 text-emerald-800"
                 : "border-rose-200 bg-rose-50 text-rose-800"
             }`}
@@ -647,146 +667,164 @@ export function ResendTemplatesWorkspace() {
           </div>
         ) : null}
 
-        <div className={cardClassName("p-5")}>
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="relative max-w-xl flex-1">
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--portal-text-muted)]" />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search automatic templates by key, label, category, provider, or subject..."
-                className="w-full rounded-[1rem] border border-[var(--portal-border)] bg-white py-3 pl-11 pr-4 text-sm text-[var(--portal-text)] outline-none transition focus:border-[var(--portal-accent)]"
-              />
-            </div>
-
-            <div className="flex flex-wrap gap-3">
+        <section className="grid gap-6 xl:grid-cols-[390px_minmax(0,1fr)]">
+          <AdminPanel
+            title="Template Library"
+            subtitle="Outbound Resend automation templates only. Buyer conversations stay in Portal Messages."
+            action={
               <button
                 type="button"
                 onClick={() => void loadWorkspace(true)}
-                className={secondaryButtonClass}
+                className={subtleButtonClass}
                 disabled={refreshing || loadingWorkspace}
               >
-                {refreshing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCcw className="h-4 w-4" />
-                )}
-                {refreshing ? "Refreshing" : "Refresh"}
+                {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                Refresh
               </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedTemplateKey("");
-                  setTemplateDraft(blankTemplateDraft());
-                  setStatusText("");
-                }}
-                className={secondaryButtonClass}
-                disabled={saving}
-              >
-                <Plus className="h-4 w-4" />
-                New Blank Template
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <section className="grid grid-cols-1 gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
-          <AdminPanel
-            title="Automatic Templates"
-            subtitle="This is the editable library for outbound Resend automation content. Portal Messages remains the buyer inbox and reply surface."
+            }
           >
             <div className="space-y-4">
-              {visibleStarterTemplates.length ? (
-                <div className="rounded-[1.25rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] p-4">
-                  <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
-                    Quick Starters
+              <div className="flex gap-2 rounded-[1rem] border border-[var(--portal-border)] bg-white px-3 py-2 shadow-[var(--portal-shadow-sm)]">
+                <Search className="mt-1 h-4 w-4 shrink-0 text-[var(--portal-text-muted)]" />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search templates, keys, subjects..."
+                  className="min-w-0 flex-1 bg-transparent text-sm text-[var(--portal-text)] outline-none placeholder:text-[var(--portal-text-muted)]"
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <CategoryFilterButton
+                  active={categoryFilter === ALL_CATEGORIES}
+                  label="All"
+                  onClick={() => setCategoryFilter(ALL_CATEGORIES)}
+                />
+                {availableCategories.map((category) => (
+                  <CategoryFilterButton
+                    key={category}
+                    active={categoryFilter === category}
+                    label={categoryLabel(category)}
+                    onClick={() => setCategoryFilter(category)}
+                  />
+                ))}
+              </div>
+
+              <button type="button" onClick={startNewTemplate} className={`${secondaryButtonClass} w-full`}>
+                <Plus className="h-4 w-4" />
+                Create Template
+              </button>
+
+              {loadingWorkspace && !hasLoadedOnce ? (
+                <div className="rounded-[1.25rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-5 py-8 text-center text-sm text-[var(--portal-text-soft)]">
+                  <Loader2 className="mx-auto h-5 w-5 animate-spin text-[var(--portal-accent)]" />
+                  <div className="mt-3 font-semibold text-[var(--portal-text)]">Loading template library</div>
+                </div>
+              ) : null}
+
+              {!loadingWorkspace || hasLoadedOnce ? (
+                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
+                  {filteredTemplates.map((template) => (
+                    <button
+                      key={template.templateKey}
+                      type="button"
+                      onClick={() => setSelectedTemplateKey(template.templateKey)}
+                      className={[
+                        "block w-full rounded-[1.2rem] border px-4 py-4 text-left transition-all",
+                        selectedTemplateKey === template.templateKey
+                          ? "border-[var(--portal-border-strong)] bg-white shadow-[var(--portal-shadow-sm)]"
+                          : "border-[var(--portal-border)] bg-[var(--portal-surface-muted)] hover:border-[var(--portal-border-strong)] hover:bg-white",
+                      ].join(" ")}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-[var(--portal-text)]">
+                            {template.label || template.templateKey}
+                          </div>
+                          <div className="mt-1 truncate text-xs font-semibold text-[var(--portal-text-muted)]">
+                            {template.templateKey}
+                          </div>
+                        </div>
+                        <span
+                          className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${categoryAccent(
+                            template.category
+                          )}`}
+                        >
+                          {categoryLabel(template.category)}
+                        </span>
+                      </div>
+                      <div className="mt-3 line-clamp-2 text-xs leading-5 text-[var(--portal-text-soft)]">
+                        {template.description || template.subject}
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <span
+                          className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${adminStatusBadge(
+                            templateStatusBadge(template)
+                          )}`}
+                        >
+                          {templateStatusBadge(template)}
+                        </span>
+                        <span className="rounded-full border border-[var(--portal-border)] bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                          {template.provider || "resend"}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+
+                  {!filteredTemplates.length ? (
+                    <div className="rounded-[1.25rem] border border-dashed border-[var(--portal-border-strong)] bg-[var(--portal-surface-muted)] px-5 py-8 text-center">
+                      <div className="text-sm font-semibold text-[var(--portal-text)]">
+                        No templates match this view
+                      </div>
+                      <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
+                        Adjust the search or category filter to bring templates back into view.
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {missingDefaultTemplates.length ? (
+                <div className="rounded-[1.25rem] border border-amber-200 bg-amber-50/70 p-4">
+                  <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-amber-800">
+                    Missing Core Templates
                   </div>
-                  <div className="mt-3 grid gap-2">
-                    {visibleStarterTemplates.slice(0, 5).map((template) => (
+                  <div className="mt-2 text-sm leading-6 text-amber-900">
+                    These default templates are available to add without replacing anything already saved.
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {missingDefaultTemplates.slice(0, 5).map((template) => (
                       <button
                         key={template.templateKey}
                         type="button"
                         onClick={() => {
                           setSelectedTemplateKey("");
-                          setStatusText("");
-                          setTemplateDraft(templateDraftFromStarter(template));
+                          setTemplateDraft(draftFromDefault(template.templateKey));
                         }}
-                        className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-3 py-3 text-left text-sm font-semibold text-[var(--portal-text)] transition hover:border-[var(--portal-border-strong)]"
+                        className="flex w-full items-center justify-between gap-3 rounded-[0.95rem] border border-amber-200 bg-white px-3 py-2 text-left text-xs font-semibold text-amber-950"
                       >
-                        {template.label}
+                        <span>{template.label}</span>
+                        <Plus className="h-3.5 w-3.5" />
                       </button>
                     ))}
                   </div>
                 </div>
               ) : null}
-
-              <div className="min-h-[520px]">
-                {initializing || (loadingWorkspace && !hasLoadedOnce) ? (
-                  <div className="space-y-3">
-                    {Array.from({ length: 5 }).map((_, index) => (
-                      <div
-                        key={`template-skeleton-${index}`}
-                        className="h-[84px] animate-pulse rounded-[1rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)]"
-                      />
-                    ))}
-                  </div>
-                ) : filteredTemplates.length ? (
-                  <div className="space-y-3">
-                    {filteredTemplates.map((template) => (
-                      <AdminListCard
-                        key={template.templateKey}
-                        selected={selectedTemplateKey === template.templateKey}
-                        onClick={() => {
-                          setSelectedTemplateKey(template.templateKey);
-                          setStatusText("");
-                        }}
-                        title={template.label}
-                        subtitle={template.description || template.subject}
-                        meta={`${template.category} | ${template.templateKey}`}
-                        badge={
-                          <span
-                            className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${
-                              template.isActive
-                                ? adminStatusBadge("active")
-                                : "border-amber-200 bg-amber-50 text-amber-700"
-                            }`}
-                          >
-                            {template.isActive ? "active" : "inactive"}
-                          </span>
-                        }
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="rounded-[1.25rem] border border-dashed border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-5 py-5 text-sm text-[var(--portal-text-soft)]">
-                    <div className="font-semibold text-[var(--portal-text)]">
-                      No templates matched your search.
-                    </div>
-                    <div className="mt-1">
-                      Clear the search or choose a starter template to keep working.
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
           </AdminPanel>
 
           <div className="space-y-6">
             <AdminPanel
               title="Template Editor"
-              subtitle="Edit the actual subject, body, variables, and automation flags for breeder-facing outbound emails."
+              subtitle="Edit the actual key, category, subject, body, preview variables, and automation flags for Resend-backed outbound emails."
               action={
                 <div className="flex flex-wrap gap-3">
                   <button
                     type="button"
                     onClick={() => {
-                      if (selectedTemplate) {
-                        setTemplateDraft(templateDraftFromRecord(selectedTemplate));
-                      } else {
-                        setTemplateDraft(blankTemplateDraft());
-                      }
+                      setTemplateDraft(selectedTemplate ? templateDraftFromRecord(selectedTemplate) : blankTemplateDraft());
                       setStatusText("");
+                      setTestFeedback("");
                     }}
                     className={secondaryButtonClass}
                     disabled={saving}
@@ -794,7 +832,15 @@ export function ResendTemplatesWorkspace() {
                     <RotateCcw className="h-4 w-4" />
                     Reset Draft
                   </button>
-
+                  <button
+                    type="button"
+                    onClick={duplicateCurrentTemplate}
+                    className={secondaryButtonClass}
+                    disabled={saving || !text(templateDraft.subject) || !text(templateDraft.body)}
+                  >
+                    <Copy className="h-4 w-4" />
+                    Duplicate
+                  </button>
                   <button
                     type="button"
                     onClick={() => void handleSave()}
@@ -802,7 +848,7 @@ export function ResendTemplatesWorkspace() {
                     disabled={
                       saving ||
                       missingStorage ||
-                      !jsonState.valid ||
+                      !payloadState.ok ||
                       !text(templateDraft.templateKey) ||
                       !text(templateDraft.label) ||
                       !text(templateDraft.subject) ||
@@ -831,19 +877,31 @@ export function ResendTemplatesWorkspace() {
                     setTemplateDraft((current) => ({ ...current, label: value }))
                   }
                 />
-                <Field
+                <SelectField
                   label="Category"
                   value={templateDraft.category}
+                  options={availableCategories}
                   onChange={(value) =>
                     setTemplateDraft((current) => ({ ...current, category: value }))
                   }
                 />
                 <Field
+                  label="Provider"
+                  value={templateDraft.provider}
+                  onChange={(value) =>
+                    setTemplateDraft((current) => ({ ...current, provider: value || "resend" }))
+                  }
+                />
+              </div>
+
+              <div className="mt-4">
+                <TextArea
                   label="Description"
                   value={templateDraft.description}
                   onChange={(value) =>
                     setTemplateDraft((current) => ({ ...current, description: value }))
                   }
+                  rows={3}
                 />
               </div>
 
@@ -878,7 +936,7 @@ export function ResendTemplatesWorkspace() {
                   rows={7}
                 />
                 <div className="mt-2 flex items-center gap-2 text-xs">
-                  {jsonState.valid ? (
+                  {payloadState.ok ? (
                     <>
                       <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                       <span className="text-emerald-700">Preview payload JSON is valid.</span>
@@ -887,7 +945,7 @@ export function ResendTemplatesWorkspace() {
                     <>
                       <AlertTriangle className="h-4 w-4 text-amber-600" />
                       <span className="text-amber-700">
-                        Preview payload JSON is invalid: {jsonState.error}
+                        Preview payload JSON is invalid: {payloadState.error}
                       </span>
                     </>
                   )}
@@ -898,7 +956,7 @@ export function ResendTemplatesWorkspace() {
                 <ToggleCard
                   label="Automation enabled"
                   enabled={templateDraft.automationEnabled}
-                  description="Leave this on when the system should use this template for automatic workflows."
+                  description="Use this template for automatic workflow sends when the related automation is active."
                   onToggle={() =>
                     setTemplateDraft((current) => ({
                       ...current,
@@ -909,7 +967,7 @@ export function ResendTemplatesWorkspace() {
                 <ToggleCard
                   label="Template active"
                   enabled={templateDraft.isActive}
-                  description="Inactive templates stay editable but will not be preferred for outbound sends."
+                  description="Inactive templates remain editable but are not preferred for outbound automation."
                   onToggle={() =>
                     setTemplateDraft((current) => ({
                       ...current,
@@ -919,18 +977,18 @@ export function ResendTemplatesWorkspace() {
                 />
               </div>
 
-              <div className="mt-4 grid gap-4 xl:grid-cols-2">
+              <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
                 <div className="rounded-[1.25rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] p-4">
                   <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
                     <Eye className="h-4 w-4" />
-                    Preview
+                    Template Preview
                   </div>
                   <div className="mt-4">
                     <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
                       Subject
                     </div>
                     <div className="mt-2 text-base font-semibold text-[var(--portal-text)]">
-                      {previewText(templateDraft.subject, templateDraft.previewPayload) || "No subject yet"}
+                      {renderedPreview.subject || "No subject yet"}
                     </div>
                   </div>
                   <div className="mt-5">
@@ -938,51 +996,93 @@ export function ResendTemplatesWorkspace() {
                       Body
                     </div>
                     <div className="mt-2 whitespace-pre-wrap text-sm leading-7 text-[var(--portal-text-soft)]">
-                      {previewText(templateDraft.body, templateDraft.previewPayload) || "No body yet"}
+                      {renderedPreview.body || "No body yet"}
                     </div>
                   </div>
+                  {renderedPreview.missingVariables.length ? (
+                    <div className="mt-4 rounded-[1rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                      Missing variables are marked in the preview:{" "}
+                      {renderedPreview.missingVariables.join(", ")}
+                    </div>
+                  ) : null}
                 </div>
 
-                <div className="rounded-[1.25rem] border border-[var(--portal-border)] bg-white p-4">
-                  <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
-                    <Sparkles className="h-4 w-4" />
-                    Variables In Use
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {templateTokens.length ? (
-                      templateTokens.map((token) => (
-                        <span
-                          key={token}
-                          className="rounded-full border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-3 py-1 text-xs font-semibold text-[var(--portal-text-soft)]"
-                        >
-                          {token}
+                <div className="space-y-4">
+                  <div className="rounded-[1.25rem] border border-[var(--portal-border)] bg-white p-4">
+                    <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                      <Sparkles className="h-4 w-4" />
+                      Variables
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {templateTokens.length ? (
+                        templateTokens.map((token) => (
+                          <span
+                            key={token}
+                            className="rounded-full border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-3 py-1 text-xs font-semibold text-[var(--portal-text-soft)]"
+                          >
+                            {token}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-sm text-[var(--portal-text-soft)]">
+                          No variables detected.
                         </span>
-                      ))
-                    ) : (
-                      <span className="text-sm text-[var(--portal-text-soft)]">
-                        No variables detected yet.
-                      </span>
-                    )}
+                      )}
+                    </div>
                   </div>
 
-                  <div className="mt-5 rounded-[1rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4 text-sm leading-6 text-[var(--portal-text-soft)]">
-                    Payment automations currently use:
-                    <div className="mt-3 space-y-2 text-[var(--portal-text)]">
-                      <div>
-                        <strong>Receipts</strong>: <code>payment_receipt</code>
-                      </div>
-                      <div>
-                        <strong>Due reminders</strong>: <code>payment_reminder</code>
-                      </div>
-                      <div>
-                        <strong>Overdue notices</strong>: <code>payment_overdue</code>
-                      </div>
-                      <div>
-                        <strong>Default notices</strong>: <code>payment_default_notice</code>
-                      </div>
-                      <div>
-                        <strong>Credits / adjustments</strong>: <code>payment_credit_applied</code>
-                      </div>
+                  <div className="rounded-[1.25rem] border border-[var(--portal-border)] bg-white p-4">
+                    <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                      <Send className="h-4 w-4" />
+                      Test Email
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
+                      Test-only send. This does not send to buyers automatically and does not save draft edits.
+                    </p>
+                    <div className="mt-4 space-y-3">
+                      <Field
+                        label="Test recipient"
+                        value={testRecipient}
+                        onChange={setTestRecipient}
+                      />
+                      <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                        Send mode
+                        <select
+                          value={testMode}
+                          onChange={(event) => setTestMode(event.target.value === "saved" ? "saved" : "draft")}
+                          className="mt-2 w-full rounded-[18px] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3.5 text-sm text-[var(--portal-text)] outline-none focus:border-[#c8a884]"
+                        >
+                          <option value="draft">Rendered editor draft</option>
+                          <option value="saved">Saved template from database</option>
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => void handleSendTest()}
+                        className={`${primaryButtonClass} w-full`}
+                        disabled={
+                          sendingTest ||
+                          !payloadState.ok ||
+                          !text(testRecipient) ||
+                          !text(templateDraft.subject) ||
+                          !text(templateDraft.body) ||
+                          (testMode === "saved" && !selectedTemplate)
+                        }
+                      >
+                        {sendingTest ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        {sendingTest ? "Sending Test" : "Send Test Email"}
+                      </button>
+                      {testFeedback ? (
+                        <div
+                          className={`rounded-[1rem] border px-4 py-3 text-sm ${
+                            testFeedback.toLowerCase().includes("sent")
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                              : "border-rose-200 bg-rose-50 text-rose-800"
+                          }`}
+                        >
+                          {testFeedback}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -994,98 +1094,124 @@ export function ResendTemplatesWorkspace() {
                 </div>
               ) : null}
             </AdminPanel>
-
-            <AdminPanel
-              title="Recent Resend Activity"
-              subtitle="This shows the latest automatic payment and reminder emails along with delivery, open, click, and bounce tracking where the webhook is available."
-            >
-              {recentActivity.length ? (
-                <div className="overflow-hidden rounded-[1.25rem] border border-[var(--portal-border)]">
-                  <div className="grid grid-cols-[1.1fr_1fr_0.9fr_0.9fr_0.8fr_0.9fr] gap-3 border-b border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
-                    <div>Buyer</div>
-                    <div>Puppy</div>
-                    <div>Notice</div>
-                    <div>Recipient</div>
-                    <div>Event</div>
-                    <div>Tracking</div>
-                  </div>
-
-                  {recentActivity.map((activity) => (
-                    <div
-                      key={activity.id}
-                      className="grid grid-cols-[1.1fr_1fr_0.9fr_0.9fr_0.8fr_0.9fr] gap-3 border-b border-[var(--portal-border)] bg-white px-4 py-4 text-sm"
-                    >
-                      <div className="min-w-0">
-                        <div className="font-semibold text-[var(--portal-text)]">
-                          {activity.buyerName}
-                        </div>
-                        <div className="mt-1 text-xs text-[var(--portal-text-muted)]">
-                          {activity.createdAt ? fmtDate(activity.createdAt) : "Recent send"}
-                        </div>
-                      </div>
-
-                      <div className="min-w-0">
-                        <div className="font-semibold text-[var(--portal-text)]">
-                          {activity.puppyName || "Not linked"}
-                        </div>
-                        <div className="mt-1 truncate text-xs text-[var(--portal-text-muted)]">
-                          {activity.subject}
-                        </div>
-                      </div>
-
-                      <div className="min-w-0">
-                        <div className="font-semibold text-[var(--portal-text)]">
-                          {prettyNoticeKind(activity.noticeKind)}
-                        </div>
-                        <div className="mt-1 text-xs text-[var(--portal-text-muted)]">
-                          {activity.providerMessageId || "No provider id"}
-                        </div>
-                      </div>
-
-                      <div className="truncate font-medium text-[var(--portal-text-soft)]">
-                        {activity.recipientEmail}
-                      </div>
-
-                      <div>
-                        <span
-                          className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(
-                            activity.lastEventType || activity.status
-                          )}`}
-                        >
-                          {formatEventLabel(activity.lastEventType || activity.status)}
-                        </span>
-                        <div className="mt-2 text-xs text-[var(--portal-text-muted)]">
-                          {activity.lastEventAt
-                            ? fmtDate(activity.lastEventAt)
-                            : "Waiting on next event"}
-                        </div>
-                      </div>
-
-                      <div className="space-y-1 text-xs text-[var(--portal-text-soft)]">
-                        <div>Delivered: {activity.deliveredAt ? fmtDate(activity.deliveredAt) : "-"}</div>
-                        <div>Opened: {activity.openedAt ? fmtDate(activity.openedAt) : "-"}</div>
-                        <div>
-                          Opens {activity.openCount} | Clicks {activity.clickCount}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-[1.25rem] border border-dashed border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-5 py-5 text-sm text-[var(--portal-text-soft)]">
-                  <div className="font-semibold text-[var(--portal-text)]">
-                    No tracked automatic email activity yet.
-                  </div>
-                  <div className="mt-1">
-                    {webhookConfigured
-                      ? "The log will begin to populate after the next automatic send and webhook event."
-                      : "Automatic sends can still go out, but open and delivery tracking needs the Resend webhook secret."}
-                  </div>
-                </div>
-              )}
-            </AdminPanel>
           </div>
         </section>
+
+        <div className="grid gap-6 xl:grid-cols-2">
+          <AdminPanel
+            title="Recent Resend Activity"
+            subtitle="Automatic payment and reminder emails with webhook delivery, open, click, and bounce tracking where available."
+          >
+            {recentActivity.length ? (
+              <div className="overflow-hidden rounded-[1.25rem] border border-[var(--portal-border)]">
+                <div className="grid grid-cols-[1fr_0.9fr_0.8fr_1fr_0.8fr] gap-3 border-b border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                  <div>Buyer</div>
+                  <div>Puppy</div>
+                  <div>Notice</div>
+                  <div>Recipient</div>
+                  <div>Event</div>
+                </div>
+                {recentActivity.slice(0, 10).map((activity) => (
+                  <div
+                    key={activity.id}
+                    className="grid grid-cols-[1fr_0.9fr_0.8fr_1fr_0.8fr] gap-3 border-b border-[var(--portal-border)] bg-white px-4 py-4 text-sm last:border-b-0"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate font-semibold text-[var(--portal-text)]">
+                        {activity.buyerName}
+                      </div>
+                      <div className="mt-1 text-xs text-[var(--portal-text-muted)]">
+                        {compactDate(activity.createdAt)}
+                      </div>
+                    </div>
+                    <div className="min-w-0 truncate text-[var(--portal-text-soft)]">
+                      {activity.puppyName || "Not linked"}
+                    </div>
+                    <div className="min-w-0 truncate font-medium text-[var(--portal-text)]">
+                      {prettyNoticeKind(activity.noticeKind)}
+                    </div>
+                    <div className="min-w-0 truncate text-[var(--portal-text-soft)]">
+                      {activity.recipientEmail}
+                    </div>
+                    <div>
+                      <span
+                        className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(
+                          activity.lastEventType || activity.status
+                        )}`}
+                      >
+                        {formatEventLabel(activity.lastEventType || activity.status)}
+                      </span>
+                      <div className="mt-2 text-xs text-[var(--portal-text-muted)]">
+                        Opens {activity.openCount} | Clicks {activity.clickCount}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <ActivityEmptyState
+                title="No automatic email activity yet"
+                description={
+                  webhookConfigured
+                    ? "The log will populate after automatic sends begin receiving Resend events."
+                    : "Automatic sends can still go out, but webhook tracking needs the Resend webhook secret."
+                }
+              />
+            )}
+          </AdminPanel>
+
+          <AdminPanel
+            title="Recent Test Sends"
+            subtitle="Test emails sent from this editor, including webhook events when Resend reports them."
+          >
+            {recentTestSends.length ? (
+              <div className="space-y-3">
+                {recentTestSends.map((send) => (
+                  <div
+                    key={send.id}
+                    className="rounded-[1.15rem] border border-[var(--portal-border)] bg-white px-4 py-4"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-[var(--portal-text)]">
+                          {send.label || send.templateKey}
+                        </div>
+                        <div className="mt-1 truncate text-xs text-[var(--portal-text-muted)]">
+                          {send.recipientEmail} | {compactDate(send.createdAt)}
+                        </div>
+                      </div>
+                      <span
+                        className={`rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(
+                          send.lastEventType || send.status
+                        )}`}
+                      >
+                        {formatEventLabel(send.lastEventType || send.status)}
+                      </span>
+                    </div>
+                    <div className="mt-3 truncate text-xs text-[var(--portal-text-soft)]">
+                      {send.subject}
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold text-[var(--portal-text-muted)]">
+                      <span>Mode: {send.renderMode}</span>
+                      <span>Opens {send.openCount}</span>
+                      <span>Clicks {send.clickCount}</span>
+                      {send.providerMessageId ? <span>ID {send.providerMessageId}</span> : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <ActivityEmptyState
+                title="No test sends yet"
+                description={
+                  testSendTrackingReady
+                    ? "Use the Test Email panel to send a rendered template to the owner/admin address."
+                    : "Apply the template test-send migration to keep test history and webhook tracking."
+                }
+              />
+            )}
+          </AdminPanel>
+        </div>
 
         <div className="grid gap-6 xl:grid-cols-2">
           <AdminPanel
@@ -1099,8 +1225,8 @@ export function ResendTemplatesWorkspace() {
                   Resend Templates
                 </div>
                 <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
-                  Automatic receipts, due reminders, overdue notices, default notices, credits,
-                  and breeder automation content.
+                  Automatic receipts, reminders, document notices, transport notices, puppy updates,
+                  and relationship follow-up emails.
                 </div>
               </div>
 
@@ -1110,7 +1236,7 @@ export function ResendTemplatesWorkspace() {
                   Portal Messages
                 </div>
                 <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
-                  Actual inbox conversations, buyer portal threads, and manual breeder replies.
+                  Buyer inbox conversations, portal message threads, and manual breeder replies.
                 </div>
               </div>
             </div>
@@ -1118,7 +1244,7 @@ export function ResendTemplatesWorkspace() {
 
           <AdminPanel
             title="Operational Shortcuts"
-            subtitle="Move straight from the template editor into the related workflow surfaces."
+            subtitle="Move from template work into the related operational surface."
           >
             <div className="grid gap-3 md:grid-cols-2">
               <Link href="/admin/portal/messages" className={secondaryButtonClass}>
@@ -1141,6 +1267,31 @@ export function ResendTemplatesWorkspace() {
   );
 }
 
+function CategoryFilterButton({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "rounded-full border px-3 py-2 text-[11px] font-bold uppercase tracking-[0.14em] transition",
+        active
+          ? "border-transparent bg-[var(--portal-accent)] text-white"
+          : "border-[var(--portal-border)] bg-white text-[var(--portal-text-soft)] hover:text-[var(--portal-text)]",
+      ].join(" ")}
+    >
+      {label}
+    </button>
+  );
+}
+
 function Field({
   label,
   value,
@@ -1158,6 +1309,37 @@ function Field({
         onChange={(event) => onChange(event.target.value)}
         className="mt-2 w-full rounded-[18px] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3.5 text-sm text-[var(--portal-text)] outline-none focus:border-[#c8a884]"
       />
+    </label>
+  );
+}
+
+function SelectField({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+}) {
+  const normalizedOptions = Array.from(new Set([value, ...options].filter(Boolean)));
+
+  return (
+    <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+      {label}
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-2 w-full rounded-[18px] border border-[var(--portal-border)] bg-[#fffdfb] px-4 py-3.5 text-sm text-[var(--portal-text)] outline-none focus:border-[#c8a884]"
+      >
+        {normalizedOptions.map((option) => (
+          <option key={option} value={option}>
+            {categoryLabel(option)}
+          </option>
+        ))}
+      </select>
     </label>
   );
 }
@@ -1225,5 +1407,20 @@ function ToggleCard({
         </span>
       </div>
     </button>
+  );
+}
+
+function ActivityEmptyState({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="rounded-[1.25rem] border border-dashed border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-5 py-6 text-sm text-[var(--portal-text-soft)]">
+      <div className="font-semibold text-[var(--portal-text)]">{title}</div>
+      <div className="mt-1 leading-6">{description}</div>
+    </div>
   );
 }

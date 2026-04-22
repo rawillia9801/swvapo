@@ -13,6 +13,12 @@ type NoticeLogRow = {
   click_count?: number | null;
 };
 
+type TrackedMessageMatch = {
+  source: "buyer_payment_notice_logs" | "admin_message_template_test_sends";
+  table: string;
+  row: NoticeLogRow;
+};
+
 function text(value: unknown) {
   return String(value || "").trim();
 }
@@ -130,6 +136,56 @@ function buildFallbackUpdate(input: {
   };
 }
 
+async function findTrackedMessageByProviderId(
+  providerMessageId: string
+): Promise<TrackedMessageMatch | null> {
+  const service = createServiceSupabase();
+  const existingResult = await queryBuyerPaymentNoticeLogs<NoticeLogRow>(
+    service,
+    "id,meta,open_count,click_count",
+    (query) =>
+      query
+        .eq("provider_message_id", providerMessageId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+  );
+
+  if (existingResult.error && !isSchemaError(existingResult.error)) {
+    throw existingResult.error;
+  }
+
+  const existingLog = existingResult.data?.[0] || null;
+  if (existingLog && existingResult.table) {
+    return {
+      source: "buyer_payment_notice_logs",
+      table: existingResult.table,
+      row: existingLog,
+    };
+  }
+
+  const testSendResult = await service
+    .from("admin_message_template_test_sends")
+    .select("id,meta,open_count,click_count")
+    .eq("provider_message_id", providerMessageId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .returns<NoticeLogRow[]>();
+
+  if (testSendResult.error) {
+    if (isSchemaError(testSendResult.error)) return null;
+    throw testSendResult.error;
+  }
+
+  const testSend = testSendResult.data?.[0] || null;
+  if (!testSend) return null;
+
+  return {
+    source: "admin_message_template_test_sends",
+    table: "admin_message_template_test_sends",
+    row: testSend,
+  };
+}
+
 export async function GET(request: NextRequest) {
   const origin = currentOrigin(request);
   return NextResponse.json({
@@ -173,26 +229,9 @@ export async function POST(request: NextRequest) {
     }
 
     const service = createServiceSupabase();
-    const existingResult = await queryBuyerPaymentNoticeLogs<NoticeLogRow>(
-      service,
-      "id,meta,open_count,click_count",
-      (query) =>
-        query
-          .eq("provider_message_id", providerMessageId)
-          .order("created_at", { ascending: false })
-          .limit(1)
-    );
+    const trackedMatch = await findTrackedMessageByProviderId(providerMessageId);
 
-    if (existingResult.error) {
-      if (isSchemaError(existingResult.error)) {
-        return NextResponse.json({ ok: true, ignored: true, reason: "Notice log schema is not ready." });
-      }
-      throw existingResult.error;
-    }
-
-    const existingLog = existingResult.data?.[0] || null;
-
-    if (!existingLog || !existingResult.table) {
+    if (!trackedMatch) {
       return NextResponse.json({
         ok: true,
         ignored: true,
@@ -201,14 +240,14 @@ export async function POST(request: NextRequest) {
     }
 
     const trackedUpdate = buildTrackedUpdate({
-      existing: existingLog,
+      existing: trackedMatch.row,
       verified,
     });
 
     const trackedResult = await service
-      .from(existingResult.table)
+      .from(trackedMatch.table)
       .update(trackedUpdate)
-      .eq("id", existingLog.id);
+      .eq("id", trackedMatch.row.id);
 
     if (trackedResult.error) {
       if (!isSchemaError(trackedResult.error)) {
@@ -216,14 +255,14 @@ export async function POST(request: NextRequest) {
       }
 
       const fallbackResult = await service
-        .from(existingResult.table)
+        .from(trackedMatch.table)
         .update(
           buildFallbackUpdate({
-            existing: existingLog,
+            existing: trackedMatch.row,
             verified,
           })
         )
-        .eq("id", existingLog.id);
+        .eq("id", trackedMatch.row.id);
 
       if (fallbackResult.error) throw fallbackResult.error;
     }
@@ -232,6 +271,7 @@ export async function POST(request: NextRequest) {
       ok: true,
       providerMessageId,
       eventType: text(verified.type),
+      source: trackedMatch.source,
     });
   } catch (error) {
     return NextResponse.json(

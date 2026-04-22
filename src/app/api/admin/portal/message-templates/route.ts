@@ -6,9 +6,10 @@ import {
   verifyOwner,
 } from "@/lib/admin-api";
 import { queryBuyerPaymentNoticeLogs } from "@/lib/admin-data-compat";
+import { DEFAULT_RESEND_TEMPLATES } from "@/lib/resend-template-defaults";
 
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
-const TEMPLATE_MIGRATION_PATH = "supabase/migrations/20260416_puppy_operations_workspace.sql";
+const TEMPLATE_MIGRATION_PATH = "supabase/migrations/20260422_resend_template_library_and_tests.sql";
 const NOTICE_TRACKING_MIGRATION_PATH = "supabase/migrations/20260417_resend_notice_tracking.sql";
 
 type MessageTemplateRow = {
@@ -44,6 +45,28 @@ type NoticeLogRow = {
   clicked_at?: string | null;
   open_count?: number | null;
   click_count?: number | null;
+};
+
+type TestSendRow = {
+  id: number;
+  created_at?: string | null;
+  template_key?: string | null;
+  category?: string | null;
+  label?: string | null;
+  recipient_email?: string | null;
+  subject?: string | null;
+  status?: string | null;
+  provider_message_id?: string | null;
+  last_event_type?: string | null;
+  last_event_at?: string | null;
+  delivered_at?: string | null;
+  opened_at?: string | null;
+  clicked_at?: string | null;
+  open_count?: number | null;
+  click_count?: number | null;
+  sent_by_email?: string | null;
+  render_mode?: string | null;
+  missing_variables?: string[] | null;
 };
 
 type BuyerRow = {
@@ -132,6 +155,32 @@ function toTemplate(row: MessageTemplateRow) {
         : {},
     updatedAt: row.updated_at || null,
   };
+}
+
+async function ensureDefaultTemplates(service = createServiceSupabase(), ownerEmail: string | null) {
+  const rows = DEFAULT_RESEND_TEMPLATES.map((template) => ({
+    template_key: template.templateKey,
+    category: template.category,
+    label: template.label,
+    description: template.description,
+    channel: "email",
+    provider: "resend",
+    subject: template.subject,
+    body: template.body,
+    automation_enabled: true,
+    is_active: true,
+    preview_payload: template.previewPayload,
+    updated_by_email: ownerEmail,
+  }));
+
+  const result = await service
+    .from("admin_message_templates")
+    .upsert(rows, { onConflict: "template_key", ignoreDuplicates: true });
+
+  if (result.error) {
+    if (isMissingTableError(result.error) || isMissingColumnError(result.error)) return;
+    throw result.error;
+  }
 }
 
 async function loadRecentActivity(service = createServiceSupabase()) {
@@ -277,6 +326,74 @@ async function loadRecentActivity(service = createServiceSupabase()) {
   };
 }
 
+async function loadRecentTestSends(service = createServiceSupabase()) {
+  const trackedSelect = [
+    "id",
+    "created_at",
+    "template_key",
+    "category",
+    "label",
+    "recipient_email",
+    "subject",
+    "status",
+    "provider_message_id",
+    "last_event_type",
+    "last_event_at",
+    "delivered_at",
+    "opened_at",
+    "clicked_at",
+    "open_count",
+    "click_count",
+    "sent_by_email",
+    "render_mode",
+    "missing_variables",
+  ].join(",");
+
+  const result = await service
+    .from("admin_message_template_test_sends")
+    .select(trackedSelect)
+    .order("created_at", { ascending: false })
+    .limit(15)
+    .returns<TestSendRow[]>();
+
+  if (result.error) {
+    if (isMissingTableError(result.error) || isMissingColumnError(result.error)) {
+      return {
+        recentTestSends: [],
+        testSendTrackingReady: false,
+        warning: `Template test-send history is not installed yet. Apply ${TEMPLATE_MIGRATION_PATH} to track test deliveries.`,
+      };
+    }
+    throw result.error;
+  }
+
+  return {
+    recentTestSends: (result.data || []).map((row) => ({
+      id: Number(row.id),
+      templateKey: text(row.template_key),
+      category: text(row.category),
+      label: text(row.label),
+      recipientEmail: text(row.recipient_email),
+      subject: text(row.subject),
+      status: text(row.status) || "sent",
+      providerMessageId: text(row.provider_message_id) || null,
+      lastEventType: text(row.last_event_type) || null,
+      lastEventAt: row.last_event_at || null,
+      deliveredAt: row.delivered_at || null,
+      openedAt: row.opened_at || null,
+      clickedAt: row.clicked_at || null,
+      openCount: Number(row.open_count || 0),
+      clickCount: Number(row.click_count || 0),
+      sentByEmail: text(row.sent_by_email),
+      renderMode: text(row.render_mode) || "draft",
+      missingVariables: Array.isArray(row.missing_variables) ? row.missing_variables : [],
+      createdAt: row.created_at || null,
+    })),
+    testSendTrackingReady: true,
+    warning: "",
+  };
+}
+
 export async function GET(req: Request) {
   try {
     const owner = await verifyOwner(req);
@@ -288,6 +405,8 @@ export async function GET(req: Request) {
     const webhookConfigured = Boolean(
       text(process.env.RESEND_WEBHOOK_SECRET) || text(process.env.RESEND_WEBHOOK_SIGNING_SECRET)
     );
+
+    await ensureDefaultTemplates(service, owner.email || null);
 
     const result = await service
       .from("admin_message_templates")
@@ -304,6 +423,7 @@ export async function GET(req: Request) {
             ok: true,
             templates: [],
             recentActivity: [],
+            recentTestSends: [],
             missingStorage: true,
             webhookConfigured,
             warning: `Template storage is not installed yet. Apply ${TEMPLATE_MIGRATION_PATH} to enable admin_message_templates.`,
@@ -314,8 +434,11 @@ export async function GET(req: Request) {
       throw result.error;
     }
 
-    const activity = await loadRecentActivity(service);
-    const warnings = [activity.warning];
+    const [activity, testSends] = await Promise.all([
+      loadRecentActivity(service),
+      loadRecentTestSends(service),
+    ]);
+    const warnings = [activity.warning, testSends.warning];
     if (!webhookConfigured) {
       warnings.push("Add RESEND_WEBHOOK_SECRET to capture open, click, bounce, and delivery events.");
     }
@@ -325,8 +448,10 @@ export async function GET(req: Request) {
         ok: true,
         templates: (result.data || []).map(toTemplate),
         recentActivity: activity.recentActivity,
+        recentTestSends: testSends.recentTestSends,
         missingStorage: false,
         webhookConfigured,
+        testSendTrackingReady: testSends.testSendTrackingReady,
         warning: warnings.filter(Boolean).join(" "),
       },
       { headers: NO_STORE_HEADERS }
@@ -335,7 +460,7 @@ export async function GET(req: Request) {
     return NextResponse.json(
       {
         ok: false,
-        error: describeRouteError(error, "Could not load the message templates."),
+        error: describeRouteError(error, "Could not load the Resend templates."),
       },
       { status: 500 }
     );
@@ -352,10 +477,19 @@ export async function PATCH(req: Request) {
     const body = (await req.json()) as Record<string, unknown>;
     const templateKey = text(body.templateKey);
     const label = text(body.label);
+    const subject = text(body.subject);
+    const templateBody = text(body.body);
 
     if (!templateKey || !label) {
       return NextResponse.json(
         { ok: false, error: "A template key and label are required." },
+        { status: 400 }
+      );
+    }
+
+    if (!subject || !templateBody) {
+      return NextResponse.json(
+        { ok: false, error: "A subject and body are required before saving." },
         { status: 400 }
       );
     }
@@ -370,8 +504,8 @@ export async function PATCH(req: Request) {
         description: text(body.description) || null,
         channel: text(body.channel) || "email",
         provider: text(body.provider) || "resend",
-        subject: text(body.subject),
-        body: text(body.body),
+        subject,
+        body: templateBody,
         automation_enabled: bool(body.automationEnabled, true),
         is_active: bool(body.isActive, true),
         preview_payload: jsonObject(body.previewPayload),
@@ -398,7 +532,7 @@ export async function PATCH(req: Request) {
     return NextResponse.json(
       {
         ok: false,
-        error: describeRouteError(error, "Could not save the message template."),
+        error: describeRouteError(error, "Could not save the Resend template."),
       },
       { status: 500 }
     );
