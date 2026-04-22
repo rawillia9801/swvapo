@@ -2,96 +2,133 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import React, { useCallback, useDeferredValue, useEffect, useRef, useState, useTransition } from "react";
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
-  FileText,
+  ArrowRight,
+  Camera,
+  CheckCircle2,
+  Circle,
+  CreditCard,
+  ExternalLink,
+  FileCheck2,
   HeartPulse,
+  Layers3,
   Loader2,
   MessageSquareText,
   PawPrint,
   RefreshCcw,
   Search,
-  Settings2,
   ShieldCheck,
   Sparkles,
   Stethoscope,
   Users,
-  WandSparkles,
 } from "lucide-react";
 import {
   AdminEmptyState,
+  AdminHeroPrimaryAction,
+  AdminHeroSecondaryAction,
   AdminPageHero,
   AdminPageShell,
   AdminRestrictedState,
+  adminStatusBadge,
 } from "@/components/admin/luxury-admin-shell";
 import {
-  PUPPIES_SYSTEM_TABS,
+  type ActivityFeedItem,
+  type LitterWorkspaceRecord,
   type PuppiesSystemSnapshot,
-  isCurrentPuppyStatus,
-  isPastPuppyStatus,
-  type BuyerWorkspaceRecord,
-  type ChecklistTemplateRecord,
-  type MessageTemplateRecord,
   type PuppiesSystemTab,
   type PuppyWorkspaceRecord,
-  type WorkflowSettingRecord,
+  isCurrentPuppyStatus,
+  isPastPuppyStatus,
+  isReservedPuppyStatus,
 } from "@/lib/admin-puppies-system";
 import { fetchAdminPuppiesSnapshot } from "@/lib/admin-puppies-client";
 import { usePortalAdminSession } from "@/lib/use-portal-admin-session";
-import { buildPuppyPhotoUrl, fmtDate } from "@/lib/utils";
+import { buildPuppyPhotoUrl, fmtDate, fmtMoney } from "@/lib/utils";
 
-const TAB_LABELS: Record<PuppiesSystemTab, string> = {
-  overview: "Overview",
-  current: "Current Puppies",
-  past: "Past Puppies",
-  care: "Care & Health",
-  readiness: "Website & Portal Readiness",
-  "buyer-matching": "Buyer Matching",
-  documents: "Documents",
-  messaging: "Messaging / Email Templates",
-  settings: "Settings / Automations",
+type RosterFilter = "all" | "attention" | "available" | "reserved" | "unlinked" | "care_due";
+
+type ReadinessLine = {
+  label: string;
+  ready: boolean;
+  score?: number;
+  detail: string;
+  href: string;
 };
 
-const primaryButtonClass =
-  "inline-flex items-center justify-center gap-2 rounded-[1rem] bg-[linear-gradient(135deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[var(--portal-shadow-md)] transition hover:-translate-y-0.5 disabled:opacity-60";
+type WorkItem = {
+  label: string;
+  count: number;
+  detail: string;
+  href: string;
+  tone: "success" | "warning" | "danger" | "neutral";
+  icon: React.ReactNode;
+};
+
 const secondaryButtonClass =
-  "inline-flex items-center justify-center gap-2 rounded-[1rem] border border-[var(--portal-border)] bg-white/92 px-4 py-3 text-sm font-semibold text-[var(--portal-text)] shadow-[var(--portal-shadow-sm)] transition hover:bg-[var(--portal-surface-muted)] disabled:opacity-60";
+  "inline-flex items-center justify-center gap-2 rounded-[1rem] border border-[var(--portal-border)] bg-white/92 px-4 py-3 text-sm font-semibold text-[var(--portal-text)] shadow-[var(--portal-shadow-sm)] transition hover:bg-[var(--portal-surface-muted)] disabled:cursor-not-allowed disabled:opacity-60";
 
-type TemplateDraft = {
-  id: number | null;
-  templateKey: string;
-  category: string;
-  label: string;
-  description: string;
-  subject: string;
-  body: string;
-  previewPayload: string;
-  automationEnabled: boolean;
-  isActive: boolean;
-};
+const filterOptions: Array<{ key: RosterFilter; label: string }> = [
+  { key: "all", label: "All Current" },
+  { key: "attention", label: "Needs Attention" },
+  { key: "available", label: "Available" },
+  { key: "reserved", label: "Reserved" },
+  { key: "unlinked", label: "No Buyer" },
+  { key: "care_due", label: "Care Due" },
+];
 
-type WorkflowDraft = {
-  id: number | null;
-  workflowKey: string;
-  category: string;
-  label: string;
-  description: string;
-  status: string;
-  settings: string;
-};
+function surface(extra = "") {
+  return `rounded-[1.45rem] border border-[rgba(187,160,132,0.28)] bg-[rgba(255,252,248,0.9)] shadow-[0_18px_44px_rgba(110,79,47,0.08)] backdrop-blur-sm ${extra}`.trim();
+}
 
-type ChecklistDraft = {
-  id: number | null;
-  key: string;
-  label: string;
-  description: string;
-  category: string;
-  sortOrder: string;
-};
+function text(value: unknown) {
+  return String(value || "").trim();
+}
 
-function cardClassName(extra = "") {
-  return `rounded-[1.5rem] border border-[var(--portal-border)] bg-[var(--portal-surface)] shadow-[var(--portal-shadow-sm)] ${extra}`.trim();
+function money(value: number | null | undefined) {
+  if (value == null || !Number.isFinite(Number(value))) return "Not set";
+  return fmtMoney(Number(value));
+}
+
+function ageLabel(puppy: PuppyWorkspaceRecord) {
+  if (puppy.ageWeeks == null) return puppy.dob ? fmtDate(puppy.dob) : "Age not set";
+  return `${puppy.ageWeeks} ${puppy.ageWeeks === 1 ? "week" : "weeks"}`;
+}
+
+function latestWeightLabel(puppy: PuppyWorkspaceRecord) {
+  const latestWeight = puppy.care.latestWeight;
+  if (latestWeight?.weightOz != null) return `${latestWeight.weightOz} oz`;
+  if (latestWeight?.weightG != null) return `${latestWeight.weightG} g`;
+  if (puppy.currentWeight != null) return `${puppy.currentWeight} ${puppy.weightUnit || ""}`.trim();
+  return "No weight";
+}
+
+function latestCareDate(puppy: PuppyWorkspaceRecord) {
+  return (
+    puppy.care.latestWeight?.weighDate ||
+    puppy.care.latestHealthRecord?.recordDate ||
+    puppy.care.latestEvent?.eventDate ||
+    puppy.weightDate ||
+    null
+  );
+}
+
+function nextCareLabel(puppy: PuppyWorkspaceRecord) {
+  if (puppy.care.weightDue) return "Weight due";
+  if (puppy.care.vaccineDue) return "Vaccine due";
+  if (puppy.care.dewormingDue) return "Deworming due";
+  return "Care current";
+}
+
+function careDue(puppy: PuppyWorkspaceRecord) {
+  return puppy.care.weightDue || puppy.care.vaccineDue || puppy.care.dewormingDue;
+}
+
+function readinessTone(score: number) {
+  if (score >= 90) return "completed";
+  if (score >= 70) return "warning";
+  return "failed";
 }
 
 function readinessClass(score: number) {
@@ -100,137 +137,195 @@ function readinessClass(score: number) {
   return "border-rose-200 bg-rose-50 text-rose-700";
 }
 
-function templateDraftFromRecord(template: MessageTemplateRecord | null): TemplateDraft {
-  return {
-    id: template?.id ?? null,
-    templateKey: template?.templateKey || "",
-    category: template?.category || "custom",
-    label: template?.label || "",
-    description: template?.description || "",
-    subject: template?.subject || "",
-    body: template?.body || "",
-    previewPayload: JSON.stringify(template?.previewPayload || {}, null, 2),
-    automationEnabled: template?.automationEnabled ?? true,
-    isActive: template?.isActive ?? true,
-  };
+function statusTone(status: string | null | undefined) {
+  if (isPastPuppyStatus(status)) return "completed";
+  if (isReservedPuppyStatus(status)) return "reserved";
+  if (text(status).toLowerCase().includes("available")) return "available";
+  return "pending";
 }
 
-function workflowDraftFromRecord(workflow: WorkflowSettingRecord | null): WorkflowDraft {
-  return {
-    id: workflow?.id ?? null,
-    workflowKey: workflow?.workflowKey || "",
-    category: workflow?.category || "operations",
-    label: workflow?.label || "",
-    description: workflow?.description || "",
-    status: workflow?.status || "active",
-    settings: JSON.stringify(workflow?.settings || {}, null, 2),
-  };
+function rowMatchesSearch(puppy: PuppyWorkspaceRecord, search: string) {
+  if (!search) return true;
+  return [
+    puppy.displayName,
+    puppy.callName,
+    puppy.registeredName,
+    puppy.litterName,
+    puppy.damName,
+    puppy.sireName,
+    puppy.sex,
+    puppy.color,
+    puppy.coatType,
+    puppy.status,
+    puppy.buyerName,
+    puppy.buyerEmail,
+  ]
+    .map((value) => String(value || "").toLowerCase())
+    .join(" ")
+    .includes(search);
 }
 
-function checklistDraftFromRecord(template: ChecklistTemplateRecord | null): ChecklistDraft {
-  return {
-    id: template?.id ?? null,
-    key: template?.key || "",
-    label: template?.label || "",
-    description: template?.description || "",
-    category: template?.category || "development",
-    sortOrder: template?.sortOrder != null ? String(template.sortOrder) : "0",
-  };
+function rowMatchesFilter(puppy: PuppyWorkspaceRecord, filter: RosterFilter) {
+  if (filter === "attention") return puppy.attention.length > 0;
+  if (filter === "available") return !isReservedPuppyStatus(puppy.status) && !puppy.buyerId;
+  if (filter === "reserved") return isReservedPuppyStatus(puppy.status) || Boolean(puppy.buyerId);
+  if (filter === "unlinked") return !puppy.buyerId;
+  if (filter === "care_due") return careDue(puppy);
+  return true;
 }
 
-function previewText(template: string, payloadText: string) {
-  let payload: Record<string, unknown> = {};
-  try {
-    payload = JSON.parse(payloadText || "{}") as Record<string, unknown>;
-  } catch {
-    payload = {};
-  }
-  return String(template || "").replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, key) => {
-    const value = payload[key];
-    return value == null ? `{{${key}}}` : String(value);
-  });
+function selectedPuppyHref(puppy: PuppyWorkspaceRecord | null) {
+  return puppy ? `/admin/portal/puppies/current?puppy=${puppy.id}` : "/admin/portal/puppies/current";
 }
 
-function extractTokens(value: string) {
-  return Array.from(new Set(String(value || "").match(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g) || []))
-    .map((token) => token.replace(/[{}]/g, "").trim())
-    .filter(Boolean);
+function selectedPuppyDocumentHref(puppy: PuppyWorkspaceRecord | null) {
+  if (!puppy) return "/admin/portal/documents";
+  return `/admin/portal/documents?puppy=${puppy.id}`;
 }
 
-function latestWeightLabel(puppy: PuppyWorkspaceRecord) {
-  const latestWeight = puppy.care.latestWeight;
-  if (!latestWeight) return "No weight";
-  if (latestWeight.weightOz != null) return `${latestWeight.weightOz} oz`;
-  if (latestWeight.weightG != null) return `${latestWeight.weightG} g`;
-  return "No weight";
+function selectedPuppyBuyerHref(puppy: PuppyWorkspaceRecord | null) {
+  if (!puppy?.buyerId) return "/admin/portal/buyers";
+  return `/admin/portal/buyers?buyer=${puppy.buyerId}`;
 }
 
-function nextCareLabel(puppy: PuppyWorkspaceRecord) {
-  if (puppy.care.weightDue) return "Weight due";
-  if (puppy.care.vaccineDue) return "Vaccine due";
-  if (puppy.care.dewormingDue) return "Deworming due";
-  return "Up to date";
+function selectedPuppyLitterHref(puppy: PuppyWorkspaceRecord | null) {
+  if (!puppy?.litterId) return "/admin/portal/litters";
+  return `/admin/portal/litters?litter=${puppy.litterId}`;
 }
 
-function buyerAttentionLabel(buyer: BuyerWorkspaceRecord) {
-  if (buyer.overdue) return "Payment overdue";
-  if (buyer.unsignedForms > 0) return "Documents pending";
-  if (!buyer.linkedPuppyIds.length) return "Needs puppy match";
-  if (!buyer.hasPortalAccount) return "Portal not linked";
-  return "Healthy";
+function buildReadinessLines(puppy: PuppyWorkspaceRecord | null): ReadinessLine[] {
+  if (!puppy) return [];
+
+  return [
+    {
+      label: "Care Ready",
+      ready: !careDue(puppy),
+      score: careDue(puppy) ? 68 : 100,
+      detail: nextCareLabel(puppy),
+      href: selectedPuppyHref(puppy),
+    },
+    {
+      label: "Website Ready",
+      ready: puppy.readiness.website.ready,
+      score: puppy.readiness.website.score,
+      detail:
+        puppy.readiness.website.missing.concat(puppy.readiness.website.blocked).join(", ") ||
+        "Listing requirements look ready.",
+      href: selectedPuppyHref(puppy),
+    },
+    {
+      label: "Portal Ready",
+      ready: puppy.readiness.portal.ready,
+      score: puppy.readiness.portal.score,
+      detail:
+        puppy.readiness.portal.missing.concat(puppy.readiness.portal.blocked).join(", ") ||
+        "Buyer-facing portal information is ready.",
+      href: selectedPuppyHref(puppy),
+    },
+    {
+      label: "Buyer Linked",
+      ready: Boolean(puppy.buyerId),
+      score: puppy.buyerId ? 100 : 52,
+      detail: puppy.buyerName || "No buyer attached yet.",
+      href: selectedPuppyBuyerHref(puppy),
+    },
+    {
+      label: "Documents Ready",
+      ready: puppy.readiness.documents.ready,
+      score: puppy.readiness.documents.score,
+      detail:
+        puppy.documentSummary.total > 0
+          ? `${puppy.documentSummary.signed} signed, ${puppy.documentSummary.filed} filed.`
+          : "No document package attached yet.",
+      href: selectedPuppyDocumentHref(puppy),
+    },
+    {
+      label: "Payment Status",
+      ready: !puppy.paymentSummary.overdue,
+      score: puppy.paymentSummary.overdue ? 40 : 100,
+      detail:
+        puppy.paymentSummary.remainingBalance != null
+          ? `${money(puppy.paymentSummary.remainingBalance)} remaining.`
+          : "No payment balance available.",
+      href: "/admin/portal/puppy-financing",
+    },
+    {
+      label: "Go-Home Ready",
+      ready: puppy.readiness.goHome.ready,
+      score: puppy.readiness.goHome.score,
+      detail:
+        puppy.readiness.goHome.missing.concat(puppy.readiness.goHome.blocked).join(", ") ||
+        "Go-home readiness looks complete.",
+      href: selectedPuppyHref(puppy),
+    },
+  ];
 }
 
-function PuppyQuickCard({ puppy }: { puppy: PuppyWorkspaceRecord }) {
-  const photo = puppy.photoUrl ? buildPuppyPhotoUrl(puppy.photoUrl) : "";
-  const detailHref = isPastPuppyStatus(puppy.status)
-    ? `/admin/portal/puppies/past?puppy=${puppy.id}`
-    : `/admin/portal/puppies/current?puppy=${puppy.id}`;
-  return (
-    <Link href={detailHref} className="group overflow-hidden rounded-[1.4rem] border border-[var(--portal-border)] bg-white shadow-[var(--portal-shadow-sm)] transition hover:-translate-y-1 hover:shadow-[var(--portal-shadow-lg)]">
-      <div className="relative h-36 bg-[linear-gradient(135deg,#efe0cf_0%,#dbb894_100%)]">
-        {photo ? <Image src={photo} alt={puppy.displayName} fill className="object-cover transition duration-500 group-hover:scale-105" sizes="320px" /> : <div className="flex h-full items-center justify-center text-[#8f6a48]"><PawPrint className="h-10 w-10" /></div>}
-      </div>
-      <div className="space-y-2 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div><div className="text-base font-semibold text-[var(--portal-text)]">{puppy.displayName}</div><div className="text-sm text-[var(--portal-text-soft)]">{[puppy.sex, puppy.color, puppy.coatType].filter(Boolean).join(" | ") || "Profile still being completed"}</div></div>
-          <span className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${readinessClass(puppy.readiness.website.score)}`}>{puppy.status || "pending"}</span>
-        </div>
-        <div className="grid grid-cols-2 gap-2 text-sm">
-          <div className="rounded-[0.9rem] bg-[var(--portal-surface-muted)] px-3 py-2 text-[var(--portal-text-soft)]">
-            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">Buyer</div>
-            <div className="mt-1 font-semibold text-[var(--portal-text)]">{puppy.buyerName || "Unassigned"}</div>
-          </div>
-          <div className="rounded-[0.9rem] bg-[var(--portal-surface-muted)] px-3 py-2 text-[var(--portal-text-soft)]">
-            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">Litter</div>
-            <div className="mt-1 font-semibold text-[var(--portal-text)]">{puppy.litterName || "Not linked"}</div>
-          </div>
-          <div className="rounded-[0.9rem] bg-[var(--portal-surface-muted)] px-3 py-2 text-[var(--portal-text-soft)]">
-            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">Latest Weight</div>
-            <div className="mt-1 font-semibold text-[var(--portal-text)]">{latestWeightLabel(puppy)}</div>
-          </div>
-          <div className="rounded-[0.9rem] bg-[var(--portal-surface-muted)] px-3 py-2 text-[var(--portal-text-soft)]">
-            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">Next Care</div>
-            <div className="mt-1 font-semibold text-[var(--portal-text)]">{nextCareLabel(puppy)}</div>
-          </div>
-        </div>
-        <div className="grid grid-cols-4 gap-2 text-center text-[11px] font-semibold">
-          <div className={`rounded-[0.9rem] border px-2 py-2 ${readinessClass(puppy.readiness.website.score)}`}>Web {puppy.readiness.website.score}%</div>
-          <div className={`rounded-[0.9rem] border px-2 py-2 ${readinessClass(puppy.readiness.portal.score)}`}>Portal {puppy.readiness.portal.score}%</div>
-          <div className={`rounded-[0.9rem] border px-2 py-2 ${readinessClass(puppy.readiness.documents.score)}`}>Docs {puppy.readiness.documents.score}%</div>
-          <div className={`rounded-[0.9rem] border px-2 py-2 ${readinessClass(puppy.readiness.goHome.score)}`}>Go Home {puppy.readiness.goHome.score}%</div>
-        </div>
-        {puppy.attention.length ? (
-          <div className="rounded-[0.9rem] border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            {puppy.attention.slice(0, 2).join(" • ")}
-          </div>
-        ) : (
-          <div className="rounded-[0.9rem] border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-            Record looks healthy across care, readiness, and buyer linkage.
-          </div>
-        )}
-      </div>
-    </Link>
+function buildWorkItems(snapshot: PuppiesSystemSnapshot, currentPuppies: PuppyWorkspaceRecord[]): WorkItem[] {
+  const weightsDue = currentPuppies.filter((puppy) => puppy.care.weightDue).length;
+  const vaccinesDue = currentPuppies.filter((puppy) => puppy.care.vaccineDue).length;
+  const dewormingDue = currentPuppies.filter((puppy) => puppy.care.dewormingDue).length;
+  const noBuyer = currentPuppies.filter((puppy) => !puppy.buyerId).length;
+  const listingBlocked = currentPuppies.filter(
+    (puppy) => !puppy.readiness.website.ready || !puppy.readiness.portal.ready
+  ).length;
+  const documentsBlocked = currentPuppies.filter((puppy) => !puppy.readiness.documents.ready).length;
+  const overdueBuyers = snapshot.buyers.filter((buyer) => buyer.overdue).length;
+  const unreadMessages = currentPuppies.reduce(
+    (total, puppy) => total + Number(puppy.portalSummary.unreadMessages || 0),
+    0
   );
+
+  return [
+    {
+      label: "Care due",
+      count: weightsDue + vaccinesDue + dewormingDue,
+      detail: `${weightsDue} weights, ${vaccinesDue} vaccines, ${dewormingDue} deworming records need review.`,
+      href: "/admin/portal/puppies/current",
+      tone: weightsDue + vaccinesDue + dewormingDue ? "warning" : "success",
+      icon: <HeartPulse className="h-4 w-4" />,
+    },
+    {
+      label: "Buyer linkage",
+      count: noBuyer,
+      detail: "Current puppies without an attached buyer or placement file.",
+      href: "/admin/portal/buyers",
+      tone: noBuyer ? "warning" : "success",
+      icon: <Users className="h-4 w-4" />,
+    },
+    {
+      label: "Listing / portal blockers",
+      count: listingBlocked,
+      detail: "Puppies missing website or buyer-portal readiness requirements.",
+      href: "/admin/portal/puppies/current",
+      tone: listingBlocked ? "warning" : "success",
+      icon: <Sparkles className="h-4 w-4" />,
+    },
+    {
+      label: "Document blockers",
+      count: documentsBlocked,
+      detail: "Current puppies without complete document readiness.",
+      href: "/admin/portal/documents",
+      tone: documentsBlocked ? "warning" : "success",
+      icon: <FileCheck2 className="h-4 w-4" />,
+    },
+    {
+      label: "Payment follow-up",
+      count: overdueBuyers,
+      detail: "Buyer payment-plan accounts currently marked overdue.",
+      href: "/admin/portal/puppy-financing",
+      tone: overdueBuyers ? "danger" : "success",
+      icon: <CreditCard className="h-4 w-4" />,
+    },
+    {
+      label: "Unread portal messages",
+      count: unreadMessages,
+      detail: "Buyer messages connected to current puppy records.",
+      href: "/admin/portal/messages",
+      tone: unreadMessages ? "warning" : "success",
+      icon: <MessageSquareText className="h-4 w-4" />,
+    },
+  ];
 }
 
 export function PuppiesSystemWorkspace({
@@ -238,25 +333,17 @@ export function PuppiesSystemWorkspace({
 }: {
   defaultTab?: PuppiesSystemTab;
 }) {
+  void defaultTab;
+
   const { user, accessToken, loading, isAdmin } = usePortalAdminSession();
   const [snapshot, setSnapshot] = useState<PuppiesSystemSnapshot | null>(null);
-  const [activeTab, setActiveTab] = useState<PuppiesSystemTab>(defaultTab);
   const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<RosterFilter>("all");
+  const [selectedPuppyId, setSelectedPuppyId] = useState("");
   const [loadingSnapshot, setLoadingSnapshot] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorText, setErrorText] = useState("");
   const [warningText, setWarningText] = useState("");
-  const [feedback, setFeedback] = useState("");
-  const [selectedTemplateKey, setSelectedTemplateKey] = useState("");
-  const [selectedWorkflowKey, setSelectedWorkflowKey] = useState("");
-  const [selectedChecklistKey, setSelectedChecklistKey] = useState("");
-  const [templateDraft, setTemplateDraft] = useState<TemplateDraft>(templateDraftFromRecord(null));
-  const [workflowDraft, setWorkflowDraft] = useState<WorkflowDraft>(workflowDraftFromRecord(null));
-  const [checklistDraft, setChecklistDraft] = useState<ChecklistDraft>(checklistDraftFromRecord(null));
-  const [savingTemplate, setSavingTemplate] = useState(false);
-  const [savingWorkflow, setSavingWorkflow] = useState(false);
-  const [savingChecklist, setSavingChecklist] = useState(false);
-  const [isPending, startTransition] = useTransition();
   const deferredSearch = useDeferredValue(search);
   const snapshotRef = useRef<PuppiesSystemSnapshot | null>(snapshot);
   const initialLoadKeyRef = useRef("");
@@ -265,48 +352,49 @@ export function PuppiesSystemWorkspace({
     snapshotRef.current = snapshot;
   }, [snapshot]);
 
-  const loadSnapshot = useCallback(async (background = false) => {
-    if (!accessToken) return;
-    const existingSnapshot = snapshotRef.current;
-    if (background && existingSnapshot) setRefreshing(true);
-    else setLoadingSnapshot(true);
-    if (!background) {
-      setErrorText("");
-      setWarningText("");
-    }
-    try {
-      const payload = await fetchAdminPuppiesSnapshot(accessToken);
-      if (!payload.snapshot) {
-        const message = payload.error || "Could not load the Puppies system.";
+  const loadSnapshot = useCallback(
+    async (background = false) => {
+      if (!accessToken) return;
+      const existingSnapshot = snapshotRef.current;
+      if (background && existingSnapshot) setRefreshing(true);
+      else setLoadingSnapshot(true);
+      if (!background) {
+        setErrorText("");
+        setWarningText("");
+      }
+
+      try {
+        const payload = await fetchAdminPuppiesSnapshot(accessToken);
+        if (!payload.snapshot) {
+          const message = payload.error || "Could not load the Puppies workspace.";
+          if (existingSnapshot) setWarningText(message);
+          else setErrorText(message);
+          return;
+        }
+
+        setSnapshot(payload.snapshot);
+        setWarningText(payload.error || "");
+        const current = payload.snapshot.puppies.find((puppy) =>
+          isCurrentPuppyStatus(puppy.status)
+        );
+        setSelectedPuppyId((currentId) =>
+          currentId && payload.snapshot?.puppies.some((puppy) => String(puppy.id) === currentId)
+            ? currentId
+            : current
+              ? String(current.id)
+              : ""
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Could not load the Puppies workspace.";
         if (existingSnapshot) setWarningText(message);
         else setErrorText(message);
-        return;
+      } finally {
+        setLoadingSnapshot(false);
+        setRefreshing(false);
       }
-      setSnapshot(payload.snapshot);
-      setWarningText(payload.error || "");
-      setSelectedTemplateKey((current) => current || payload.snapshot?.messageTemplates[0]?.templateKey || "");
-      setSelectedWorkflowKey((current) => current || payload.snapshot?.workflowSettings[0]?.workflowKey || "");
-      setSelectedChecklistKey((current) => current || payload.snapshot?.checklistTemplates[0]?.key || "");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Could not load the Puppies system.";
-      if (existingSnapshot) setWarningText(message);
-      else setErrorText(message);
-    } finally {
-      setLoadingSnapshot(false);
-      setRefreshing(false);
-    }
-  }, [accessToken]);
-
-  async function saveAction(action: string, body: Record<string, unknown>) {
-    if (!accessToken) return;
-    const response = await fetch("/api/admin/portal/puppies-system", {
-      method: "PATCH",
-      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ action, ...body }),
-    });
-    const payload = (await response.json()) as { ok?: boolean; error?: string };
-    if (!response.ok || payload.ok === false) throw new Error(payload.error || "Could not save the update.");
-  }
+    },
+    [accessToken]
+  );
 
   useEffect(() => {
     if (!loading && accessToken && isAdmin) {
@@ -319,66 +407,84 @@ export function PuppiesSystemWorkspace({
     }
   }, [accessToken, isAdmin, loading, loadSnapshot]);
 
-  const selectedTemplate = snapshot?.messageTemplates.find((template) => template.templateKey === selectedTemplateKey) || null;
-  const selectedWorkflow = snapshot?.workflowSettings.find((workflow) => workflow.workflowKey === selectedWorkflowKey) || null;
-  const selectedChecklist = snapshot?.checklistTemplates.find((template) => template.key === selectedChecklistKey) || null;
-
-  useEffect(() => setTemplateDraft(templateDraftFromRecord(selectedTemplate)), [selectedTemplate]);
-  useEffect(() => setWorkflowDraft(workflowDraftFromRecord(selectedWorkflow)), [selectedWorkflow]);
-  useEffect(() => setChecklistDraft(checklistDraftFromRecord(selectedChecklist)), [selectedChecklist]);
-
-  const currentPuppies = (snapshot?.puppies || []).filter((puppy) => isCurrentPuppyStatus(puppy.status));
-  const pastPuppies = (snapshot?.puppies || []).filter((puppy) => isPastPuppyStatus(puppy.status));
+  const currentPuppies = useMemo(
+    () => (snapshot?.puppies || []).filter((puppy) => isCurrentPuppyStatus(puppy.status)),
+    [snapshot]
+  );
+  const pastPuppies = useMemo(
+    () => (snapshot?.puppies || []).filter((puppy) => isPastPuppyStatus(puppy.status)),
+    [snapshot]
+  );
+  const activeLitters = useMemo(
+    () => (snapshot?.litters || []).filter((litter) => litter.currentPuppyCount > 0),
+    [snapshot]
+  );
   const searchText = deferredSearch.trim().toLowerCase();
-  const visibleCurrent = currentPuppies.filter((puppy) =>
-    !searchText ||
-    [puppy.displayName, puppy.buyerName, puppy.litterName, puppy.color, puppy.status]
-      .map((value) => String(value || "").toLowerCase())
-      .join(" ")
-      .includes(searchText)
+  const visibleCurrent = useMemo(
+    () =>
+      currentPuppies
+        .filter((puppy) => rowMatchesSearch(puppy, searchText))
+        .filter((puppy) => rowMatchesFilter(puppy, filter))
+        .sort((left, right) => {
+          const leftAttention = left.attention.length + (careDue(left) ? 2 : 0);
+          const rightAttention = right.attention.length + (careDue(right) ? 2 : 0);
+          if (rightAttention !== leftAttention) return rightAttention - leftAttention;
+          return left.displayName.localeCompare(right.displayName);
+        }),
+    [currentPuppies, filter, searchText]
   );
-  const visiblePast = pastPuppies.filter((puppy) =>
-    !searchText ||
-    [puppy.displayName, puppy.buyerName, puppy.litterName, puppy.status]
-      .map((value) => String(value || "").toLowerCase())
-      .join(" ")
-      .includes(searchText)
+
+  const selectedPuppy = useMemo(() => {
+    if (!snapshot) return null;
+    return (
+      currentPuppies.find((puppy) => String(puppy.id) === selectedPuppyId) ||
+      visibleCurrent[0] ||
+      currentPuppies[0] ||
+      null
+    );
+  }, [currentPuppies, selectedPuppyId, snapshot, visibleCurrent]);
+
+  useEffect(() => {
+    if (!selectedPuppy && visibleCurrent[0]) {
+      setSelectedPuppyId(String(visibleCurrent[0].id));
+    }
+  }, [selectedPuppy, visibleCurrent]);
+
+  const readinessLines = useMemo(() => buildReadinessLines(selectedPuppy), [selectedPuppy]);
+  const workItems = useMemo(
+    () => (snapshot ? buildWorkItems(snapshot, currentPuppies) : []),
+    [currentPuppies, snapshot]
   );
-  const weightsDue = currentPuppies.filter((puppy) => puppy.care.weightDue);
-  const vaccinesDue = currentPuppies.filter((puppy) => puppy.care.vaccineDue);
-  const dewormingDue = currentPuppies.filter((puppy) => puppy.care.dewormingDue);
-  const specialCarePuppies = currentPuppies.filter((puppy) => puppy.profile.specialCareFlag);
-  const noRecentCare = currentPuppies.filter(
-    (puppy) => !puppy.care.latestWeight && !puppy.care.latestHealthRecord && !puppy.care.latestEvent
-  );
-  const unmatchedPuppies = currentPuppies.filter((puppy) => !puppy.buyerId);
-  const buyersNeedingAttention = (snapshot?.buyers || []).filter(
-    (buyer) => buyer.overdue || buyer.unsignedForms > 0 || !buyer.linkedPuppyIds.length
-  );
-  const overdueAccounts = (snapshot?.buyers || []).filter((buyer) => buyer.overdue);
-  const buyersMissingDocuments = (snapshot?.buyers || []).filter((buyer) => buyer.unsignedForms > 0);
-  const activeLitters = (snapshot?.litters || []).filter((litter) => litter.currentPuppyCount > 0);
-  const websiteReadyOnly = currentPuppies.filter(
-    (puppy) => puppy.readiness.website.ready && !puppy.readiness.portal.ready
-  );
-  const templateTokens = Array.from(
-    new Set([...extractTokens(templateDraft.subject), ...extractTokens(templateDraft.body)])
-  );
+  const recentForSelected = useMemo(() => {
+    if (!snapshot || !selectedPuppy) return [];
+    return snapshot.recentActivity.filter(
+      (item) => item.puppyId === selectedPuppy.id || item.puppyName === selectedPuppy.displayName
+    );
+  }, [selectedPuppy, snapshot]);
+
+  const availableCount = currentPuppies.filter(
+    (puppy) => !isReservedPuppyStatus(puppy.status) && !puppy.buyerId
+  ).length;
+  const reservedCount = currentPuppies.filter(
+    (puppy) => isReservedPuppyStatus(puppy.status) || Boolean(puppy.buyerId)
+  ).length;
+  const careDueCount = currentPuppies.filter(careDue).length;
+  const listingBlockers = currentPuppies.filter(
+    (puppy) => !puppy.readiness.website.ready || !puppy.readiness.portal.ready
+  ).length;
+  const goHomeBlocked = currentPuppies.filter((puppy) => !puppy.readiness.goHome.ready).length;
 
   const initialLoading = (loading || loadingSnapshot) && !snapshot;
 
   if (initialLoading) {
     return (
       <AdminPageShell>
-        <div className="flex min-h-[60vh] items-center justify-center">
-          <div className="grid w-full gap-6">
-            <div className="h-40 animate-pulse rounded-[1.8rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)]" />
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              {Array.from({ length: 4 }).map((_, index) => (
-                <div key={`puppies-overview-skeleton-${index}`} className="h-28 animate-pulse rounded-[1.4rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)]" />
-              ))}
-            </div>
-            <div className="h-96 animate-pulse rounded-[1.8rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)]" />
+        <div className="space-y-5 pb-10">
+          <div className={surface("h-[150px] animate-pulse bg-[var(--portal-surface-muted)]/70")} />
+          <div className={surface("h-[92px] animate-pulse bg-[var(--portal-surface-muted)]/70")} />
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(420px,0.8fr)]">
+            <div className={surface("h-[560px] animate-pulse bg-[var(--portal-surface-muted)]/70")} />
+            <div className={surface("h-[560px] animate-pulse bg-[var(--portal-surface-muted)]/70")} />
           </div>
         </div>
       </AdminPageShell>
@@ -386,399 +492,818 @@ export function PuppiesSystemWorkspace({
   }
 
   if (!loading && !user) {
-    return <AdminRestrictedState title="Sign in to access the Puppies system." details="This workspace is reserved for the Southwest Virginia Chihuahua owner accounts." />;
+    return (
+      <AdminRestrictedState
+        title="Sign in to access the Puppies workspace."
+        details="This workspace is reserved for the Southwest Virginia Chihuahua owner accounts."
+      />
+    );
   }
 
   if (!loading && user && !isAdmin) {
-    return <AdminRestrictedState title="This workspace is limited to approved owner accounts." details="Only approved owner accounts can manage breeding operations, buyer workflows, and ChiChi admin controls." />;
+    return (
+      <AdminRestrictedState
+        title="This workspace is limited to approved owner accounts."
+        details="Only approved owner accounts can manage puppy operations, buyer workflows, and readiness records."
+      />
+    );
   }
 
   if (!snapshot) {
     return (
       <AdminPageShell>
-        <AdminEmptyState title="The Puppies system did not load." description={errorText || "Try refreshing the workspace."} />
+        <AdminEmptyState
+          title="The Puppies workspace did not load."
+          description={errorText || "Try refreshing the workspace. Current and Past Puppies remain available from the sub-navigation."}
+        />
       </AdminPageShell>
     );
   }
 
   return (
     <AdminPageShell>
-      <div className="space-y-6 pb-10">
+      <div className="space-y-5 pb-10">
         <AdminPageHero
           eyebrow="Puppies"
-          title="Puppies system overview"
-          description="The overview layer for puppy operations, readiness, buyer linkage, documents, messaging templates, automations, and ChiChi context."
+          title="Puppy Operations Workspace"
+          description="A working surface for active puppies, care readiness, buyer linkage, documents, listing status, and go-home preparation."
           actions={
             <>
-              <button type="button" onClick={() => void loadSnapshot(true)} className={secondaryButtonClass}>
+              <AdminHeroPrimaryAction href="/admin/portal/puppies/current">
+                Open Current Manager
+              </AdminHeroPrimaryAction>
+              <AdminHeroSecondaryAction href="/admin/portal/puppies/past">
+                Open Past Puppies
+              </AdminHeroSecondaryAction>
+              <button
+                type="button"
+                onClick={() => void loadSnapshot(true)}
+                disabled={refreshing || loadingSnapshot}
+                className={secondaryButtonClass}
+              >
                 {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
                 {refreshing ? "Refreshing" : "Refresh"}
               </button>
-              <Link href="/admin/portal/puppies/current" className={primaryButtonClass}>
-                <PawPrint className="h-4 w-4" />
-                Open Current Manager
-              </Link>
             </>
-          }
-          aside={
-            <div className="flex flex-wrap gap-2">
-              {PUPPIES_SYSTEM_TABS.map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => startTransition(() => setActiveTab(tab))}
-                  className={`rounded-full border px-4 py-2 text-sm font-semibold ${activeTab === tab ? "border-transparent bg-[var(--portal-accent)] text-white" : "border-[var(--portal-border)] bg-white text-[var(--portal-text-soft)]"}`}
-                >
-                  {TAB_LABELS[tab]}
-                </button>
-              ))}
-            </div>
           }
         />
 
-        {warningText ? <div className="rounded-[1.25rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{warningText}</div> : null}
-
-        <div className={cardClassName("p-5")}>
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="relative max-w-xl flex-1">
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--portal-text-muted)]" />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search puppies, buyers, litters, documents, or templates..."
-                className="w-full rounded-[1rem] border border-[var(--portal-border)] bg-white py-3 pl-11 pr-4 text-sm text-[var(--portal-text)] outline-none transition focus:border-[var(--portal-accent)]"
-              />
-            </div>
-            <div className="flex flex-wrap gap-3 text-sm text-[var(--portal-text-soft)]">
-              <Link href="/admin/portal/litters" className={secondaryButtonClass}>Open Litters</Link>
-              <Link href="/admin/portal/buyers" className={secondaryButtonClass}>Open Buyers</Link>
-              <Link href="/admin/portal/puppies/past" className={secondaryButtonClass}>Open Past Puppies</Link>
-              <Link href="/admin/portal/assistant" className={secondaryButtonClass}>Open ChiChi</Link>
-            </div>
+        {warningText ? (
+          <div className="rounded-[1.15rem] border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm leading-6 text-amber-900">
+            Partial data loaded. {warningText}
           </div>
-        </div>
+        ) : null}
 
-        {activeTab === "overview" && (
-          <>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-              {snapshot.metrics.map((metric) => (
-                <div key={metric.key} className={cardClassName("p-5")}>
-                  <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">{metric.label}</div>
-                  <div className="mt-2 text-[1.9rem] font-semibold tracking-[-0.04em] text-[var(--portal-text)]">{metric.value}</div>
-                  <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">{metric.detail}</div>
+        {errorText ? (
+          <div className="rounded-[1.15rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-6 text-rose-800">
+            {errorText}
+          </div>
+        ) : null}
+
+        <section className={surface("overflow-hidden")}>
+          <div className="grid divide-y divide-[var(--portal-border)] md:grid-cols-3 md:divide-x md:divide-y-0 xl:grid-cols-6">
+            <CompactSignal label="Current" value={currentPuppies.length} detail="Active puppy records" href="/admin/portal/puppies/current" />
+            <CompactSignal label="Available" value={availableCount} detail="Not reserved or buyer-linked" href="/admin/portal/puppies/current" />
+            <CompactSignal label="Reserved" value={reservedCount} detail="Reserved, matched, or linked" href="/admin/portal/puppies/current" />
+            <CompactSignal label="Care Due" value={careDueCount} detail="Weight, vaccine, or deworming" href="/admin/portal/puppies/current" tone={careDueCount ? "warning" : "success"} />
+            <CompactSignal label="Readiness Blocks" value={listingBlockers + goHomeBlocked} detail="Website, portal, or go-home" href="/admin/portal/puppies/current" tone={listingBlockers + goHomeBlocked ? "warning" : "success"} />
+            <CompactSignal label="Past" value={pastPuppies.length} detail="Completed history" href="/admin/portal/puppies/past" />
+          </div>
+        </section>
+
+        <section className="grid gap-5 xl:grid-cols-[minmax(0,1.24fr)_minmax(420px,0.86fr)]">
+          <section className={surface("overflow-hidden")}>
+            <div className="border-b border-[var(--portal-border)] px-5 py-4">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+                    Current Puppy Roster
+                  </div>
+                  <h2 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[var(--portal-text)]">
+                    Active management queue
+                  </h2>
                 </div>
+                <label className="relative block w-full max-w-md">
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--portal-text-muted)]" />
+                  <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search puppy, buyer, litter, color..."
+                    className="w-full rounded-[1rem] border border-[var(--portal-border)] bg-white py-3 pl-11 pr-4 text-sm text-[var(--portal-text)] shadow-sm outline-none placeholder:text-[var(--portal-text-muted)] focus:border-[var(--portal-border-strong)]"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {filterOptions.map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => setFilter(option.key)}
+                    className={[
+                      "rounded-full border px-3 py-2 text-[11px] font-bold uppercase tracking-[0.14em] transition",
+                      filter === option.key
+                        ? "border-transparent bg-[var(--portal-accent)] text-white"
+                        : "border-[var(--portal-border)] bg-white text-[var(--portal-text-soft)] hover:text-[var(--portal-text)]",
+                    ].join(" ")}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <div className="min-w-[980px]">
+                <div className="grid grid-cols-[minmax(210px,1.2fr)_120px_160px_120px_190px_116px] gap-3 border-b border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+                  <div>Puppy</div>
+                  <div>Litter / Age</div>
+                  <div>Buyer</div>
+                  <div>Care</div>
+                  <div>Readiness</div>
+                  <div>Open</div>
+                </div>
+                {visibleCurrent.length ? (
+                  visibleCurrent.map((puppy) => (
+                    <RosterRow
+                      key={puppy.id}
+                      puppy={puppy}
+                      selected={selectedPuppy?.id === puppy.id}
+                      onSelect={() => setSelectedPuppyId(String(puppy.id))}
+                    />
+                  ))
+                ) : (
+                  <div className="px-5 py-8">
+                    <AdminEmptyState
+                      title="No current puppies match this view"
+                      description="Adjust the search or filter, or open the Current Manager to review the full working surface."
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+
+          <DetailWorkspace
+            puppy={selectedPuppy}
+            readinessLines={readinessLines}
+            recentActivity={recentForSelected}
+          />
+        </section>
+
+        <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <section className={surface("overflow-hidden")}>
+            <SectionHeader
+              eyebrow="Workflow Health"
+              title="Puppy work that needs movement"
+              subtitle="These are breeder operations categories, not passive stats."
+            />
+            <div className="divide-y divide-[var(--portal-border)]">
+              {workItems.map((item) => (
+                <WorkQueueRow key={item.label} item={item} />
               ))}
             </div>
+          </section>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_380px]">
-              <div className="space-y-6">
-                <div className={cardClassName("p-5")}>
-                  <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--portal-text)]">
-                    <AlertTriangle className="h-5 w-5 text-[var(--portal-warning)]" />
-                    Puppies needing attention
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    <AttentionTile label="Weights due" count={weightsDue.length} />
-                    <AttentionTile label="Vaccines due" count={vaccinesDue.length} />
-                    <AttentionTile label="Deworming due" count={dewormingDue.length} />
-                    <AttentionTile label="Missing photos" count={currentPuppies.filter((puppy) => !puppy.readiness.photoReady).length} />
-                    <AttentionTile label="Missing website copy" count={currentPuppies.filter((puppy) => !puppy.readiness.copyReady).length} />
-                    <AttentionTile label="Missing buyer link" count={unmatchedPuppies.length} />
-                  </div>
+          <section className={surface("p-5")}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+                  Actions
                 </div>
-
-                <div className="grid gap-6 xl:grid-cols-2">
-                  <div className={cardClassName("p-5")}>
-                    <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--portal-text)]">
-                      <WandSparkles className="h-5 w-5 text-[var(--portal-accent)]" />
-                      Quick actions
-                    </div>
-                    <div className="grid gap-3">
-                      <Link href="/admin/portal/puppies" className={secondaryButtonClass}>
-                        Add or edit puppy records
-                      </Link>
-                      <Link href="/admin/portal/litters" className={secondaryButtonClass}>
-                        Open litter management
-                      </Link>
-                      <Link href="/admin/portal/buyers" className={secondaryButtonClass}>
-                        Open buyer matching
-                      </Link>
-                      <button type="button" onClick={() => setActiveTab("messaging")} className={secondaryButtonClass}>
-                        Edit email templates
-                      </button>
-                      <Link href="/admin/portal/documents" className={secondaryButtonClass}>
-                        Open document workflows
-                      </Link>
-                    </div>
-                  </div>
-
-                  <div className={cardClassName("p-5")}>
-                    <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--portal-text)]">
-                      <HeartPulse className="h-5 w-5 text-[var(--portal-warning)]" />
-                      Workflow health
-                    </div>
-                    <div className="space-y-3 text-sm text-[var(--portal-text-soft)]">
-                      <ReadinessLine label="Puppies needing admin attention" value={`${currentPuppies.filter((puppy) => puppy.attention.length > 0).length} of ${currentPuppies.length}`} />
-                      <ReadinessLine label="Buyer records needing follow-through" value={`${buyersNeedingAttention.length} buyer accounts`} />
-                      <ReadinessLine label="Puppies with no recent care log" value={`${noRecentCare.length} current puppy records`} />
-                      <ReadinessLine label="Website ready but portal blocked" value={`${websiteReadyOnly.length} current puppies`} />
-                    </div>
-                  </div>
-                </div>
-
-                <div className={cardClassName("p-5")}>
-                  <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--portal-text)]">
-                    <WandSparkles className="h-5 w-5 text-[var(--portal-accent-strong)]" />
-                    Recent operational activity
-                  </div>
-                  <div className="space-y-3">
-                    {snapshot.recentActivity.slice(0, 10).map((item) => (
-                      <div key={item.id} className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="font-semibold text-[var(--portal-text)]">{item.title}</div>
-                            <div className="text-sm text-[var(--portal-text-soft)]">{item.detail}</div>
-                          </div>
-                          <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
-                            {item.occurredAt ? fmtDate(item.occurredAt) : "Recent"}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <h2 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[var(--portal-text)]">
+                  Continue the work
+                </h2>
               </div>
+              <PawPrint className="h-5 w-5 text-[#a56733]" />
+            </div>
+            <div className="mt-4 grid gap-2">
+              <ActionLink href="/admin/portal/puppies/current" label="Add or edit puppy record" detail="Identity, pricing, buyer link, photos, and notes" icon={<PawPrint className="h-4 w-4" />} />
+              <ActionLink href={selectedPuppyHref(selectedPuppy)} label="Log weight / care update" detail={selectedPuppy ? `Open ${selectedPuppy.displayName}'s care drawer` : "Open the current puppy manager"} icon={<Stethoscope className="h-4 w-4" />} />
+              <ActionLink href={selectedPuppyHref(selectedPuppy)} label="Log vaccine or deworming" detail="Use the puppy care update workflow" icon={<HeartPulse className="h-4 w-4" />} />
+              <ActionLink href={selectedPuppyBuyerHref(selectedPuppy)} label="Link buyer / review placement" detail="Buyer matching, portal status, and placement file" icon={<Users className="h-4 w-4" />} />
+              <ActionLink href={selectedPuppyDocumentHref(selectedPuppy)} label="Open documents" detail="Packets, signatures, filing, and portal forms" icon={<FileCheck2 className="h-4 w-4" />} />
+              <ActionLink href={selectedPuppyLitterHref(selectedPuppy)} label="Open litter management" detail="Dam, sire, litter stage, and linked puppies" icon={<Layers3 className="h-4 w-4" />} />
+              <ActionLink href="/admin/portal/resend-templates" label="Edit Resend templates" detail="Payment, document, puppy update, and transport emails" icon={<MessageSquareText className="h-4 w-4" />} />
+            </div>
+          </section>
+        </section>
 
-              <div className="space-y-6">
-                <div className={cardClassName("p-5")}>
-                  <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--portal-text)]">
-                    <ShieldCheck className="h-5 w-5 text-[var(--portal-success)]" />
-                    Readiness health
-                  </div>
-                  <div className="space-y-3 text-sm text-[var(--portal-text-soft)]">
-                    <ReadinessLine label="Website ready" value={`${currentPuppies.filter((puppy) => puppy.readiness.website.ready).length} of ${currentPuppies.length}`} />
-                    <ReadinessLine label="Portal ready" value={`${currentPuppies.filter((puppy) => puppy.readiness.portal.ready).length} of ${currentPuppies.length}`} />
-                    <ReadinessLine label="Document ready" value={`${currentPuppies.filter((puppy) => puppy.readiness.documents.ready).length} of ${currentPuppies.length}`} />
-                    <ReadinessLine label="Go-home ready" value={`${currentPuppies.filter((puppy) => puppy.readiness.goHome.ready).length} of ${currentPuppies.length}`} />
-                  </div>
-                </div>
-
-                <div className={cardClassName("p-5")}>
-                  <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--portal-text)]">
-                    <Users className="h-5 w-5 text-[var(--portal-accent)]" />
-                    Buyer workflow health
-                  </div>
-                  <div className="space-y-3 text-sm text-[var(--portal-text-soft)]">
-                    <ReadinessLine label="Overdue payment accounts" value={`${overdueAccounts.length} buyers`} />
-                    <ReadinessLine label="Unsigned documents" value={`${buyersMissingDocuments.length} buyers`} />
-                    <ReadinessLine label="Portal-linked buyers" value={`${snapshot.buyers.filter((buyer) => buyer.hasPortalAccount).length} of ${snapshot.buyers.length}`} />
-                    <ReadinessLine label="Unmatched buyers" value={`${snapshot.buyers.filter((buyer) => !buyer.linkedPuppyIds.length).length} buyer records`} />
-                  </div>
-                </div>
-
-                <div className={cardClassName("p-5")}>
-                  <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--portal-text)]">
-                    <PawPrint className="h-5 w-5 text-[var(--portal-accent)]" />
-                    Active litters & breeding dogs
-                  </div>
-                  <div className="space-y-3 text-sm text-[var(--portal-text-soft)]">
-                    {activeLitters.slice(0, 4).map((litter) => (
-                      <div key={litter.id} className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3">
-                        <div className="font-semibold text-[var(--portal-text)]">{litter.displayName}</div>
-                        <div className="mt-1 text-[var(--portal-text-soft)]">
-                          {litter.currentPuppyCount} current puppies • {litter.pendingTasks.slice(0, 2).join(" • ") || "No major blockers"}
-                        </div>
-                      </div>
-                    ))}
-                    <div className="rounded-[1rem] bg-[var(--portal-surface-muted)] px-4 py-3">
-                      {snapshot.breedingDogs.filter((dog) => String(dog.status || "").toLowerCase() !== "retired").length} active breeding dogs tracked across the breeding program.
-                    </div>
-                  </div>
-                </div>
-
-                <div className={cardClassName("p-5")}>
-                  <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--portal-text)]">
-                    <Sparkles className="h-5 w-5 text-[var(--portal-accent)]" />
-                    ChiChi modes
-                  </div>
-                  <div className="space-y-4 text-sm leading-6 text-[var(--portal-text-soft)]">
-                    <div>
-                      <div className="font-semibold text-[var(--portal-text)]">Customer-facing assistant</div>
-                      <div>{snapshot.chichi.publicAvailabilitySummary}</div>
-                    </div>
-                    <div>
-                      <div className="font-semibold text-[var(--portal-text)]">Admin operational assistant</div>
-                      <div>ChiChi can summarize missing care updates, readiness blockers, buyer follow-up, and broader breeding-program issues from the same live data.</div>
-                    </div>
-                  </div>
-                </div>
+        <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <section className={surface("overflow-hidden")}>
+            <SectionHeader
+              eyebrow="Litters"
+              title="Active litter context"
+              subtitle="The puppy workspace stays connected to litter and lineage work without becoming a litter dashboard."
+            />
+            {activeLitters.length ? (
+              <div className="divide-y divide-[var(--portal-border)]">
+                {activeLitters.slice(0, 6).map((litter) => (
+                  <LitterRow key={litter.id} litter={litter} />
+                ))}
               </div>
-            </div>
-          </>
-        )}
-
-        {activeTab === "current" && (
-          <>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <AttentionTile label="Current puppies" count={currentPuppies.length} />
-              <AttentionTile label="Need care updates" count={weightsDue.length + vaccinesDue.length + dewormingDue.length} />
-              <AttentionTile label="Need buyer linkage" count={unmatchedPuppies.length} />
-              <AttentionTile label="Blocked for publishing" count={currentPuppies.filter((puppy) => !puppy.readiness.website.ready).length} />
-            </div>
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {visibleCurrent.length ? visibleCurrent.map((puppy) => <PuppyQuickCard key={puppy.id} puppy={puppy} />) : <div className={cardClassName("p-8 md:col-span-2 xl:col-span-3")}><AdminEmptyState title="No current puppies match this search." description="Try a different search or open the full current-puppy manager." /></div>}
-            </div>
-          </>
-        )}
-
-        {activeTab === "past" && (
-          <>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <AttentionTile label="Past puppies" count={pastPuppies.length} />
-              <AttentionTile label="With buyer records" count={pastPuppies.filter((puppy) => puppy.buyerId).length} />
-              <AttentionTile label="Signed docs" count={pastPuppies.filter((puppy) => puppy.documentSummary.signed > 0).length} />
-              <AttentionTile label="Go-home complete" count={pastPuppies.filter((puppy) => puppy.profile.goHomeReady).length} />
-            </div>
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {visiblePast.length ? visiblePast.map((puppy) => <PuppyQuickCard key={puppy.id} puppy={puppy} />) : <div className={cardClassName("p-8 md:col-span-2 xl:col-span-3")}><AdminEmptyState title="No past puppies match this search." description="Try a different search or open the full puppy manager." /></div>}
-            </div>
-          </>
-        )}
-
-        {activeTab === "care" && (
-          <div className="grid gap-5 xl:grid-cols-4">
-            <CareColumn title="Weights due" icon={<Stethoscope className="h-5 w-5 text-[var(--portal-warning)]" />} puppies={weightsDue} />
-            <CareColumn title="Vaccines due" icon={<AlertTriangle className="h-5 w-5 text-[var(--portal-warning)]" />} puppies={vaccinesDue} />
-            <CareColumn title="Deworming due" icon={<HeartPulse className="h-5 w-5 text-[var(--portal-warning)]" />} puppies={dewormingDue} />
-            <CareColumn title="Special care" icon={<AlertTriangle className="h-5 w-5 text-[var(--portal-danger)]" />} puppies={specialCarePuppies.length ? specialCarePuppies : noRecentCare} />
-          </div>
-        )}
-
-        {activeTab === "readiness" && (
-          <div className={cardClassName("overflow-hidden")}>
-            <div className="grid grid-cols-[1.1fr_repeat(5,minmax(0,0.7fr))] gap-3 border-b border-[var(--portal-border)] px-5 py-4 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
-              <div>Puppy</div><div>Website</div><div>Portal</div><div>Documents</div><div>Placement</div><div>Go-home</div>
-            </div>
-            {currentPuppies.map((puppy) => (
-              <Link key={puppy.id} href={`/admin/portal/puppies/current?puppy=${puppy.id}`} className="grid grid-cols-[1.1fr_repeat(5,minmax(0,0.7fr))] gap-3 border-b border-[var(--portal-border)] px-5 py-4 hover:bg-[var(--portal-surface-muted)]">
-                <div><div className="font-semibold text-[var(--portal-text)]">{puppy.displayName}</div><div className="text-sm text-[var(--portal-text-soft)]">{puppy.buyerName || "No buyer linked"}</div></div>
-                <ReadinessBadge score={puppy.readiness.website.score} />
-                <ReadinessBadge score={puppy.readiness.portal.score} />
-                <ReadinessBadge score={puppy.readiness.documents.score} />
-                <ReadinessBadge score={puppy.readiness.placement.score} />
-                <ReadinessBadge score={puppy.readiness.goHome.score} />
-              </Link>
-            ))}
-          </div>
-        )}
-
-        {activeTab === "buyer-matching" && (
-          <div className="grid gap-6 xl:grid-cols-2">
-            <div className={cardClassName("p-5")}>
-              <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--portal-text)]"><Users className="h-5 w-5 text-[var(--portal-accent)]" />Unmatched puppies</div>
-              <div className="space-y-3">{unmatchedPuppies.length ? unmatchedPuppies.map((puppy) => <Link key={puppy.id} href={`/admin/portal/puppies/current?puppy=${puppy.id}`} className="block rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3 text-sm text-[var(--portal-text)]"><div className="font-semibold">{puppy.displayName}</div><div className="mt-1 text-[var(--portal-text-soft)]">{puppy.litterName || "No litter linked"} • {puppy.readiness.placement.missing[0] || "Ready for matching review"}</div></Link>) : <div className="rounded-[1rem] border border-dashed border-[var(--portal-border)] px-4 py-6 text-sm text-[var(--portal-text-soft)]">Every current puppy is linked to a buyer right now.</div>}</div>
-            </div>
-            <div className={cardClassName("p-5")}>
-              <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--portal-text)]"><Users className="h-5 w-5 text-[var(--portal-accent)]" />Buyer records needing follow-through</div>
-              <div className="space-y-3">{buyersNeedingAttention.length ? buyersNeedingAttention.map((buyer) => <div key={buyer.id} className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3 text-sm"><div className="flex items-start justify-between gap-3"><div><div className="font-semibold text-[var(--portal-text)]">{buyer.displayName}</div><div className="mt-1 text-[var(--portal-text-soft)]">{buyer.linkedPuppyNames.join(", ") || "No puppy linked"}</div></div><span className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${readinessClass(buyer.overdue ? 20 : buyer.unsignedForms > 0 ? 72 : 92)}`}>{buyerAttentionLabel(buyer)}</span></div></div>) : <div className="rounded-[1rem] border border-dashed border-[var(--portal-border)] px-4 py-6 text-sm text-[var(--portal-text-soft)]">Buyer matching and follow-through look healthy right now.</div>}</div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "documents" && (
-          <>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <AttentionTile label="Document workflows" count={snapshot.documents.length} />
-              <AttentionTile label="Signed" count={snapshot.documents.filter((document) => Boolean(document.signedAt)).length} />
-              <AttentionTile label="Visible in portal" count={snapshot.documents.filter((document) => document.visibleToUser).length} />
-              <AttentionTile label="Buyers missing docs" count={buyersMissingDocuments.length} />
-            </div>
-            <div className={cardClassName("p-5")}>
-              <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--portal-text)]"><FileText className="h-5 w-5 text-[var(--portal-accent)]" />Document workflows</div>
-              <div className="space-y-3">{snapshot.documents.length ? snapshot.documents.map((document) => <div key={document.id} className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3"><div className="flex items-start justify-between gap-3"><div><div className="font-semibold text-[var(--portal-text)]">{document.title}</div><div className="text-sm text-[var(--portal-text-soft)]">{document.buyerName || "No buyer linked"}{document.puppyName ? ` | ${document.puppyName}` : ""}{document.category ? ` | ${document.category}` : ""}</div></div><span className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${readinessClass(document.signedAt ? 100 : 72)}`}>{document.status || "pending"}</span></div></div>) : <AdminEmptyState title="No document workflows are available." description="Add or sync documents to surface packet readiness here." />}</div>
-            </div>
-          </>
-        )}
-
-        {activeTab === "messaging" && (
-          <div className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
-            <div className={cardClassName("p-4")}>
-              <div className="mb-3 flex items-center gap-2 text-lg font-semibold text-[var(--portal-text)]"><MessageSquareText className="h-5 w-5 text-[var(--portal-accent)]" />Templates</div>
-              {snapshot.messageTemplates.map((template) => <button key={template.templateKey} type="button" onClick={() => setSelectedTemplateKey(template.templateKey)} className={`mb-2 block w-full rounded-[1rem] border px-4 py-3 text-left ${selectedTemplateKey === template.templateKey ? "border-[var(--portal-accent)] bg-[var(--portal-surface-muted)]" : "border-[var(--portal-border)] bg-white"}`}><div className="font-semibold text-[var(--portal-text)]">{template.label}</div><div className="text-sm text-[var(--portal-text-soft)]">{template.category}</div></button>)}
-            </div>
-            <div className={cardClassName("p-5")}>
-              <Field label="Template key" value={templateDraft.templateKey} onChange={(value) => setTemplateDraft((current) => ({ ...current, templateKey: value }))} />
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <Field label="Label" value={templateDraft.label} onChange={(value) => setTemplateDraft((current) => ({ ...current, label: value }))} />
-                <Field label="Category" value={templateDraft.category} onChange={(value) => setTemplateDraft((current) => ({ ...current, category: value }))} />
+            ) : (
+              <div className="px-5 pb-5">
+                <AdminEmptyState
+                  title="No active litters in the puppy snapshot"
+                  description="Open Litters to review historical, planned, or closed litter records."
+                />
               </div>
-              <div className="mt-4"><TextArea label="Description" value={templateDraft.description} onChange={(value) => setTemplateDraft((current) => ({ ...current, description: value }))} rows={2} /></div>
-              <div className="mt-4"><Field label="Subject" value={templateDraft.subject} onChange={(value) => setTemplateDraft((current) => ({ ...current, subject: value }))} /></div>
-              <div className="mt-4"><TextArea label="Body" value={templateDraft.body} onChange={(value) => setTemplateDraft((current) => ({ ...current, body: value }))} rows={10} /></div>
-              <div className="mt-4"><TextArea label="Preview payload JSON" value={templateDraft.previewPayload} onChange={(value) => setTemplateDraft((current) => ({ ...current, previewPayload: value }))} rows={6} /></div>
-              <div className="mt-4 grid gap-4 xl:grid-cols-2">
-                <div className="rounded-[1.25rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] p-4">
-                  <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">Preview subject</div>
-                  <div className="mt-2 font-semibold text-[var(--portal-text)]">{previewText(templateDraft.subject, templateDraft.previewPayload)}</div>
-                  <div className="mt-4 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">Preview body</div>
-                  <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--portal-text-soft)]">{previewText(templateDraft.body, templateDraft.previewPayload)}</div>
-                </div>
-                <div className="rounded-[1.25rem] border border-[var(--portal-border)] bg-white p-4">
-                  <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">Variables in use</div>
-                  <div className="mt-3 flex flex-wrap gap-2">{templateTokens.length ? templateTokens.map((token) => <span key={token} className="rounded-full border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-3 py-1 text-xs font-semibold text-[var(--portal-text-soft)]">{token}</span>) : <span className="text-sm text-[var(--portal-text-soft)]">No variables detected yet.</span>}</div>
-                </div>
+            )}
+          </section>
+
+          <section className={surface("overflow-hidden")}>
+            <SectionHeader
+              eyebrow="Recent Puppy Movement"
+              title="Latest puppy operations"
+              subtitle="Care, document, message, payment, and workflow activity connected to puppy operations."
+            />
+            {snapshot.recentActivity.length ? (
+              <div className="divide-y divide-[var(--portal-border)]">
+                {snapshot.recentActivity.slice(0, 8).map((item) => (
+                  <ActivityRow key={item.id} item={item} />
+                ))}
               </div>
-              <div className="mt-4 flex flex-wrap gap-3"><button type="button" onClick={async () => { setSavingTemplate(true); setFeedback(""); setErrorText(""); try { await saveAction("save_message_template", { ...templateDraft, previewPayload: templateDraft.previewPayload }); setFeedback("Message template saved."); await loadSnapshot(); } catch (error) { setErrorText(error instanceof Error ? error.message : "Could not save the message template."); } finally { setSavingTemplate(false); } }} className={primaryButtonClass} disabled={savingTemplate}>{savingTemplate ? <Loader2 className="h-4 w-4 animate-spin" /> : null}Save template</button><div className="rounded-[1rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm text-[var(--portal-text-soft)]">Templates here are structured for Resend-backed messaging and automation content.</div></div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "settings" && (
-          <div className="grid gap-6 xl:grid-cols-2">
-            <div className={cardClassName("p-5")}>
-              <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--portal-text)]"><Settings2 className="h-5 w-5 text-[var(--portal-accent)]" />Workflow settings</div>
-              {snapshot.workflowSettings.map((workflow) => <button key={workflow.workflowKey} type="button" onClick={() => setSelectedWorkflowKey(workflow.workflowKey)} className={`mb-2 block w-full rounded-[1rem] border px-4 py-3 text-left ${selectedWorkflowKey === workflow.workflowKey ? "border-[var(--portal-accent)] bg-[var(--portal-surface-muted)]" : "border-[var(--portal-border)] bg-white"}`}><div className="font-semibold text-[var(--portal-text)]">{workflow.label}</div><div className="text-sm text-[var(--portal-text-soft)]">{workflow.status}</div></button>)}
-              <div className="mt-4 grid gap-3"><Field label="Workflow key" value={workflowDraft.workflowKey} onChange={(value) => setWorkflowDraft((current) => ({ ...current, workflowKey: value }))} /><Field label="Label" value={workflowDraft.label} onChange={(value) => setWorkflowDraft((current) => ({ ...current, label: value }))} /><Field label="Status" value={workflowDraft.status} onChange={(value) => setWorkflowDraft((current) => ({ ...current, status: value }))} /><TextArea label="Settings JSON" value={workflowDraft.settings} onChange={(value) => setWorkflowDraft((current) => ({ ...current, settings: value }))} rows={5} /></div>
-              <button type="button" onClick={async () => { setSavingWorkflow(true); setFeedback(""); try { await saveAction("save_workflow_setting", { ...workflowDraft, settings: workflowDraft.settings }); setFeedback("Workflow setting saved."); await loadSnapshot(); } catch (error) { setErrorText(error instanceof Error ? error.message : "Could not save the workflow setting."); } finally { setSavingWorkflow(false); } }} className={`${primaryButtonClass} mt-4`} disabled={savingWorkflow}>{savingWorkflow ? <Loader2 className="h-4 w-4 animate-spin" /> : null}Save workflow</button>
-            </div>
-
-            <div className={cardClassName("p-5")}>
-              <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--portal-text)]"><Settings2 className="h-5 w-5 text-[var(--portal-accent)]" />Checklist templates</div>
-              {snapshot.checklistTemplates.map((template) => <button key={template.key} type="button" onClick={() => setSelectedChecklistKey(template.key)} className={`mb-2 block w-full rounded-[1rem] border px-4 py-3 text-left ${selectedChecklistKey === template.key ? "border-[var(--portal-accent)] bg-[var(--portal-surface-muted)]" : "border-[var(--portal-border)] bg-white"}`}><div className="font-semibold text-[var(--portal-text)]">{template.label}</div><div className="text-sm text-[var(--portal-text-soft)]">{template.category}</div></button>)}
-              <div className="mt-4 grid gap-3"><Field label="Key" value={checklistDraft.key} onChange={(value) => setChecklistDraft((current) => ({ ...current, key: value }))} /><Field label="Label" value={checklistDraft.label} onChange={(value) => setChecklistDraft((current) => ({ ...current, label: value }))} /><Field label="Category" value={checklistDraft.category} onChange={(value) => setChecklistDraft((current) => ({ ...current, category: value }))} /><Field label="Sort order" value={checklistDraft.sortOrder} onChange={(value) => setChecklistDraft((current) => ({ ...current, sortOrder: value }))} /><TextArea label="Description" value={checklistDraft.description} onChange={(value) => setChecklistDraft((current) => ({ ...current, description: value }))} rows={3} /></div>
-              <button type="button" onClick={async () => { setSavingChecklist(true); setFeedback(""); try { await saveAction("save_checklist_template", checklistDraft); setFeedback("Checklist template saved."); await loadSnapshot(); } catch (error) { setErrorText(error instanceof Error ? error.message : "Could not save the checklist template."); } finally { setSavingChecklist(false); } }} className={`${primaryButtonClass} mt-4`} disabled={savingChecklist}>{savingChecklist ? <Loader2 className="h-4 w-4 animate-spin" /> : null}Save checklist template</button>
-            </div>
-          </div>
-        )}
-
-        {feedback ? <div className={cardClassName("px-4 py-3 text-sm text-emerald-700")}>{feedback}</div> : null}
-        {errorText ? <div className={cardClassName("px-4 py-3 text-sm text-rose-700")}>{errorText}</div> : null}
-        {isPending ? <div className="text-sm text-[var(--portal-text-muted)]">Updating view...</div> : null}
+            ) : (
+              <div className="px-5 pb-5">
+                <AdminEmptyState
+                  title="No recent puppy activity returned"
+                  description="Care logs, document movement, messages, and payment events will appear here when available."
+                />
+              </div>
+            )}
+          </section>
+        </section>
       </div>
     </AdminPageShell>
   );
 }
 
-function AttentionTile({ label, count }: { label: string; count: number }) {
-  return <div className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-4"><div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">{label}</div><div className="mt-2 text-2xl font-semibold text-[var(--portal-text)]">{count}</div></div>;
+function CompactSignal({
+  label,
+  value,
+  detail,
+  href,
+  tone = "neutral",
+}: {
+  label: string;
+  value: number;
+  detail: string;
+  href: string;
+  tone?: "neutral" | "success" | "warning" | "danger";
+}) {
+  return (
+    <Link href={href} className="block px-4 py-4 transition hover:bg-[var(--portal-surface-muted)]">
+      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+        {label}
+      </div>
+      <div className="mt-2 flex items-center justify-between gap-3">
+        <div className="text-2xl font-semibold tracking-[-0.04em] text-[var(--portal-text)]">{value}</div>
+        <span
+          className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] ${adminStatusBadge(
+            tone === "danger" ? "failed" : tone === "warning" ? "warning" : tone === "success" ? "completed" : "neutral"
+          )}`}
+        >
+          {tone === "success" ? "clear" : tone === "warning" ? "review" : tone === "danger" ? "urgent" : "open"}
+        </span>
+      </div>
+      <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">{detail}</div>
+    </Link>
+  );
 }
 
-function ReadinessLine({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-[1rem] bg-[var(--portal-surface-muted)] px-4 py-3"><div className="font-semibold text-[var(--portal-text)]">{label}</div><div>{value}</div></div>;
+function RosterRow({
+  puppy,
+  selected,
+  onSelect,
+}: {
+  puppy: PuppyWorkspaceRecord;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const readinessAverage = Math.round(
+    (puppy.readiness.website.score +
+      puppy.readiness.portal.score +
+      puppy.readiness.documents.score +
+      puppy.readiness.goHome.score) /
+      4
+  );
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={[
+        "grid w-full grid-cols-[minmax(210px,1.2fr)_120px_160px_120px_190px_116px] gap-3 border-b border-[var(--portal-border)] px-5 py-4 text-left transition last:border-b-0",
+        selected ? "bg-white" : "bg-transparent hover:bg-[var(--portal-surface-muted)]",
+      ].join(" ")}
+    >
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="truncate text-sm font-semibold text-[var(--portal-text)]">
+            {puppy.displayName}
+          </span>
+          <span
+            className={`rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${adminStatusBadge(
+              statusTone(puppy.status)
+            )}`}
+          >
+            {puppy.status || "pending"}
+          </span>
+        </div>
+        <div className="mt-1 truncate text-xs text-[var(--portal-text-soft)]">
+          {[puppy.sex, puppy.color, puppy.coatType].filter(Boolean).join(" / ") ||
+            "Identity details still being completed"}
+        </div>
+      </div>
+
+      <div className="text-sm text-[var(--portal-text-soft)]">
+        <div className="font-semibold text-[var(--portal-text)]">{puppy.litterName || "No litter"}</div>
+        <div className="mt-1 text-xs">{ageLabel(puppy)}</div>
+      </div>
+
+      <div className="min-w-0 text-sm">
+        <div className="truncate font-semibold text-[var(--portal-text)]">
+          {puppy.buyerName || "Unassigned"}
+        </div>
+        <div className="mt-1 truncate text-xs text-[var(--portal-text-soft)]">
+          {puppy.buyerPortalLinked ? "Portal linked" : puppy.buyerId ? "Buyer attached" : "Needs match review"}
+        </div>
+      </div>
+
+      <div className="text-sm">
+        <div className="font-semibold text-[var(--portal-text)]">{latestWeightLabel(puppy)}</div>
+        <div className={`mt-1 text-xs ${careDue(puppy) ? "text-amber-700" : "text-emerald-700"}`}>
+          {nextCareLabel(puppy)}
+        </div>
+      </div>
+
+      <div className="min-w-0">
+        <div className="flex flex-wrap gap-1.5">
+          <ReadinessMini label="Web" score={puppy.readiness.website.score} />
+          <ReadinessMini label="Portal" score={puppy.readiness.portal.score} />
+          <ReadinessMini label="Docs" score={puppy.readiness.documents.score} />
+        </div>
+        <div className="mt-1 text-xs text-[var(--portal-text-soft)]">
+          Overall {readinessAverage}%
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-2">
+        <Link
+          href={selectedPuppyHref(puppy)}
+          className="inline-flex items-center gap-1 rounded-full border border-[var(--portal-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[#9a6437] shadow-sm transition hover:bg-[var(--portal-surface-muted)]"
+          onClick={(event) => event.stopPropagation()}
+        >
+          Manage
+          <ExternalLink className="h-3.5 w-3.5" />
+        </Link>
+      </div>
+    </button>
+  );
 }
 
-function ReadinessBadge({ score }: { score: number }) {
-  return <div className={`rounded-full border px-3 py-1 text-center text-[11px] font-semibold ${readinessClass(score)}`}>{score}%</div>;
+function ReadinessMini({ label, score }: { label: string; score: number }) {
+  return (
+    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${readinessClass(score)}`}>
+      {label} {score}%
+    </span>
+  );
 }
 
-function CareColumn({ title, icon, puppies }: { title: string; icon: React.ReactNode; puppies: PuppyWorkspaceRecord[] }) {
-  return <div className={cardClassName("p-5")}><div className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--portal-text)]">{icon}{title}</div><div className="space-y-3">{puppies.length ? puppies.map((puppy) => <Link key={puppy.id} href={`/admin/portal/puppies?puppy=${puppy.id}`} className="block rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3 text-sm text-[var(--portal-text)]">{puppy.displayName}</Link>) : <div className="rounded-[1rem] border border-dashed border-[var(--portal-border)] px-4 py-6 text-sm text-[var(--portal-text-soft)]">Nothing due right now.</div>}</div></div>;
+function DetailWorkspace({
+  puppy,
+  readinessLines,
+  recentActivity,
+}: {
+  puppy: PuppyWorkspaceRecord | null;
+  readinessLines: ReadinessLine[];
+  recentActivity: ActivityFeedItem[];
+}) {
+  if (!puppy) {
+    return (
+      <section className={surface("p-6")}>
+        <AdminEmptyState
+          title="Select a puppy"
+          description="Choose a current puppy from the roster to inspect care, readiness, buyer linkage, and next actions."
+        />
+      </section>
+    );
+  }
+
+  return (
+    <section className={surface("overflow-hidden")}>
+      <div className="border-b border-[var(--portal-border)] p-5">
+        <div className="flex gap-4">
+          <PuppyPhoto puppy={puppy} />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="truncate text-2xl font-semibold tracking-[-0.05em] text-[var(--portal-text)]">
+                {puppy.displayName}
+              </h2>
+              <span
+                className={`rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${adminStatusBadge(
+                  statusTone(puppy.status)
+                )}`}
+              >
+                {puppy.status || "pending"}
+              </span>
+            </div>
+            <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
+              {[puppy.sex, puppy.color, puppy.coatType, puppy.registry].filter(Boolean).join(" / ") ||
+                "Puppy identity details still being completed."}
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <DetailFact label="DOB / age" value={puppy.dob ? `${fmtDate(puppy.dob)} / ${ageLabel(puppy)}` : ageLabel(puppy)} />
+              <DetailFact label="Price" value={money(puppy.price ?? puppy.listPrice ?? puppy.publicPrice)} />
+              <DetailFact label="Litter" value={puppy.litterName || "No litter linked"} />
+              <DetailFact label="Buyer" value={puppy.buyerName || "No buyer attached"} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_310px]">
+        <div className="divide-y divide-[var(--portal-border)]">
+          <div className="p-5">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+                  Lifecycle
+                </div>
+                <div className="mt-1 text-base font-semibold text-[var(--portal-text)]">
+                  Care, placement, and go-home status
+                </div>
+              </div>
+              <Link href={selectedPuppyHref(puppy)} className="text-sm font-semibold text-[#9a6437]">
+                Open full record
+              </Link>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <LifecycleStat
+                label="Latest weight"
+                value={latestWeightLabel(puppy)}
+                detail={latestCareDate(puppy) ? `Updated ${fmtDate(latestCareDate(puppy) || "")}` : "No recent care date"}
+                icon={<Stethoscope className="h-4 w-4" />}
+              />
+              <LifecycleStat
+                label="Documents"
+                value={`${puppy.documentSummary.signed}/${puppy.documentSummary.total || 0} signed`}
+                detail={puppy.documentSummary.latestTitle || "No latest document"}
+                icon={<FileCheck2 className="h-4 w-4" />}
+              />
+              <LifecycleStat
+                label="Portal"
+                value={puppy.buyerPortalLinked ? "Linked" : "Not linked"}
+                detail={`${puppy.portalSummary.unreadMessages} unread buyer messages`}
+                icon={<ShieldCheck className="h-4 w-4" />}
+              />
+            </div>
+          </div>
+
+          <div className="p-5">
+            <div className="mb-3 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+              Readiness Model
+            </div>
+            <div className="space-y-2">
+              {readinessLines.map((line) => (
+                <ReadinessRow key={line.label} line={line} />
+              ))}
+            </div>
+          </div>
+
+          <div className="p-5">
+            <div className="mb-3 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+              Recent movement for this puppy
+            </div>
+            {recentActivity.length ? (
+              <div className="space-y-2">
+                {recentActivity.slice(0, 4).map((item) => (
+                  <ActivityCompactRow key={item.id} item={item} />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-[1rem] border border-dashed border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-4 text-sm leading-6 text-[var(--portal-text-soft)]">
+                No recent activity tied directly to this puppy was returned in the snapshot.
+              </div>
+            )}
+          </div>
+        </div>
+
+        <aside className="border-t border-[var(--portal-border)] p-5 xl:border-l xl:border-t-0">
+          <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+            Attention
+          </div>
+          <div className="mt-3 space-y-2">
+            {puppy.attention.length ? (
+              puppy.attention.slice(0, 6).map((item) => (
+                <div
+                  key={item}
+                  className="rounded-[1rem] border border-amber-200 bg-amber-50 px-3 py-3 text-sm leading-5 text-amber-900"
+                >
+                  {item}
+                </div>
+              ))
+            ) : (
+              <div className="rounded-[1rem] border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm leading-5 text-emerald-800">
+                This puppy has no attention flags in the snapshot.
+              </div>
+            )}
+          </div>
+
+          <div className="mt-5 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+            Linked work
+          </div>
+          <div className="mt-3 space-y-2">
+            <SideLink href={selectedPuppyBuyerHref(puppy)} label="Buyer file" value={puppy.buyerName || "Unassigned"} />
+            <SideLink href={selectedPuppyDocumentHref(puppy)} label="Documents" value={`${puppy.documentSummary.total} records`} />
+            <SideLink href="/admin/portal/puppy-financing" label="Payments" value={puppy.paymentSummary.overdue ? "Overdue" : "Open ledger"} />
+            <SideLink href={selectedPuppyLitterHref(puppy)} label="Litter" value={puppy.litterName || "Not linked"} />
+            <SideLink href="/admin/portal/transportation" label="Transport" value={puppy.transportRequestStatus || "No request"} />
+          </div>
+        </aside>
+      </div>
+    </section>
+  );
 }
 
-function Field({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return <label className="block text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">{label}<input value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 w-full rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3 text-sm text-[var(--portal-text)] outline-none" /></label>;
+function PuppyPhoto({ puppy }: { puppy: PuppyWorkspaceRecord }) {
+  const photo = puppy.photoUrl ? buildPuppyPhotoUrl(puppy.photoUrl) : "";
+
+  return (
+    <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-[1.25rem] bg-[linear-gradient(135deg,#f0dfcb_0%,#d7b48c_100%)]">
+      {photo ? (
+        <Image src={photo} alt={puppy.displayName} fill sizes="96px" className="object-cover" />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center text-[#8c6848]">
+          <Camera className="h-7 w-7" />
+        </div>
+      )}
+    </div>
+  );
 }
 
-function TextArea({ label, value, onChange, rows }: { label: string; value: string; onChange: (value: string) => void; rows: number }) {
-  return <label className="block text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">{label}<textarea value={value} onChange={(event) => onChange(event.target.value)} rows={rows} className="mt-2 w-full rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3 text-sm text-[var(--portal-text)] outline-none" /></label>;
+function DetailFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[1rem] bg-[var(--portal-surface-muted)] px-3 py-3">
+      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+        {label}
+      </div>
+      <div className="mt-1 truncate text-sm font-semibold text-[var(--portal-text)]">{value}</div>
+    </div>
+  );
+}
+
+function LifecycleStat({
+  label,
+  value,
+  detail,
+  icon,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-4">
+      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+        {icon}
+        {label}
+      </div>
+      <div className="mt-2 text-sm font-semibold text-[var(--portal-text)]">{value}</div>
+      <div className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--portal-text-soft)]">{detail}</div>
+    </div>
+  );
+}
+
+function ReadinessRow({ line }: { line: ReadinessLine }) {
+  const score = line.score ?? (line.ready ? 100 : 0);
+
+  return (
+    <Link
+      href={line.href}
+      className="grid gap-3 rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3 transition hover:border-[var(--portal-border-strong)] hover:bg-[var(--portal-surface-muted)] sm:grid-cols-[minmax(0,1fr)_96px]"
+    >
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 text-sm font-semibold text-[var(--portal-text)]">
+          {line.ready ? (
+            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+          ) : (
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+          )}
+          {line.label}
+        </div>
+        <div className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--portal-text-soft)]">
+          {line.detail}
+        </div>
+      </div>
+      <div className="flex items-center sm:justify-end">
+        <span className={`rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] ${readinessClass(score)}`}>
+          {score}%
+        </span>
+      </div>
+    </Link>
+  );
+}
+
+function SideLink({
+  href,
+  label,
+  value,
+}: {
+  href: string;
+  label: string;
+  value: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center justify-between gap-3 rounded-[0.95rem] border border-[var(--portal-border)] bg-white px-3 py-3 text-sm transition hover:border-[var(--portal-border-strong)] hover:bg-[var(--portal-surface-muted)]"
+    >
+      <span className="font-semibold text-[var(--portal-text)]">{label}</span>
+      <span className="truncate text-right text-xs text-[var(--portal-text-soft)]">{value}</span>
+    </Link>
+  );
+}
+
+function SectionHeader({
+  eyebrow,
+  title,
+  subtitle,
+}: {
+  eyebrow: string;
+  title: string;
+  subtitle?: string;
+}) {
+  return (
+    <div className="border-b border-[var(--portal-border)] px-5 py-4">
+      <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+        {eyebrow}
+      </div>
+      <h2 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-[var(--portal-text)]">
+        {title}
+      </h2>
+      {subtitle ? <div className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">{subtitle}</div> : null}
+    </div>
+  );
+}
+
+function WorkQueueRow({ item }: { item: WorkItem }) {
+  return (
+    <Link
+      href={item.href}
+      className="grid gap-3 px-5 py-4 transition hover:bg-[var(--portal-surface-muted)] md:grid-cols-[42px_minmax(0,1fr)_82px_120px]"
+    >
+      <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--portal-surface-muted)] text-[#9a6437]">
+        {item.icon}
+      </span>
+      <div className="min-w-0">
+        <div className="text-sm font-semibold text-[var(--portal-text)]">{item.label}</div>
+        <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">{item.detail}</div>
+      </div>
+      <div className="flex items-center">
+        <span
+          className={`rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] ${adminStatusBadge(
+            item.tone === "danger" ? "failed" : item.tone === "warning" ? "warning" : item.tone === "success" ? "completed" : "neutral"
+          )}`}
+        >
+          {item.count}
+        </span>
+      </div>
+      <div className="flex items-center text-sm font-semibold text-[#9a6437]">
+        Open
+        <ArrowRight className="ml-2 h-4 w-4" />
+      </div>
+    </Link>
+  );
+}
+
+function ActionLink({
+  href,
+  label,
+  detail,
+  icon,
+}: {
+  href: string;
+  label: string;
+  detail: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3 transition hover:border-[var(--portal-border-strong)] hover:bg-[var(--portal-surface-muted)]"
+    >
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--portal-surface-muted)] text-[#9a6437]">
+          {icon}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold text-[var(--portal-text)]">{label}</div>
+          <div className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--portal-text-soft)]">{detail}</div>
+        </div>
+        <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-[var(--portal-text-muted)] transition group-hover:translate-x-0.5" />
+      </div>
+    </Link>
+  );
+}
+
+function LitterRow({ litter }: { litter: LitterWorkspaceRecord }) {
+  return (
+    <Link
+      href={`/admin/portal/litters?litter=${litter.id}`}
+      className="grid gap-3 px-5 py-4 transition hover:bg-[var(--portal-surface-muted)] md:grid-cols-[minmax(0,1fr)_120px_130px]"
+    >
+      <div className="min-w-0">
+        <div className="font-semibold text-[var(--portal-text)]">{litter.displayName}</div>
+        <div className="mt-1 truncate text-sm text-[var(--portal-text-soft)]">
+          {[litter.damName ? `Dam: ${litter.damName}` : "", litter.sireName ? `Sire: ${litter.sireName}` : ""]
+            .filter(Boolean)
+            .join(" / ") || "Lineage not linked"}
+        </div>
+      </div>
+      <div className="text-sm text-[var(--portal-text-soft)]">
+        {litter.whelpDate ? fmtDate(litter.whelpDate) : "No date"}
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-semibold text-[var(--portal-text)]">
+          {litter.currentPuppyCount} current
+        </span>
+        <ArrowRight className="h-4 w-4 text-[var(--portal-text-muted)]" />
+      </div>
+    </Link>
+  );
+}
+
+function ActivityRow({ item }: { item: ActivityFeedItem }) {
+  return (
+    <Link
+      href={item.puppyId ? `/admin/portal/puppies/current?puppy=${item.puppyId}` : "/admin/portal/puppies/current"}
+      className="grid gap-3 px-5 py-4 transition hover:bg-[var(--portal-surface-muted)] md:grid-cols-[42px_minmax(0,1fr)_110px]"
+    >
+      <ActivityIcon kind={item.kind} />
+      <div className="min-w-0">
+        <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--portal-text-muted)]">
+          {item.kind.replace(/_/g, " ")}
+        </div>
+        <div className="mt-1 truncate text-sm font-semibold text-[var(--portal-text)]">{item.title}</div>
+        <div className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--portal-text-soft)]">{item.detail}</div>
+      </div>
+      <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--portal-text-muted)] md:text-right">
+        {item.occurredAt ? fmtDate(item.occurredAt) : "No date"}
+      </div>
+    </Link>
+  );
+}
+
+function ActivityCompactRow({ item }: { item: ActivityFeedItem }) {
+  return (
+    <Link
+      href={item.puppyId ? `/admin/portal/puppies/current?puppy=${item.puppyId}` : "/admin/portal/puppies/current"}
+      className="flex items-start gap-3 rounded-[1rem] border border-[var(--portal-border)] bg-white px-4 py-3 transition hover:border-[var(--portal-border-strong)] hover:bg-[var(--portal-surface-muted)]"
+    >
+      <ActivityIcon kind={item.kind} small />
+      <div className="min-w-0">
+        <div className="truncate text-sm font-semibold text-[var(--portal-text)]">{item.title}</div>
+        <div className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--portal-text-soft)]">
+          {item.detail}
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function ActivityIcon({
+  kind,
+  small = false,
+}: {
+  kind: ActivityFeedItem["kind"];
+  small?: boolean;
+}) {
+  const icon =
+    kind === "weight" ? (
+      <Stethoscope className="h-4 w-4" />
+    ) : kind === "health" ? (
+      <HeartPulse className="h-4 w-4" />
+    ) : kind === "document" ? (
+      <FileCheck2 className="h-4 w-4" />
+    ) : kind === "message" ? (
+      <MessageSquareText className="h-4 w-4" />
+    ) : kind === "payment" ? (
+      <CreditCard className="h-4 w-4" />
+    ) : kind === "event" ? (
+      <Sparkles className="h-4 w-4" />
+    ) : (
+      <Circle className="h-4 w-4" />
+    );
+
+  return (
+    <span
+      className={`inline-flex ${small ? "h-8 w-8" : "h-10 w-10"} shrink-0 items-center justify-center rounded-full bg-[var(--portal-surface-muted)] text-[#9a6437]`}
+    >
+      {icon}
+    </span>
+  );
 }
