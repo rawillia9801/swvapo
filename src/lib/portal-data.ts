@@ -93,6 +93,7 @@ export type PortalPuppy = {
   owner_email?: string | null;
   description?: string | null;
   notes?: string | null;
+  featured_listing?: boolean | null;
   created_at?: string | null;
 };
 
@@ -240,7 +241,9 @@ const puppySelect =
   "id,buyer_id,litter_id,litter_name,dam_id,sire_id,call_name,puppy_name,name,sire,dam,sex,color,coat_type,coat,pattern,dob,registry,price,list_price,deposit,balance,status,w_1,w_2,w_3,w_4,w_5,w_6,w_7,w_8,birth_weight,current_weight,weight_unit,weight_date,image_url,photo_url,owner_email,description,notes,created_at";
 
 function normalizeEmail(value: string | null | undefined) {
-  return String(value || "").trim().toLowerCase();
+  return String(value || "")
+    .trim()
+    .toLowerCase();
 }
 
 function isSupabaseMissingTableError(error: unknown) {
@@ -248,7 +251,9 @@ function isSupabaseMissingTableError(error: unknown) {
   return message.toLowerCase().includes("does not exist");
 }
 
-async function safeMaybeSingle<T>(factory: () => Promise<{ data: T | null; error: unknown }>) {
+async function safeMaybeSingle<T>(
+  factory: () => Promise<{ data: T | null; error: unknown }>,
+) {
   try {
     const result = await factory();
     if (result.error) return null;
@@ -258,7 +263,9 @@ async function safeMaybeSingle<T>(factory: () => Promise<{ data: T | null; error
   }
 }
 
-async function safeList<T>(factory: () => Promise<{ data: T[] | null; error: unknown }>) {
+async function safeList<T>(
+  factory: () => Promise<{ data: T[] | null; error: unknown }>,
+) {
   try {
     const result = await factory();
     if (result.error) return [];
@@ -282,7 +289,7 @@ function dedupeById<T extends { id?: string | number | null }>(items: T[]) {
 export function portalDisplayName(
   user: Pick<User, "email" | "user_metadata"> | null,
   buyer?: Pick<PortalBuyer, "full_name" | "name"> | null,
-  application?: Pick<PortalApplication, "full_name"> | null
+  application?: Pick<PortalApplication, "full_name"> | null,
 ) {
   return (
     buyer?.full_name ||
@@ -295,16 +302,34 @@ export function portalDisplayName(
   );
 }
 
-export function portalPuppyName(puppy?: Pick<PortalPuppy, "call_name" | "puppy_name" | "name"> | null) {
+export function portalPuppyName(
+  puppy?: Pick<PortalPuppy, "call_name" | "puppy_name" | "name"> | null,
+) {
   return puppy?.call_name || puppy?.puppy_name || puppy?.name || "My Puppy";
 }
 
 export function portalStatusTone(statusRaw: string | null | undefined) {
-  const status = String(statusRaw || "").trim().toLowerCase();
-  if (["approved", "active", "matched", "complete", "completed", "reserved", "paid"].some((item) => status.includes(item))) {
+  const status = String(statusRaw || "")
+    .trim()
+    .toLowerCase();
+  if (
+    [
+      "approved",
+      "active",
+      "matched",
+      "complete",
+      "completed",
+      "reserved",
+      "paid",
+    ].some((item) => status.includes(item))
+  ) {
     return "success" as const;
   }
-  if (["denied", "declined", "rejected", "cancel", "failed"].some((item) => status.includes(item))) {
+  if (
+    ["denied", "declined", "rejected", "cancel", "failed"].some((item) =>
+      status.includes(item),
+    )
+  ) {
     return "danger" as const;
   }
   return "warning" as const;
@@ -316,8 +341,13 @@ export async function findBuyerForUser(user: User) {
   if (user.id) {
     const byUserId = await safeMaybeSingle<PortalBuyer>(() =>
       Promise.resolve(
-        sb.from("buyers").select(buyerSelect).eq("user_id", user.id).limit(1).maybeSingle()
-      )
+        sb
+          .from("buyers")
+          .select(buyerSelect)
+          .eq("user_id", user.id)
+          .limit(1)
+          .maybeSingle(),
+      ),
     );
     if (byUserId) return byUserId;
   }
@@ -326,8 +356,13 @@ export async function findBuyerForUser(user: User) {
 
   return safeMaybeSingle<PortalBuyer>(() =>
     Promise.resolve(
-      sb.from("buyers").select(buyerSelect).ilike("email", email).limit(1).maybeSingle()
-    )
+      sb
+        .from("buyers")
+        .select(buyerSelect)
+        .ilike("email", email)
+        .limit(1)
+        .maybeSingle(),
+    ),
   );
 }
 
@@ -343,8 +378,8 @@ export async function findApplicationForUser(user: User) {
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
           .limit(1)
-          .maybeSingle()
-      )
+          .maybeSingle(),
+      ),
     );
     if (byUserId) return byUserId;
   }
@@ -359,8 +394,8 @@ export async function findApplicationForUser(user: User) {
         .ilike("email", email)
         .order("created_at", { ascending: false })
         .limit(1)
-        .maybeSingle()
-    )
+        .maybeSingle(),
+    ),
   );
 
   if (byEmail) return byEmail;
@@ -373,8 +408,8 @@ export async function findApplicationForUser(user: User) {
         .ilike("applicant_email", email)
         .order("created_at", { ascending: false })
         .limit(1)
-        .maybeSingle()
-    )
+        .maybeSingle(),
+    ),
   );
 }
 
@@ -388,8 +423,8 @@ export async function findPuppyForUser(user: User, buyer: PortalBuyer | null) {
           .eq("buyer_id", buyer.id)
           .order("created_at", { ascending: false })
           .limit(1)
-          .maybeSingle()
-      )
+          .maybeSingle(),
+      ),
     );
     if (byBuyer) return byBuyer;
   }
@@ -398,8 +433,13 @@ export async function findPuppyForUser(user: User, buyer: PortalBuyer | null) {
   if (fallbackPuppyId) {
     const byBuyerPuppyId = await safeMaybeSingle<PortalPuppy>(() =>
       Promise.resolve(
-        sb.from("puppies").select(puppySelect).eq("id", fallbackPuppyId).limit(1).maybeSingle()
-      )
+        sb
+          .from("puppies")
+          .select(puppySelect)
+          .eq("id", fallbackPuppyId)
+          .limit(1)
+          .maybeSingle(),
+      ),
     );
     if (byBuyerPuppyId) return byBuyerPuppyId;
   }
@@ -415,8 +455,8 @@ export async function findPuppyForUser(user: User, buyer: PortalBuyer | null) {
         .ilike("owner_email", email)
         .order("created_at", { ascending: false })
         .limit(1)
-        .maybeSingle()
-    )
+        .maybeSingle(),
+    ),
   );
 }
 
@@ -433,7 +473,11 @@ export async function findPortalMessagesForUser(user: User, limit?: number) {
 
   if (user.id) {
     const byUserId = await safeList<PortalMessage>(() => {
-      let query = sb.from("portal_messages").select("*").eq("user_id", user.id).order("created_at", order);
+      let query = sb
+        .from("portal_messages")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", order);
       if (limit) query = query.limit(limit);
       return Promise.resolve(query);
     });
@@ -443,16 +487,25 @@ export async function findPortalMessagesForUser(user: User, limit?: number) {
   if (!email) return [];
 
   return safeList<PortalMessage>(() => {
-    let query = sb.from("portal_messages").select("*").ilike("user_email", email).order("created_at", order);
+    let query = sb
+      .from("portal_messages")
+      .select("*")
+      .ilike("user_email", email)
+      .order("created_at", order);
     if (limit) query = query.limit(limit);
     return Promise.resolve(query);
   });
 }
 
-export async function findPortalDocumentsForUser(user: User, buyer: PortalBuyer | null) {
+export async function findPortalDocumentsForUser(
+  user: User,
+  buyer: PortalBuyer | null,
+) {
   const docs: PortalDocument[] = [];
 
-  const pushDocs = async (factory: () => Promise<{ data: PortalDocument[] | null; error: unknown }>) => {
+  const pushDocs = async (
+    factory: () => Promise<{ data: PortalDocument[] | null; error: unknown }>,
+  ) => {
     try {
       const result = await factory();
       if (!result.error && result.data?.length) docs.push(...result.data);
@@ -465,11 +518,13 @@ export async function findPortalDocumentsForUser(user: User, buyer: PortalBuyer 
     await pushDocs(() =>
       Promise.resolve(
         sb
-      .from("portal_documents")
-      .select("id,user_id,buyer_id,title,description,category,status,created_at,source_table,file_name,file_url,visible_to_user,signed_at")
+          .from("portal_documents")
+          .select(
+            "id,user_id,buyer_id,title,description,category,status,created_at,source_table,file_name,file_url,visible_to_user,signed_at",
+          )
           .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-      )
+          .order("created_at", { ascending: false }),
+      ),
     );
   }
 
@@ -477,11 +532,13 @@ export async function findPortalDocumentsForUser(user: User, buyer: PortalBuyer 
     await pushDocs(() =>
       Promise.resolve(
         sb
-      .from("portal_documents")
-      .select("id,user_id,buyer_id,title,description,category,status,created_at,source_table,file_name,file_url,visible_to_user,signed_at")
+          .from("portal_documents")
+          .select(
+            "id,user_id,buyer_id,title,description,category,status,created_at,source_table,file_name,file_url,visible_to_user,signed_at",
+          )
           .eq("buyer_id", buyer.id)
-          .order("created_at", { ascending: false })
-      )
+          .order("created_at", { ascending: false }),
+      ),
     );
   }
 
@@ -494,47 +551,47 @@ export async function findFormSubmissionsForUser(user: User) {
 
   if (user.id) {
     forms.push(
-      ...(
-        await safeList<PortalFormSubmission>(() =>
-          Promise.resolve(
-            sb
-              .from("portal_form_submissions")
-              .select("id,user_id,user_email,email,form_key,form_title,version,signed_name,signed_date,signed_at,data,payload,status,submitted_at,attachments,created_at,updated_at")
-              .eq("user_id", user.id)
-              .order("updated_at", { ascending: false })
-          )
-        )
-      )
+      ...(await safeList<PortalFormSubmission>(() =>
+        Promise.resolve(
+          sb
+            .from("portal_form_submissions")
+            .select(
+              "id,user_id,user_email,email,form_key,form_title,version,signed_name,signed_date,signed_at,data,payload,status,submitted_at,attachments,created_at,updated_at",
+            )
+            .eq("user_id", user.id)
+            .order("updated_at", { ascending: false }),
+        ),
+      )),
     );
   }
 
   if (email) {
     forms.push(
-      ...(
-        await safeList<PortalFormSubmission>(() =>
-          Promise.resolve(
-            sb
-              .from("portal_form_submissions")
-              .select("id,user_id,user_email,email,form_key,form_title,version,signed_name,signed_date,signed_at,data,payload,status,submitted_at,attachments,created_at,updated_at")
-              .ilike("user_email", email)
-              .order("updated_at", { ascending: false })
-          )
-        )
-      )
+      ...(await safeList<PortalFormSubmission>(() =>
+        Promise.resolve(
+          sb
+            .from("portal_form_submissions")
+            .select(
+              "id,user_id,user_email,email,form_key,form_title,version,signed_name,signed_date,signed_at,data,payload,status,submitted_at,attachments,created_at,updated_at",
+            )
+            .ilike("user_email", email)
+            .order("updated_at", { ascending: false }),
+        ),
+      )),
     );
 
     forms.push(
-      ...(
-        await safeList<PortalFormSubmission>(() =>
-          Promise.resolve(
-            sb
-              .from("portal_form_submissions")
-              .select("id,user_id,user_email,email,form_key,form_title,version,signed_name,signed_date,signed_at,data,payload,status,submitted_at,attachments,created_at,updated_at")
-              .ilike("email", email)
-              .order("updated_at", { ascending: false })
-          )
-        )
-      )
+      ...(await safeList<PortalFormSubmission>(() =>
+        Promise.resolve(
+          sb
+            .from("portal_form_submissions")
+            .select(
+              "id,user_id,user_email,email,form_key,form_title,version,signed_name,signed_date,signed_at,data,payload,status,submitted_at,attachments,created_at,updated_at",
+            )
+            .ilike("email", email)
+            .order("updated_at", { ascending: false }),
+        ),
+      )),
     );
   }
 
@@ -548,13 +605,15 @@ export async function findPuppyEvents(puppyId: number | null | undefined) {
     Promise.resolve(
       sb
         .from("puppy_events")
-        .select("id,puppy_id,event_date,event_type,label,title,summary,details,auto_generated,photo_url,photos")
+        .select(
+          "id,puppy_id,event_date,event_type,label,title,summary,details,auto_generated,photo_url,photos",
+        )
         .eq("puppy_id", puppyId)
         .eq("is_published", true)
         .eq("is_private", false)
         .order("event_date", { ascending: false })
-        .order("sort_order", { ascending: false })
-    )
+        .order("sort_order", { ascending: false }),
+    ),
   );
 
   const today = new Date();
@@ -575,11 +634,13 @@ export async function findHealthRecords(puppyId: number | null | undefined) {
     Promise.resolve(
       sb
         .from("puppy_health_records")
-        .select("id,puppy_id,record_date,record_type,title,description,provider_name,next_due_date,is_visible_to_buyer")
+        .select(
+          "id,puppy_id,record_date,record_type,title,description,provider_name,next_due_date,is_visible_to_buyer",
+        )
         .eq("puppy_id", puppyId)
         .eq("is_visible_to_buyer", true)
-        .order("record_date", { ascending: false })
-    )
+        .order("record_date", { ascending: false }),
+    ),
   );
 }
 
@@ -593,8 +654,8 @@ export async function findPuppyWeights(puppyId: number | null | undefined) {
         .select("id,puppy_id,weight_date,age_weeks,weight_oz,weight_g,notes")
         .eq("puppy_id", puppyId)
         .order("weight_date", { ascending: false })
-        .limit(20)
-    )
+        .limit(20),
+    ),
   );
 }
 
@@ -605,15 +666,19 @@ export async function findBuyerPayments(buyerId: number | null | undefined) {
     Promise.resolve(
       sb
         .from("buyer_payments")
-        .select("id,created_at,buyer_id,puppy_id,payment_date,amount,payment_type,method,note,status,reference_number")
+        .select(
+          "id,created_at,buyer_id,puppy_id,payment_date,amount,payment_type,method,note,status,reference_number",
+        )
         .eq("buyer_id", buyerId)
         .order("payment_date", { ascending: false })
-        .order("created_at", { ascending: false })
-    )
+        .order("created_at", { ascending: false }),
+    ),
   );
 }
 
-export async function findBuyerFeeCreditRecords(buyerId: number | null | undefined) {
+export async function findBuyerFeeCreditRecords(
+  buyerId: number | null | undefined,
+) {
   if (!buyerId) return [];
 
   return safeList<PortalFeeCreditRecord>(() =>
@@ -621,12 +686,12 @@ export async function findBuyerFeeCreditRecords(buyerId: number | null | undefin
       sb
         .from("buyer_fee_credit_records")
         .select(
-          "id,created_at,buyer_id,puppy_id,entry_date,entry_type,label,description,amount,status,reference_number"
+          "id,created_at,buyer_id,puppy_id,entry_date,entry_type,label,description,amount,status,reference_number",
         )
         .eq("buyer_id", buyerId)
         .order("entry_date", { ascending: false })
-        .order("created_at", { ascending: false })
-    )
+        .order("created_at", { ascending: false }),
+    ),
   );
 }
 
@@ -637,12 +702,14 @@ export async function findLatestPickupRequestForUser(user: User) {
     Promise.resolve(
       sb
         .from("portal_pickup_requests")
-        .select("id,created_at,user_id,puppy_id,request_date,request_type,location_text,notes,status,address_text,miles")
+        .select(
+          "id,created_at,user_id,puppy_id,request_date,request_type,location_text,notes,status,address_text,miles",
+        )
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(1)
-        .maybeSingle()
-    )
+        .maybeSingle(),
+    ),
   );
 }
 
@@ -660,8 +727,8 @@ export async function findBlockedPickupDatesForMonth(targetMonth: Date) {
         .select("request_date")
         .gte("request_date", start)
         .lte("request_date", end)
-        .in("status", ["pending", "approved"])
-    )
+        .in("status", ["pending", "approved"]),
+    ),
   );
 
   const dates = new Set<string>();
@@ -679,8 +746,8 @@ export async function isPickupDateAvailable(isoDate: string) {
         .select("id")
         .eq("request_date", isoDate)
         .in("status", ["pending", "approved"])
-        .limit(1)
-    )
+        .limit(1),
+    ),
   );
 
   return rows.length === 0;

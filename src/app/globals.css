@@ -12,36 +12,43 @@
   --color-portal-cocoa-800: #533524;
   --color-portal-cocoa-900: #3f281c;
 
-  --font-sans: var(--font-open-sans), sans-serif;
-  --font-serif: var(--font-merriweather), serif;
+  --font-sans:
+    "Avenir Next", "Segoe UI", Inter, system-ui, -apple-system, sans-serif;
+  --font-serif:
+    Iowan Old Style, "Palatino Linotype", "Book Antiqua", Palatino, Georgia,
+    serif;
 }
 
 @layer base {
   :root {
-    --portal-bg: #f6efe6;
-    --portal-bg-alt: #efe4d8;
-    --portal-bg-elevated: #fffaf4;
-    --portal-surface: rgba(255, 251, 246, 0.92);
-    --portal-surface-strong: rgba(255, 252, 248, 0.97);
-    --portal-surface-muted: rgba(247, 239, 229, 0.9);
-    --portal-surface-tint: rgba(242, 232, 219, 0.84);
-    --portal-border: rgba(216, 197, 174, 0.82);
-    --portal-border-strong: rgba(194, 163, 129, 0.86);
-    --portal-text: #533524;
-    --portal-text-soft: #765540;
-    --portal-text-muted: #9c7a60;
-    --portal-accent: #b17743;
-    --portal-accent-strong: #8b5a35;
-    --portal-accent-soft: rgba(177, 119, 67, 0.12);
+    --portal-bg: #f4ede4;
+    --portal-bg-alt: #eadfd3;
+    --portal-bg-elevated: #fffaf5;
+    --portal-surface: rgba(255, 252, 248, 0.9);
+    --portal-surface-strong: rgba(255, 253, 250, 0.98);
+    --portal-surface-muted: rgba(247, 239, 230, 0.92);
+    --portal-surface-tint: rgba(238, 224, 208, 0.76);
+    --portal-border: rgba(207, 183, 155, 0.72);
+    --portal-border-strong: rgba(176, 139, 101, 0.78);
+    --portal-text: #432d21;
+    --portal-text-soft: #70513e;
+    --portal-text-muted: #96735a;
+    --portal-accent: #a56735;
+    --portal-accent-strong: #7d4828;
+    --portal-accent-deep: #5f3724;
+    --portal-accent-soft: rgba(165, 103, 53, 0.12);
+    --portal-gold: #c59657;
+    --portal-gold-soft: rgba(197, 150, 87, 0.16);
     --portal-success: #2f7a52;
     --portal-success-soft: rgba(47, 122, 82, 0.12);
     --portal-warning: #b96f1f;
     --portal-warning-soft: rgba(185, 111, 31, 0.14);
     --portal-danger: #a14242;
     --portal-danger-soft: rgba(161, 66, 66, 0.12);
-    --portal-shadow-lg: 0 28px 60px -28px rgba(96, 63, 36, 0.28);
-    --portal-shadow-md: 0 22px 44px -24px rgba(96, 63, 36, 0.22);
-    --portal-shadow-sm: 0 14px 30px -18px rgba(96, 63, 36, 0.16);
+    --portal-shadow-lg: 0 30px 74px -34px rgba(79, 49, 28, 0.3);
+    --portal-shadow-md: 0 22px 48px -26px rgba(79, 49, 28, 0.24);
+    --portal-shadow-sm: 0 14px 32px -20px rgba(79, 49, 28, 0.18);
+    --portal-ring: rgba(165, 103, 53, 0.22);
   }
 
   * {
@@ -53,14 +60,28 @@
     margin: 0;
     min-height: 100%;
     background:
-      radial-gradient(circle at top left, rgba(214, 177, 138, 0.18), transparent 26%),
-      radial-gradient(circle at top right, rgba(168, 111, 68, 0.12), transparent 22%),
+      radial-gradient(
+        circle at 8% -4%,
+        rgba(211, 170, 124, 0.22),
+        transparent 27%
+      ),
+      radial-gradient(
+        circle at 96% 4%,
+        rgba(143, 91, 52, 0.12),
+        transparent 22%
+      ),
       linear-gradient(180deg, var(--portal-bg) 0%, var(--portal-bg-alt) 100%);
     color: var(--portal-text);
   }
 
   body {
-    font-family: var(--font-sans);
+    font-family:
+      "Avenir Next",
+      "Segoe UI",
+      Inter,
+      system-ui,
+      -apple-system,
+      sans-serif;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -77,34 +98,60 @@
   select {
     font: inherit;
   }
+
+  button,
+  a {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--portal-ring);
+    outline-offset: 3px;
+  }
+
+  ::selection {
+    background: rgba(197, 150, 87, 0.28);
+    color: var(--portal-accent-deep);
+  }
 }
 
 @layer utilities {
   .glass-nav {
-    background: rgba(255, 251, 246, 0.84);
+    background: rgba(255, 251, 246, 0.9);
     backdrop-filter: blur(20px);
-    border-bottom: 1px solid rgba(216, 197, 174, 0.86);
+    border-bottom: 1px solid var(--portal-border);
   }
 
   .premium-card {
-    background:
-      linear-gradient(180deg, rgba(255, 252, 248, 0.98) 0%, rgba(250, 242, 233, 0.96) 100%);
-    border: 1px solid rgba(216, 197, 174, 0.84);
-    box-shadow: 0 18px 38px -24px rgba(96, 63, 36, 0.2);
+    background: linear-gradient(
+      155deg,
+      rgba(255, 253, 250, 0.99) 0%,
+      rgba(249, 241, 232, 0.97) 100%
+    );
+    border: 1px solid var(--portal-border);
+    box-shadow: var(--portal-shadow-sm);
   }
 
   .bg-texturePaper {
     background:
-      radial-gradient(circle at top left, rgba(214, 177, 138, 0.14), transparent 28%),
-      radial-gradient(circle at top right, rgba(168, 111, 68, 0.1), transparent 24%),
+      radial-gradient(
+        circle at top left,
+        rgba(214, 177, 138, 0.14),
+        transparent 28%
+      ),
+      radial-gradient(
+        circle at top right,
+        rgba(168, 111, 68, 0.1),
+        transparent 24%
+      ),
       linear-gradient(180deg, var(--portal-bg) 0%, var(--portal-bg-alt) 100%);
   }
 
   .portal-grid-bg {
     background-image:
-      linear-gradient(rgba(255, 251, 246, 0.58), rgba(255, 251, 246, 0.58)),
-      linear-gradient(rgba(216, 197, 174, 0.34) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(216, 197, 174, 0.34) 1px, transparent 1px);
+      linear-gradient(rgba(255, 251, 246, 0.68), rgba(255, 251, 246, 0.68)),
+      linear-gradient(rgba(192, 158, 120, 0.18) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(192, 158, 120, 0.18) 1px, transparent 1px);
     background-size:
       100% 100%,
       32px 32px,
@@ -123,9 +170,21 @@
 
   .hero-glow {
     background:
-      radial-gradient(circle at top left, rgba(214, 177, 138, 0.18), transparent 30%),
-      radial-gradient(circle at bottom right, rgba(168, 111, 68, 0.12), transparent 28%),
-      linear-gradient(to bottom, rgba(251, 246, 240, 0.96), rgba(255, 252, 248, 1));
+      radial-gradient(
+        circle at top left,
+        rgba(214, 177, 138, 0.24),
+        transparent 30%
+      ),
+      radial-gradient(
+        circle at bottom right,
+        rgba(151, 93, 50, 0.12),
+        transparent 28%
+      ),
+      linear-gradient(
+        to bottom,
+        rgba(251, 246, 240, 0.96),
+        rgba(255, 252, 248, 1)
+      );
   }
 
   .scroller::-webkit-scrollbar {
@@ -145,12 +204,47 @@
   }
 
   .card-luxury {
-    background: linear-gradient(180deg, rgba(255, 252, 248, 0.98) 0%, rgba(249, 239, 228, 0.96) 100%);
+    background: linear-gradient(
+      180deg,
+      rgba(255, 252, 248, 0.98) 0%,
+      rgba(249, 239, 228, 0.96) 100%
+    );
     border: 1px solid var(--portal-border);
     border-radius: 32px;
     box-shadow: var(--portal-shadow-lg);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
+  }
+
+  .portal-command-surface {
+    background:
+      linear-gradient(
+        120deg,
+        rgba(255, 253, 250, 0.97),
+        rgba(248, 238, 226, 0.94)
+      ),
+      linear-gradient(90deg, rgba(197, 150, 87, 0.08), transparent);
+    border: 1px solid var(--portal-border);
+    box-shadow: var(--portal-shadow-sm);
+    backdrop-filter: blur(18px);
+  }
+
+  .portal-metal-line {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(197, 150, 87, 0.86) 24%,
+      rgba(125, 72, 40, 0.7) 72%,
+      transparent
+    );
+  }
+
+  .portal-kicker {
+    color: var(--portal-accent);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
   }
 
   .status-pill {

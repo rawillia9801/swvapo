@@ -97,7 +97,8 @@ export function textValue(
   for (const key of keys) {
     const value = row[key];
     if (typeof value === "string" && value.trim()) return value.trim();
-    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+    if (typeof value === "number" && Number.isFinite(value))
+      return String(value);
   }
   return null;
 }
@@ -128,8 +129,10 @@ export function booleanValue(
     if (typeof value === "boolean") return value;
     const normalized = normalizedText(value);
     if (!normalized) continue;
-    if (["true", "yes", "1", "active", "enabled"].includes(normalized)) return true;
-    if (["false", "no", "0", "inactive", "disabled"].includes(normalized)) return false;
+    if (["true", "yes", "1", "active", "enabled"].includes(normalized))
+      return true;
+    if (["false", "no", "0", "inactive", "disabled"].includes(normalized))
+      return false;
   }
   return null;
 }
@@ -167,7 +170,9 @@ export function firstPresent<T>(...values: Array<T | null | undefined>) {
   return null;
 }
 
-export function compositeKey(...parts: Array<string | number | null | undefined>) {
+export function compositeKey(
+  ...parts: Array<string | number | null | undefined>
+) {
   return parts
     .map((part) => normalizedText(part))
     .filter(Boolean)
@@ -180,7 +185,9 @@ export function sortByRecent<T extends Record<string, unknown>>(
 ) {
   return [...rows].sort((left, right) => {
     const leftValue = firstPresent(...keys.map((key) => textValue(left, key)));
-    const rightValue = firstPresent(...keys.map((key) => textValue(right, key)));
+    const rightValue = firstPresent(
+      ...keys.map((key) => textValue(right, key)),
+    );
     const leftTime = leftValue ? new Date(String(leftValue)).getTime() : 0;
     const rightTime = rightValue ? new Date(String(rightValue)).getTime() : 0;
     return rightTime - leftTime;
@@ -190,15 +197,18 @@ export function sortByRecent<T extends Record<string, unknown>>(
 export async function loadResolverSources(
   service: SupabaseClient,
   definitions: ResolverSourceDefinition[],
-  defaultLimit = DEFAULT_SOURCE_LIMIT
+  defaultLimit = DEFAULT_SOURCE_LIMIT,
 ) {
   return Promise.all(
     definitions.map(async (definition) => {
       try {
-        const result: any = await service
+        const result = (await service
           .from(definition.table)
           .select("*")
-          .limit(definition.limit ?? defaultLimit);
+          .limit(definition.limit ?? defaultLimit)) as {
+          data: unknown;
+          error: unknown;
+        };
 
         if (result.error) {
           return {
@@ -209,7 +219,13 @@ export async function loadResolverSources(
             error:
               result.error instanceof Error
                 ? result.error.message
-                : String(result.error?.message || result.error || ""),
+                : result.error &&
+                    typeof result.error === "object" &&
+                    "message" in result.error
+                  ? String(
+                      (result.error as { message?: unknown }).message || "",
+                    )
+                  : String(result.error || ""),
           } satisfies LoadedResolverSource;
         }
 
@@ -232,19 +248,21 @@ export async function loadResolverSources(
           error: error instanceof Error ? error.message : String(error || ""),
         } satisfies LoadedResolverSource;
       }
-    })
+    }),
   );
 }
 
 export function createResolverDiagnostics(
   domain: string,
   sources: LoadedResolverSource[],
-  notes: string[] = []
+  notes: string[] = [],
 ): ResolverDiagnostics {
   return {
     domain,
     sources,
-    mergedTables: sources.filter((source) => source.status === "data").map((source) => source.table),
+    mergedTables: sources
+      .filter((source) => source.status === "data")
+      .map((source) => source.table),
     deduped: 0,
     conflicts: [],
     notes,
@@ -255,7 +273,10 @@ export function recordDedupe(diagnostics: ResolverDiagnostics, count = 1) {
   diagnostics.deduped += count;
 }
 
-export function recordConflict(diagnostics: ResolverDiagnostics, message: string) {
+export function recordConflict(
+  diagnostics: ResolverDiagnostics,
+  message: string,
+) {
   if (!message) return;
   if (diagnostics.conflicts.includes(message)) return;
   if (diagnostics.conflicts.length >= 50) return;
@@ -264,7 +285,7 @@ export function recordConflict(diagnostics: ResolverDiagnostics, message: string
 
 export function mergeSourceTables(
   current: string[] | null | undefined,
-  incoming: string[] | null | undefined
+  incoming: string[] | null | undefined,
 ) {
   return Array.from(new Set([...(current || []), ...(incoming || [])]));
 }
@@ -280,7 +301,7 @@ export function mergeResolvedRecord<
   incoming: T,
   diagnostics: ResolverDiagnostics,
   label: string,
-  trackedKeys: string[]
+  trackedKeys: string[],
 ) {
   const next = { ...current } as T;
 
@@ -288,7 +309,7 @@ export function mergeResolvedRecord<
     if (key === "source_tables") {
       next.source_tables = mergeSourceTables(
         current.source_tables,
-        value as string[] | null | undefined
+        value as string[] | null | undefined,
       );
       continue;
     }
@@ -306,7 +327,7 @@ export function mergeResolvedRecord<
 
     recordConflict(
       diagnostics,
-      `${label}: conflict on ${key} between ${String(current.primary_source_table || "unknown")} and ${String(incoming.primary_source_table || "unknown")}`
+      `${label}: conflict on ${key} between ${String(current.primary_source_table || "unknown")} and ${String(incoming.primary_source_table || "unknown")}`,
     );
   }
 
@@ -314,8 +335,12 @@ export function mergeResolvedRecord<
 }
 
 export function finalizeResolverDiagnostics(diagnostics: ResolverDiagnostics) {
-  const errorSources = diagnostics.sources.filter((source) => source.status === "error");
-  const activeSources = diagnostics.sources.filter((source) => source.status === "data");
+  const errorSources = diagnostics.sources.filter(
+    (source) => source.status === "error",
+  );
+  const activeSources = diagnostics.sources.filter(
+    (source) => source.status === "data",
+  );
 
   if (!activeSources.length) {
     console.warn(
@@ -329,12 +354,16 @@ export function finalizeResolverDiagnostics(diagnostics: ResolverDiagnostics) {
           error: source.error,
         })),
         notes: diagnostics.notes,
-      })
+      }),
     );
     return diagnostics;
   }
 
-  if (activeSources.length > 1 || diagnostics.conflicts.length || errorSources.length) {
+  if (
+    activeSources.length > 1 ||
+    diagnostics.conflicts.length ||
+    errorSources.length
+  ) {
     console.info(
       `[resolver:${diagnostics.domain}]`,
       JSON.stringify({
@@ -350,7 +379,7 @@ export function finalizeResolverDiagnostics(diagnostics: ResolverDiagnostics) {
           error: source.error,
         })),
         notes: diagnostics.notes,
-      })
+      }),
     );
   }
 
@@ -359,7 +388,7 @@ export function finalizeResolverDiagnostics(diagnostics: ResolverDiagnostics) {
 
 export function toResolverResult<T>(
   data: T,
-  diagnostics: ResolverDiagnostics
+  diagnostics: ResolverDiagnostics,
 ): ResolverResult<T> {
   const finalized = finalizeResolverDiagnostics(diagnostics);
 
@@ -374,7 +403,9 @@ export function toResolverResult<T>(
         .filter((source) => source.status === "missing")
         .map((source) => source.table),
       rowCounts: Object.fromEntries(
-        finalized.sources.map((source) => [source.table, source.rowCount] as const)
+        finalized.sources.map(
+          (source) => [source.table, source.rowCount] as const,
+        ),
       ),
       mergeNotes: [
         ...(finalized.mergedTables.length > 1
@@ -391,7 +422,7 @@ export function toResolverResult<T>(
           .filter((source) => source.status === "error")
           .map(
             (source) =>
-              `${source.table}: ${source.error || "Unexpected resolver source error."}`
+              `${source.table}: ${source.error || "Unexpected resolver source error."}`,
           ),
       ],
     },

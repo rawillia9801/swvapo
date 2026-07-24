@@ -27,7 +27,11 @@ export function publicPuppyRegistry(puppy: PortalPuppy) {
 }
 
 export function publicPuppyDescription(puppy: PortalPuppy) {
-  return String(puppy.description || puppy.notes || "").trim();
+  return String(puppy.description || "").trim();
+}
+
+export function publicPuppyIsFeatured(puppy: PortalPuppy) {
+  return Boolean(puppy.featured_listing);
 }
 
 export function publicPuppyPhotoUrl(puppy: PortalPuppy) {
@@ -54,7 +58,7 @@ export function publicPuppyAgeLabel(puppy: PortalPuppy) {
   const today = new Date();
   const diffDays = Math.max(
     0,
-    Math.floor((today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24))
+    Math.floor((today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24)),
   );
   const weeks = Math.floor(diffDays / 7);
 
@@ -70,9 +74,38 @@ export function publicPuppyStatusLabel(statusRaw: string) {
   if (status.includes("available")) return "Available";
   if (status.includes("reserved")) return "Reserved";
   if (status.includes("hold")) return "On Hold";
-  if (status.includes("expected")) return "Expected";
-  if (status.includes("adopted") || status.includes("sold") || status.includes("completed")) {
+  if (status.includes("expected") || status.includes("upcoming")) {
+    return "Expected";
+  }
+  if (
+    status.includes("adopted") ||
+    status.includes("sold") ||
+    status.includes("completed")
+  ) {
     return "Completed";
   }
   return statusRaw || "Pending";
+}
+
+export function isPublicPuppyListingStatus(
+  statusRaw: string | null | undefined,
+) {
+  const status = String(statusRaw || "")
+    .trim()
+    .toLowerCase();
+  if (!status) return false;
+
+  return [
+    "available",
+    "expected",
+    "upcoming",
+    "waitlist",
+    "hold",
+    "reserved",
+    "completed",
+    "complete",
+    "sold",
+    "adopted",
+    "placed",
+  ].some((token) => status.includes(token));
 }

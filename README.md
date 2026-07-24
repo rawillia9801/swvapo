@@ -1,37 +1,114 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SWVAPO
 
-## Getting Started
+SWVAPO is the customer Puppy Portal and breeder administration workspace for
+Southwest Virginia Chihuahua. It is a Next.js application backed by Supabase
+and connected to the breeder's live puppy, buyer, application, document,
+payment, transportation, health, and messaging records.
 
-First, run the development server:
+## Product areas
+
+### Customer portal
+
+- secure account creation, sign-in, and password recovery
+- buyer dashboard and homecoming journey
+- live available-puppy listings
+- puppy profile, lineage, weight, health, and milestone updates
+- applications, contracts, documents, and signatures
+- payments, financing details, receipts, and reminders
+- pickup and delivery planning
+- breeder messages, notifications, resources, and account management
+- ChiChi portal assistant grounded in the signed-in family's records
+
+### Breeder administration
+
+- applications and buyer workspace
+- current and past puppy operations
+- dams, sires, litters, lineage, and genetics
+- buyer documents and contract workflow
+- payments, financing, notices, and Zoho integrations
+- transportation planning
+- portal messages and website conversations
+- Resend template administration
+- portal users, integration health, and workflow settings
+
+## Local development
+
+Requirements:
+
+- Node.js 22 or newer
+- npm
+- a Supabase project containing the portal schema
+
+Install and run:
 
 ```bash
+npm ci
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open `http://localhost:3000/portal`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Quality checks:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npx tsc --noEmit
+npm run lint
+npm run build
+```
 
-## Learn More
+The production build no longer downloads Google fonts. It uses a resilient
+system-font stack so local, CI, and Vercel builds do not depend on an external
+font request.
 
-To learn more about Next.js, take a look at the following resources:
+## Environment
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Core portal access requires:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```text
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY
+NEXT_PUBLIC_APP_URL
+```
 
-## Deploy on Vercel
+Optional integrations require their corresponding variables:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Resend: `RESEND_API_KEY`, sender/reply-to values, and webhook secret
+- Zoho: OAuth, Payments, Sign, Forms, and Writer template values
+- ChiChi: `ANTHROPIC_API_KEY`
+- scheduled jobs: `CRON_SECRET`
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# swvapo
+Never commit service-role keys, OAuth secrets, webhook secrets, or email
+credentials.
+
+## Database migrations
+
+Migrations are stored in `supabase/migrations` and should be applied in
+timestamp order.
+
+The portal experience foundation migration adds per-user notification
+dismissals with row-level security:
+
+```text
+supabase/migrations/20260724_portal_experience_foundation.sql
+```
+
+Until that migration is applied, notification dismissals still work on the
+current device through a local browser fallback. Applying the migration makes
+the state follow the user across devices.
+
+## Data and privacy rules
+
+- Customer pages must read only records tied to the authenticated user, buyer,
+  or assigned puppy.
+- Administrative writes must use verified admin access.
+- Public puppy listings must respect `puppy_admin_profiles.public_visibility`.
+- Public listing responses must not include buyer data, owner email, breeder
+  notes, internal care flags, costs, or private pricing.
+- Reserved and completed puppy prices remain private.
+
+## Deployment
+
+The repository is designed for Vercel. Push a verified commit only after the
+local production build succeeds so each release consumes one deployment rather
+than a sequence of partial builds.

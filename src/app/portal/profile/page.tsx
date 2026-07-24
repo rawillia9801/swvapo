@@ -104,8 +104,11 @@ function safeText(value: string | null | undefined, fallback = "Not listed") {
 }
 
 function profileInitial(
-  user: { email?: string | null; user_metadata?: Record<string, unknown> | null } | null,
-  state: ProfilePageState
+  user: {
+    email?: string | null;
+    user_metadata?: Record<string, unknown> | null;
+  } | null,
+  state: ProfilePageState,
 ) {
   const buyer = state.buyer;
   const application = state.application;
@@ -118,11 +121,19 @@ function profileInitial(
         application?.full_name ||
         user?.user_metadata?.full_name ||
         user?.user_metadata?.name ||
-        ""
+        "",
     ),
-    email: String(buyer?.email || application?.email || application?.applicant_email || user?.email || ""),
+    email: String(
+      buyer?.email ||
+        application?.email ||
+        application?.applicant_email ||
+        user?.email ||
+        "",
+    ),
     phone: String(buyer?.phone || application?.phone || ""),
-    address_line1: String(buyer?.address_line1 || application?.street_address || ""),
+    address_line1: String(
+      buyer?.address_line1 || application?.street_address || "",
+    ),
     address_line2: String(buyer?.address_line2 || ""),
     city: String(buyer?.city || parsedCityState.city || ""),
     state: String(buyer?.state || parsedCityState.state || ""),
@@ -131,20 +142,26 @@ function profileInitial(
 }
 
 function readPreferences(
-  user: { user_metadata?: Record<string, unknown> | null } | null
+  user: { user_metadata?: Record<string, unknown> | null } | null,
 ): PortalPreferences {
   const raw =
     user?.user_metadata &&
     typeof user.user_metadata === "object" &&
     !Array.isArray(user.user_metadata)
-      ? (user.user_metadata.portal_preferences as Record<string, unknown> | undefined)
+      ? (user.user_metadata.portal_preferences as
+          | Record<string, unknown>
+          | undefined)
       : undefined;
 
   return {
     email_updates:
-      typeof raw?.email_updates === "boolean" ? raw.email_updates : defaultPreferences().email_updates,
+      typeof raw?.email_updates === "boolean"
+        ? raw.email_updates
+        : defaultPreferences().email_updates,
     sms_updates:
-      typeof raw?.sms_updates === "boolean" ? raw.sms_updates : defaultPreferences().sms_updates,
+      typeof raw?.sms_updates === "boolean"
+        ? raw.sms_updates
+        : defaultPreferences().sms_updates,
     portal_reminders:
       typeof raw?.portal_reminders === "boolean"
         ? raw.portal_reminders
@@ -179,7 +196,9 @@ function PreferenceToggleCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="text-sm font-semibold text-[var(--portal-text)]">{title}</div>
+              <div className="text-sm font-semibold text-[var(--portal-text)]">
+                {title}
+              </div>
               <div className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">
                 {description}
               </div>
@@ -188,7 +207,7 @@ function PreferenceToggleCard({
               className={[
                 "inline-flex rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em]",
                 checked
-                  ? "border-violet-200 bg-violet-50 text-violet-700"
+                  ? "border-[var(--portal-border-strong)] bg-[var(--portal-gold-soft)] text-[var(--portal-accent-strong)]"
                   : "border-[var(--portal-border)] bg-white text-[var(--portal-text-muted)]",
               ].join(" ")}
             >
@@ -201,7 +220,7 @@ function PreferenceToggleCard({
               className={[
                 "relative h-7 w-12 rounded-full border transition",
                 checked
-                  ? "border-transparent bg-[linear-gradient(90deg,#7c5cff_0%,#f043a2_100%)]"
+                  ? "border-transparent bg-[linear-gradient(135deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)]"
                   : "border-[var(--portal-border)] bg-[var(--portal-surface-muted)]",
               ].join(" ")}
             >
@@ -232,7 +251,8 @@ export default function PortalProfilePage() {
   const { user, loading: sessionLoading } = usePortalSession();
   const [data, setData] = useState<ProfilePageState>(emptyState);
   const [form, setForm] = useState<ProfileFormState>(emptyForm);
-  const [preferences, setPreferences] = useState<PortalPreferences>(defaultPreferences);
+  const [preferences, setPreferences] =
+    useState<PortalPreferences>(defaultPreferences);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errorText, setErrorText] = useState("");
@@ -262,7 +282,7 @@ export default function PortalProfilePage() {
         if (!active) return;
         setData(emptyState());
         setErrorText(
-          "We could not load every saved account detail right now. You can still update your profile information below."
+          "We could not load every saved account detail right now. You can still update your profile information below.",
         );
       } finally {
         if (active) setLoading(false);
@@ -292,15 +312,23 @@ export default function PortalProfilePage() {
 
     if (!pictureFile) {
       setPicturePreviewUrl(
-        String(data.buyer?.portal_profile_photo_url || user.user_metadata?.avatar_url || "")
+        String(
+          data.buyer?.portal_profile_photo_url ||
+            user.user_metadata?.avatar_url ||
+            "",
+        ),
       );
     }
   }, [data, pictureFile, user]);
 
-  const linkedPuppy = data.puppy ? portalPuppyName(data.puppy) : "Not assigned yet";
+  const linkedPuppy = data.puppy
+    ? portalPuppyName(data.puppy)
+    : "Not assigned yet";
   const applicationStatus = safeText(data.application?.status, "Not started");
   const deliveryOption = safeText(data.buyer?.delivery_option, "Not selected");
-  const financeStatus = data.buyer?.finance_enabled ? "Financing enabled" : "Standard payment plan";
+  const financeStatus = data.buyer?.finance_enabled
+    ? "Financing enabled"
+    : "Standard payment plan";
 
   const communicationSummary = useMemo(() => {
     const enabled = Object.values(preferences).filter(Boolean).length;
@@ -313,7 +341,11 @@ export default function PortalProfilePage() {
     setPreferences(readPreferences(user));
     setPictureFile(null);
     setPicturePreviewUrl(
-      String(data.buyer?.portal_profile_photo_url || user.user_metadata?.avatar_url || "")
+      String(
+        data.buyer?.portal_profile_photo_url ||
+          user.user_metadata?.avatar_url ||
+          "",
+      ),
     );
     setStatusText("");
     setErrorText("");
@@ -330,7 +362,7 @@ export default function PortalProfilePage() {
     } catch (error) {
       console.error("Could not refresh account info:", error);
       setErrorText(
-        "We could not refresh your latest account details right now. Your saved changes may still have completed."
+        "We could not refresh your latest account details right now. Your saved changes may still have completed.",
       );
     }
   }
@@ -344,7 +376,9 @@ export default function PortalProfilePage() {
     } = await sb.auth.getSession();
 
     if (!session?.access_token) {
-      setErrorText("Please sign in again before saving your account information.");
+      setErrorText(
+        "Please sign in again before saving your account information.",
+      );
       return;
     }
 
@@ -364,8 +398,14 @@ export default function PortalProfilePage() {
       formData.append("postal_code", form.postal_code.trim());
       formData.append("pref_email_updates", String(preferences.email_updates));
       formData.append("pref_sms_updates", String(preferences.sms_updates));
-      formData.append("pref_portal_reminders", String(preferences.portal_reminders));
-      formData.append("pref_litter_announcements", String(preferences.litter_announcements));
+      formData.append(
+        "pref_portal_reminders",
+        String(preferences.portal_reminders),
+      );
+      formData.append(
+        "pref_litter_announcements",
+        String(preferences.litter_announcements),
+      );
 
       if (pictureFile) {
         formData.append("profile_picture", pictureFile);
@@ -382,7 +422,9 @@ export default function PortalProfilePage() {
       const payload = (await response.json()) as ProfileSaveResponse;
 
       if (!response.ok) {
-        throw new Error(payload.message || "Could not save your account information.");
+        throw new Error(
+          payload.message || "Could not save your account information.",
+        );
       }
 
       const savedBuyer = payload.buyer ?? null;
@@ -410,7 +452,7 @@ export default function PortalProfilePage() {
       setErrorText(
         error instanceof Error
           ? error.message
-          : "We could not save your account information right now."
+          : "We could not save your account information right now.",
       );
     } finally {
       setSaving(false);
@@ -520,7 +562,8 @@ export default function PortalProfilePage() {
                 </label>
 
                 <p className="mt-3 text-xs leading-6 text-[var(--portal-text-muted)]">
-                  Use a clear photo or icon for your portal account. Images up to 5MB are accepted.
+                  Use a clear photo or icon for your portal account. Images up
+                  to 5MB are accepted.
                 </p>
               </div>
 
@@ -530,7 +573,10 @@ export default function PortalProfilePage() {
                     <PortalInput
                       value={form.full_name}
                       onChange={(event) =>
-                        setForm((prev) => ({ ...prev, full_name: event.target.value }))
+                        setForm((prev) => ({
+                          ...prev,
+                          full_name: event.target.value,
+                        }))
                       }
                       placeholder="Your full name"
                     />
@@ -541,7 +587,10 @@ export default function PortalProfilePage() {
                       type="email"
                       value={form.email}
                       onChange={(event) =>
-                        setForm((prev) => ({ ...prev, email: event.target.value }))
+                        setForm((prev) => ({
+                          ...prev,
+                          email: event.target.value,
+                        }))
                       }
                       placeholder="name@example.com"
                     />
@@ -551,7 +600,12 @@ export default function PortalProfilePage() {
                 <PortalField label="Phone Number">
                   <PortalInput
                     value={form.phone}
-                    onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
+                    onChange={(event) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        phone: event.target.value,
+                      }))
+                    }
                     placeholder="Best contact number"
                   />
                 </PortalField>
@@ -560,7 +614,10 @@ export default function PortalProfilePage() {
                   <PortalInput
                     value={form.address_line1}
                     onChange={(event) =>
-                      setForm((prev) => ({ ...prev, address_line1: event.target.value }))
+                      setForm((prev) => ({
+                        ...prev,
+                        address_line1: event.target.value,
+                      }))
                     }
                     placeholder="Street address"
                   />
@@ -570,7 +627,10 @@ export default function PortalProfilePage() {
                   <PortalInput
                     value={form.address_line2}
                     onChange={(event) =>
-                      setForm((prev) => ({ ...prev, address_line2: event.target.value }))
+                      setForm((prev) => ({
+                        ...prev,
+                        address_line2: event.target.value,
+                      }))
                     }
                     placeholder="Apartment, suite, or other details"
                   />
@@ -580,7 +640,12 @@ export default function PortalProfilePage() {
                   <PortalField label="City">
                     <PortalInput
                       value={form.city}
-                      onChange={(event) => setForm((prev) => ({ ...prev, city: event.target.value }))}
+                      onChange={(event) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          city: event.target.value,
+                        }))
+                      }
                       placeholder="City"
                     />
                   </PortalField>
@@ -588,7 +653,12 @@ export default function PortalProfilePage() {
                   <PortalField label="State">
                     <PortalInput
                       value={form.state}
-                      onChange={(event) => setForm((prev) => ({ ...prev, state: event.target.value }))}
+                      onChange={(event) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          state: event.target.value,
+                        }))
+                      }
                       placeholder="State"
                     />
                   </PortalField>
@@ -597,7 +667,10 @@ export default function PortalProfilePage() {
                     <PortalInput
                       value={form.postal_code}
                       onChange={(event) =>
-                        setForm((prev) => ({ ...prev, postal_code: event.target.value }))
+                        setForm((prev) => ({
+                          ...prev,
+                          postal_code: event.target.value,
+                        }))
                       }
                       placeholder="ZIP"
                     />
@@ -607,12 +680,19 @@ export default function PortalProfilePage() {
             </div>
 
             <div className="flex flex-wrap justify-end gap-3 border-t border-[var(--portal-border)] pt-5">
-              <PortalSecondaryButton type="button" onClick={() => void refreshContext()}>
+              <PortalSecondaryButton
+                type="button"
+                onClick={() => void refreshContext()}
+              >
                 <RefreshCcw className="h-4 w-4" />
                 Refresh
               </PortalSecondaryButton>
               <PortalButton type="submit" disabled={saving}>
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {saving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
                 Save Account Info
               </PortalButton>
             </div>
@@ -631,7 +711,10 @@ export default function PortalProfilePage() {
                 description="Receive breeder emails about documents, payments, messages, and puppy updates."
                 checked={preferences.email_updates}
                 onChange={(checked) =>
-                  setPreferences((prev) => ({ ...prev, email_updates: checked }))
+                  setPreferences((prev) => ({
+                    ...prev,
+                    email_updates: checked,
+                  }))
                 }
               />
 
@@ -651,7 +734,10 @@ export default function PortalProfilePage() {
                 description="Keep reminder notices enabled for pending documents, payments, and account tasks."
                 checked={preferences.portal_reminders}
                 onChange={(checked) =>
-                  setPreferences((prev) => ({ ...prev, portal_reminders: checked }))
+                  setPreferences((prev) => ({
+                    ...prev,
+                    portal_reminders: checked,
+                  }))
                 }
               />
 
@@ -661,7 +747,10 @@ export default function PortalProfilePage() {
                 description="Receive breeder announcements about future litters and availability updates."
                 checked={preferences.litter_announcements}
                 onChange={(checked) =>
-                  setPreferences((prev) => ({ ...prev, litter_announcements: checked }))
+                  setPreferences((prev) => ({
+                    ...prev,
+                    litter_announcements: checked,
+                  }))
                 }
               />
             </div>

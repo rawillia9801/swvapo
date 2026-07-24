@@ -5,9 +5,11 @@ import Link from "next/link";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
-import { Analytics } from "@vercel/analytics/next"
 import {
+  Bell,
   BookOpen,
+  ChevronRight,
+  CircleUserRound,
   ClipboardList,
   CreditCard,
   FileText,
@@ -65,6 +67,7 @@ type NavDefinition = {
   href: string;
   label: string;
   icon: React.ReactNode;
+  group: "Overview" | "Your journey" | "Puppy care" | "Support";
   match?: (pathname: string) => boolean;
 };
 
@@ -72,6 +75,7 @@ type SidebarNavItem = {
   href: string;
   label: string;
   icon: React.ReactNode;
+  group: NavDefinition["group"];
   active: boolean;
   badge?: number;
 };
@@ -81,12 +85,16 @@ type SidebarChromeProps = {
   navItems: SidebarNavItem[];
   displayEmail: string;
   displayPhone: string;
+  puppyName: string;
+  notificationCount: number;
   userInitial: string;
   hasAdminUi: boolean;
   isUserMenuOpen: boolean;
   userMenuRef?: React.RefObject<HTMLDivElement | null>;
   onToggleUserMenu: () => void;
   onCloseUserMenu: () => void;
+  onOpenNotifications: () => void;
+  onOpenProfile: () => void;
   onSignOut: () => void;
 };
 
@@ -126,52 +134,68 @@ const navDefinitions: NavDefinition[] = [
     href: "/portal",
     label: "Dashboard",
     icon: <Home className="h-4 w-4" />,
+    group: "Overview",
     match: (pathname) => pathname === "/portal",
+  },
+  {
+    href: "/portal/available-puppies",
+    label: "Available Puppies",
+    icon: <PawPrint className="h-4 w-4" />,
+    group: "Overview",
   },
   {
     href: "/portal/application",
     label: "Puppy Application",
     icon: <ClipboardList className="h-4 w-4" />,
+    group: "Your journey",
   },
   {
     href: "/portal/documents",
     label: "Contracts & Docs",
     icon: <FileText className="h-4 w-4" />,
+    group: "Your journey",
   },
   {
     href: "/portal/payments",
     label: "Payments",
     icon: <CreditCard className="h-4 w-4" />,
+    group: "Your journey",
   },
   {
     href: "/portal/mypuppy",
     label: "My Puppy Info",
     icon: <PawPrint className="h-4 w-4" />,
+    group: "Puppy care",
   },
   {
     href: "/portal/transportation",
     label: "Pickup / Delivery",
     icon: <Truck className="h-4 w-4" />,
+    group: "Your journey",
   },
   {
     href: "/portal/updates",
     label: "Puppy Updates",
     icon: <PawPrint className="h-4 w-4" />,
+    group: "Puppy care",
   },
   {
     href: "/portal/messages",
     label: "Messages / Support",
     icon: <MessageSquare className="h-4 w-4" />,
+    group: "Support",
   },
   {
     href: "/portal/profile",
     label: "Account Info",
     icon: <UserCircle2 className="h-4 w-4" />,
+    group: "Support",
   },
   {
     href: "/portal/resources",
     label: "Resources & Care",
     icon: <BookOpen className="h-4 w-4" />,
+    group: "Puppy care",
   },
 ];
 
@@ -211,7 +235,9 @@ function pageTitleFromPath(pathname: string) {
   if (pathname === "/portal") return "Dashboard";
 
   const direct = navDefinitions.find((item) =>
-    item.match ? item.match(pathname) : pathname === item.href || pathname.startsWith(`${item.href}/`)
+    item.match
+      ? item.match(pathname)
+      : pathname === item.href || pathname.startsWith(`${item.href}/`),
   );
 
   if (direct) return direct.label;
@@ -232,8 +258,39 @@ function formatNotificationDate(value: string | null | undefined) {
   });
 }
 
-function makeNotificationKey(prefix: string, id: string | number, value?: string | null) {
+function makeNotificationKey(
+  prefix: string,
+  id: string | number,
+  value?: string | null,
+) {
   return `${prefix}:${id}:${value || "na"}`;
+}
+
+function notificationStorageKey(userId: string) {
+  return `swvapo-notification-dismissals:${userId}`;
+}
+
+function readLocalNotificationDismissals(userId: string) {
+  try {
+    const raw = window.localStorage.getItem(notificationStorageKey(userId));
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(parsed)
+      ? parsed.map((value) => String(value || "")).filter(Boolean)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalNotificationDismissals(userId: string, keys: string[]) {
+  try {
+    window.localStorage.setItem(
+      notificationStorageKey(userId),
+      JSON.stringify(Array.from(new Set(keys))),
+    );
+  } catch {
+    // Browser storage can be unavailable in private or restricted contexts.
+  }
 }
 
 function requestText(request: PortalPickupRequest | null, keys: string[]) {
@@ -267,7 +324,9 @@ function buildNotifications(params: {
     ...params.health.slice(0, 4).map((entry) => ({
       key: makeNotificationKey("health", entry.id, entry.record_date),
       title: entry.title || "New health record",
-      body: entry.description || "A health or wellness record was added to your puppy profile.",
+      body:
+        entry.description ||
+        "A health or wellness record was added to your puppy profile.",
       dateValue: entry.record_date || "",
       dateLabel: formatNotificationDate(entry.record_date),
       href: "/portal/resources",
@@ -277,7 +336,10 @@ function buildNotifications(params: {
     ...params.events.slice(0, 5).map((entry) => ({
       key: makeNotificationKey("event", entry.id, entry.event_date),
       title: entry.title || entry.label || "New pupdate",
-      body: entry.summary || entry.details || "A new breeder update was posted to your portal.",
+      body:
+        entry.summary ||
+        entry.details ||
+        "A new breeder update was posted to your portal.",
       dateValue: entry.event_date || "",
       dateLabel: formatNotificationDate(entry.event_date),
       href: "/portal/updates",
@@ -304,11 +366,23 @@ function buildNotifications(params: {
       .filter((entry) => String(entry.status || "").toLowerCase() === "draft")
       .slice(0, 3)
       .map((entry) => ({
-        key: makeNotificationKey("form", entry.id, String(entry.submitted_at || entry.signed_at || entry.signed_date || "")),
+        key: makeNotificationKey(
+          "form",
+          entry.id,
+          String(
+            entry.submitted_at || entry.signed_at || entry.signed_date || "",
+          ),
+        ),
         title: entry.form_title || entry.form_key || "Draft form saved",
         body: "A form is still in draft and can be completed from your portal.",
-        dateValue: String(entry.submitted_at || entry.signed_at || entry.signed_date || ""),
-        dateLabel: formatNotificationDate(String(entry.submitted_at || entry.signed_at || entry.signed_date || "")),
+        dateValue: String(
+          entry.submitted_at || entry.signed_at || entry.signed_date || "",
+        ),
+        dateLabel: formatNotificationDate(
+          String(
+            entry.submitted_at || entry.signed_at || entry.signed_date || "",
+          ),
+        ),
         href: "/portal/documents",
         tone: "document" as const,
       })),
@@ -319,14 +393,22 @@ function buildNotifications(params: {
             key: makeNotificationKey(
               "transport",
               String(readRecordValue(params.pickupRequest, ["id"]) || "pickup"),
-              requestText(params.pickupRequest, ["created_at", "request_date"])
+              requestText(params.pickupRequest, ["created_at", "request_date"]),
             ),
             title: "Transportation request on file",
             body:
-              requestText(params.pickupRequest, ["location_text", "address_text"]) ||
+              requestText(params.pickupRequest, [
+                "location_text",
+                "address_text",
+              ]) ||
               "A transportation request was created for this portal account.",
-            dateValue: requestText(params.pickupRequest, ["request_date", "created_at"]),
-            dateLabel: formatNotificationDate(requestText(params.pickupRequest, ["request_date", "created_at"])),
+            dateValue: requestText(params.pickupRequest, [
+              "request_date",
+              "created_at",
+            ]),
+            dateLabel: formatNotificationDate(
+              requestText(params.pickupRequest, ["request_date", "created_at"]),
+            ),
             href: "/portal/transportation",
             tone: "transport" as const,
           },
@@ -334,7 +416,11 @@ function buildNotifications(params: {
       : []),
   ]
     .filter((item) => !dismissed.has(item.key))
-    .sort((a, b) => new Date(b.dateValue || 0).getTime() - new Date(a.dateValue || 0).getTime())
+    .sort(
+      (a, b) =>
+        new Date(b.dateValue || 0).getTime() -
+        new Date(a.dateValue || 0).getTime(),
+    )
     .slice(0, 18);
 
   return items;
@@ -344,8 +430,8 @@ function navItemClassName(active: boolean) {
   return [
     "group flex w-full items-center justify-between rounded-[14px] border px-3 py-2.5 transition-all duration-200",
     active
-      ? "border-transparent bg-[linear-gradient(90deg,#a855f7_0%,#ec4899_100%)] text-white shadow-[0_12px_26px_rgba(168,85,247,0.28)]"
-      : "border-transparent bg-transparent text-[var(--portal-text-soft)] hover:bg-white hover:text-[var(--portal-text)]",
+      ? "border-[rgba(125,72,40,0.18)] bg-[linear-gradient(135deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] text-white shadow-[0_12px_26px_rgba(125,72,40,0.22)]"
+      : "border-transparent bg-transparent text-[var(--portal-text-soft)] hover:border-[var(--portal-border)] hover:bg-white/90 hover:text-[var(--portal-text)]",
   ].join(" ");
 }
 
@@ -354,65 +440,136 @@ function SidebarChrome({
   navItems,
   displayEmail,
   displayPhone,
+  puppyName,
+  notificationCount,
   userInitial,
   hasAdminUi,
   isUserMenuOpen,
   userMenuRef,
   onToggleUserMenu,
   onCloseUserMenu,
+  onOpenNotifications,
+  onOpenProfile,
   onSignOut,
 }: SidebarChromeProps) {
+  const navGroups = (
+    ["Overview", "Your journey", "Puppy care", "Support"] as const
+  )
+    .map((label) => ({
+      label,
+      items: navItems.filter((item) => item.group === label),
+    }))
+    .filter((group) => group.items.length > 0);
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="rounded-[22px] border border-[var(--portal-border)] bg-white p-4 shadow-sm">
+      <div className="portal-command-surface relative overflow-hidden rounded-[22px] p-4">
+        <div className="portal-metal-line absolute inset-x-8 top-0 h-px" />
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#a855f7_0%,#ec4899_100%)] text-xl text-white shadow-[0_12px_24px_rgba(168,85,247,0.28)]">
-            ♡
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] border border-[rgba(125,72,40,0.16)] bg-[linear-gradient(145deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] text-white shadow-[0_12px_24px_rgba(125,72,40,0.22)]">
+            <PawPrint className="h-5 w-5" />
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="text-xl font-extrabold tracking-[-0.03em] text-[var(--portal-accent)]">
-              Southwest Virginia Chihuahua
+            <div className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-[var(--portal-text-muted)]">
+              Southwest Virginia
             </div>
-            <div className="mt-0.5 text-sm font-medium text-[var(--portal-text-soft)]">
-              Puppy Portal
+            <div className="mt-1 truncate font-serif text-xl font-bold tracking-[-0.03em] text-[var(--portal-accent-deep)]">
+              Chihuahua Puppy Portal
             </div>
           </div>
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-hidden rounded-[22px] border border-[var(--portal-border)] bg-white p-3 shadow-sm">
-        <nav className="flex h-full min-h-0 flex-col gap-1 overflow-y-auto pr-1">
-          {navItems.map((item) => (
-            <Link key={item.href} href={item.href} className={navItemClassName(item.active)}>
-              <span className="flex min-w-0 items-center gap-2.5">
-                <span
-                  className={[
-                    "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-sm",
-                    item.active
-                      ? "bg-white/20 text-white"
-                      : "bg-[var(--portal-surface-muted)] text-[var(--portal-text-muted)] group-hover:bg-white group-hover:text-[var(--portal-accent)]",
-                  ].join(" ")}
-                  aria-hidden="true"
-                >
-                  {item.icon}
-                </span>
-                <span className="truncate whitespace-nowrap text-[12px] font-semibold xl:text-[13px]">
-                  {item.label}
-                </span>
-              </span>
+      <div className="portal-command-surface grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-[20px] p-3">
+        <button
+          type="button"
+          onClick={onOpenProfile}
+          className="min-w-0 rounded-[15px] px-2 py-1 text-left transition hover:bg-white/70"
+        >
+          <div className="portal-kicker">Your puppy</div>
+          <div className="mt-1 truncate text-sm font-bold text-[var(--portal-text)]">
+            {puppyName}
+          </div>
+        </button>
+        <button
+          type="button"
+          onClick={onOpenNotifications}
+          className="relative inline-flex h-11 w-11 items-center justify-center rounded-[15px] border border-[var(--portal-border)] bg-white/88 text-[var(--portal-accent-strong)] shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--portal-border-strong)]"
+          aria-label="Open notifications"
+        >
+          <Bell className="h-4 w-4" />
+          {notificationCount > 0 ? (
+            <span className="absolute -right-1.5 -top-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[#fffaf5] bg-[var(--portal-accent)] px-1 text-[9px] font-black text-white">
+              {Math.min(notificationCount, 9)}
+            </span>
+          ) : null}
+        </button>
+      </div>
 
-              {typeof item.badge === "number" && item.badge > 0 ? (
-                <span
-                  className={[
-                    "inline-flex min-w-[24px] items-center justify-center rounded-full px-2 py-1 text-[10px] font-black",
-                    item.active ? "bg-white/20 text-white" : "bg-white text-[var(--portal-accent)]",
-                  ].join(" ")}
-                >
-                  {item.badge}
-                </span>
-              ) : null}
-            </Link>
+      <div className="min-h-0 flex-1 overflow-hidden rounded-[22px] border border-[var(--portal-border)] bg-white/84 p-3 shadow-sm backdrop-blur">
+        <nav className="scroller flex h-full min-h-0 flex-col overflow-y-auto pr-1">
+          {navGroups.map((group, groupIndex) => (
+            <div
+              key={group.label}
+              className={
+                groupIndex > 0
+                  ? "mt-4 border-t border-[var(--portal-border)] pt-4"
+                  : ""
+              }
+            >
+              <div className="mb-2 px-3 text-[9px] font-extrabold uppercase tracking-[0.2em] text-[var(--portal-text-muted)]">
+                {group.label}
+              </div>
+              <div className="space-y-1">
+                {group.items.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={navItemClassName(item.active)}
+                  >
+                    <span className="flex min-w-0 items-center gap-2.5">
+                      <span
+                        className={[
+                          "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-sm",
+                          item.active
+                            ? "bg-white/16 text-white"
+                            : "bg-[var(--portal-surface-muted)] text-[var(--portal-text-muted)] group-hover:bg-white group-hover:text-[var(--portal-accent)]",
+                        ].join(" ")}
+                        aria-hidden="true"
+                      >
+                        {item.icon}
+                      </span>
+                      <span className="truncate whitespace-nowrap text-[12px] font-semibold xl:text-[13px]">
+                        {item.label}
+                      </span>
+                    </span>
+
+                    {typeof item.badge === "number" && item.badge > 0 ? (
+                      <span
+                        className={[
+                          "inline-flex min-w-[24px] items-center justify-center rounded-full px-2 py-1 text-[10px] font-black",
+                          item.active
+                            ? "bg-white/18 text-white"
+                            : "bg-[var(--portal-gold-soft)] text-[var(--portal-accent-strong)]",
+                        ].join(" ")}
+                      >
+                        {item.badge}
+                      </span>
+                    ) : (
+                      <ChevronRight
+                        className={[
+                          "h-3.5 w-3.5 transition group-hover:translate-x-0.5",
+                          item.active
+                            ? "text-white/75"
+                            : "text-[var(--portal-text-muted)]",
+                        ].join(" ")}
+                      />
+                    )}
+                  </Link>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
       </div>
@@ -446,15 +603,15 @@ function FieldCard({
   type?: string;
 }) {
   return (
-    <div className="rounded-[18px] border border-slate-200 bg-white p-4 shadow-sm">
-      <label className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700">
+    <div className="rounded-[18px] border border-[var(--portal-border)] bg-white p-4 shadow-sm">
+      <label className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--portal-accent)]">
         {label}
       </label>
       <input
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-slate-400"
+        className="mt-2 w-full rounded-2xl border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm font-semibold text-[var(--portal-text)] outline-none transition focus:border-[var(--portal-accent)] focus:ring-4 focus:ring-[var(--portal-ring)]"
       />
     </div>
   );
@@ -475,7 +632,9 @@ export default function PortalLayout({
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
   const [buyer, setBuyer] = useState<PortalBuyer | null>(null);
-  const [application, setApplication] = useState<PortalApplication | null>(null);
+  const [application, setApplication] = useState<PortalApplication | null>(
+    null,
+  );
   const [puppy, setPuppy] = useState<PortalPuppy | null>(null);
 
   const [portalMessages, setPortalMessages] = useState<PortalMessage[]>([]);
@@ -483,9 +642,12 @@ export default function PortalLayout({
   const [portalEvents, setPortalEvents] = useState<PortalPuppyEvent[]>([]);
   const [portalDocuments, setPortalDocuments] = useState<PortalDocument[]>([]);
   const [portalForms, setPortalForms] = useState<PortalFormSubmission[]>([]);
-  const [pickupRequest, setPickupRequest] = useState<PortalPickupRequest | null>(null);
+  const [pickupRequest, setPickupRequest] =
+    useState<PortalPickupRequest | null>(null);
 
-  const [dismissedNotificationKeys, setDismissedNotificationKeys] = useState<string[]>([]);
+  const [dismissedNotificationKeys, setDismissedNotificationKeys] = useState<
+    string[]
+  >([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -502,14 +664,18 @@ export default function PortalLayout({
     state: "",
     postal_code: "",
   });
-  const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null);
+  const [profilePictureFile, setProfilePictureFile] = useState<File | null>(
+    null,
+  );
   const [profilePicturePreviewUrl, setProfilePicturePreviewUrl] = useState("");
 
   const [threadId, setThreadId] = useState<string | null>(null);
   const [chatDraft, setChatDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [adminAuth, setAdminAuth] = useState<PortalAdminAuth>(null);
-  const [messages, setMessages] = useState<PortalChatMessage[]>([defaultChiChiMessage]);
+  const [messages, setMessages] = useState<PortalChatMessage[]>([
+    defaultChiChiMessage,
+  ]);
 
   const userMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -528,11 +694,13 @@ export default function PortalLayout({
 
     void bootstrap();
 
-    const { data: authListener } = sb.auth.onAuthStateChange(async (_event, session) => {
-      if (!mounted) return;
-      setUser((session?.user as PortalUser) ?? null);
-      setAccessToken(session?.access_token ?? null);
-    });
+    const { data: authListener } = sb.auth.onAuthStateChange(
+      async (_event, session) => {
+        if (!mounted) return;
+        setUser((session?.user as PortalUser) ?? null);
+        setAccessToken(session?.access_token ?? null);
+      },
+    );
 
     return () => {
       mounted = false;
@@ -582,14 +750,15 @@ export default function PortalLayout({
         const currentUser = user as User;
         const context = await loadPortalContext(currentUser);
 
-        const [recentMessages, health, events, documents, forms, latestPickup] = await Promise.all([
-          findPortalMessagesForUser(currentUser, 20),
-          findHealthRecords(context.puppy?.id),
-          findPuppyEvents(context.puppy?.id),
-          findPortalDocumentsForUser(currentUser, context.buyer),
-          findFormSubmissionsForUser(currentUser),
-          findLatestPickupRequestForUser(currentUser),
-        ]);
+        const [recentMessages, health, events, documents, forms, latestPickup] =
+          await Promise.all([
+            findPortalMessagesForUser(currentUser, 20),
+            findHealthRecords(context.puppy?.id),
+            findPuppyEvents(context.puppy?.id),
+            findPortalDocumentsForUser(currentUser, context.buyer),
+            findFormSubmissionsForUser(currentUser),
+            findLatestPickupRequestForUser(currentUser),
+          ]);
 
         const { data: dismissalsData, error: dismissalsError } = await sb
           .from("portal_notification_dismissals")
@@ -597,10 +766,6 @@ export default function PortalLayout({
           .eq("user_id", currentUser.id);
 
         if (!active) return;
-
-        if (dismissalsError) {
-          console.error("Could not load notification dismissals:", dismissalsError);
-        }
 
         setBuyer(context.buyer);
         setApplication(context.application);
@@ -611,10 +776,19 @@ export default function PortalLayout({
         setPortalDocuments(documents || []);
         setPortalForms(forms || []);
         setPickupRequest(latestPickup || null);
+        const remoteDismissals =
+          !dismissalsError && Array.isArray(dismissalsData)
+            ? dismissalsData.map((row) =>
+                String(
+                  (row as { notification_key?: string }).notification_key || "",
+                ),
+              )
+            : [];
+        const localDismissals = readLocalNotificationDismissals(currentUser.id);
         setDismissedNotificationKeys(
-          Array.isArray(dismissalsData)
-            ? dismissalsData.map((row) => String((row as { notification_key?: string }).notification_key || ""))
-            : []
+          Array.from(new Set([...remoteDismissals, ...localDismissals])).filter(
+            Boolean,
+          ),
         );
       } catch (error) {
         console.error("Could not load portal shell data:", error);
@@ -629,7 +803,9 @@ export default function PortalLayout({
   }, [pathname, user]);
 
   useEffect(() => {
-    const objectUrl = profilePictureFile ? URL.createObjectURL(profilePictureFile) : "";
+    const objectUrl = profilePictureFile
+      ? URL.createObjectURL(profilePictureFile)
+      : "";
     if (objectUrl) {
       setProfilePicturePreviewUrl(objectUrl);
     }
@@ -646,7 +822,7 @@ export default function PortalLayout({
           readRecordValue(application, ["full_name", "name"]) ||
           user?.user_metadata?.full_name ||
           user?.user_metadata?.name ||
-          ""
+          "",
       ) || "";
 
     const initialEmail =
@@ -654,47 +830,73 @@ export default function PortalLayout({
         readRecordValue(buyer, ["email"]) ||
           readRecordValue(application, ["email", "applicant_email"]) ||
           user?.email ||
-          ""
+          "",
       ) || "";
 
     const initialPhone =
-      String(readRecordValue(buyer, ["phone"]) || readRecordValue(application, ["phone"]) || "") || "";
+      String(
+        readRecordValue(buyer, ["phone"]) ||
+          readRecordValue(application, ["phone"]) ||
+          "",
+      ) || "";
 
     setProfileForm({
       full_name: initialFullName,
       email: initialEmail,
       phone: initialPhone,
-      address_line1: String(readRecordValue(buyer, ["address_line1", "address1"]) || ""),
-      address_line2: String(readRecordValue(buyer, ["address_line2", "address2"]) || ""),
+      address_line1: String(
+        readRecordValue(buyer, ["address_line1", "address1"]) || "",
+      ),
+      address_line2: String(
+        readRecordValue(buyer, ["address_line2", "address2"]) || "",
+      ),
       city: String(readRecordValue(buyer, ["city"]) || ""),
       state: String(readRecordValue(buyer, ["state"]) || ""),
-      postal_code: String(readRecordValue(buyer, ["postal_code", "zip", "zip_code"]) || ""),
+      postal_code: String(
+        readRecordValue(buyer, ["postal_code", "zip", "zip_code"]) || "",
+      ),
     });
 
     if (!profilePictureFile) {
       setProfilePicturePreviewUrl(
-        String(readRecordValue(buyer, ["portal_profile_photo_url"]) || user?.user_metadata?.avatar_url || "")
+        String(
+          readRecordValue(buyer, ["portal_profile_photo_url"]) ||
+            user?.user_metadata?.avatar_url ||
+            "",
+        ),
       );
     }
   }, [application, buyer, profilePictureFile, user]);
 
-  const displayName = portalDisplayName(user as User | null, buyer, application);
+  const displayName = portalDisplayName(
+    user as User | null,
+    buyer,
+    application,
+  );
   const displayEmail =
     String(
       user?.email ||
         readRecordValue(buyer, ["email"]) ||
         readRecordValue(application, ["email", "applicant_email"]) ||
-        "No email on file"
+        "No email on file",
     ) || "No email on file";
 
-  const displayPhone =
-    String(readRecordValue(buyer, ["phone"]) || readRecordValue(application, ["phone"]) || "No phone on file");
+  const displayPhone = String(
+    readRecordValue(buyer, ["phone"]) ||
+      readRecordValue(application, ["phone"]) ||
+      "No phone on file",
+  );
 
   const puppyName = portalPuppyName(puppy) || "Not yet assigned";
-  const userInitial = (displayName?.[0] || displayEmail?.[0] || "U").toUpperCase();
+  const userInitial = (
+    displayName?.[0] ||
+    displayEmail?.[0] ||
+    "U"
+  ).toUpperCase();
 
   const pageTitle = pageTitleFromPath(pathname);
-  const hasAdminUi = isPortalAdminEmail(user?.email) || !!adminAuth?.canWriteCore;
+  const hasAdminUi =
+    isPortalAdminEmail(user?.email) || !!adminAuth?.canWriteCore;
 
   const notifications = useMemo(
     () =>
@@ -707,17 +909,30 @@ export default function PortalLayout({
         pickupRequest,
         dismissedKeys: dismissedNotificationKeys,
       }),
-    [dismissedNotificationKeys, healthRecords, pickupRequest, portalDocuments, portalEvents, portalForms, portalMessages]
+    [
+      dismissedNotificationKeys,
+      healthRecords,
+      pickupRequest,
+      portalDocuments,
+      portalEvents,
+      portalForms,
+      portalMessages,
+    ],
   );
 
   const navItems: SidebarNavItem[] = navDefinitions.map((item) => ({
     href: item.href,
     label: item.label,
     icon: item.icon,
-    active: item.match ? item.match(pathname) : pathname === item.href || pathname.startsWith(`${item.href}/`),
+    group: item.group,
+    active: item.match
+      ? item.match(pathname)
+      : pathname === item.href || pathname.startsWith(`${item.href}/`),
     badge:
       item.href === "/portal/messages"
-        ? portalMessages.filter((entry) => entry.sender === "admin" && !entry.read_by_user).length
+        ? portalMessages.filter(
+            (entry) => entry.sender === "admin" && !entry.read_by_user,
+          ).length
         : undefined,
   }));
 
@@ -732,8 +947,11 @@ export default function PortalLayout({
   async function dismissNotification(notificationKey: string) {
     if (!user?.id) return;
 
-    const nextKeys = Array.from(new Set([...dismissedNotificationKeys, notificationKey]));
+    const nextKeys = Array.from(
+      new Set([...dismissedNotificationKeys, notificationKey]),
+    );
     setDismissedNotificationKeys(nextKeys);
+    writeLocalNotificationDismissals(user.id, nextKeys);
 
     const { error } = await sb.from("portal_notification_dismissals").upsert(
       {
@@ -743,18 +961,41 @@ export default function PortalLayout({
       },
       {
         onConflict: "user_id,notification_key",
-      }
+      },
     );
 
     if (error) {
-      console.error("Could not dismiss notification:", error);
+      console.info("Notification dismissal is saved on this device.");
     }
   }
 
   async function clearAllNotifications() {
-    if (!notifications.length) return;
-    for (const item of notifications) {
-      await dismissNotification(item.key);
+    if (!notifications.length || !user?.id) return;
+
+    const now = new Date().toISOString();
+    const nextKeys = Array.from(
+      new Set([
+        ...dismissedNotificationKeys,
+        ...notifications.map((item) => item.key),
+      ]),
+    );
+
+    setDismissedNotificationKeys(nextKeys);
+    writeLocalNotificationDismissals(user.id, nextKeys);
+
+    const { error } = await sb.from("portal_notification_dismissals").upsert(
+      notifications.map((item) => ({
+        user_id: user.id,
+        notification_key: item.key,
+        dismissed_at: now,
+      })),
+      {
+        onConflict: "user_id,notification_key",
+      },
+    );
+
+    if (error) {
+      console.info("Notification dismissals are saved on this device.");
     }
   }
 
@@ -884,7 +1125,13 @@ export default function PortalLayout({
       }
 
       if (payload.buyer) {
-        setBuyer((prev) => ({ ...(prev || {}), ...(payload.buyer as PortalBuyer) }) as PortalBuyer);
+        setBuyer(
+          (prev) =>
+            ({
+              ...(prev || {}),
+              ...(payload.buyer as PortalBuyer),
+            }) as PortalBuyer,
+        );
       }
 
       if (payload.photo_url) {
@@ -901,10 +1148,11 @@ export default function PortalLayout({
                   ...(prev.user_metadata || {}),
                   full_name: profileForm.full_name,
                   name: profileForm.full_name,
-                  avatar_url: payload.photo_url || prev.user_metadata?.avatar_url || null,
+                  avatar_url:
+                    payload.photo_url || prev.user_metadata?.avatar_url || null,
                 },
               }
-            : prev
+            : prev,
         );
       } else {
         setUser((prev) =>
@@ -915,10 +1163,11 @@ export default function PortalLayout({
                   ...(prev.user_metadata || {}),
                   full_name: profileForm.full_name,
                   name: profileForm.full_name,
-                  avatar_url: payload.photo_url || prev.user_metadata?.avatar_url || null,
+                  avatar_url:
+                    payload.photo_url || prev.user_metadata?.avatar_url || null,
                 },
               }
-            : prev
+            : prev,
         );
       }
 
@@ -927,7 +1176,9 @@ export default function PortalLayout({
     } catch (error) {
       console.error("Could not save profile:", error);
       setProfileErrorText(
-        error instanceof Error ? error.message : "Could not save your profile right now."
+        error instanceof Error
+          ? error.message
+          : "Could not save your profile right now.",
       );
     } finally {
       setIsSavingProfile(false);
@@ -944,12 +1195,16 @@ export default function PortalLayout({
               navItems={navItems}
               displayEmail={displayEmail}
               displayPhone={displayPhone}
+              puppyName={puppyName}
+              notificationCount={notifications.length}
               userInitial={userInitial}
               hasAdminUi={hasAdminUi}
               isUserMenuOpen={isUserMenuOpen}
               userMenuRef={userMenuRef}
               onToggleUserMenu={() => setIsUserMenuOpen((value) => !value)}
               onCloseUserMenu={() => setIsUserMenuOpen(false)}
+              onOpenNotifications={() => setIsNotificationsOpen(true)}
+              onOpenProfile={() => setIsProfileOpen(true)}
               onSignOut={() => {
                 setIsUserMenuOpen(false);
                 void handleSignOut();
@@ -961,12 +1216,59 @@ export default function PortalLayout({
         <div className="min-w-0">
           <PortalMobileHeader
             pageTitle={pageTitle}
-            unreadMessageCount={notifications.length}
+            notificationCount={notifications.length}
             onOpenDrawer={() => setIsDrawerOpen(true)}
+            onOpenNotifications={() => setIsNotificationsOpen(true)}
           />
 
           <main className="min-h-screen px-4 py-5 md:px-6 md:py-6 xl:px-8 xl:py-8">
-            <div className="mx-auto w-full max-w-[1260px]">{children}</div>
+            <div className="mx-auto w-full max-w-[1260px]">
+              <header className="portal-command-surface sticky top-4 z-30 mb-5 hidden items-center justify-between gap-4 rounded-[20px] px-5 py-3.5 lg:flex">
+                <div className="min-w-0">
+                  <div className="portal-kicker">Puppy Portal</div>
+                  <div className="mt-1 truncate text-lg font-bold tracking-[-0.03em] text-[var(--portal-accent-deep)]">
+                    {pageTitle}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="hidden rounded-[14px] border border-[var(--portal-border)] bg-white/78 px-4 py-2 text-right xl:block">
+                    <div className="text-[9px] font-extrabold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+                      Connected puppy
+                    </div>
+                    <div className="mt-0.5 max-w-52 truncate text-sm font-semibold text-[var(--portal-text)]">
+                      {puppyName}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsNotificationsOpen(true)}
+                    className="relative inline-flex h-11 w-11 items-center justify-center rounded-[14px] border border-[var(--portal-border)] bg-white/88 text-[var(--portal-accent-strong)] shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--portal-border-strong)]"
+                    aria-label="Open notifications"
+                  >
+                    <Bell className="h-4 w-4" />
+                    {notifications.length > 0 ? (
+                      <span className="absolute -right-1.5 -top-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[#fffaf5] bg-[var(--portal-accent)] px-1 text-[9px] font-black text-white">
+                        {Math.min(notifications.length, 9)}
+                      </span>
+                    ) : null}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsProfileOpen(true)}
+                    className="inline-flex h-11 items-center gap-2 rounded-[14px] border border-[var(--portal-border)] bg-white/88 px-3 text-sm font-semibold text-[var(--portal-text)] shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--portal-border-strong)]"
+                    aria-label="Open quick profile"
+                  >
+                    <CircleUserRound className="h-4 w-4 text-[var(--portal-accent)]" />
+                    <span className="hidden xl:inline">{displayName}</span>
+                  </button>
+                </div>
+              </header>
+
+              {children}
+            </div>
           </main>
         </div>
       </div>
@@ -997,11 +1299,21 @@ export default function PortalLayout({
                 navItems={navItems}
                 displayEmail={displayEmail}
                 displayPhone={displayPhone}
+                puppyName={puppyName}
+                notificationCount={notifications.length}
                 userInitial={userInitial}
                 hasAdminUi={hasAdminUi}
                 isUserMenuOpen={isUserMenuOpen}
                 onToggleUserMenu={() => setIsUserMenuOpen((value) => !value)}
                 onCloseUserMenu={() => setIsUserMenuOpen(false)}
+                onOpenNotifications={() => {
+                  setIsDrawerOpen(false);
+                  setIsNotificationsOpen(true);
+                }}
+                onOpenProfile={() => {
+                  setIsDrawerOpen(false);
+                  setIsProfileOpen(true);
+                }}
                 onSignOut={() => {
                   setIsUserMenuOpen(false);
                   void handleSignOut();
@@ -1045,7 +1357,8 @@ export default function PortalLayout({
 
               <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
                 <div className="text-sm font-semibold text-slate-700">
-                  {notifications.length} active notification{notifications.length === 1 ? "" : "s"}
+                  {notifications.length} active notification
+                  {notifications.length === 1 ? "" : "s"}
                 </div>
 
                 <button
@@ -1091,7 +1404,9 @@ export default function PortalLayout({
                                 </div>
                               </div>
                             </div>
-                            <div className="mt-3 text-sm leading-6 text-slate-600">{item.body}</div>
+                            <div className="mt-3 text-sm leading-6 text-slate-600">
+                              {item.body}
+                            </div>
                           </button>
 
                           <button
@@ -1116,7 +1431,8 @@ export default function PortalLayout({
                       No new notifications
                     </div>
                     <div className="mt-2 text-sm leading-6 text-slate-600">
-                      New breeder messages, pupdates, health records, open documents, and transportation items will appear here.
+                      New breeder messages, pupdates, health records, open
+                      documents, and transportation items will appear here.
                     </div>
                   </div>
                 )}
@@ -1178,7 +1494,9 @@ export default function PortalLayout({
                       <div className="font-serif text-lg font-bold tracking-tight text-slate-900">
                         {displayName}
                       </div>
-                      <div className="mt-1 text-sm text-slate-600">{displayEmail}</div>
+                      <div className="mt-1 text-sm text-slate-600">
+                        {displayEmail}
+                      </div>
 
                       <label className="mt-3 inline-flex cursor-pointer items-center rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-slate-700 transition hover:border-slate-300">
                         Upload picture
@@ -1202,45 +1520,70 @@ export default function PortalLayout({
                   <FieldCard
                     label="Full Name"
                     value={profileForm.full_name}
-                    onChange={(value) => setProfileForm((prev) => ({ ...prev, full_name: value }))}
+                    onChange={(value) =>
+                      setProfileForm((prev) => ({ ...prev, full_name: value }))
+                    }
                   />
                   <FieldCard
                     label="Email Address"
                     type="email"
                     value={profileForm.email}
-                    onChange={(value) => setProfileForm((prev) => ({ ...prev, email: value }))}
+                    onChange={(value) =>
+                      setProfileForm((prev) => ({ ...prev, email: value }))
+                    }
                   />
                   <FieldCard
                     label="Phone Number"
                     value={profileForm.phone}
-                    onChange={(value) => setProfileForm((prev) => ({ ...prev, phone: value }))}
+                    onChange={(value) =>
+                      setProfileForm((prev) => ({ ...prev, phone: value }))
+                    }
                   />
                   <FieldCard
                     label="Address Line 1"
                     value={profileForm.address_line1}
-                    onChange={(value) => setProfileForm((prev) => ({ ...prev, address_line1: value }))}
+                    onChange={(value) =>
+                      setProfileForm((prev) => ({
+                        ...prev,
+                        address_line1: value,
+                      }))
+                    }
                   />
                   <FieldCard
                     label="Address Line 2"
                     value={profileForm.address_line2}
-                    onChange={(value) => setProfileForm((prev) => ({ ...prev, address_line2: value }))}
+                    onChange={(value) =>
+                      setProfileForm((prev) => ({
+                        ...prev,
+                        address_line2: value,
+                      }))
+                    }
                   />
 
                   <div className="grid gap-4 md:grid-cols-3">
                     <FieldCard
                       label="City"
                       value={profileForm.city}
-                      onChange={(value) => setProfileForm((prev) => ({ ...prev, city: value }))}
+                      onChange={(value) =>
+                        setProfileForm((prev) => ({ ...prev, city: value }))
+                      }
                     />
                     <FieldCard
                       label="State"
                       value={profileForm.state}
-                      onChange={(value) => setProfileForm((prev) => ({ ...prev, state: value }))}
+                      onChange={(value) =>
+                        setProfileForm((prev) => ({ ...prev, state: value }))
+                      }
                     />
                     <FieldCard
                       label="ZIP Code"
                       value={profileForm.postal_code}
-                      onChange={(value) => setProfileForm((prev) => ({ ...prev, postal_code: value }))}
+                      onChange={(value) =>
+                        setProfileForm((prev) => ({
+                          ...prev,
+                          postal_code: value,
+                        }))
+                      }
                     />
                   </div>
 
@@ -1274,7 +1617,9 @@ export default function PortalLayout({
                     disabled={isSavingProfile}
                     className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-900 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
                   >
-                    {isSavingProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    {isSavingProfile ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : null}
                     Save Profile
                   </button>
                 </div>

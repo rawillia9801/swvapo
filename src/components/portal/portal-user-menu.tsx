@@ -32,12 +32,16 @@ export function PortalUserMenu({
         onClick={onToggle}
         className="flex w-full items-center gap-3 rounded-[18px] border border-[var(--portal-border)] bg-white px-3.5 py-3.5 shadow-sm transition hover:border-[var(--portal-border-strong)] hover:bg-[var(--portal-surface-muted)]"
       >
-        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[linear-gradient(135deg,#6b7cff_0%,#ec4899_100%)] text-sm font-black text-white shadow-sm">
+        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] text-sm font-black text-white shadow-sm">
           {userInitial}
         </div>
         <div className="min-w-0 flex-1 text-left">
-          <div className="truncate text-sm font-semibold text-[var(--portal-text)]">{displayName}</div>
-          <div className="truncate text-xs text-[var(--portal-text-muted)]">{displayEmail}</div>
+          <div className="truncate text-sm font-semibold text-[var(--portal-text)]">
+            {displayName}
+          </div>
+          <div className="truncate text-xs text-[var(--portal-text-muted)]">
+            {displayEmail}
+          </div>
         </div>
         <ChevronDown className="h-4 w-4 text-[var(--portal-text-muted)]" />
       </button>
@@ -48,9 +52,15 @@ export function PortalUserMenu({
             <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
               Account
             </div>
-            <div className="mt-3 text-sm font-semibold text-[var(--portal-text)]">{displayName}</div>
-            <div className="mt-1 text-xs text-[var(--portal-text-soft)]">{displayEmail}</div>
-            <div className="mt-1 text-xs text-[var(--portal-text-soft)]">{displayPhone}</div>
+            <div className="mt-3 text-sm font-semibold text-[var(--portal-text)]">
+              {displayName}
+            </div>
+            <div className="mt-1 text-xs text-[var(--portal-text-soft)]">
+              {displayEmail}
+            </div>
+            <div className="mt-1 text-xs text-[var(--portal-text-soft)]">
+              {displayPhone}
+            </div>
           </div>
 
           <div className="mt-3 space-y-2">
@@ -66,7 +76,7 @@ export function PortalUserMenu({
               <Link
                 href="/admin/portal"
                 onClick={onClose}
-                className="flex items-center gap-2 rounded-[14px] border border-violet-200 bg-violet-50 px-4 py-3 text-sm font-semibold text-violet-700 transition hover:bg-violet-100"
+                className="flex items-center gap-2 rounded-[14px] border border-[var(--portal-border)] bg-[var(--portal-gold-soft)] px-4 py-3 text-sm font-semibold text-[var(--portal-accent-strong)] transition hover:bg-[var(--portal-surface-muted)]"
               >
                 <Shield className="h-4 w-4" />
                 Open admin portal
@@ -76,7 +86,7 @@ export function PortalUserMenu({
             <button
               type="button"
               onClick={onSignOut}
-              className="w-full rounded-[14px] bg-[linear-gradient(90deg,#7c5cff_0%,#f043a2_100%)] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-95"
+              className="w-full rounded-[14px] bg-[linear-gradient(135deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] px-4 py-3 text-sm font-semibold text-white transition hover:brightness-105"
             >
               Sign out
             </button>

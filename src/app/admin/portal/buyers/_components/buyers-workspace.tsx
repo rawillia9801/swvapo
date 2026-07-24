@@ -353,7 +353,9 @@ function fmtMoneyPrecise(value: unknown) {
 
 function puppyLabel(puppy: PuppyOption | null | undefined) {
   if (!puppy) return "No puppy linked";
-  return puppy.call_name || puppy.puppy_name || puppy.name || `Puppy #${puppy.id}`;
+  return (
+    puppy.call_name || puppy.puppy_name || puppy.name || `Puppy #${puppy.id}`
+  );
 }
 
 function formatBuyerAddress(record: BuyerRecord | null) {
@@ -399,21 +401,23 @@ function matchesPaymentPlanForm(formKey: string | null | undefined) {
   const normalized = String(formKey || "")
     .trim()
     .toLowerCase();
-  return ["puppy_payment_plan_agreement", "payment_plan_application", "credit_application"].includes(
-    normalized
-  );
+  return [
+    "puppy_payment_plan_agreement",
+    "payment_plan_application",
+    "credit_application",
+  ].includes(normalized);
 }
 
 function matchesPaymentPlanDocument(
   category: string | null | undefined,
   title: string | null | undefined,
-  description: string | null | undefined
+  description: string | null | undefined,
 ) {
   const text = [category, title, description]
     .map((value) => String(value || "").toLowerCase())
     .join(" ");
-  return ["finance", "financing", "payment plan", "credit application"].some((token) =>
-    text.includes(token)
+  return ["finance", "financing", "payment plan", "credit application"].some(
+    (token) => text.includes(token),
   );
 }
 
@@ -421,13 +425,19 @@ function isCompletedStatus(value: string | null | undefined) {
   const normalized = String(value || "")
     .trim()
     .toLowerCase();
-  return normalized.includes("complete") || normalized.includes("closed") || normalized.includes("finished");
+  return (
+    normalized.includes("complete") ||
+    normalized.includes("closed") ||
+    normalized.includes("finished")
+  );
 }
 
 function fillBuyerForm(record: BuyerRecord | null): BuyerForm {
   if (!record) return emptyBuyerForm();
   return {
-    full_name: String(record.buyer.full_name || record.buyer.name || record.displayName || ""),
+    full_name: String(
+      record.buyer.full_name || record.buyer.name || record.displayName || "",
+    ),
     email: String(record.buyer.email || record.email || ""),
     phone: String(record.buyer.phone || record.phone || ""),
     address_line1: String(record.buyer.address_line1 || ""),
@@ -440,26 +450,49 @@ function fillBuyerForm(record: BuyerRecord | null): BuyerForm {
     delivery_option: String(record.buyer.delivery_option || ""),
     delivery_date: String(record.buyer.delivery_date || ""),
     delivery_location: String(record.buyer.delivery_location || ""),
-    delivery_miles: record.buyer.delivery_miles == null ? "" : String(record.buyer.delivery_miles),
-    delivery_fee: record.buyer.delivery_fee == null ? "" : String(record.buyer.delivery_fee),
-    expense_gas: record.buyer.expense_gas == null ? "" : String(record.buyer.expense_gas),
-    expense_hotel: record.buyer.expense_hotel == null ? "" : String(record.buyer.expense_hotel),
-    expense_tolls: record.buyer.expense_tolls == null ? "" : String(record.buyer.expense_tolls),
+    delivery_miles:
+      record.buyer.delivery_miles == null
+        ? ""
+        : String(record.buyer.delivery_miles),
+    delivery_fee:
+      record.buyer.delivery_fee == null
+        ? ""
+        : String(record.buyer.delivery_fee),
+    expense_gas:
+      record.buyer.expense_gas == null ? "" : String(record.buyer.expense_gas),
+    expense_hotel:
+      record.buyer.expense_hotel == null
+        ? ""
+        : String(record.buyer.expense_hotel),
+    expense_tolls:
+      record.buyer.expense_tolls == null
+        ? ""
+        : String(record.buyer.expense_tolls),
     expense_misc: String(record.buyer.expense_misc || ""),
   };
 }
 
-function summarizeBuyer(record: BuyerRecord, account: BuyerAccount | null): BuyerSummary {
-  const linkedPuppies = account?.linkedPuppies?.length ? account.linkedPuppies : record.linkedPuppies;
+function summarizeBuyer(
+  record: BuyerRecord,
+  account: BuyerAccount | null,
+): BuyerSummary {
+  const linkedPuppies = account?.linkedPuppies?.length
+    ? account.linkedPuppies
+    : record.linkedPuppies;
   const purchasePrice = linkedPuppies.length
-    ? linkedPuppies.reduce((sum, puppy) => sum + toNumber(puppy.price || puppy.list_price), 0)
+    ? linkedPuppies.reduce(
+        (sum, puppy) => sum + toNumber(puppy.price || puppy.list_price),
+        0,
+      )
     : toNumber(account?.buyer.sale_price);
   const deposit = toNumber(account?.buyer.deposit_amount);
   const totalPaid =
     account?.payments
       .filter(
         (payment) =>
-          !["failed", "void", "cancelled", "canceled"].includes(String(payment.status || "").toLowerCase())
+          !["failed", "void", "cancelled", "canceled"].includes(
+            String(payment.status || "").toLowerCase(),
+          ),
       )
       .reduce((sum, payment) => sum + toNumber(payment.amount), 0) || 0;
   const adjustments =
@@ -467,8 +500,8 @@ function summarizeBuyer(record: BuyerRecord, account: BuyerAccount | null): Buye
       .filter(
         (adjustment) =>
           !["failed", "void", "cancelled", "canceled"].includes(
-            String(adjustment.status || "").toLowerCase()
-          )
+            String(adjustment.status || "").toLowerCase(),
+          ),
       )
       .reduce((sum, adjustment) => sum + toNumber(adjustment.amount), 0) || 0;
 
@@ -484,14 +517,16 @@ function summarizeBuyer(record: BuyerRecord, account: BuyerAccount | null): Buye
     financeRate: toNumber(account?.buyer.finance_rate),
     financeAdminFee: Boolean(account?.buyer.finance_admin_fee),
     nextDueDate: String(account?.buyer.finance_next_due_date || ""),
-    lastPaymentAt: String(account?.lastPaymentAt || account?.buyer.finance_last_payment_date || ""),
+    lastPaymentAt: String(
+      account?.lastPaymentAt || account?.buyer.finance_last_payment_date || "",
+    ),
   };
 }
 
 function buildActivityItems(
   record: BuyerRecord | null,
   account: BuyerAccount | null,
-  requests: TransportationRequest[]
+  requests: TransportationRequest[],
 ) {
   if (!record) return [] as ActivityItem[];
 
@@ -519,12 +554,15 @@ function buildActivityItems(
       date: String(request.request_date || request.created_at || ""),
       category: "Transportation",
       title: request.request_type || "Transportation request",
-      detail: request.location_text || request.address_text || request.notes || "",
+      detail:
+        request.location_text || request.address_text || request.notes || "",
       status: request.status || "pending",
     })),
     ...record.forms.map((form) => ({
       key: `document-${form.id}`,
-      date: String(form.submitted_at || form.updated_at || form.created_at || ""),
+      date: String(
+        form.submitted_at || form.updated_at || form.created_at || "",
+      ),
       category: "Document",
       title: form.form_title || form.form_key || "Portal document",
       detail: form.signed_name
@@ -556,13 +594,16 @@ function buildActivityItems(
           },
         ]
       : []),
-  ].sort((left, right) => new Date(right.date || 0).getTime() - new Date(left.date || 0).getTime());
+  ].sort(
+    (left, right) =>
+      new Date(right.date || 0).getTime() - new Date(left.date || 0).getTime(),
+  );
 }
 
 async function fetchWorkspaceJson<T>(
   input: RequestInfo | URL,
   init: RequestInit,
-  fallbackError: string
+  fallbackError: string,
 ) {
   try {
     const response = await fetch(input, init);
@@ -591,45 +632,61 @@ async function fetchBuyerWorkspace(accessToken: string) {
     cache: "no-store" as const,
   };
 
-  const [buyersResult, accountsResult, transportationResult] = await Promise.all([
-    fetchWorkspaceJson<{
-      buyers?: BuyerRecord[];
-      puppies?: PuppyOption[];
-      warnings?: string[];
-    }>("/api/admin/portal/buyers", requestInit, "Could not load buyers."),
-    fetchWorkspaceJson<{ accounts?: BuyerAccount[] }>(
-      "/api/admin/portal/payments",
-      requestInit,
-      "Could not load buyer payments."
-    ),
-    fetchWorkspaceJson<{ requests?: TransportationRequest[] }>(
-      "/api/admin/portal/transportation",
-      requestInit,
-      "Could not load transportation requests."
-    ),
-  ]);
+  const [buyersResult, accountsResult, transportationResult] =
+    await Promise.all([
+      fetchWorkspaceJson<{
+        buyers?: BuyerRecord[];
+        puppies?: PuppyOption[];
+        warnings?: string[];
+      }>("/api/admin/portal/buyers", requestInit, "Could not load buyers."),
+      fetchWorkspaceJson<{ accounts?: BuyerAccount[] }>(
+        "/api/admin/portal/payments",
+        requestInit,
+        "Could not load buyer payments.",
+      ),
+      fetchWorkspaceJson<{ requests?: TransportationRequest[] }>(
+        "/api/admin/portal/transportation",
+        requestInit,
+        "Could not load transportation requests.",
+      ),
+    ]);
 
   if (!buyersResult.ok) {
     throw new Error(buyersResult.error || "Could not load buyers.");
   }
 
   const warnings = [
-    ...(Array.isArray(buyersResult.payload.warnings) ? buyersResult.payload.warnings : []),
-    ...(!accountsResult.ok ? [accountsResult.error || "Buyer payment data is temporarily unavailable."] : []),
+    ...(Array.isArray(buyersResult.payload.warnings)
+      ? buyersResult.payload.warnings
+      : []),
+    ...(!accountsResult.ok
+      ? [
+          accountsResult.error ||
+            "Buyer payment data is temporarily unavailable.",
+        ]
+      : []),
     ...(!transportationResult.ok
-      ? [transportationResult.error || "Transportation request data is temporarily unavailable."]
+      ? [
+          transportationResult.error ||
+            "Transportation request data is temporarily unavailable.",
+        ]
       : []),
   ];
 
   return {
-    buyers: Array.isArray(buyersResult.payload.buyers) ? buyersResult.payload.buyers : [],
-    puppies: Array.isArray(buyersResult.payload.puppies) ? buyersResult.payload.puppies : [],
+    buyers: Array.isArray(buyersResult.payload.buyers)
+      ? buyersResult.payload.buyers
+      : [],
+    puppies: Array.isArray(buyersResult.payload.puppies)
+      ? buyersResult.payload.puppies
+      : [],
     accounts:
       accountsResult.ok && Array.isArray(accountsResult.payload.accounts)
         ? accountsResult.payload.accounts
         : [],
     requests:
-      transportationResult.ok && Array.isArray(transportationResult.payload.requests)
+      transportationResult.ok &&
+      Array.isArray(transportationResult.payload.requests)
         ? transportationResult.payload.requests
         : [],
     warnings: Array.from(new Set(warnings)).slice(0, 8),
@@ -676,7 +733,9 @@ function SurfaceHeader({
           {title}
         </div>
         {subtitle ? (
-          <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">{subtitle}</div>
+          <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
+            {subtitle}
+          </div>
         ) : null}
       </div>
       {action ? <div className="flex flex-wrap gap-2">{action}</div> : null}
@@ -684,13 +743,7 @@ function SurfaceHeader({
   );
 }
 
-function FeedbackBanner({
-  tone,
-  text,
-}: {
-  tone: FeedbackTone;
-  text: string;
-}) {
+function FeedbackBanner({ tone, text }: { tone: FeedbackTone; text: string }) {
   const toneClass =
     tone === "success"
       ? "border-emerald-200 bg-emerald-50 text-emerald-800"
@@ -698,7 +751,11 @@ function FeedbackBanner({
         ? "border-amber-200 bg-amber-50 text-amber-900"
         : "border-rose-200 bg-rose-50 text-rose-800";
 
-  return <div className={`rounded-[1.1rem] border px-4 py-3 text-sm ${toneClass}`}>{text}</div>;
+  return (
+    <div className={`rounded-[1.1rem] border px-4 py-3 text-sm ${toneClass}`}>
+      {text}
+    </div>
+  );
 }
 
 function ReadField({
@@ -726,7 +783,11 @@ function ReadField({
       >
         {value}
       </div>
-      {detail ? <div className="text-xs leading-5 text-[var(--portal-text-soft)]">{detail}</div> : null}
+      {detail ? (
+        <div className="text-xs leading-5 text-[var(--portal-text-soft)]">
+          {detail}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -748,76 +809,91 @@ function SummaryPill({
       <div className="mt-1 text-lg font-semibold tracking-[-0.03em] text-[var(--portal-text)]">
         {value}
       </div>
-      {detail ? <div className="mt-1 text-xs text-[var(--portal-text-soft)]">{detail}</div> : null}
+      {detail ? (
+        <div className="mt-1 text-xs text-[var(--portal-text-soft)]">
+          {detail}
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function SectionTitle({
-  title,
-  detail,
-}: {
-  title: string;
-  detail?: string;
-}) {
+function SectionTitle({ title, detail }: { title: string; detail?: string }) {
   return (
     <div className="flex items-center justify-between gap-3">
       <div>
         <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
           {title}
         </div>
-        {detail ? <div className="mt-1 text-sm text-[var(--portal-text-soft)]">{detail}</div> : null}
+        {detail ? (
+          <div className="mt-1 text-sm text-[var(--portal-text-soft)]">
+            {detail}
+          </div>
+        ) : null}
       </div>
     </div>
   );
 }
 
-function StatusDot({
-  tone,
-}: {
-  tone: "good" | "warn" | "neutral";
-}) {
+function StatusDot({ tone }: { tone: "good" | "warn" | "neutral" }) {
   const className =
     tone === "good"
       ? "bg-emerald-500"
       : tone === "warn"
         ? "bg-amber-500"
         : "bg-[rgba(166,103,51,0.35)]";
-  return <span className={`inline-block h-2.5 w-2.5 rounded-full ${className}`} />;
+  return (
+    <span className={`inline-block h-2.5 w-2.5 rounded-full ${className}`} />
+  );
 }
 
-function BuyerMetricStrip({
-  entry,
-}: {
-  entry: BuyerEntry;
-}) {
-  const linkedPuppies =
-    entry.account?.linkedPuppies?.length ? entry.account.linkedPuppies : entry.record.linkedPuppies;
+function BuyerMetricStrip({ entry }: { entry: BuyerEntry }) {
+  const linkedPuppies = entry.account?.linkedPuppies?.length
+    ? entry.account.linkedPuppies
+    : entry.record.linkedPuppies;
   const unsignedForms = entry.record.forms.filter((form) => {
     const status = String(form.status || "").toLowerCase();
-    return status && !status.includes("signed") && !status.includes("complete") && !status.includes("filed");
+    return (
+      status &&
+      !status.includes("signed") &&
+      !status.includes("complete") &&
+      !status.includes("filed")
+    );
   }).length;
-  const documentCount = entry.record.documents.length + entry.record.forms.length;
-  const transportReady = Boolean(entry.record.buyer.delivery_option || entry.record.buyer.delivery_date);
+  const documentCount =
+    entry.record.documents.length + entry.record.forms.length;
+  const transportReady = Boolean(
+    entry.record.buyer.delivery_option || entry.record.buyer.delivery_date,
+  );
 
   return (
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
       <SummaryPill
         label="Linked Puppy"
         value={linkedPuppies.length ? `${linkedPuppies.length}` : "None"}
-        detail={linkedPuppies.length ? linkedPuppies.map((puppy) => puppyLabel(puppy)).join(", ") : "Assignment still needed"}
+        detail={
+          linkedPuppies.length
+            ? linkedPuppies.map((puppy) => puppyLabel(puppy)).join(", ")
+            : "Assignment still needed"
+        }
       />
       <SummaryPill
         label="Balance"
         value={fmtMoney(entry.summary.balance)}
         detail={
-          entry.summary.lastPaymentAt ? `Last payment ${fmtDate(entry.summary.lastPaymentAt)}` : "No payment logged yet"
+          entry.summary.lastPaymentAt
+            ? `Last payment ${fmtDate(entry.summary.lastPaymentAt)}`
+            : "No payment logged yet"
         }
       />
       <SummaryPill
         label="Documents"
         value={`${documentCount}`}
-        detail={unsignedForms ? `${unsignedForms} still in progress` : "No open document issues"}
+        detail={
+          unsignedForms
+            ? `${unsignedForms} still in progress`
+            : "No open document issues"
+        }
       />
       <SummaryPill
         label="Portal"
@@ -850,17 +926,26 @@ function BuyerWorkspaceRail({
   selectedRequests: TransportationRequest[];
   activityItems: ActivityItem[];
 }) {
-  const linkedPuppies =
-    entry.account?.linkedPuppies?.length ? entry.account.linkedPuppies : entry.record.linkedPuppies;
+  const linkedPuppies = entry.account?.linkedPuppies?.length
+    ? entry.account.linkedPuppies
+    : entry.record.linkedPuppies;
 
   const followUps = [
     !linkedPuppies.length ? "No puppy linked yet." : "",
-    !entry.record.hasPortalAccount ? "Portal account is not connected yet." : "",
-    entry.summary.financeEnabled && !entry.summary.nextDueDate ? "Payment plan has no next due date saved." : "",
-    !entry.record.forms.length && !entry.record.documents.length ? "No buyer paperwork recorded yet." : "",
+    !entry.record.hasPortalAccount
+      ? "Portal account is not connected yet."
+      : "",
+    entry.summary.financeEnabled && !entry.summary.nextDueDate
+      ? "Payment plan has no next due date saved."
+      : "",
+    !entry.record.forms.length && !entry.record.documents.length
+      ? "No buyer paperwork recorded yet."
+      : "",
     !entry.record.email ? "Buyer email is missing." : "",
     !entry.record.phone ? "Buyer phone is missing." : "",
-    !selectedRequests.length && !entry.record.buyer.delivery_option ? "Transportation details are still blank." : "",
+    !selectedRequests.length && !entry.record.buyer.delivery_option
+      ? "Transportation details are still blank."
+      : "",
   ].filter(Boolean);
 
   return (
@@ -868,14 +953,41 @@ function BuyerWorkspaceRail({
       <WorkspaceSurface className="p-4">
         <SectionTitle title="Buyer Snapshot" />
         <div className="mt-4 space-y-3">
-          <RailInfoRow label="Status" value={entry.record.buyer.status || "pending"} />
-          <RailInfoRow label="Buyer Since" value={entry.record.latestApplication?.created_at ? fmtDate(entry.record.latestApplication.created_at) : "Not available"} />
-          <RailInfoRow label="Linked Puppy" value={linkedPuppies.length ? linkedPuppies.map((puppy) => puppyLabel(puppy)).join(", ") : "No puppy linked"} />
-          <RailInfoRow label="Payment Plan" value={entry.summary.financeEnabled ? "Enabled" : "Not enabled"} />
-          <RailInfoRow label="Balance" value={fmtMoney(entry.summary.balance)} />
+          <RailInfoRow
+            label="Status"
+            value={entry.record.buyer.status || "pending"}
+          />
+          <RailInfoRow
+            label="Buyer Since"
+            value={
+              entry.record.latestApplication?.created_at
+                ? fmtDate(entry.record.latestApplication.created_at)
+                : "Not available"
+            }
+          />
+          <RailInfoRow
+            label="Linked Puppy"
+            value={
+              linkedPuppies.length
+                ? linkedPuppies.map((puppy) => puppyLabel(puppy)).join(", ")
+                : "No puppy linked"
+            }
+          />
+          <RailInfoRow
+            label="Payment Plan"
+            value={entry.summary.financeEnabled ? "Enabled" : "Not enabled"}
+          />
+          <RailInfoRow
+            label="Balance"
+            value={fmtMoney(entry.summary.balance)}
+          />
           <RailInfoRow
             label="Last Activity"
-            value={activityItems[0]?.date ? fmtDate(activityItems[0].date) : "No recent activity"}
+            value={
+              activityItems[0]?.date
+                ? fmtDate(activityItems[0].date)
+                : "No recent activity"
+            }
           />
         </div>
       </WorkspaceSurface>
@@ -883,23 +995,38 @@ function BuyerWorkspaceRail({
       <WorkspaceSurface className="p-4">
         <SectionTitle title="Quick Actions" />
         <div className="mt-4 grid gap-2">
-          <Link href={`/admin/portal/puppies?buyer=${entry.record.buyer.id}`} className={secondaryButtonClass}>
+          <Link
+            href={`/admin/portal/puppies?buyer=${entry.record.buyer.id}`}
+            className={secondaryButtonClass}
+          >
             Open Puppies Workspace
           </Link>
-          <Link href={`/admin/portal/payments?buyer=${entry.record.buyer.id}`} className={secondaryButtonClass}>
+          <Link
+            href={`/admin/portal/payments?buyer=${entry.record.buyer.id}`}
+            className={secondaryButtonClass}
+          >
             Open Payments
           </Link>
-          <Link href={`/admin/portal/documents?buyer=${entry.record.buyer.id}`} className={secondaryButtonClass}>
+          <Link
+            href={`/admin/portal/documents?buyer=${entry.record.buyer.id}`}
+            className={secondaryButtonClass}
+          >
             Open Documents
           </Link>
-          <Link href={`/admin/portal/transportation?buyer=${entry.record.buyer.id}`} className={secondaryButtonClass}>
+          <Link
+            href={`/admin/portal/transportation?buyer=${entry.record.buyer.id}`}
+            className={secondaryButtonClass}
+          >
             Open Transportation
           </Link>
         </div>
       </WorkspaceSurface>
 
       <WorkspaceSurface className="p-4">
-        <SectionTitle title="Follow-Up" detail="What still needs attention on this buyer file." />
+        <SectionTitle
+          title="Follow-Up"
+          detail="What still needs attention on this buyer file."
+        />
         <div className="mt-4 space-y-3">
           {followUps.length ? (
             followUps.map((item) => (
@@ -910,7 +1037,9 @@ function BuyerWorkspaceRail({
                 <div className="pt-1">
                   <StatusDot tone="warn" />
                 </div>
-                <div className="text-sm leading-6 text-[var(--portal-text)]">{item}</div>
+                <div className="text-sm leading-6 text-[var(--portal-text)]">
+                  {item}
+                </div>
               </div>
             ))
           ) : (
@@ -924,19 +1053,15 @@ function BuyerWorkspaceRail({
   );
 }
 
-function RailInfoRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
+function RailInfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-3 border-b border-[rgba(187,160,132,0.14)] pb-3 last:border-b-0 last:pb-0">
       <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">
         {label}
       </div>
-      <div className="max-w-[65%] text-right text-sm font-semibold text-[var(--portal-text)]">{value}</div>
+      <div className="max-w-[65%] text-right text-sm font-semibold text-[var(--portal-text)]">
+        {value}
+      </div>
     </div>
   );
 }
@@ -949,9 +1074,13 @@ export function AdminBuyersWorkspace() {
   const [loadingData, setLoadingData] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [loadWarning, setLoadWarning] = useState("");
-  const [feedback, setFeedback] = useState<{ tone: FeedbackTone; text: string } | null>(null);
+  const [feedback, setFeedback] = useState<{
+    tone: FeedbackTone;
+    text: string;
+  } | null>(null);
   const [search, setSearch] = useState("");
-  const [directoryFilter, setDirectoryFilter] = useState<BuyerDirectoryFilter>("active");
+  const [directoryFilter, setDirectoryFilter] =
+    useState<BuyerDirectoryFilter>("active");
   const [selectedKey, setSelectedKey] = useState("");
   const [activeTab, setActiveTab] = useState<BuyerTabKey>("profile");
   const [modalMode, setModalMode] = useState<BuyerModalMode>(null);
@@ -968,12 +1097,20 @@ export function AdminBuyersWorkspace() {
     setBuyers(payload.buyers);
     setAccounts(payload.accounts);
     setRequests(payload.requests);
-    setLoadWarning(payload.warnings.length ? `Partial data loaded. ${payload.warnings.join(" ")}` : "");
+    setLoadWarning(
+      payload.warnings.length
+        ? `Partial data loaded. ${payload.warnings.join(" ")}`
+        : "",
+    );
     setSelectedKey((current) => {
-      if (preferredKey && payload.buyers.some((buyer) => buyer.key === preferredKey)) {
+      if (
+        preferredKey &&
+        payload.buyers.some((buyer) => buyer.key === preferredKey)
+      ) {
         return preferredKey;
       }
-      if (current && payload.buyers.some((buyer) => buyer.key === current)) return current;
+      if (current && payload.buyers.some((buyer) => buyer.key === current))
+        return current;
       return payload.buyers[0]?.key || "";
     });
   }
@@ -998,12 +1135,16 @@ export function AdminBuyersWorkspace() {
         setAccounts(payload.accounts);
         setRequests(payload.requests);
         setLoadWarning(
-          payload.warnings.length ? `Partial data loaded. ${payload.warnings.join(" ")}` : ""
+          payload.warnings.length
+            ? `Partial data loaded. ${payload.warnings.join(" ")}`
+            : "",
         );
         setSelectedKey(payload.buyers[0]?.key || "");
       } catch (error) {
         if (!active) return;
-        setLoadError(error instanceof Error ? error.message : "Could not load buyers.");
+        setLoadError(
+          error instanceof Error ? error.message : "Could not load buyers.",
+        );
       } finally {
         if (active) setLoadingData(false);
       }
@@ -1016,8 +1157,9 @@ export function AdminBuyersWorkspace() {
   }, [accessToken, isAdmin]);
 
   const accountsByBuyerId = useMemo(
-    () => new Map(accounts.map((account) => [account.buyer.id, account] as const)),
-    [accounts]
+    () =>
+      new Map(accounts.map((account) => [account.buyer.id, account] as const)),
+    [accounts],
   );
 
   const entries = useMemo<BuyerEntry[]>(
@@ -1026,7 +1168,7 @@ export function AdminBuyersWorkspace() {
         const account = accountsByBuyerId.get(record.buyer.id) || null;
         return { record, account, summary: summarizeBuyer(record, account) };
       }),
-    [accountsByBuyerId, buyers]
+    [accountsByBuyerId, buyers],
   );
 
   const filteredEntries = useMemo(() => {
@@ -1045,7 +1187,9 @@ export function AdminBuyersWorkspace() {
         record.buyer.notes,
         record.latestApplicationStatus,
         summary.financeEnabled ? "financing payment plan finance" : "",
-        ...record.documents.map((document) => document.title || document.file_name || ""),
+        ...record.documents.map(
+          (document) => document.title || document.file_name || "",
+        ),
         ...record.linkedPuppies.map((puppy) => puppyLabel(puppy)),
       ]
         .map((value) => String(value || "").toLowerCase())
@@ -1057,14 +1201,20 @@ export function AdminBuyersWorkspace() {
   const groupedEntries = useMemo(
     () => ({
       active: filteredEntries.filter(
-        (entry) => !entry.summary.financeEnabled && !isCompletedStatus(entry.record.buyer.status)
+        (entry) =>
+          !entry.summary.financeEnabled &&
+          !isCompletedStatus(entry.record.buyer.status),
       ),
       financing: filteredEntries.filter(
-        (entry) => entry.summary.financeEnabled && !isCompletedStatus(entry.record.buyer.status)
+        (entry) =>
+          entry.summary.financeEnabled &&
+          !isCompletedStatus(entry.record.buyer.status),
       ),
-      completed: filteredEntries.filter((entry) => isCompletedStatus(entry.record.buyer.status)),
+      completed: filteredEntries.filter((entry) =>
+        isCompletedStatus(entry.record.buyer.status),
+      ),
     }),
-    [filteredEntries]
+    [filteredEntries],
   );
 
   const visibleDirectoryEntries = groupedEntries[directoryFilter];
@@ -1089,7 +1239,9 @@ export function AdminBuyersWorkspace() {
       setSelectedKey("");
       return;
     }
-    if (!visibleDirectoryEntries.some((entry) => entry.record.key === selectedKey)) {
+    if (
+      !visibleDirectoryEntries.some((entry) => entry.record.key === selectedKey)
+    ) {
       setSelectedKey(visibleDirectoryEntries[0].record.key);
     }
   }, [selectedKey, visibleDirectoryEntries]);
@@ -1101,14 +1253,21 @@ export function AdminBuyersWorkspace() {
   const selectedBuyer = selectedEntry?.record || null;
   const selectedAccount = selectedEntry?.account || null;
   const selectedSummary = selectedEntry?.summary || null;
-  const linkedPuppies =
-    selectedAccount?.linkedPuppies?.length ? selectedAccount.linkedPuppies : selectedBuyer?.linkedPuppies || [];
+  const linkedPuppies = selectedAccount?.linkedPuppies?.length
+    ? selectedAccount.linkedPuppies
+    : selectedBuyer?.linkedPuppies || [];
   const financeEnabled = Boolean(selectedSummary?.financeEnabled);
   const puppyTabLabel = linkedPuppies.length === 1 ? "Puppy" : "Puppies";
   const selectedRequests = selectedBuyer
-    ? requests.filter((request) => Number(request.buyer?.id || 0) === selectedBuyer.buyer.id)
+    ? requests.filter(
+        (request) => Number(request.buyer?.id || 0) === selectedBuyer.buyer.id,
+      )
     : [];
-  const activityItems = buildActivityItems(selectedBuyer, selectedAccount, selectedRequests);
+  const activityItems = buildActivityItems(
+    selectedBuyer,
+    selectedAccount,
+    selectedRequests,
+  );
 
   useEffect(() => {
     if (activeTab === "plan" && !financeEnabled) {
@@ -1138,7 +1297,9 @@ export function AdminBuyersWorkspace() {
       await refreshWorkspace(selectedBuyer.key);
       setFeedback({ tone: "success", text: "Buyer workspace refreshed." });
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "Could not refresh buyers.");
+      setLoadError(
+        error instanceof Error ? error.message : "Could not refresh buyers.",
+      );
     }
   }
 
@@ -1146,7 +1307,7 @@ export function AdminBuyersWorkspace() {
     if (!accessToken || !selectedBuyer) return;
 
     const confirmed = window.confirm(
-      `Delete ${selectedBuyer.displayName}?\n\nThis only removes the buyer record. If linked puppies, payments, documents, subscriptions, notice logs, or transportation requests still exist, deletion will be blocked.`
+      `Delete ${selectedBuyer.displayName}?\n\nThis only removes the buyer record. If linked puppies, payments, documents, subscriptions, notice logs, or transportation requests still exist, deletion will be blocked.`,
     );
 
     if (!confirmed) return;
@@ -1166,7 +1327,10 @@ export function AdminBuyersWorkspace() {
         }),
       });
 
-      const payload = (await response.json()) as { ok?: boolean; error?: string };
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+      };
       if (!response.ok || !payload.ok) {
         throw new Error(payload.error || "Could not delete the buyer.");
       }
@@ -1179,7 +1343,10 @@ export function AdminBuyersWorkspace() {
     } catch (error) {
       setFeedback({
         tone: "error",
-        text: error instanceof Error ? error.message : "Could not delete the buyer.",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Could not delete the buyer.",
       });
     } finally {
       setDeletingBuyer(false);
@@ -1204,17 +1371,25 @@ export function AdminBuyersWorkspace() {
         },
         body: JSON.stringify({
           ...modalForm,
-          ...(modalMode === "edit" && selectedBuyer ? { id: selectedBuyer.buyer.id } : {}),
+          ...(modalMode === "edit" && selectedBuyer
+            ? { id: selectedBuyer.buyer.id }
+            : {}),
         }),
       });
 
-      const payload = (await response.json()) as { ok?: boolean; buyerId?: number; error?: string };
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        buyerId?: number;
+        error?: string;
+      };
       if (!response.ok || !payload.ok) {
         throw new Error(payload.error || "Could not save the buyer.");
       }
 
       await refreshWorkspace(
-        modalMode === "create" ? String(payload.buyerId || "") : selectedBuyer?.key
+        modalMode === "create"
+          ? String(payload.buyerId || "")
+          : selectedBuyer?.key,
       );
       setModalMode(null);
       setFeedback({
@@ -1222,7 +1397,9 @@ export function AdminBuyersWorkspace() {
         text: modalMode === "create" ? "Buyer created." : "Buyer updated.",
       });
     } catch (error) {
-      setModalError(error instanceof Error ? error.message : "Could not save the buyer.");
+      setModalError(
+        error instanceof Error ? error.message : "Could not save the buyer.",
+      );
     } finally {
       setSavingProfile(false);
     }
@@ -1263,7 +1440,11 @@ export function AdminBuyersWorkspace() {
             title="Buyer Directory"
             subtitle="Active files, payment-plan households, and completed placements."
             action={
-              <button type="button" onClick={openCreateModal} className={primaryButtonClass}>
+              <button
+                type="button"
+                onClick={openCreateModal}
+                className={primaryButtonClass}
+              >
                 <Plus className="h-4 w-4" />
                 Create Buyer
               </button>
@@ -1320,8 +1501,12 @@ export function AdminBuyersWorkspace() {
 
         <div className="space-y-4">
           {loadError ? <FeedbackBanner tone="error" text={loadError} /> : null}
-          {!loadError && loadWarning ? <FeedbackBanner tone="warning" text={loadWarning} /> : null}
-          {feedback ? <FeedbackBanner tone={feedback.tone} text={feedback.text} /> : null}
+          {!loadError && loadWarning ? (
+            <FeedbackBanner tone="warning" text={loadWarning} />
+          ) : null}
+          {feedback ? (
+            <FeedbackBanner tone={feedback.tone} text={feedback.text} />
+          ) : null}
 
           {!selectedEntry ? (
             <WorkspaceSurface>
@@ -1371,23 +1556,32 @@ export function AdminBuyersWorkspace() {
                         <div className="mt-4 grid gap-2 text-sm text-[var(--portal-text-soft)] md:grid-cols-2">
                           <div className="flex items-center gap-2 min-w-0">
                             <Mail className="h-4 w-4 shrink-0" />
-                            <span className="truncate">{selectedBuyer?.email || "No email"}</span>
+                            <span className="truncate">
+                              {selectedBuyer?.email || "No email"}
+                            </span>
                           </div>
                           <div className="flex items-center gap-2 min-w-0">
                             <Phone className="h-4 w-4 shrink-0" />
-                            <span className="truncate">{selectedBuyer?.phone || "No phone"}</span>
+                            <span className="truncate">
+                              {selectedBuyer?.phone || "No phone"}
+                            </span>
                           </div>
                           <div className="flex items-center gap-2 min-w-0 md:col-span-2">
                             <MapPin className="h-4 w-4 shrink-0" />
                             <span className="truncate">
-                              {formatBuyerAddress(selectedBuyer) || "No address saved yet"}
+                              {formatBuyerAddress(selectedBuyer) ||
+                                "No address saved yet"}
                             </span>
                           </div>
                         </div>
                       </div>
 
                       <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={openEditModal} className={secondaryButtonClass}>
+                        <button
+                          type="button"
+                          onClick={openEditModal}
+                          className={secondaryButtonClass}
+                        >
                           <PencilLine className="h-4 w-4" />
                           Edit Buyer
                         </button>
@@ -1400,7 +1594,11 @@ export function AdminBuyersWorkspace() {
                           <Trash2 className="h-4 w-4" />
                           {deletingBuyer ? "Deleting..." : "Delete Buyer"}
                         </button>
-                        <button type="button" onClick={() => void handleRefresh()} className={secondaryButtonClass}>
+                        <button
+                          type="button"
+                          onClick={() => void handleRefresh()}
+                          className={secondaryButtonClass}
+                        >
                           <RefreshCw className="h-4 w-4" />
                           Refresh
                         </button>
@@ -1412,23 +1610,58 @@ export function AdminBuyersWorkspace() {
                     </div>
 
                     <div className="mt-5 flex flex-wrap gap-2">
-                      <TabButton active={activeTab === "profile"} onClick={() => setActiveTab("profile")} label="Overview" />
-                      <TabButton active={activeTab === "puppies"} onClick={() => setActiveTab("puppies")} label={puppyTabLabel} />
-                      <TabButton active={activeTab === "transportation"} onClick={() => setActiveTab("transportation")} label="Transportation" />
-                      <TabButton active={activeTab === "payments"} onClick={() => setActiveTab("payments")} label="Payments" />
+                      <TabButton
+                        active={activeTab === "profile"}
+                        onClick={() => setActiveTab("profile")}
+                        label="Overview"
+                      />
+                      <TabButton
+                        active={activeTab === "puppies"}
+                        onClick={() => setActiveTab("puppies")}
+                        label={puppyTabLabel}
+                      />
+                      <TabButton
+                        active={activeTab === "transportation"}
+                        onClick={() => setActiveTab("transportation")}
+                        label="Transportation"
+                      />
+                      <TabButton
+                        active={activeTab === "payments"}
+                        onClick={() => setActiveTab("payments")}
+                        label="Payments"
+                      />
                       {financeEnabled ? (
-                        <TabButton active={activeTab === "plan"} onClick={() => setActiveTab("plan")} label="Puppy Payment Plan" />
+                        <TabButton
+                          active={activeTab === "plan"}
+                          onClick={() => setActiveTab("plan")}
+                          label="Puppy Payment Plan"
+                        />
                       ) : null}
-                      <TabButton active={activeTab === "documents"} onClick={() => setActiveTab("documents")} label="Documents" />
-                      <TabButton active={activeTab === "activity"} onClick={() => setActiveTab("activity")} label="Activity" />
+                      <TabButton
+                        active={activeTab === "documents"}
+                        onClick={() => setActiveTab("documents")}
+                        label="Documents"
+                      />
+                      <TabButton
+                        active={activeTab === "activity"}
+                        onClick={() => setActiveTab("activity")}
+                        label="Activity"
+                      />
                     </div>
                   </WorkspaceSurface>
                 </div>
 
                 {activeTab === "profile" ? (
-                  <ProfileTab record={selectedBuyer} account={selectedAccount} summary={selectedSummary} requests={selectedRequests} />
+                  <ProfileTab
+                    record={selectedBuyer}
+                    account={selectedAccount}
+                    summary={selectedSummary}
+                    requests={selectedRequests}
+                  />
                 ) : null}
-                {activeTab === "puppies" ? <PuppiesTab entry={selectedEntry} /> : null}
+                {activeTab === "puppies" ? (
+                  <PuppiesTab entry={selectedEntry} />
+                ) : null}
                 {activeTab === "transportation" ? (
                   <TransportationTab
                     record={selectedBuyer}
@@ -1436,7 +1669,9 @@ export function AdminBuyersWorkspace() {
                     accessToken={accessToken || ""}
                   />
                 ) : null}
-                {activeTab === "payments" ? <PaymentsTab entry={selectedEntry} /> : null}
+                {activeTab === "payments" ? (
+                  <PaymentsTab entry={selectedEntry} />
+                ) : null}
                 {activeTab === "documents" ? (
                   <DocumentsTab
                     record={selectedBuyer}
@@ -1444,7 +1679,9 @@ export function AdminBuyersWorkspace() {
                     onUploaded={() => void refreshWorkspace(selectedBuyer?.key)}
                   />
                 ) : null}
-                {activeTab === "activity" ? <ActivityTab items={activityItems} /> : null}
+                {activeTab === "activity" ? (
+                  <ActivityTab items={activityItems} />
+                ) : null}
                 {activeTab === "plan" && financeEnabled ? (
                   <PlanTab
                     entry={selectedEntry}
@@ -1469,7 +1706,9 @@ export function AdminBuyersWorkspace() {
           mode={modalMode}
           form={modalForm}
           accessToken={accessToken || ""}
-          onChange={(key, value) => setModalForm((current) => ({ ...current, [key]: value }))}
+          onChange={(key, value) =>
+            setModalForm((current) => ({ ...current, [key]: value }))
+          }
           onClose={() => setModalMode(null)}
           onSave={() => void handleModalSave()}
           saving={savingProfile}
@@ -1497,7 +1736,9 @@ function DirectorySection({
         <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
           {title}
         </div>
-        <div className="text-xs text-[var(--portal-text-muted)]">{entries.length}</div>
+        <div className="text-xs text-[var(--portal-text-muted)]">
+          {entries.length}
+        </div>
       </div>
 
       {entries.length ? (
@@ -1505,7 +1746,8 @@ function DirectorySection({
           {entries.map((entry) => {
             const isActive = entry.record.key === selectedKey;
             const primaryPuppy = entry.record.linkedPuppies[0];
-            const documentCount = entry.record.documents.length + entry.record.forms.length;
+            const documentCount =
+              entry.record.documents.length + entry.record.forms.length;
             return (
               <button
                 key={entry.record.key}
@@ -1525,7 +1767,9 @@ function DirectorySection({
                     </div>
 
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--portal-text-soft)]">
-                      <span className="truncate">{entry.record.email || "No email"}</span>
+                      <span className="truncate">
+                        {entry.record.email || "No email"}
+                      </span>
                       <span>{entry.record.phone || "No phone"}</span>
                     </div>
 
@@ -1551,7 +1795,9 @@ function DirectorySection({
 
                     <div className="mt-3 grid gap-1 text-xs text-[var(--portal-text-soft)]">
                       <div className="truncate">
-                        {primaryPuppy ? `Linked: ${puppyLabel(primaryPuppy)}` : "No puppy linked yet"}
+                        {primaryPuppy
+                          ? `Linked: ${puppyLabel(primaryPuppy)}`
+                          : "No puppy linked yet"}
                       </div>
                       <div className="truncate">
                         {documentCount
@@ -1566,7 +1812,9 @@ function DirectorySection({
                       {fmtMoney(entry.summary.balance)}
                     </div>
                     <div className="mt-1 text-[11px] text-[var(--portal-text-muted)]">
-                      {entry.summary.lastPaymentAt ? `Paid ${fmtDate(entry.summary.lastPaymentAt)}` : "No recent payment"}
+                      {entry.summary.lastPaymentAt
+                        ? `Paid ${fmtDate(entry.summary.lastPaymentAt)}`
+                        : "No recent payment"}
                     </div>
                     <div className="mt-3 flex items-center justify-end gap-1 text-[11px] font-semibold text-[var(--portal-text-soft)] group-hover:text-[var(--portal-text)]">
                       Open
@@ -1652,7 +1900,9 @@ function ProfileTab({
 
   const buyerAddress = formatBuyerAddress(record);
   const applicationAddress = formatApplicationAddress(record);
-  const linkedPuppies = account?.linkedPuppies?.length ? account.linkedPuppies : record.linkedPuppies;
+  const linkedPuppies = account?.linkedPuppies?.length
+    ? account.linkedPuppies
+    : record.linkedPuppies;
   const documentCount = record.forms.length + record.documents.length;
 
   return (
@@ -1676,8 +1926,16 @@ function ProfileTab({
           />
           <ReadField
             label="Linked Puppy"
-            value={linkedPuppies.length ? linkedPuppies.map((puppy) => puppyLabel(puppy)).join(", ") : "No puppy linked"}
-            detail={linkedPuppies.length ? "Placement has started" : "Assignment still needed"}
+            value={
+              linkedPuppies.length
+                ? linkedPuppies.map((puppy) => puppyLabel(puppy)).join(", ")
+                : "No puppy linked"
+            }
+            detail={
+              linkedPuppies.length
+                ? "Placement has started"
+                : "Assignment still needed"
+            }
             wrap
           />
           <ReadField
@@ -1694,7 +1952,11 @@ function ProfileTab({
           <ReadField
             label="Document Progress"
             value={`${documentCount} file${documentCount === 1 ? "" : "s"}`}
-            detail={documentCount ? "Forms and uploads are on record" : "No paperwork recorded yet"}
+            detail={
+              documentCount
+                ? "Forms and uploads are on record"
+                : "No paperwork recorded yet"
+            }
           />
         </div>
       </WorkspaceSurface>
@@ -1710,7 +1972,11 @@ function ProfileTab({
           <ReadField label="Email" value={record.email || "No email on file"} />
           <ReadField
             label="Phone"
-            value={record.phone || record.latestApplication?.phone || "No phone on file"}
+            value={
+              record.phone ||
+              record.latestApplication?.phone ||
+              "No phone on file"
+            }
             detail={
               record.phone
                 ? "Buyer profile phone"
@@ -1722,7 +1988,11 @@ function ProfileTab({
           <ReadField
             label="Street Address"
             value={buyerAddress || "No buyer address saved"}
-            detail={applicationAddress ? `Application: ${applicationAddress}` : "Address can be added in Edit Buyer."}
+            detail={
+              applicationAddress
+                ? `Application: ${applicationAddress}`
+                : "Address can be added in Edit Buyer."
+            }
             wrap
           />
           <ReadField
@@ -1745,8 +2015,16 @@ function ProfileTab({
           />
           <ReadField
             label="Location"
-            value={[record.buyer.city, record.buyer.state].filter(Boolean).join(", ") || "Not set"}
-            detail={record.buyer.postal_code ? `ZIP ${record.buyer.postal_code}` : "ZIP not saved"}
+            value={
+              [record.buyer.city, record.buyer.state]
+                .filter(Boolean)
+                .join(", ") || "Not set"
+            }
+            detail={
+              record.buyer.postal_code
+                ? `ZIP ${record.buyer.postal_code}`
+                : "ZIP not saved"
+            }
           />
           <ReadField
             label="Notes"
@@ -1772,7 +2050,11 @@ function ProfileTab({
           <ReadinessItem
             label="Puppy Assigned"
             ready={linkedPuppies.length > 0}
-            detail={linkedPuppies.length ? linkedPuppies.map((puppy) => puppyLabel(puppy)).join(", ") : "No puppy is assigned yet."}
+            detail={
+              linkedPuppies.length
+                ? linkedPuppies.map((puppy) => puppyLabel(puppy)).join(", ")
+                : "No puppy is assigned yet."
+            }
           />
           <ReadinessItem
             label="Portal Ready"
@@ -1794,7 +2076,10 @@ function ProfileTab({
           />
           <ReadinessItem
             label="Payment Standing"
-            ready={Boolean(summary && summary.totalPaid > 0) || Boolean(summary?.financeEnabled)}
+            ready={
+              Boolean(summary && summary.totalPaid > 0) ||
+              Boolean(summary?.financeEnabled)
+            }
             detail={
               summary?.financeEnabled
                 ? "Payment plan is active."
@@ -1805,7 +2090,11 @@ function ProfileTab({
           />
           <ReadinessItem
             label="Transportation"
-            ready={Boolean(record.buyer.delivery_option || record.buyer.delivery_date || requests.length)}
+            ready={Boolean(
+              record.buyer.delivery_option ||
+              record.buyer.delivery_date ||
+              requests.length,
+            )}
             detail={
               record.buyer.delivery_date
                 ? `Scheduled for ${fmtDate(record.buyer.delivery_date)}.`
@@ -1833,44 +2122,43 @@ function ReadinessItem({
     <div className="rounded-[1.15rem] border border-[rgba(187,160,132,0.18)] bg-white/92 px-4 py-4">
       <div className="flex items-center gap-2">
         <StatusDot tone={ready ? "good" : "warn"} />
-        <div className="text-sm font-semibold text-[var(--portal-text)]">{label}</div>
+        <div className="text-sm font-semibold text-[var(--portal-text)]">
+          {label}
+        </div>
       </div>
-      <div className="mt-2 text-xs leading-5 text-[var(--portal-text-soft)]">{detail}</div>
+      <div className="mt-2 text-xs leading-5 text-[var(--portal-text-soft)]">
+        {detail}
+      </div>
     </div>
   );
 }
 
-function PuppiesTab({
-  entry,
-}: {
-  entry: BuyerEntry | null;
-}) {
-  const linkedPuppies = entry?.account?.linkedPuppies?.length
-    ? entry.account.linkedPuppies
-    : entry?.record.linkedPuppies || [];
+function PuppiesTab({ entry }: { entry: BuyerEntry | null }) {
+  const linkedPuppies = useMemo(
+    () =>
+      entry?.account?.linkedPuppies?.length
+        ? entry.account.linkedPuppies
+        : entry?.record.linkedPuppies || [],
+    [entry],
+  );
 
   const [selectedPuppyId, setSelectedPuppyId] = useState("");
 
-  useEffect(() => {
-    if (!linkedPuppies.length) {
-      setSelectedPuppyId("");
-      return;
-    }
-    if (!linkedPuppies.some((puppy) => String(puppy.id) === selectedPuppyId)) {
-      setSelectedPuppyId(String(linkedPuppies[0].id));
-    }
-  }, [linkedPuppies, selectedPuppyId]);
-
   const selectedPuppy =
-    linkedPuppies.find((puppy) => String(puppy.id) === selectedPuppyId) || linkedPuppies[0] || null;
+    linkedPuppies.find((puppy) => String(puppy.id) === selectedPuppyId) ||
+    linkedPuppies[0] ||
+    null;
 
   if (!entry) return null;
 
   const assignmentHref = `/admin/portal/puppies?buyer=${entry.record.buyer.id}${
     selectedPuppy ? `&puppy=${selectedPuppy.id}` : ""
   }`;
-  const selectedPhotoPath = selectedPuppy?.photo_url || selectedPuppy?.image_url || "";
-  const selectedPhotoUrl = selectedPhotoPath ? buildPuppyPhotoUrl(selectedPhotoPath) : "";
+  const selectedPhotoPath =
+    selectedPuppy?.photo_url || selectedPuppy?.image_url || "";
+  const selectedPhotoUrl = selectedPhotoPath
+    ? buildPuppyPhotoUrl(selectedPhotoPath)
+    : "";
 
   return (
     <WorkspaceSurface>
@@ -1887,7 +2175,9 @@ function PuppiesTab({
 
       <div className="mt-5 space-y-4">
         <div className="rounded-[1.2rem] bg-[rgba(250,245,239,0.82)] px-5 py-4 text-sm leading-6 text-[var(--portal-text-soft)]">
-          Keep the buyer file focused on the assigned puppy relationship. Use the main Puppies workspace when you need kennel-wide editing, buyer reassignment, or deeper puppy record management.
+          Keep the buyer file focused on the assigned puppy relationship. Use
+          the main Puppies workspace when you need kennel-wide editing, buyer
+          reassignment, or deeper puppy record management.
         </div>
 
         {linkedPuppies.length > 1 ? (
@@ -1941,10 +2231,13 @@ function PuppiesTab({
                       {[
                         selectedPuppy.litter_name,
                         selectedPuppy.dam ? `Dam: ${selectedPuppy.dam}` : null,
-                        selectedPuppy.sire ? `Sire: ${selectedPuppy.sire}` : null,
+                        selectedPuppy.sire
+                          ? `Sire: ${selectedPuppy.sire}`
+                          : null,
                       ]
                         .filter(Boolean)
-                        .join(" | ") || "No litter or parent details saved yet."}
+                        .join(" | ") ||
+                        "No litter or parent details saved yet."}
                     </div>
                   </div>
 
@@ -1955,34 +2248,44 @@ function PuppiesTab({
                     >
                       Open Puppy Record
                     </Link>
-                    <Link href={assignmentHref} className={secondaryButtonClass}>
+                    <Link
+                      href={assignmentHref}
+                      className={secondaryButtonClass}
+                    >
                       Reassign in Puppies
                     </Link>
                   </div>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <ReadField label="Status" value={selectedPuppy.status || "Not set"} />
+                  <ReadField
+                    label="Status"
+                    value={selectedPuppy.status || "Not set"}
+                  />
                   <ReadField
                     label="Price"
-                    value={fmtMoney(toNumber(selectedPuppy.price || selectedPuppy.list_price))}
+                    value={fmtMoney(
+                      toNumber(selectedPuppy.price || selectedPuppy.list_price),
+                    )}
                   />
                   <ReadField
                     label="Deposit / Balance"
                     value={`${fmtMoney(toNumber(selectedPuppy.deposit))} / ${fmtMoney(
-                      toNumber(selectedPuppy.balance)
+                      toNumber(selectedPuppy.balance),
                     )}`}
                   />
                   <ReadField
                     label="Details"
-                    value={[
-                      selectedPuppy.sex,
-                      selectedPuppy.color,
-                      selectedPuppy.coat_type || selectedPuppy.coat,
-                      selectedPuppy.pattern,
-                    ]
-                      .filter(Boolean)
-                      .join(" | ") || "No extra details"}
+                    value={
+                      [
+                        selectedPuppy.sex,
+                        selectedPuppy.color,
+                        selectedPuppy.coat_type || selectedPuppy.coat,
+                        selectedPuppy.pattern,
+                      ]
+                        .filter(Boolean)
+                        .join(" | ") || "No extra details"
+                    }
                     wrap
                   />
                 </div>
@@ -1995,7 +2298,9 @@ function PuppiesTab({
                   />
                   <ReadinessItem
                     label="Pricing Saved"
-                    ready={Boolean(toNumber(selectedPuppy.price || selectedPuppy.list_price))}
+                    ready={Boolean(
+                      toNumber(selectedPuppy.price || selectedPuppy.list_price),
+                    )}
                     detail={
                       toNumber(selectedPuppy.price || selectedPuppy.list_price)
                         ? "Price exists on this puppy record."
@@ -2013,29 +2318,41 @@ function PuppiesTab({
                   />
                 </div>
 
-                {(selectedPuppy.description ||
-                  selectedPuppy.notes ||
-                  selectedPuppy.dob ||
-                  selectedPuppy.registry) ? (
+                {selectedPuppy.description ||
+                selectedPuppy.notes ||
+                selectedPuppy.dob ||
+                selectedPuppy.registry ? (
                   <div className="rounded-[1rem] bg-[rgba(250,245,239,0.86)] px-4 py-4 text-sm leading-6 text-[var(--portal-text-soft)]">
                     {selectedPuppy.dob ? (
                       <div>
-                        <strong className="text-[var(--portal-text)]">DOB:</strong> {fmtDate(selectedPuppy.dob)}
+                        <strong className="text-[var(--portal-text)]">
+                          DOB:
+                        </strong>{" "}
+                        {fmtDate(selectedPuppy.dob)}
                       </div>
                     ) : null}
                     {selectedPuppy.registry ? (
                       <div>
-                        <strong className="text-[var(--portal-text)]">Registry:</strong> {selectedPuppy.registry}
+                        <strong className="text-[var(--portal-text)]">
+                          Registry:
+                        </strong>{" "}
+                        {selectedPuppy.registry}
                       </div>
                     ) : null}
                     {selectedPuppy.description ? (
                       <div>
-                        <strong className="text-[var(--portal-text)]">Description:</strong> {selectedPuppy.description}
+                        <strong className="text-[var(--portal-text)]">
+                          Description:
+                        </strong>{" "}
+                        {selectedPuppy.description}
                       </div>
                     ) : null}
                     {selectedPuppy.notes ? (
                       <div>
-                        <strong className="text-[var(--portal-text)]">Notes:</strong> {selectedPuppy.notes}
+                        <strong className="text-[var(--portal-text)]">
+                          Notes:
+                        </strong>{" "}
+                        {selectedPuppy.notes}
                       </div>
                     ) : null}
                   </div>
@@ -2070,7 +2387,9 @@ function PuppiesTab({
                 />
                 <ReadinessItem
                   label="Paperwork"
-                  ready={Boolean(entry.record.forms.length || entry.record.documents.length)}
+                  ready={Boolean(
+                    entry.record.forms.length || entry.record.documents.length,
+                  )}
                   detail={
                     entry.record.forms.length || entry.record.documents.length
                       ? "There is already paperwork on this buyer file."
@@ -2129,7 +2448,7 @@ function TransportationTab({
             headers: {
               Authorization: `Bearer ${accessToken}`,
             },
-          }
+          },
         );
         const payload = (await response.json()) as {
           ok?: boolean;
@@ -2168,7 +2487,9 @@ function TransportationTab({
       } catch (error) {
         if (active) {
           setFuelEstimate(null);
-          setFuelError(error instanceof Error ? error.message : "Could not estimate fuel.");
+          setFuelError(
+            error instanceof Error ? error.message : "Could not estimate fuel.",
+          );
         }
       }
     }
@@ -2177,7 +2498,12 @@ function TransportationTab({
     return () => {
       active = false;
     };
-  }, [accessToken, record, record?.buyer.delivery_date, record?.buyer.delivery_miles]);
+  }, [
+    accessToken,
+    record,
+    record?.buyer.delivery_date,
+    record?.buyer.delivery_miles,
+  ]);
 
   if (!record) return null;
 
@@ -2197,12 +2523,23 @@ function TransportationTab({
         }
       />
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        <ReadField label="Transportation Type" value={record.buyer.delivery_option || "Not set"} />
+        <ReadField
+          label="Transportation Type"
+          value={record.buyer.delivery_option || "Not set"}
+        />
         <ReadField
           label="Transportation Date"
-          value={record.buyer.delivery_date ? fmtDate(record.buyer.delivery_date) : "Not scheduled"}
+          value={
+            record.buyer.delivery_date
+              ? fmtDate(record.buyer.delivery_date)
+              : "Not scheduled"
+          }
         />
-        <ReadField label="Location" value={record.buyer.delivery_location || "No location saved"} wrap />
+        <ReadField
+          label="Location"
+          value={record.buyer.delivery_location || "No location saved"}
+          wrap
+        />
         <ReadField
           label="Fee Status"
           value={deliveryFeeStatus(record)}
@@ -2227,15 +2564,21 @@ function TransportationTab({
         />
         <ReadField
           label="Mileage"
-          value={record.buyer.delivery_miles ? `${record.buyer.delivery_miles} miles` : "Mileage not saved"}
+          value={
+            record.buyer.delivery_miles
+              ? `${record.buyer.delivery_miles} miles`
+              : "Mileage not saved"
+          }
           detail="Mileage can be entered in Edit Buyer and drives the gas estimate below."
         />
         <ReadField
           label="Tolls / Hotel"
           value={`${fmtMoney(toNumber(record.buyer.expense_tolls))} / ${fmtMoney(
-            toNumber(record.buyer.expense_hotel)
+            toNumber(record.buyer.expense_hotel),
           )}`}
-          detail={record.buyer.expense_misc || "No extra transportation notes saved"}
+          detail={
+            record.buyer.expense_misc || "No extra transportation notes saved"
+          }
           wrap
         />
         <ReadField
@@ -2250,11 +2593,14 @@ function TransportationTab({
           detail={
             fuelEstimate
               ? `${fuelEstimate.miles.toFixed(0)} miles / ${fuelEstimate.assumedMpg} MPG (${fuelEstimate.assumedVehicle}) x ${fmtMoneyPrecise(
-                  fuelEstimate.pricePerGallon
+                  fuelEstimate.pricePerGallon,
                 )} per gallon for ${fuelEstimate.priceMonth}${
-                  fuelEstimate.usedFallbackMonth ? " (closest available month)" : ""
+                  fuelEstimate.usedFallbackMonth
+                    ? " (closest available month)"
+                    : ""
                 }. ${fuelEstimate.pricingSeries}.`
-              : fuelError || "Add a transportation date and mileage to calculate the fuel estimate automatically."
+              : fuelError ||
+                "Add a transportation date and mileage to calculate the fuel estimate automatically."
           }
           wrap
         />
@@ -2272,7 +2618,9 @@ function TransportationTab({
                     {request.request_type || "Transportation request"}
                   </div>
                   <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
-                    {request.request_date ? fmtDate(request.request_date) : "No date"}
+                    {request.request_date
+                      ? fmtDate(request.request_date)
+                      : "No date"}
                     {request.location_text || request.address_text
                       ? ` | ${request.location_text || request.address_text}`
                       : ""}
@@ -2286,7 +2634,9 @@ function TransportationTab({
                 </span>
               </div>
               {request.notes ? (
-                <div className="mt-3 text-sm leading-6 text-[var(--portal-text-soft)]">{request.notes}</div>
+                <div className="mt-3 text-sm leading-6 text-[var(--portal-text-soft)]">
+                  {request.notes}
+                </div>
               ) : null}
             </div>
           ))
@@ -2321,7 +2671,10 @@ function PaymentsTab({ entry }: { entry: BuyerEntry | null }) {
       amount: adjustment.amount,
       status: adjustment.status || "recorded",
     })),
-  ].sort((left, right) => new Date(right.date || 0).getTime() - new Date(left.date || 0).getTime());
+  ].sort(
+    (left, right) =>
+      new Date(right.date || 0).getTime() - new Date(left.date || 0).getTime(),
+  );
 
   return (
     <WorkspaceSurface>
@@ -2330,13 +2683,19 @@ function PaymentsTab({ entry }: { entry: BuyerEntry | null }) {
         title="Payments"
         subtitle="Financial history for this buyer file."
         action={
-          <Link href={`/admin/portal/payments?buyer=${entry.record.buyer.id}`} className={secondaryButtonClass}>
+          <Link
+            href={`/admin/portal/payments?buyer=${entry.record.buyer.id}`}
+            className={secondaryButtonClass}
+          >
             Open Full Ledger
           </Link>
         }
       />
       <div className="mt-5 grid gap-4 lg:grid-cols-4">
-        <ReadField label="Purchase" value={fmtMoney(entry.summary.purchasePrice)} />
+        <ReadField
+          label="Purchase"
+          value={fmtMoney(entry.summary.purchasePrice)}
+        />
         <ReadField label="Deposit" value={fmtMoney(entry.summary.deposit)} />
         <ReadField label="Paid" value={fmtMoney(entry.summary.totalPaid)} />
         <ReadField
@@ -2368,9 +2727,15 @@ function PaymentsTab({ entry }: { entry: BuyerEntry | null }) {
                     <td className="px-4 py-3 text-[var(--portal-text-soft)]">
                       {row.date ? fmtDate(row.date) : "No date"}
                     </td>
-                    <td className="px-4 py-3 font-semibold text-[var(--portal-text)]">{row.type}</td>
-                    <td className="px-4 py-3 text-[var(--portal-text-soft)]">{row.detail || "No detail"}</td>
-                    <td className="px-4 py-3 text-[var(--portal-text)]">{fmtMoney(toNumber(row.amount))}</td>
+                    <td className="px-4 py-3 font-semibold text-[var(--portal-text)]">
+                      {row.type}
+                    </td>
+                    <td className="px-4 py-3 text-[var(--portal-text-soft)]">
+                      {row.detail || "No detail"}
+                    </td>
+                    <td className="px-4 py-3 text-[var(--portal-text)]">
+                      {fmtMoney(toNumber(row.amount))}
+                    </td>
                     <td className="px-4 py-3">
                       <span
                         className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${adminStatusBadge(row.status || "recorded")}`}
@@ -2481,11 +2846,15 @@ function DocumentUploadPanel({
           ? visibleToUser
             ? "Document uploaded and attached to this buyer. It will appear in the portal once this buyer is linked to a portal account."
             : "Document uploaded and attached to this buyer. It is saved internally and will stay off the buyer portal until you choose to make it visible."
-          : "Document uploaded and attached to this buyer."
+          : "Document uploaded and attached to this buyer.",
       );
       onUploaded();
     } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : "Could not upload the document.");
+      setError(
+        uploadError instanceof Error
+          ? uploadError.message
+          : "Could not upload the document.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -2498,9 +2867,16 @@ function DocumentUploadPanel({
           <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
             {heading}
           </div>
-          <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">{description}</div>
+          <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
+            {description}
+          </div>
         </div>
-        <button type="button" onClick={handleUpload} disabled={submitting} className={primaryButtonClass}>
+        <button
+          type="button"
+          onClick={handleUpload}
+          disabled={submitting}
+          className={primaryButtonClass}
+        >
           <FileUp className="h-4 w-4" />
           {submitting ? "Uploading..." : "Upload Scan"}
         </button>
@@ -2529,7 +2905,9 @@ function DocumentUploadPanel({
 
       {!portalReady ? (
         <div className="mt-4 rounded-[1rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          This buyer has not created a portal account yet. You can still upload scanned paperwork now, and any buyer-visible files will appear in their portal automatically once the buyer is linked later.
+          This buyer has not created a portal account yet. You can still upload
+          scanned paperwork now, and any buyer-visible files will appear in
+          their portal automatically once the buyer is linked later.
         </div>
       ) : null}
 
@@ -2634,9 +3012,16 @@ function DocumentsTab({
                     </div>
                     <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
                       {form.submitted_at || form.updated_at || form.created_at
-                        ? fmtDate(form.submitted_at || form.updated_at || form.created_at || "")
+                        ? fmtDate(
+                            form.submitted_at ||
+                              form.updated_at ||
+                              form.created_at ||
+                              "",
+                          )
                         : "Not filed yet"}
-                      {form.signed_name ? ` | Signed by ${form.signed_name}` : ""}
+                      {form.signed_name
+                        ? ` | Signed by ${form.signed_name}`
+                        : ""}
                     </div>
                   </div>
                   <span
@@ -2671,7 +3056,9 @@ function DocumentsTab({
                       {document.title || document.file_name || "Buyer upload"}
                     </div>
                     <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
-                      {document.created_at ? fmtDate(document.created_at) : "Date unavailable"}
+                      {document.created_at
+                        ? fmtDate(document.created_at)
+                        : "Date unavailable"}
                       {document.category ? ` | ${document.category}` : ""}
                       {document.file_name ? ` | ${document.file_name}` : ""}
                     </div>
@@ -2688,7 +3075,12 @@ function DocumentsTab({
                       {document.status || "uploaded"}
                     </span>
                     {document.file_url ? (
-                      <a href={document.file_url} target="_blank" rel="noreferrer" className={secondaryButtonClass}>
+                      <a
+                        href={document.file_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={secondaryButtonClass}
+                      >
                         Open File
                       </a>
                     ) : null}
@@ -2711,17 +3103,26 @@ function DocumentsTab({
 function ActivityTab({ items }: { items: ActivityItem[] }) {
   return (
     <WorkspaceSurface>
-      <SurfaceHeader eyebrow="Activity" title="Activity" subtitle="A single timeline for this buyer file." />
+      <SurfaceHeader
+        eyebrow="Activity"
+        title="Activity"
+        subtitle="A single timeline for this buyer file."
+      />
       <div className="mt-5 space-y-3">
         {items.length ? (
           items.map((item) => (
-            <div key={item.key} className="rounded-[1.1rem] bg-[rgba(250,245,239,0.86)] px-4 py-4">
+            <div
+              key={item.key}
+              className="rounded-[1.1rem] bg-[rgba(250,245,239,0.86)] px-4 py-4"
+            >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
                     {item.category}
                   </div>
-                  <div className="mt-1 text-sm font-semibold text-[var(--portal-text)]">{item.title}</div>
+                  <div className="mt-1 text-sm font-semibold text-[var(--portal-text)]">
+                    {item.title}
+                  </div>
                   <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
                     {item.date ? fmtDate(item.date) : "No date"}
                     {item.detail ? ` | ${item.detail}` : ""}
@@ -2764,9 +3165,15 @@ function PlanTab({
 }) {
   if (!entry || !entry.summary.financeEnabled) return null;
 
-  const financingForms = entry.record.forms.filter((form) => matchesPaymentPlanForm(form.form_key));
+  const financingForms = entry.record.forms.filter((form) =>
+    matchesPaymentPlanForm(form.form_key),
+  );
   const financingDocuments = entry.record.documents.filter((document) =>
-    matchesPaymentPlanDocument(document.category, document.title, document.description)
+    matchesPaymentPlanDocument(
+      document.category,
+      document.title,
+      document.description,
+    ),
   );
   const recentNoticeLogs = entry.account?.payment_notice_logs || [];
 
@@ -2786,7 +3193,11 @@ function PlanTab({
         }
       />
       <div className="mt-5 grid gap-4 lg:grid-cols-4">
-        <ReadField label="Principal" value={fmtMoney(entry.summary.purchasePrice)} detail="Current financed puppy total." />
+        <ReadField
+          label="Principal"
+          value={fmtMoney(entry.summary.purchasePrice)}
+          detail="Current financed puppy total."
+        />
         <ReadField
           label="Deposit"
           value={fmtMoney(entry.summary.deposit)}
@@ -2794,19 +3205,39 @@ function PlanTab({
         />
         <ReadField
           label="Monthly"
-          value={entry.summary.monthlyAmount ? fmtMoney(entry.summary.monthlyAmount) : "Not set"}
-          detail={entry.summary.financeMonths ? `${entry.summary.financeMonths} month term` : "No term saved"}
+          value={
+            entry.summary.monthlyAmount
+              ? fmtMoney(entry.summary.monthlyAmount)
+              : "Not set"
+          }
+          detail={
+            entry.summary.financeMonths
+              ? `${entry.summary.financeMonths} month term`
+              : "No term saved"
+          }
         />
         <ReadField
           label="APR / Rate"
-          value={entry.summary.financeRate ? `${entry.summary.financeRate}%` : "Not set"}
-          detail={entry.summary.financeAdminFee ? "Admin fee enabled" : "Admin fee off"}
+          value={
+            entry.summary.financeRate
+              ? `${entry.summary.financeRate}%`
+              : "Not set"
+          }
+          detail={
+            entry.summary.financeAdminFee
+              ? "Admin fee enabled"
+              : "Admin fee off"
+          }
         />
       </div>
       <div className="mt-4 grid gap-4 lg:grid-cols-4">
         <ReadField
           label="Next Due"
-          value={entry.summary.nextDueDate ? fmtDate(entry.summary.nextDueDate) : "Not set"}
+          value={
+            entry.summary.nextDueDate
+              ? fmtDate(entry.summary.nextDueDate)
+              : "Not set"
+          }
           detail={
             entry.account?.buyer.finance_day_of_month
               ? `Due around day ${entry.account.buyer.finance_day_of_month} each month`
@@ -2815,7 +3246,11 @@ function PlanTab({
         />
         <ReadField
           label="Last Payment"
-          value={entry.summary.lastPaymentAt ? fmtDate(entry.summary.lastPaymentAt) : "No payment yet"}
+          value={
+            entry.summary.lastPaymentAt
+              ? fmtDate(entry.summary.lastPaymentAt)
+              : "No payment yet"
+          }
           detail={
             entry.summary.totalPaid
               ? `${fmtMoney(entry.summary.totalPaid)} paid to date`
@@ -2824,7 +3259,10 @@ function PlanTab({
         />
         <ReadField
           label="Subscription"
-          value={entry.account?.billing_subscription?.subscription_status || "Not synced"}
+          value={
+            entry.account?.billing_subscription?.subscription_status ||
+            "Not synced"
+          }
           detail={
             entry.account?.billing_subscription?.plan_name ||
             entry.account?.billing_subscription?.plan_code ||
@@ -2853,16 +3291,25 @@ function PlanTab({
               ? `Ending ${entry.account.billing_subscription.card_last_four}`
               : "Not synced"
           }
-          detail={entry.account?.billing_subscription?.customer_name || entry.record.displayName}
+          detail={
+            entry.account?.billing_subscription?.customer_name ||
+            entry.record.displayName
+          }
           wrap
         />
         <ReadField
           label="Notice Settings"
-          value={entry.account?.payment_notice_settings?.enabled ? "Enabled" : "Not configured"}
+          value={
+            entry.account?.payment_notice_settings?.enabled
+              ? "Enabled"
+              : "Not configured"
+          }
           detail={
             entry.account?.payment_notice_settings
               ? `Receipts ${
-                  entry.account.payment_notice_settings.receipt_enabled ? "on" : "off"
+                  entry.account.payment_notice_settings.receipt_enabled
+                    ? "on"
+                    : "off"
                 } | Due ${
                   entry.account.payment_notice_settings.due_reminder_enabled
                     ? `${entry.account.payment_notice_settings.due_reminder_days_before}d before`
@@ -2912,9 +3359,16 @@ function PlanTab({
                     </div>
                     <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
                       {form.submitted_at || form.updated_at || form.created_at
-                        ? fmtDate(form.submitted_at || form.updated_at || form.created_at || "")
+                        ? fmtDate(
+                            form.submitted_at ||
+                              form.updated_at ||
+                              form.created_at ||
+                              "",
+                          )
                         : "Not filed yet"}
-                      {form.signed_name ? ` | Signed by ${form.signed_name}` : ""}
+                      {form.signed_name
+                        ? ` | Signed by ${form.signed_name}`
+                        : ""}
                     </div>
                   </div>
                   <span
@@ -2946,10 +3400,14 @@ function PlanTab({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="text-sm font-semibold text-[var(--portal-text)]">
-                      {document.title || document.file_name || "Financing upload"}
+                      {document.title ||
+                        document.file_name ||
+                        "Financing upload"}
                     </div>
                     <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
-                      {document.created_at ? fmtDate(document.created_at) : "Date unavailable"}
+                      {document.created_at
+                        ? fmtDate(document.created_at)
+                        : "Date unavailable"}
                       {document.file_name ? ` | ${document.file_name}` : ""}
                     </div>
                     {document.description ? (
@@ -2965,7 +3423,12 @@ function PlanTab({
                       {document.status || "uploaded"}
                     </span>
                     {document.file_url ? (
-                      <a href={document.file_url} target="_blank" rel="noreferrer" className={secondaryButtonClass}>
+                      <a
+                        href={document.file_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={secondaryButtonClass}
+                      >
                         Open File
                       </a>
                     ) : null}
@@ -2994,9 +3457,12 @@ function PlanTab({
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold text-[var(--portal-text)]">{log.subject}</div>
+                  <div className="text-sm font-semibold text-[var(--portal-text)]">
+                    {log.subject}
+                  </div>
                   <div className="mt-1 text-xs leading-5 text-[var(--portal-text-soft)]">
-                    {fmtDate(log.created_at)} | {log.notice_kind} | {log.recipient_email}
+                    {fmtDate(log.created_at)} | {log.notice_kind} |{" "}
+                    {log.recipient_email}
                     {log.due_date ? ` | Due ${fmtDate(log.due_date)}` : ""}
                   </div>
                 </div>
@@ -3064,7 +3530,7 @@ function BuyerModal({
             headers: {
               Authorization: `Bearer ${accessToken}`,
             },
-          }
+          },
         );
         const payload = (await response.json()) as {
           ok?: boolean;
@@ -3104,7 +3570,9 @@ function BuyerModal({
         if (active) {
           setFuelEstimate(null);
           setFuelError(
-            estimateError instanceof Error ? estimateError.message : "Could not estimate fuel."
+            estimateError instanceof Error
+              ? estimateError.message
+              : "Could not estimate fuel.",
           );
         }
       }
@@ -3121,10 +3589,18 @@ function BuyerModal({
       <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[1.6rem] border border-[rgba(255,255,255,0.45)] bg-[rgba(255,252,247,0.98)] p-6 shadow-[0_30px_80px_rgba(66,44,24,0.28)]">
         <SurfaceHeader
           eyebrow={mode === "create" ? "Create Buyer" : "Edit Buyer"}
-          title={mode === "create" ? "Start a new buyer file" : "Update buyer profile"}
+          title={
+            mode === "create"
+              ? "Start a new buyer file"
+              : "Update buyer profile"
+          }
           subtitle="Create Buyer and Edit Buyer share the same modal so the main workspace stays focused."
           action={
-            <button type="button" onClick={onClose} className={secondaryButtonClass}>
+            <button
+              type="button"
+              onClick={onClose}
+              className={secondaryButtonClass}
+            >
               Close
             </button>
           }
@@ -3290,25 +3766,45 @@ function BuyerModal({
                     Estimated gas: {fmtMoney(fuelEstimate.estimatedFuelCost)}
                   </div>
                   <div className="mt-1 leading-6">
-                    {fuelEstimate.miles.toFixed(0)} miles / {fuelEstimate.assumedMpg} MPG ({fuelEstimate.assumedVehicle}) x{" "}
-                    {fmtMoneyPrecise(fuelEstimate.pricePerGallon)} per gallon for {fuelEstimate.priceMonth}
-                    {fuelEstimate.usedFallbackMonth ? " using the closest available month." : "."}{" "}
+                    {fuelEstimate.miles.toFixed(0)} miles /{" "}
+                    {fuelEstimate.assumedMpg} MPG ({fuelEstimate.assumedVehicle}
+                    ) x {fmtMoneyPrecise(fuelEstimate.pricePerGallon)} per
+                    gallon for {fuelEstimate.priceMonth}
+                    {fuelEstimate.usedFallbackMonth
+                      ? " using the closest available month."
+                      : "."}{" "}
                     {fuelEstimate.pricingSeries}
                   </div>
                 </div>
               ) : (
-                <div>{fuelError || "Add transportation date and mileage to preview the automatic gas estimate."}</div>
+                <div>
+                  {fuelError ||
+                    "Add transportation date and mileage to preview the automatic gas estimate."}
+                </div>
               )}
             </div>
           </div>
         </div>
 
         <div className="mt-6 flex flex-wrap justify-end gap-3">
-          <button type="button" onClick={onClose} className={secondaryButtonClass}>
+          <button
+            type="button"
+            onClick={onClose}
+            className={secondaryButtonClass}
+          >
             Cancel
           </button>
-          <button type="button" onClick={onSave} disabled={saving} className={primaryButtonClass}>
-            {saving ? "Saving..." : mode === "create" ? "Create Buyer" : "Save Buyer"}
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saving}
+            className={primaryButtonClass}
+          >
+            {saving
+              ? "Saving..."
+              : mode === "create"
+                ? "Create Buyer"
+                : "Save Buyer"}
           </button>
         </div>
       </div>

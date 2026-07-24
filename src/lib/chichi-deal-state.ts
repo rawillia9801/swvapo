@@ -65,12 +65,54 @@ type DocState = {
   filed: boolean;
 };
 
+type BuyerDealRecord = {
+  id?: number | null;
+  full_name?: unknown;
+  name?: unknown;
+  email?: unknown;
+  phone?: unknown;
+  sale_price?: unknown;
+  deposit_amount?: unknown;
+  finance_enabled?: unknown;
+  finance_rate?: unknown;
+  finance_months?: unknown;
+  finance_monthly_amount?: unknown;
+  delivery_option?: unknown;
+  delivery_location?: unknown;
+  delivery_date?: string | null;
+};
+
+type PuppyDealRecord = {
+  id?: number | null;
+  call_name?: unknown;
+  puppy_name?: unknown;
+  name?: unknown;
+  registry?: unknown;
+  dob?: string | null;
+  price?: unknown;
+  list_price?: unknown;
+  deposit?: unknown;
+};
+
+type PickupDealRecord = {
+  request_type?: unknown;
+  location_text?: unknown;
+  request_date?: string | null;
+};
+
+type DealDocumentRecord = {
+  form_key?: unknown;
+  title?: unknown;
+  signed_at?: unknown;
+  status?: unknown;
+};
+
 type Context = {
-  buyer: any;
-  puppy: any;
-  pickupRequest: any;
-  forms: any[];
-  documents: any[];
+  buyer: BuyerDealRecord | null;
+  puppy: PuppyDealRecord | null;
+  pickupRequest: PickupDealRecord | null;
+  forms: DealDocumentRecord[];
+  documents: DealDocumentRecord[];
 };
 
 /**
@@ -163,9 +205,7 @@ function buildFinancing(context: Context) {
     apr,
     months,
     monthlyPayment: monthly,
-    complete: enabled
-      ? !!apr && !!months && !!monthly
-      : true,
+    complete: enabled ? !!apr && !!months && !!monthly : true,
   };
 }
 
@@ -205,7 +245,11 @@ function buildDocuments(context: Context) {
 // ----------------------------
 //
 
-function doc(key: string, forms: any[], docs: any[]): DocState {
+function doc(
+  key: string,
+  forms: DealDocumentRecord[],
+  docs: DealDocumentRecord[],
+): DocState {
   const exists =
     forms.some((f) => match(f.form_key, key)) ||
     docs.some((d) => match(d.title, key));
@@ -214,18 +258,18 @@ function doc(key: string, forms: any[], docs: any[]): DocState {
     forms.some((f) => match(f.form_key, key) && !!f.signed_at) ||
     docs.some((d) => match(d.title, key) && !!d.signed_at);
 
-  const filed =
-    docs.some(
-      (d) =>
-        match(d.title, key) &&
-        (d.status === "filed" || d.status === "completed")
-    );
+  const filed = docs.some(
+    (d) =>
+      match(d.title, key) && (d.status === "filed" || d.status === "completed"),
+  );
 
   return { exists, signed, filed };
 }
 
-function match(value: any, key: string) {
-  return String(value || "").toLowerCase().includes(key);
+function match(value: unknown, key: string) {
+  return String(value || "")
+    .toLowerCase()
+    .includes(key);
 }
 
 //
@@ -235,12 +279,12 @@ function match(value: any, key: string) {
 //
 
 function computeMissingFields(input: {
-  buyer: any;
-  puppy: any;
-  sale: any;
-  financing: any;
-  delivery: any;
-  documents: any;
+  buyer: ChiChiDealState["buyer"];
+  puppy: ChiChiDealState["puppy"];
+  sale: ChiChiDealState["sale"];
+  financing: ChiChiDealState["financing"];
+  delivery: ChiChiDealState["delivery"];
+  documents: ChiChiDealState["documents"];
 }) {
   const missing: string[] = [];
 
@@ -266,14 +310,14 @@ function computeMissingFields(input: {
 // ----------------------------
 //
 
-function first(...vals: any[]) {
+function first(...vals: unknown[]) {
   for (const v of vals) {
     if (v && String(v).trim()) return String(v).trim();
   }
   return "";
 }
 
-function num(v: any) {
+function num(v: unknown) {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }

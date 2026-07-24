@@ -1,14 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { HeartHandshake, ShieldCheck } from "lucide-react";
 import { getClientSessionWithTimeout } from "@/lib/client-session-resilience";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { sb } from "@/lib/utils";
 
 const publicApplicationUrl =
   "https://forms.zohopublic.com/southwestvirginiachihuahua/form/PuppyApplication/formperma/MxCOxyG77E3yShC2GCnwbjiMu1z3vqR8Gql1nug9gTY";
@@ -43,12 +38,15 @@ export default function ApplicationPage() {
   useEffect(() => {
     async function loadUser() {
       try {
-        const session = await getClientSessionWithTimeout(supabase, {
+        const session = await getClientSessionWithTimeout(sb, {
           context: "src/app/application/page.tsx",
         });
         if (session?.user) setUserId(session.user.id);
       } catch (error) {
-        console.warn("Application page session bootstrap failed; rendering public form.", error);
+        console.warn(
+          "Application page session bootstrap failed; rendering public form.",
+          error,
+        );
       }
     }
 
@@ -56,7 +54,9 @@ export default function ApplicationPage() {
   }, []);
 
   const formUrl = useMemo(() => {
-    return userId ? `${publicApplicationUrl}?user_id=${userId}` : publicApplicationUrl;
+    return userId
+      ? `${publicApplicationUrl}?user_id=${userId}`
+      : publicApplicationUrl;
   }, [userId]);
 
   return (
@@ -72,9 +72,9 @@ export default function ApplicationPage() {
                 Puppy Application
               </h1>
               <p className="mt-4 max-w-2xl text-lg leading-8 text-[#715b4e]">
-                Apply publicly without creating a puppy portal account first. We review every
-                application personally to make thoughtful, lifelong matches for our families and
-                puppies.
+                Apply publicly without creating a puppy portal account first. We
+                review every application personally to make thoughtful, lifelong
+                matches for our families and puppies.
               </p>
 
               <div className="mt-6 grid gap-3 md:grid-cols-2">
@@ -96,11 +96,17 @@ export default function ApplicationPage() {
                 Before you begin
               </div>
               <ul className="mt-4 space-y-3 text-sm leading-6 text-[#6f5a4b]">
-                <li>Applications are reviewed before a puppy is approved or reserved.</li>
-                <li>Questions, preferences, and household details help guide the right match.</li>
                 <li>
-                  If you later receive portal access, your application record can be linked to your
-                  buyer journey there.
+                  Applications are reviewed before a puppy is approved or
+                  reserved.
+                </li>
+                <li>
+                  Questions, preferences, and household details help guide the
+                  right match.
+                </li>
+                <li>
+                  If you later receive portal access, your application record
+                  can be linked to your buyer journey there.
                 </li>
               </ul>
             </div>

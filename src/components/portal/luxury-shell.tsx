@@ -11,13 +11,13 @@ import {
 } from "lucide-react";
 
 export const portalInputClass =
-  "w-full rounded-2xl border border-[var(--portal-border)] bg-white px-4 py-3.5 text-[15px] text-[var(--portal-text)] shadow-sm outline-none transition placeholder:text-[var(--portal-text-muted)] focus:border-[var(--portal-accent)] focus:ring-4 focus:ring-[rgba(90,142,245,0.16)] disabled:cursor-not-allowed disabled:bg-[var(--portal-surface-muted)] disabled:text-[var(--portal-text-muted)]";
+  "w-full rounded-2xl border border-[var(--portal-border)] bg-white/94 px-4 py-3.5 text-[15px] text-[var(--portal-text)] shadow-sm outline-none transition placeholder:text-[var(--portal-text-muted)] focus:border-[var(--portal-accent)] focus:ring-4 focus:ring-[var(--portal-ring)] disabled:cursor-not-allowed disabled:bg-[var(--portal-surface-muted)] disabled:text-[var(--portal-text-muted)]";
 
 export const portalSurfaceClass =
   "premium-card relative overflow-hidden rounded-[1.5rem] bg-white";
 
 export const portalButtonPrimaryClass =
-  "inline-flex items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(90deg,#7c5cff_0%,#f043a2_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(124,92,255,0.24)] transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex items-center justify-center gap-2 rounded-2xl border border-[rgba(102,57,31,0.18)] bg-[linear-gradient(135deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(125,72,40,0.24)] transition hover:-translate-y-0.5 hover:brightness-105 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60";
 
 export const portalButtonSecondaryClass =
   "inline-flex items-center justify-center gap-2 rounded-2xl border border-[var(--portal-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--portal-text)] shadow-sm transition hover:-translate-y-0.5 hover:bg-[var(--portal-surface-muted)]";
@@ -29,7 +29,7 @@ function toneClass(tone: Tone) {
     case "success":
       return "border-emerald-200 bg-emerald-50 text-emerald-700";
     case "warning":
-      return "border-violet-200 bg-violet-50 text-violet-700";
+      return "border-amber-200 bg-amber-50 text-amber-800";
     case "danger":
       return "border-rose-200 bg-rose-50 text-rose-700";
     default:
@@ -41,13 +41,13 @@ function accentGlow(accent?: string) {
   if (
     accent &&
     !/93,121,255|159,175,198|140,156,183|eef3ff|dbe6ff|234,240,255|225,234,255/i.test(
-      accent
+      accent,
     )
   ) {
     return accent;
   }
 
-  return "from-[rgba(90,142,245,0.18)] via-transparent to-[rgba(240,67,162,0.16)]";
+  return "from-[rgba(197,150,87,0.54)] via-[rgba(177,119,67,0.24)] to-[rgba(125,72,40,0.48)]";
 }
 
 export function PortalPageHero({
@@ -65,7 +65,7 @@ export function PortalPageHero({
 }) {
   return (
     <section className="hero-glow relative overflow-hidden rounded-[1.5rem] border border-[var(--portal-border)] px-6 py-8 shadow-soft md:px-8 md:py-10 xl:px-10 xl:py-12">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(240,67,162,0.12),transparent_28%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(197,150,87,0.16),transparent_28%)]" />
       <div className="relative grid gap-8 xl:grid-cols-[minmax(0,1.35fr)_360px] xl:items-start xl:gap-10">
         <div className="max-w-4xl">
           <PortalEyebrow>{eyebrow}</PortalEyebrow>
@@ -75,7 +75,9 @@ export function PortalPageHero({
           <p className="mt-5 max-w-3xl text-[15px] leading-7 text-[var(--portal-text-soft)] md:text-lg">
             {description}
           </p>
-          {actions ? <div className="mt-8 flex flex-wrap gap-3">{actions}</div> : null}
+          {actions ? (
+            <div className="mt-8 flex flex-wrap gap-3">{actions}</div>
+          ) : null}
         </div>
         {aside ? <div className="min-w-0">{aside}</div> : null}
       </div>
@@ -85,7 +87,7 @@ export function PortalPageHero({
 
 export function PortalEyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-violet-700 shadow-sm">
+    <span className="inline-flex items-center rounded-full border border-[rgba(197,150,87,0.34)] bg-[rgba(255,248,237,0.9)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-accent-strong)] shadow-sm">
       {children}
     </span>
   );
@@ -119,7 +121,9 @@ export function PortalHeroSecondaryAction({
   );
 }
 
-export function PortalButton(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+export function PortalButton(
+  props: React.ButtonHTMLAttributes<HTMLButtonElement>,
+) {
   const { className, type = "button", ...rest } = props;
   return (
     <button
@@ -131,7 +135,7 @@ export function PortalButton(props: React.ButtonHTMLAttributes<HTMLButtonElement
 }
 
 export function PortalSecondaryButton(
-  props: React.ButtonHTMLAttributes<HTMLButtonElement>
+  props: React.ButtonHTMLAttributes<HTMLButtonElement>,
 ) {
   const { className, type = "button", ...rest } = props;
   return (
@@ -143,12 +147,12 @@ export function PortalSecondaryButton(
   );
 }
 
-export function PortalMetricGrid({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">{children}</section>;
+export function PortalMetricGrid({ children }: { children: React.ReactNode }) {
+  return (
+    <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {children}
+    </section>
+  );
 }
 
 export function PortalMetricCard({
@@ -168,14 +172,18 @@ export function PortalMetricCard({
 }) {
   const content = (
     <div className="relative overflow-hidden rounded-[1.5rem] border border-[var(--portal-border)] bg-white p-5 shadow-soft">
-      <div className={`pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${accentGlow(accent)}`} />
+      <div
+        className={`pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${accentGlow(accent)}`}
+      />
       <div className="text-[11px] font-semibold tracking-[-0.01em] text-[var(--portal-text-muted)]">
         {label}
       </div>
       <div className="mt-2 text-lg font-semibold leading-tight text-[var(--portal-text)]">
         {value}
       </div>
-      <div className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
+      <div className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">
+        {detail}
+      </div>
       {actionLabel ? (
         <div className="mt-4 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-accent)]">
           <span>{actionLabel}</span>
@@ -188,7 +196,10 @@ export function PortalMetricCard({
   if (!href) return content;
 
   return (
-    <Link href={href} className="block rounded-[1.5rem] transition hover:-translate-y-1">
+    <Link
+      href={href}
+      className="block rounded-[1.5rem] transition hover:-translate-y-1"
+    >
       {content}
     </Link>
   );
@@ -217,7 +228,9 @@ export function PortalPanel({
             {title}
           </div>
           {subtitle ? (
-            <p className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">{subtitle}</p>
+            <p className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">
+              {subtitle}
+            </p>
           ) : null}
         </div>
         {action ? action : null}
@@ -248,12 +261,20 @@ export function PortalInfoTile({
   tone?: Tone;
 }) {
   return (
-    <div className={`rounded-[1.25rem] border p-4 shadow-sm ${toneClass(tone)}`}>
+    <div
+      className={`rounded-[1.25rem] border p-4 shadow-sm ${toneClass(tone)}`}
+    >
       <div className="text-[11px] font-semibold tracking-[-0.01em] text-[var(--portal-text-muted)]">
         {label}
       </div>
-      <div className="mt-2 text-xl font-semibold text-[var(--portal-text)]">{value}</div>
-      {detail ? <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div> : null}
+      <div className="mt-2 text-xl font-semibold text-[var(--portal-text)]">
+        {value}
+      </div>
+      {detail ? (
+        <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
+          {detail}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -272,7 +293,9 @@ export function PortalListCard({
   tone?: Tone;
 }) {
   return (
-    <div className={`rounded-[1.25rem] border p-4 shadow-sm ${toneClass(tone)}`}>
+    <div
+      className={`rounded-[1.25rem] border p-4 shadow-sm ${toneClass(tone)}`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[11px] font-semibold tracking-[-0.01em] text-[var(--portal-text-muted)]">
@@ -281,7 +304,9 @@ export function PortalListCard({
           <div className="mt-2 text-sm font-semibold leading-6 text-[var(--portal-text)]">
             {title}
           </div>
-          <div className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">{description}</div>
+          <div className="mt-1 text-sm leading-6 text-[var(--portal-text-soft)]">
+            {description}
+          </div>
         </div>
         {rightLabel ? (
           <div className="shrink-0 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--portal-text-muted)]">
@@ -301,7 +326,9 @@ export function PortalStatusBadge({
   tone?: Tone;
 }) {
   return (
-    <span className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${toneClass(tone)}`}>
+    <span
+      className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${toneClass(tone)}`}
+    >
       {label}
     </span>
   );
@@ -322,7 +349,9 @@ export function PortalNarrativeCard({
 }) {
   return (
     <div className="hero-glow relative overflow-hidden rounded-[1.5rem] border border-[var(--portal-border)] p-6 shadow-soft md:p-8">
-      <div className={`pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${accentGlow(accent)}`} />
+      <div
+        className={`pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${accentGlow(accent)}`}
+      />
       <div className="relative">
         <PortalEyebrow>{eyebrow}</PortalEyebrow>
         <div className="mt-5 max-w-4xl text-4xl font-extrabold leading-[1.04] tracking-[-0.04em] text-[var(--portal-accent)] md:text-5xl">
@@ -356,8 +385,12 @@ export function PortalActionLink({
       <div className="text-[11px] font-semibold tracking-[-0.01em] text-[var(--portal-text-muted)]">
         {eyebrow}
       </div>
-      <div className="mt-3 text-lg font-semibold text-[var(--portal-text)]">{title}</div>
-      <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
+      <div className="mt-3 text-lg font-semibold text-[var(--portal-text)]">
+        {title}
+      </div>
+      <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
+        {detail}
+      </div>
       <div className="mt-5 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--portal-accent)]">
         Open
         <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
@@ -377,17 +410,25 @@ export function PortalEmptyState({
 }) {
   return (
     <div className="rounded-[1.5rem] border border-dashed border-[var(--portal-border-strong)] bg-[var(--portal-surface-muted)] px-5 py-12 text-center">
-      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-violet-200 bg-violet-50 text-[var(--portal-accent)] shadow-sm">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-[var(--portal-border)] bg-[var(--portal-gold-soft)] text-[var(--portal-accent)] shadow-sm">
         <Sparkles className="h-5 w-5" />
       </div>
-      <div className="mt-5 text-lg font-semibold text-[var(--portal-text)]">{title}</div>
-      <div className="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--portal-text-soft)]">{description}</div>
+      <div className="mt-5 text-lg font-semibold text-[var(--portal-text)]">
+        {title}
+      </div>
+      <div className="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--portal-text-soft)]">
+        {description}
+      </div>
       {action ? <div className="mt-6 flex justify-center">{action}</div> : null}
     </div>
   );
 }
 
-export function PortalLoadingState({ label = "Loading..." }: { label?: string }) {
+export function PortalLoadingState({
+  label = "Loading...",
+}: {
+  label?: string;
+}) {
   return (
     <div className="rounded-[1.5rem] border border-[var(--portal-border)] bg-white p-8 shadow-soft md:p-10">
       <div className="mx-auto max-w-5xl">
@@ -432,8 +473,12 @@ export function PortalErrorState({
       <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-rose-200 bg-white text-rose-700 shadow-sm">
         <CircleAlert className="h-5 w-5" />
       </div>
-      <div className="mt-5 text-lg font-semibold text-[var(--portal-text)]">{title}</div>
-      <div className="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--portal-text-soft)]">{description}</div>
+      <div className="mt-5 text-lg font-semibold text-[var(--portal-text)]">
+        {title}
+      </div>
+      <div className="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--portal-text-soft)]">
+        {description}
+      </div>
       {action ? <div className="mt-6 flex justify-center">{action}</div> : null}
     </div>
   );
@@ -454,12 +499,19 @@ export function PortalField({
   );
 }
 
-export function PortalInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} className={`${portalInputClass} ${props.className || ""}`.trim()} />;
+export function PortalInput(
+  props: React.InputHTMLAttributes<HTMLInputElement>,
+) {
+  return (
+    <input
+      {...props}
+      className={`${portalInputClass} ${props.className || ""}`.trim()}
+    />
+  );
 }
 
 export function PortalTextarea(
-  props: React.TextareaHTMLAttributes<HTMLTextAreaElement>
+  props: React.TextareaHTMLAttributes<HTMLTextAreaElement>,
 ) {
   return (
     <textarea
@@ -469,8 +521,15 @@ export function PortalTextarea(
   );
 }
 
-export function PortalSelect(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select {...props} className={`${portalInputClass} ${props.className || ""}`.trim()} />;
+export function PortalSelect(
+  props: React.SelectHTMLAttributes<HTMLSelectElement>,
+) {
+  return (
+    <select
+      {...props}
+      className={`${portalInputClass} ${props.className || ""}`.trim()}
+    />
+  );
 }
 
 export function PortalTable({
@@ -504,10 +563,12 @@ export function PortalTable({
 export function PortalShellPlaceholder() {
   return (
     <div className="premium-card flex items-center gap-3 rounded-[1.5rem] p-4">
-      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-50 text-[var(--portal-accent)]">
+      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--portal-gold-soft)] text-[var(--portal-accent)]">
         <LayoutGrid className="h-4 w-4" />
       </div>
-      <div className="text-sm text-[var(--portal-text-soft)]">Shared portal component placeholder.</div>
+      <div className="text-sm text-[var(--portal-text-soft)]">
+        Shared portal component placeholder.
+      </div>
     </div>
   );
 }

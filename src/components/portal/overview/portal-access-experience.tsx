@@ -1,7 +1,13 @@
 "use client";
 
 import React, { useState } from "react";
-import { KeyRound, Layers3, MailCheck, ShieldCheck, Sparkles } from "lucide-react";
+import {
+  KeyRound,
+  Layers3,
+  MailCheck,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { sb } from "@/lib/utils";
 import {
   PortalActionLink,
@@ -15,6 +21,7 @@ import {
 } from "@/components/portal/luxury-shell";
 
 type AuthMode = "signin" | "signup" | "reset";
+type StatusTone = "success" | "error";
 
 export function PortalAccessExperience() {
   const [mode, setMode] = useState<AuthMode>("signin");
@@ -23,6 +30,7 @@ export function PortalAccessExperience() {
   const [fullName, setFullName] = useState("");
   const [working, setWorking] = useState(false);
   const [statusText, setStatusText] = useState("");
+  const [statusTone, setStatusTone] = useState<StatusTone>("success");
 
   async function handleSignIn(event: React.FormEvent) {
     event.preventDefault();
@@ -31,6 +39,7 @@ export function PortalAccessExperience() {
 
     const { error } = await sb.auth.signInWithPassword({ email, password });
     setWorking(false);
+    setStatusTone(error ? "error" : "success");
     setStatusText(error ? error.message : "Signed in.");
   }
 
@@ -38,6 +47,13 @@ export function PortalAccessExperience() {
     event.preventDefault();
     setWorking(true);
     setStatusText("");
+
+    if (!fullName.trim()) {
+      setWorking(false);
+      setStatusTone("error");
+      setStatusText("Enter your full name to create an account.");
+      return;
+    }
 
     const { error } = await sb.auth.signUp({
       email,
@@ -51,8 +67,11 @@ export function PortalAccessExperience() {
     });
 
     setWorking(false);
+    setStatusTone(error ? "error" : "success");
     setStatusText(
-      error ? error.message : "Account created. Check your email to confirm access."
+      error
+        ? error.message
+        : "Account created. Check your email to confirm access.",
     );
   }
 
@@ -69,6 +88,7 @@ export function PortalAccessExperience() {
     });
 
     setWorking(false);
+    setStatusTone(error ? "error" : "success");
     setStatusText(error ? error.message : "Password reset email sent.");
   }
 
@@ -126,7 +146,7 @@ export function PortalAccessExperience() {
 
       <section className="premium-card relative overflow-hidden rounded-[1.5rem] p-7 md:p-9">
         <div className="pointer-events-none absolute inset-0 hero-glow opacity-75" />
-        <div className="pointer-events-none absolute -right-10 top-0 h-40 w-40 rounded-full bg-violet-100/70 blur-3xl" />
+        <div className="pointer-events-none absolute -right-10 top-0 h-40 w-40 rounded-full bg-[var(--portal-gold-soft)] blur-3xl" />
 
         <div className="relative">
           <div className="inline-flex items-center gap-2 rounded-full border border-[var(--portal-border)] bg-white px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)] shadow-sm">
@@ -152,9 +172,21 @@ export function PortalAccessExperience() {
 
           <div className="mt-6 grid grid-cols-3 gap-2 rounded-[1.35rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] p-1.5">
             {[
-              { key: "signin", label: "Sign In", icon: <KeyRound className="h-3.5 w-3.5" /> },
-              { key: "signup", label: "Sign Up", icon: <Layers3 className="h-3.5 w-3.5" /> },
-              { key: "reset", label: "Reset", icon: <MailCheck className="h-3.5 w-3.5" /> },
+              {
+                key: "signin",
+                label: "Sign In",
+                icon: <KeyRound className="h-3.5 w-3.5" />,
+              },
+              {
+                key: "signup",
+                label: "Sign Up",
+                icon: <Layers3 className="h-3.5 w-3.5" />,
+              },
+              {
+                key: "reset",
+                label: "Reset",
+                icon: <MailCheck className="h-3.5 w-3.5" />,
+              },
             ].map((item) => (
               <button
                 key={item.key}
@@ -165,7 +197,7 @@ export function PortalAccessExperience() {
                 }}
                 className={`inline-flex items-center justify-center gap-2 rounded-[1rem] px-3 py-3 text-[11px] font-bold uppercase tracking-[0.16em] transition ${
                   mode === item.key
-                    ? "bg-[linear-gradient(90deg,#7c5cff_0%,#f043a2_100%)] text-white shadow-lg"
+                    ? "bg-[linear-gradient(135deg,var(--portal-accent)_0%,var(--portal-accent-strong)_100%)] text-white shadow-[0_12px_24px_rgba(125,72,40,0.2)]"
                     : "text-[var(--portal-text-muted)] hover:text-[var(--portal-text)]"
                 }`}
               >
@@ -185,7 +217,10 @@ export function PortalAccessExperience() {
           >
             {mode === "signup" ? (
               <PortalField label="Full Name">
-                <PortalInput value={fullName} onChange={(event) => setFullName(event.target.value)} />
+                <PortalInput
+                  value={fullName}
+                  onChange={(event) => setFullName(event.target.value)}
+                />
               </PortalField>
             ) : null}
 
@@ -204,13 +239,24 @@ export function PortalAccessExperience() {
                   type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
+                  minLength={8}
+                  autoComplete={
+                    mode === "signup" ? "new-password" : "current-password"
+                  }
                   required
                 />
               </PortalField>
             ) : null}
 
             {statusText ? (
-              <div className="rounded-[1.25rem] border border-[var(--portal-border)] bg-[var(--portal-surface-muted)] px-4 py-3 text-sm font-medium text-[var(--portal-text-soft)]">
+              <div
+                role="status"
+                className={`rounded-[1.25rem] border px-4 py-3 text-sm font-medium ${
+                  statusTone === "error"
+                    ? "border-rose-200 bg-rose-50 text-rose-700"
+                    : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                }`}
+              >
                 {statusText}
               </div>
             ) : null}
@@ -254,20 +300,16 @@ export function PortalAccessExperience() {
   );
 }
 
-function SupportRow({
-  title,
-  detail,
-}: {
-  title: string;
-  detail: string;
-}) {
+function SupportRow({ title, detail }: { title: string; detail: string }) {
   return (
     <div className="rounded-[1.35rem] border border-[var(--portal-border)] bg-white px-4 py-4 shadow-sm">
       <div className="flex items-center gap-2 text-sm font-semibold text-[var(--portal-text)]">
         <ShieldCheck className="h-4 w-4 text-[var(--portal-accent)]" />
         {title}
       </div>
-      <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">{detail}</div>
+      <div className="mt-2 text-sm leading-6 text-[var(--portal-text-soft)]">
+        {detail}
+      </div>
     </div>
   );
 }

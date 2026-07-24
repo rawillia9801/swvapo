@@ -10,13 +10,17 @@ declare global {
 
 function getSupabaseClient() {
   if (!globalThis.__swva_supabase__) {
-    globalThis.__swva_supabase__ = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
+    globalThis.__swva_supabase__ = createClient(
+      SUPABASE_URL,
+      SUPABASE_ANON_KEY,
+      {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+        },
       },
-    });
+    );
   }
 
   return globalThis.__swva_supabase__;
@@ -35,7 +39,7 @@ export const OPTIONAL = {
   puppy_events: "puppy_events",
 };
 
-export function fmtMoney(n: any) {
+export function fmtMoney(n: unknown) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -43,7 +47,7 @@ export function fmtMoney(n: any) {
   }).format(Number(n || 0));
 }
 
-export function fmtDate(d: any) {
+export function fmtDate(d: string | number | Date | null | undefined) {
   if (!d) return "";
   return new Date(d).toLocaleDateString("en-US", {
     month: "short",
@@ -52,9 +56,17 @@ export function fmtDate(d: any) {
   });
 }
 
-export function pick(o: any, keys: string[]) {
+export function pick(
+  o: Record<string, unknown> | null | undefined,
+  keys: string[],
+) {
   for (const k of keys) {
-    if (o && o[k] !== undefined && o[k] !== null && String(o[k]).trim() !== "") {
+    if (
+      o &&
+      o[k] !== undefined &&
+      o[k] !== null &&
+      String(o[k]).trim() !== ""
+    ) {
       return o[k];
     }
   }

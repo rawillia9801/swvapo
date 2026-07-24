@@ -1,17 +1,18 @@
 "use client";
 
 import React from "react";
-import Link from "next/link";
-import { Mail, Menu } from "lucide-react";
+import { Bell, Menu, PawPrint } from "lucide-react";
 
 export function PortalMobileHeader({
   pageTitle,
-  unreadMessageCount,
+  notificationCount,
   onOpenDrawer,
+  onOpenNotifications,
 }: {
   pageTitle: string;
-  unreadMessageCount: number;
+  notificationCount: number;
   onOpenDrawer: () => void;
+  onOpenNotifications: () => void;
 }) {
   return (
     <header className="glass-nav sticky top-0 z-30 px-4 py-3 md:px-6 lg:hidden">
@@ -19,33 +20,35 @@ export function PortalMobileHeader({
         <button
           type="button"
           onClick={onOpenDrawer}
-          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--portal-border)] bg-white text-[var(--portal-text)] shadow-sm"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--portal-border)] bg-white/92 text-[var(--portal-text)] shadow-sm transition hover:border-[var(--portal-border-strong)]"
           aria-label="Open portal navigation"
         >
           <Menu className="h-5 w-5" />
         </button>
 
         <div className="min-w-0 flex-1 text-center">
-          <div className="truncate text-lg font-extrabold tracking-[-0.03em] text-[var(--portal-accent)]">
-            My Puppy Portal
+          <div className="flex items-center justify-center gap-2 truncate text-base font-extrabold tracking-[-0.03em] text-[var(--portal-accent-strong)]">
+            <PawPrint className="h-4 w-4" />
+            Puppy Portal
           </div>
-          <div className="mt-1 truncate text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
+          <div className="mt-0.5 truncate text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--portal-text-muted)]">
             {pageTitle}
           </div>
         </div>
 
-        <Link
-          href="/portal/messages"
-          className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--portal-border)] bg-white text-[var(--portal-text)] shadow-sm"
-          aria-label="Open messages"
+        <button
+          type="button"
+          onClick={onOpenNotifications}
+          className="relative inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--portal-border)] bg-white/92 text-[var(--portal-text)] shadow-sm transition hover:border-[var(--portal-border-strong)]"
+          aria-label="Open notifications"
         >
-          <Mail className="h-5 w-5" />
-          {unreadMessageCount > 0 ? (
-            <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[linear-gradient(90deg,#7c5cff_0%,#f043a2_100%)] px-1 text-[9px] font-bold text-white">
-              {Math.min(unreadMessageCount, 9)}
+          <Bell className="h-5 w-5" />
+          {notificationCount > 0 ? (
+            <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[#fffaf5] bg-[var(--portal-accent)] px-1 text-[9px] font-bold text-white">
+              {Math.min(notificationCount, 9)}
             </span>
           ) : null}
-        </Link>
+        </button>
       </div>
     </header>
   );
